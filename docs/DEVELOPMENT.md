@@ -160,22 +160,22 @@ For Windsurf / Cursor adapters, run `bash scripts/hook-adapters/install.sh` to c
 
 `@contextos/cli` is a regular workspace TypeScript package — same `tsc → dist/` pipeline as `@contextos/shared` and every other package. There is no separate build tool. Module 08a Decision 5 ships it as a published npm package (`@contextos/cli`); the publish step itself is out of 08a scope.
 
-For contributors working on the CLI itself, **do not** `npm i -g @contextos/cli` from a published version — you'd shadow your local edits with the registry copy. Instead, invoke the workspace bin directly:
+For contributors working on the CLI itself, **do not** `npm i -g @contextos/cli` from a published version — you'd shadow your local edits with the registry copy. Instead, invoke the workspace `cli` script:
 
 ```bash
 # One-time per branch
 pnpm --filter @contextos/cli build       # tsc — writes packages/cli/dist/
 
 # Run any subcommand against the freshly-built dist
-pnpm --filter @contextos/cli exec contextos --help
-pnpm --filter @contextos/cli exec contextos doctor
-pnpm --filter @contextos/cli exec contextos init --dry-run
+pnpm --filter @contextos/cli cli --help
+pnpm --filter @contextos/cli cli doctor
+pnpm --filter @contextos/cli cli init --dry-run
 
 # Faster edit/run loop — runs from src/ via tsx, no rebuild needed
 pnpm --filter @contextos/cli dev doctor
 ```
 
-The `pnpm --filter @contextos/cli exec <cmd>` form resolves the workspace's `node_modules/.bin/contextos` symlink (which `pnpm install` wires when the package's `bin` field is present), so it always invokes the dist you just built. The `dev <cmd>` script runs the command via `tsx` against `src/index.ts` so file edits land without a rebuild — useful when iterating on a single command. Use the built form for end-to-end tests and snapshot assertions.
+The `cli` script in `packages/cli/package.json` runs `node dist/index.js`. We use a script (not `pnpm exec contextos`) because pnpm does not auto-link a workspace package's *own* `bin` into `node_modules/.bin/` — `bin` is a contract for downstream installers (`npm i -g`, the published-tarball path), not a self-link in workspace dev. The script keeps the invocation workspace-aware (no hard-coded path; `pnpm --filter <pkg>` runs in the package's cwd) without depending on a symlink that isn't created. The `dev <cmd>` script runs via `tsx` against `src/index.ts` so file edits land without a rebuild — useful when iterating on a single command. Use the built form for end-to-end tests and snapshot assertions.
 
 `contextos init` writes to `~/.contextos/` (or `$XDG_CONFIG_HOME/contextos/` on Linux when set, per Decision 2) and to the cwd's `<repo>/.{contextos.json,mcp.json,env}`. When iterating, run `init --dry-run` first to print what it would write without touching disk. Re-running `init` against an already-initialised project is non-destructive by default (Decision 3 — idempotent merge); use `--force` only when you want to overwrite user edits with the baseline.
 
@@ -184,7 +184,7 @@ When testing daemon lifecycle (`start` / `stop`), prefer a tmp project root and 
 ```bash
 HOME=/tmp/contextos-dev-home \
 XDG_CONFIG_HOME=/tmp/contextos-dev-xdg \
-pnpm --filter @contextos/cli exec contextos init --project-slug devtest
+pnpm --filter @contextos/cli cli init --project-slug devtest
 ```
 
 ### Why I can't boot the binaries against Postgres (F11)

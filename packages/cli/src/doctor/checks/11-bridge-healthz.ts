@@ -4,8 +4,14 @@ import { probeHealthz } from './10-mcp-healthz.js';
 export const bridgeHealthzCheck: Check = {
   id: 11,
   name: 'Hooks Bridge HTTP /healthz reachable',
-  severity: 'yellow',
+  severity: 'red',
   async run(ctx) {
-    return probeHealthz(`http://127.0.0.1:${ctx.bridgePort}/healthz`, ctx.timeoutMs - 200, 'Hooks Bridge');
+    return probeHealthz({
+      url: `http://127.0.0.1:${ctx.bridgePort}/healthz`,
+      timeoutMs: ctx.timeoutMs - 200,
+      label: 'Hooks Bridge',
+      contextosHome: ctx.contextosHome,
+      unitName: 'hooks-bridge',
+    });
   },
 };

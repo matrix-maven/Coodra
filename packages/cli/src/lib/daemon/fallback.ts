@@ -3,6 +3,7 @@ import { openSync } from 'node:fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { resolveContextosPidsDir } from '../contextos-home.js';
+import { isProcessAlive } from '../pid-status.js';
 import type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
 export interface FallbackDaemonManagerOptions {
@@ -116,7 +117,7 @@ export class FallbackDaemonManager implements DaemonManager {
     if (pid === null) {
       return { name: unitName, state: 'stopped' };
     }
-    if (this.isProcessAlive(pid)) {
+    if (isProcessAlive(pid)) {
       return { name: unitName, state: 'running', pid };
     }
     // Stale PID file.
@@ -133,18 +134,6 @@ export class FallbackDaemonManager implements DaemonManager {
     }
     const names = entries.filter((e) => e.endsWith('.unit.json')).map((e) => e.replace(/\.unit\.json$/, ''));
     return Promise.all(names.map((n) => this.status(n)));
-  }
-
-  private isProcessAlive(pid: number): boolean {
-    try {
-      // Signal 0 is the POSIX "no-op" — checks for process existence.
-      process.kill(pid, 0);
-      return true;
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === 'EPERM') return true; // exists but we can't signal it
-      return false;
-    }
   }
 
   private async readPid(unitName: string): Promise<number | null> {
