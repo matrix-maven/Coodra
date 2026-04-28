@@ -81,7 +81,7 @@ describe('resolveServices — env layering', () => {
         'CONTEXTOS_MODE=solo',
         'CLERK_SECRET_KEY=sk_test_replace_me',
         'CLERK_PUBLISHABLE_KEY=pk_test_replace_me',
-        'LOCAL_HOOK_SECRET=' + 'a'.repeat(40),
+        `LOCAL_HOOK_SECRET=${'a'.repeat(40)}`,
         'CONTEXTOS_GRAPHIFY_ROOT=/var/graphify-override',
       ].join('\n'),
       'utf8',

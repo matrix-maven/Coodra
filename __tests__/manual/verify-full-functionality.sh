@@ -197,12 +197,19 @@ fi
 hdr "Step 9 — doctor negative-controls"
 cp "$TEST_HOME/data.db" "$TEST_HOME/data.db.backup"
 
+# `set -o pipefail` (script header) makes a pipeline whose left side
+# exits non-zero (doctor exits 2 on RED) propagate through `if`, even
+# when the right-hand grep matched. Capture output first, then grep
+# against the variable. Same pattern Step 4 already uses for check 20.
+
 # Test A — F7
 sqlite3 "$TEST_HOME/data.db" "DELETE FROM projects WHERE slug='__global__';"
-if contextos doctor 2>&1 | grep -qE "^✗\s+5\."; then
+TEST_A_OUT=$(contextos doctor 2>&1 || true)
+if echo "$TEST_A_OUT" | grep -qE "^✗\s+5\."; then
   green "Test A — delete __global__ → check 5 RED (F7)"
 else
   red "Test A regression — check 5 didn't go red after deleting __global__"
+  echo "$TEST_A_OUT" | grep -E "^[✓⚠✗·]\s+5\." -A 2 || true
   exit 1
 fi
 cp "$TEST_HOME/data.db.backup" "$TEST_HOME/data.db"
@@ -210,10 +217,12 @@ cp "$TEST_HOME/data.db.backup" "$TEST_HOME/data.db"
 # Test B — F8
 ORPHAN_ID=$(sqlite3 "$TEST_HOME/data.db" "SELECT id FROM run_events WHERE run_id IS NOT NULL LIMIT 1;")
 sqlite3 "$TEST_HOME/data.db" "UPDATE run_events SET run_id=NULL WHERE id='$ORPHAN_ID';"
-if contextos doctor 2>&1 | grep -qE "^✗\s+7\."; then
+TEST_B_OUT=$(contextos doctor 2>&1 || true)
+if echo "$TEST_B_OUT" | grep -qE "^✗\s+7\."; then
   green "Test B — orphan run_event → check 7 RED (F8)"
 else
   red "Test B regression — check 7 didn't go red after orphaning run_event"
+  echo "$TEST_B_OUT" | grep -E "^[✓⚠✗·]\s+7\." -A 2 || true
   exit 1
 fi
 cp "$TEST_HOME/data.db.backup" "$TEST_HOME/data.db"
@@ -222,10 +231,12 @@ rm "$TEST_HOME/data.db.backup"
 # Test C — daemons stopped (NOT kill -9; launchd's KeepAlive respawns)
 contextos stop > /dev/null 2>&1
 sleep 1
-if contextos doctor 2>&1 | grep -qE "^⚠\s+11\."; then
+TEST_C_OUT=$(contextos doctor 2>&1 || true)
+if echo "$TEST_C_OUT" | grep -qE "^⚠\s+11\."; then
   green "Test C — contextos stop → check 11 YELLOW (ECONNREFUSED)"
 else
   red "Test C regression — check 11 didn't go yellow after stop"
+  echo "$TEST_C_OUT" | grep -E "^[✓⚠✗·]\s+1[01]\." -A 2 || true
   exit 1
 fi
 contextos start > /dev/null 2>&1
