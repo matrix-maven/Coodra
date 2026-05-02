@@ -25,6 +25,8 @@ export async function seedFeaturePack(options: SeedFeaturePackOptions): Promise<
   const dir = join(options.cwd, 'docs', 'feature-packs', options.slug);
   const metaPath = join(dir, 'meta.json');
   const specPath = join(dir, 'spec.md');
+  const implementationPath = join(dir, 'implementation.md');
+  const techstackPath = join(dir, 'techstack.md');
   const outcomes: WriteOutcome[] = [];
 
   if (!options.dryRun) await mkdir(dir, { recursive: true });
@@ -36,8 +38,17 @@ export async function seedFeaturePack(options: SeedFeaturePackOptions): Promise<
     sourceFiles: sourceFiles.length > 0 ? sourceFiles : ['**/*'],
     isActive: true,
   };
+  // Phase 3 Fix C (2026-05-02): seed implementation.md + techstack.md
+  // alongside spec.md + meta.json. Pre-Phase-3 only meta.json + spec.md
+  // were written, but apps/mcp-server/src/lib/feature-pack.ts:139-144
+  // requires all four files (Promise.all → ENOENT on missing). Result:
+  // every fresh `contextos init` shipped with `get_feature_pack` broken
+  // out of the gate. Hooks-bridge tolerates missing optional files via
+  // its own readMaybe loader, but the MCP-side roundtrip did not.
   outcomes.push(await writeIfAbsent(metaPath, `${JSON.stringify(meta, null, 2)}\n`, options));
   outcomes.push(await writeIfAbsent(specPath, buildSpecSkeleton(options.slug), options));
+  outcomes.push(await writeIfAbsent(implementationPath, buildImplementationSkeleton(options.slug), options));
+  outcomes.push(await writeIfAbsent(techstackPath, buildTechstackSkeleton(options.slug, options.languages), options));
   return outcomes;
 }
 
@@ -73,6 +84,53 @@ function buildSpecSkeleton(slug: string): string {
     '- [ ] TODO',
     '',
     '## 3. Non-goals',
+    '',
+    'TODO',
+    '',
+  ].join('\n');
+}
+
+function buildImplementationSkeleton(slug: string): string {
+  return [
+    `# ${slug} — Implementation`,
+    '',
+    '> **Status:** TODO — fill in once a first implementation slice lands.',
+    '',
+    '## 1. Architecture summary',
+    '',
+    'TODO — describe the load-bearing modules and how they fit together.',
+    '',
+    '## 2. Build order',
+    '',
+    '- [ ] TODO',
+    '',
+    '## 3. Key risks',
+    '',
+    'TODO',
+    '',
+  ].join('\n');
+}
+
+function buildTechstackSkeleton(slug: string, languages: readonly Language[]): string {
+  const detectedLanguages = languages.length > 0 ? languages.join(', ') : 'TODO (no languages detected at init time)';
+  return [
+    `# ${slug} — Tech Stack`,
+    '',
+    '> **Status:** TODO — fill in once tech choices are pinned.',
+    '',
+    '## 1. Languages detected at init',
+    '',
+    `- ${detectedLanguages}`,
+    '',
+    '## 2. Frameworks / runtimes',
+    '',
+    'TODO',
+    '',
+    '## 3. External services',
+    '',
+    'TODO',
+    '',
+    '## 4. Pinned dependencies (and why)',
     '',
     'TODO',
     '',
