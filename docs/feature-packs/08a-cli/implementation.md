@@ -6,166 +6,275 @@
 
 > **Integration-harness invariant.** The M03 closeout established two manual integration harnesses under `__tests__/manual/` (`verify-f5-live.ts`, `verify-phase5-closed-loop.ts` — see `__tests__/manual/README.md`). Every CLI slice that touches the DB, the bridge config files, or the auto-migrate path must leave both harnesses green. Each slice's "Tests" section names the harness call it ran.
 
-The plan splits Module 08a into 10 slices (S0–S9). Each slice is one feat commit on `feat/08a-cli`. Squash-merge to `main` only after the final S9 Context Pack lands.
+> **Status — 2026-05-02 reconciliation.** Every slice in the original 10-slice plan (S0–S9) landed. The bulk landed in PR #2 (squashed merge `93736f6`, 2026-04-27); five same-merge integration-walk fixes followed the user-visible S9. Standalone post-merge commits (`64e4067`, `313d6f0`, `6d16b2c`, `6bc0cad`, `0c0768a`, `d7a3238`, `907db6a`) extended the CLI surface as Module 03.1 / functest-cleanup / Module 04a landed. Every landed slice below is rewritten in "what landed" style following the convention M02 used for §S7a/§S7b/§S7c/§S8. **No remaining surface in the original M08a slice plan.** Cross-cutting work post-M08a (Phase 2 autonomy defaults `dec_83ba10c1`, Phase 3 `@contextos/*` → `@coodra/contextos-*` rename + Fixes A–E) is uncommitted at HEAD `907db6a` and lives in M02/M03/cross-cutting scope, not as new M08a slices.
 
-## S0 — Open-question sign-off + branch open ✓ (landed 2026-04-27)
+The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one logical commit on `feat/08a-cli`; the branch squash-merged to `main` as PR #2 (`93736f6`).
 
-User's reply locked all five OQs at the recommended answer. Same-commit edits to `spec.md` §11 convert each "Recommendation preview" into Decision N. `feat/08a-cli` opens off `feat/03-hooks-bridge` HEAD (`53be96a` — M03 work + M08a triplet). DEVELOPMENT.md gains a "### Iterating on the CLI (Module 08a)" subsection per the kickoff add-on (contributor dev-loop without `npm i -g`).
+## S0 — Open-question sign-off + spec/implementation/techstack triplet (landed 2026-04-25, commit `53be96a`)
 
-**Commit:** `docs(08a-cli): lock open-question answers from kickoff sign-off`.
+**Scope:** Lock the five `spec.md` §11 open questions before any code lands. Refine the placeholder triplet from `5b6b13d` (2026-04-24) into a real spec/implementation/techstack set, with each "Recommendation preview" in §11 converted to Decision N.
 
-## S1 — Package scaffold
+**What landed:**
 
-Create `packages/cli/` (workspace package) with:
+- `docs/feature-packs/08a-cli/spec.md` — 11 sections covering the 7-command surface, auto-migrate semantics, `~/.contextos/` layout, the agent-vs-human boundary callouts, and the five OQ resolutions baked in as Decisions 1–5.
+- `docs/feature-packs/08a-cli/implementation.md` — the 10-slice plan (this file, pre-rewrite).
+- `docs/feature-packs/08a-cli/techstack.md` — pinned libraries: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `tmp-promise@3.0.3`, `glob@11.0.4`, plus workspace deps on `@contextos/{shared,db}`.
+- `docs/feature-packs/08a-cli/meta.json` — `{ slug, parentSlug: '01-foundation', sourceFiles, isActive: true }`.
+- `system-architecture.md` §13 amendment — PID location + native daemon-manager registration.
+- `system-architecture.md` §1 amendment — XDG resolution for `~/.contextos/`.
+- `essentialsforclaude/08-implementation-order.md` — confirms M08a slot between Modules 03 and 04 and lists the four out-of-every-module scope items (no billing, no marketing site, hosted-only team, Gemini-not-Anthropic).
+- `DEVELOPMENT.md` — new "Iterating on the CLI (Module 08a)" subsection for contributor dev-loop without `npm i -g`.
 
-- `packages/cli/package.json` — `name: "@contextos/cli"`, `bin: { "contextos": "./dist/index.js" }`, `type: "module"`, `engines.node: ">=22.16.0"`. Pinned deps per `techstack.md`. Workspace deps on `@contextos/shared` and `@contextos/db`.
-- `packages/cli/tsconfig.json` — extends repo base, `rootDir=src`, `outDir=dist`.
-- `packages/cli/tsconfig.typecheck.json` — includes tests.
-- `packages/cli/vitest.config.ts` — v8 coverage, 80% thresholds.
-- `packages/cli/src/index.ts` — `#!/usr/bin/env node` shebang, top-level commander program, no command bodies yet (each command exists as a stub that prints "not yet implemented" and exits 99).
+**Tests:** docs only — no test work.
 
-**Commit:** `feat(cli): scaffold @contextos/cli — workspace package + commander surface`.
+**Gate:** none required (docs).
 
-## S2 — `contextos --help` and `--version`
+**Commit:** `docs(feature-pack): Module 08a CLI — spec/implementation/techstack` (`53be96a`).
 
-Wire commander metadata, version pulled from `package.json` at build time (no runtime `JSON.parse` of `package.json` — ship a generated `src/version.ts` written by a `prebuild` script). Each subcommand registers its `--help` block.
+## S1 — Package scaffold (landed 2026-04-27, squashed in `93736f6`)
 
-Tests: snapshot tests for `--help` output (locked text), `--version` returns the correct semver.
+**Scope:** Create `packages/cli/` workspace package with the commander surface and stub command bodies (each subcommand exits 99 with "not yet implemented"). Pinned deps per techstack.md, workspace deps on `@contextos/{shared,db}`.
 
-**Commit:** `feat(cli): --help and --version surfaces with snapshot-locked text`.
+**What landed:**
 
-## S3 — `contextos doctor` (the diagnostic engine + 20 checks per spec §4.5)
+- `packages/cli/package.json` — `name: "@contextos/cli"`, `bin: { "contextos": "./dist/index.js" }`, `type: "module"`, `engines.node: ">=22.16.0 <23"`. Pinned: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `glob@11.0.4`, `tmp-promise@3.0.3`. Workspace: `@contextos/db`, `@contextos/shared`.
+- `packages/cli/tsconfig.json` — extends repo base, `rootDir=src`, `outDir=dist`. `tsconfig.typecheck.json` includes `__tests__/`.
+- `packages/cli/vitest.config.ts` + `packages/cli/vitest.integration.config.ts` — v8 coverage, 80% line-threshold; integration variant boots testcontainers.
+- `packages/cli/src/{index,program}.ts` — `#!/usr/bin/env node` shebang, top-level commander program with the 7 subcommands wired (`init`, `start`, `stop`, `status`, `doctor`, `cloud-migrate`, `team {login,logout}`), each handler stubbed via the `runXxxCommand` factories in `src/commands/*.ts`.
 
-Implement `doctor` as a registry of `Check` records (`{ id, name, severity, run: (ctx) => Promise<CheckResult> }`) and a runner that executes them in parallel with a per-check timeout (default 2s, configurable via `--timeout-ms`).
+**Tests added:**
 
-The 20 checks specified in `spec.md` §4.5 land here. Most are environment checks; six are the M03 post-merge invariant checks that distinguish this CLI from a generic dev-tool installer:
+- `__tests__/unit/program.test.ts` — asserts each subcommand registers, `--help` lists 7 commands.
+- Per-command stub tests later replaced wholesale as bodies landed in S3–S8.
 
-- **Check 5** — `__global__` sentinel project exists (F7 closure live).
-- **Check 6** — recent `policy_decisions` rows have the F14 4-segment idempotency key shape.
-- **Check 7** — recent `run_events` rows have `run_id NOT NULL` when their session has a `runs` row (F8).
-- **Check 8** — bridge `pre_tool_use_decision` log lines from the last 24h include `runId` (F15 spot-check).
-- **Check 13** — Audit-write durability YELLOW until M03.1 lands. Permanent yellow until that module ships; the check exists so M03.1's landing flips this to GREEN automatically.
-- **Check 12** — project registered for cwd (`.contextos.json` resolves) — the F7-related governance pre-condition.
+**Gate:** `pnpm install --frozen-lockfile` clean, `pnpm --filter @contextos/cli typecheck`, `pnpm --filter @contextos/cli build` produces `dist/index.js`, `node dist/index.js --help` enumerates the 7 commands.
 
-Each check is a separate file under `packages/cli/src/doctor/checks/<id>.ts` so tests target one check at a time. The runner is `src/doctor/run.ts`.
+**Squashed merge:** `feat(cli): scaffold @contextos/cli — workspace package + commander surface` (in `93736f6`).
 
-Output format: numbered list with green ✓ / yellow ⚠ / red ✗ glyphs, one-line remediation per non-green, like the M03 F-fix register table format. `--json` emits `{ checks: [{ id, name, severity, status, remediation? }], summary: { ok, warn, fail }, version }`. Reds → exit 2; yellows-only → exit 1; all-green → exit 0.
+## S2 — `--help` and `--version` surfaces (landed 2026-04-27, squashed in `93736f6`)
 
-Tests:
-- Each check has its own unit test exercising green AND each failure path. Tests for checks 5–8 use a real testcontainers SQLite fixture with seeded F7/F8/F14 fixtures (correct + broken).
-- Integration test: spawn `node dist/index.js doctor --json` against a tmpdir set up to fail multiple checks; assert the JSON output structure and exit code.
-- Integration-harness invariant: re-run `__tests__/manual/verify-phase5-closed-loop.ts` after this slice; doctor must report all-green when the harness has just succeeded.
+**Scope:** Wire commander metadata + version pulled from `package.json` at build time via a generated `src/version.ts`. Each subcommand registers its `--help` block.
 
-**Commit:** `feat(cli): doctor — 20-check diagnostic engine surfacing F7/F8/F14/F15 invariants`.
+**What landed:**
 
-## S4 — Project + IDE detection module
+- `packages/cli/scripts/sync-version.mjs` — wired as `prebuild`. Reads `package.json#version`, rewrites `src/version.ts` with `export const VERSION = '<semver>'`. Banner comment forbids hand edits.
+- `packages/cli/src/version.ts` — committed for IDE awareness; CI guards drift via the sync test.
+- `packages/cli/src/program.ts` — commander `name`, `description`, `version`, `helpOption`, plus per-subcommand `description` / `option` declarations.
 
-`packages/cli/src/lib/detect.ts` exposes pure functions:
+**Tests added:**
 
-- `detectProjectRoot(cwd: string): Promise<string>` — walks up looking for `package.json`, `pyproject.toml`, `Cargo.toml`, `.git`. Returns the deepest match.
-- `detectLanguages(root: string): Promise<Language[]>` — file-extension scan with Glob, returning a deduped list.
-- `detectIDE(): Promise<IDE[]>` — checks `~/.claude/`, `~/.cursor/`, `~/.windsurf/` existence.
-- `detectExistingMCPConfig(root: string): Promise<MCPConfig | null>` — reads `.mcp.json` if present, validates with Zod, returns parsed object or null.
+- `__tests__/unit/help-output.test.ts` — snapshot-locks the `--help` text.
+- `__tests__/unit/version-sync.test.ts` — reads `package.json` and asserts `src/version.ts#VERSION` matches; CI fails on drift.
 
-Every function pure (no side effects). Every function unit-tested against fixture directories under `__tests__/fixtures/`.
+**Gate:** snapshots match, version test green.
 
-**Commit:** `feat(cli): detect — project root, languages, IDE, existing .mcp.json`.
+**Squashed merge:** `feat(cli): --help and --version surfaces with snapshot-locked text` (in `93736f6`).
 
-## S5 — `contextos init` (the first-time setup command)
+## S3 — `contextos doctor` — diagnostic engine + 20 checks (landed 2026-04-27, squashed in `93736f6`)
 
-Wires S4's detection into a command that:
+**Scope:** Implement `doctor` as a `Check` registry + parallel runner with per-check timeout (default 2s, `--timeout-ms` configurable). Land the 20 checks specified in `spec.md` §4.5, including six post-M03 invariant checks (5/6/7/8/12/13).
 
-1. Calls `detectProjectRoot` → fails with code 1 + clear message if no root found.
-2. Calls `detectLanguages` + `detectIDE` → prints the detected facts (each on a `✓ Detected ...` line).
-3. Resolves `~/.contextos/` location per spec §11 Decision 2 (XDG on Linux when `$XDG_CONFIG_HOME` is set, `$HOME/.contextos/` default elsewhere) via `env-paths` configured `{ suffix: '' }`.
-4. Resolves `--project-slug` (CLI flag) OR derives from `path.basename(root)` (sanitized to slug-safe chars).
-5. Creates `~/.contextos/{data.db,logs/,pids/}` per `spec.md §4.1`. Runs auto-migrate on `data.db` via `@contextos/db::migrateSqlite`. Calls `ensureGlobalProject(handle)` to seed the F7 sentinel project.
-6. Reads existing `.mcp.json` if present; collision behavior per spec §11 Decision 3 (idempotent merge by default — inspect, leave alone if correct, merge if drift detected; `--force` overrides to baseline). Each file's outcome stamped with `action: 'wrote' | 'merged' | 'unchanged' | 'forced'` in the `--json` output for CI consumers.
-7. The ContextOS `.mcp.json` entry uses the stdio command form. Path resolution per spec §11 Decision 5 (standalone npm package `@contextos/cli`): a global `npm i -g @contextos/cli` install resolves to the `contextos` bin in the global node_modules; `npx`-style invocation embeds the npx-cache path (caught as YELLOW by S3 doctor check 14).
-8. Writes `<repo>/.contextos.json` with `{ "projectSlug": "<derived or --project-slug>" }` so the bridge's `projectSlugResolver` finds it.
-9. Writes/merges `<repo>/.env` with the solo-mode sentinels listed in `spec.md §4.1`. Existing `.env` lines are preserved; only ContextOS-specific keys are added/updated. Generates a fresh `LOCAL_HOOK_SECRET` via `crypto.randomBytes(32).toString('hex')` for the solo-mode bypass — never a literal sentinel string per `essentialsforclaude/02-agent-human-boundary.md` §2.4.
-10. Creates `docs/feature-packs/<slug>/` if absent. Writes `meta.json` with `{ slug, parentSlug: null, sourceFiles: [auto-derived from detected languages], isActive: true }`. Writes a `spec.md` skeleton (200-line template with TODO markers).
-11. Optionally invokes Graphify scan (skipped if `--no-graphify` or if the binary is absent on PATH; logs YELLOW warning in that case but does not fail). When run, the graph output enriches the seeded `spec.md` via a deterministic template — no LLM calls in 08a.
-12. Calls `start` internally unless `--dry-run`.
-13. Prints the final ready banner with the four bullet points from `spec.md` §5.
+**What landed:**
 
-Idempotency contract per spec §11 Decision 3 (idempotent merge default; `--force` destructive).
+- `packages/cli/src/doctor/{types,context,run,output}.ts` — `Check` / `CheckResult` / `CheckContext` / `DoctorReport` types, context builder, parallel runner with timeout, formatter (human + JSON).
+- `packages/cli/src/doctor/checks/01-node-version.ts` through `20-local-hook-secret.ts` — one file per check. The six M03-invariant checks:
+  - **Check 5** — `__global__` sentinel project exists (F7 closure live).
+  - **Check 6** — recent `policy_decisions` rows have the F14 4-segment idempotency key shape.
+  - **Check 7** — recent `run_events` rows have `run_id NOT NULL` when their session has a `runs` row (F8). Severity bumped to RED in the same-merge post-S9 fix below.
+  - **Check 8** — bridge `pre_tool_use_decision` log lines from the last 24h include `runId` (F15).
+  - **Check 12** — project registered for cwd (`.contextos.json` resolves) — F7 governance pre-condition.
+  - **Check 13** — Audit-write durability YELLOW until M03.1 lands; permanent-yellow severity is what flips to GREEN automatically when `313d6f0` arrives.
+- `packages/cli/src/doctor/registry.ts` — `ALL_CHECKS` registration. Output: numbered list with green ✓ / yellow ⚠ / red ✗ glyphs, one-line remediation per non-green. `--json` emits `{ checks, summary, version }`. Reds → exit 2; yellows-only → exit 1; all-green → exit 0.
 
-Tests:
-- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.contextos.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run (no destructive writes, expected `action: 'unchanged'` outcomes), `--force` re-run (writes baseline, expected `action: 'forced'` outcomes).
-- Integration test: drive `init` against a tmpdir, then immediately drive the **`__tests__/manual/verify-phase5-closed-loop.ts`** harness against the resulting bridge config — must succeed with one `runs` row (F8/F9/F14 invariants live). This proves `init` produces a config the rest of the system will accept.
-- The `init`-writes-sentinels-only assertion: a unit test parses the written `.env` and fails if any of the disallowed keys (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `GITHUB_APP_*`, `ATLASSIAN_*`, `SUPABASE_*`, `UPSTASH_*`) appear with a non-empty value. Per spec §6 "agent-human boundary."
+**Tests added:**
 
-**Commit:** `feat(cli): init — auto-migrate + ensureGlobalProject + .mcp.json merge + Feature Pack seed + Graphify enrichment`.
+- `__tests__/unit/doctor/checks-fixture.test.ts` plus per-check unit suites — green path + each failure path. Checks 5–8 use a real testcontainers SQLite fixture with seeded F7/F8/F14 fixtures (correct + broken).
+- `__tests__/integration/doctor-binary.test.ts` — spawns `node dist/index.js doctor --json` against tmpdirs hitting multiple failure modes; asserts JSON shape + exit code.
 
-## S6 — Daemon manager abstraction
+**Gate:** `verify-phase5-closed-loop.ts` reports doctor all-green when the harness has just succeeded.
 
-`packages/cli/src/lib/daemon/{launchd,systemd,taskscheduler,fallback}.ts` — one module per platform implementing a common interface:
+**Squashed merge:** `feat(cli): doctor — 20-check diagnostic engine surfacing F7/F8/F14/F15 invariants` (in `93736f6`).
 
-```typescript
-interface DaemonManager {
-  isAvailable(): Promise<boolean>;
-  install(unit: DaemonUnit): Promise<void>;
-  uninstall(unitName: string): Promise<void>;
-  start(unitName: string): Promise<void>;
-  stop(unitName: string): Promise<void>;
-  status(unitName: string): Promise<DaemonStatus>;
-  list(): Promise<DaemonStatus[]>;
-}
-```
+## S4 — Project + IDE detection module (landed 2026-04-27, squashed in `93736f6`)
 
-The `fallback.ts` implementation uses a detached child process + a PID file under `~/.contextos/pids/` and is the implementation that runs on Windows in 08a (Task Scheduler integration deferred).
+**Scope:** `packages/cli/src/lib/detect.ts` — pure functions for project root, language, IDE, and existing `.mcp.json` detection. No side effects beyond filesystem reads.
 
-A factory `selectDaemonManager(): Promise<DaemonManager>` picks the right one for the current OS, falling back to `fallback.ts` when the native manager is unreachable.
+**What landed:**
 
-Each implementation gets unit tests (mocking the underlying CLI: `launchctl`, `systemctl`, `schtasks`) and an opt-in integration test gated behind `CONTEXTOS_TEST_DAEMON=1` that runs against the actual native manager — only enabled in CI on the matching OS runner.
+- `detectProjectRoot(cwd)` — walks up looking for `package.json` / `pyproject.toml` / `Cargo.toml` / `.git`; returns deepest match or original cwd as fallback.
+- `detectLanguages(root)` — file-extension scan via Glob; returns deduped `Language[]`.
+- `detectIDE({ homeDir? })` — checks `~/.claude/`, `~/.cursor/`, `~/.windsurf/` existence; `homeDir` override for tests.
+- `detectExistingMCPConfig(root)` — reads `.mcp.json`, validates with strict Zod schemas (`mcpEntrySchema` + `mcpConfigSchema`), returns parsed object or null.
 
-**Commit:** `feat(cli): daemon — launchd / systemd / Task-Scheduler / fallback abstraction`.
+**Tests added:** `__tests__/unit/detect.test.ts` against fixture directories under `__tests__/fixtures/` for each function.
 
-## S7 — `contextos start` and `contextos stop`
+**Squashed merge:** `feat(cli): detect — project root, languages, IDE, existing .mcp.json` (in `93736f6`).
 
-`start` walks: select daemon manager → install MCP-server unit + Hooks-Bridge unit → start both → wait for `/health` to return ok within 10 s per service → print success.
+## S5 — `contextos init` (landed 2026-04-27, squashed in `93736f6`)
 
-`stop` walks: list installed ContextOS units → stop each → optionally uninstall (`--uninstall` flag). Idempotent.
+**Scope:** First-time setup command per spec.md §11 Decision 3 (idempotent merge default; `--force` overrides to baseline). Wires S4 detection into a 13-step flow that lays down `~/.contextos/`, `.contextos.json`, `.mcp.json`, `.env`, `~/.claude/settings.json`, the seeded Feature Pack folder, and (unless `--dry-run`) calls `start` internally.
 
-Health-check polling uses `@contextos/shared`'s logger and an exponential backoff capped at 1s.
+**What landed:**
 
-Tests: integration tests in CI on macOS + Linux runners exercising the full `start` → `status` → `stop` cycle against a real (small) MCP server binary checked into a fixtures directory. Tests skip on Windows runner with a TODO comment.
+- `packages/cli/src/commands/init.ts` — full flow.
+- `packages/cli/src/lib/init/{contextos-json,mcp-merge,env-merge,claude-settings-merge,feature-pack-seed,types}.ts` — one writer per file; each returns a `WriteOutcome` of `'wrote' | 'merged' | 'unchanged' | 'forced'` so CI consumers can read progress from `--json` output.
+- `packages/cli/src/lib/contextos-home.ts` + `runtime-paths.ts` — XDG-aware `~/.contextos/` resolver (Linux uses `$XDG_CONFIG_HOME` when set), bundled-mcp-server runtime path resolution.
+- `packages/cli/src/lib/open-local-db.ts` — opens `data.db` with the sqlite-vec extension loaded.
+- Auto-migrate via `@contextos/db::migrateSqlite`. Calls `ensureGlobalProject(handle)` for the F7 sentinel + `ensureProject(handle, { slug })` for the user's slug (the latter wired by the in-PR cleanup commit `fix(cli,db): seed projects row in init` inside the squashed merge — see §Post-S9 below).
+- Generates a fresh `LOCAL_HOOK_SECRET` via `crypto.randomBytes(32).toString('hex')` per `essentialsforclaude/02-agent-human-boundary.md` §2.4 — never a literal sentinel string.
+- Feature Pack seeded with `meta.json` + `spec.md` skeleton (200-line template with TODO markers).
+- Optional Graphify scan (skipped if `--no-graphify` or absent on PATH); logs YELLOW on absence, never fails the run.
 
-**Commit:** `feat(cli): start + stop — daemon lifecycle for MCP server and Hooks Bridge`.
+**Tests added:**
 
-## S8 — `contextos status` (unified) + `contextos team login` / `team logout` stubs
+- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.contextos.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run (`action: 'unchanged'`), `--force` re-run (`action: 'forced'`).
+- `__tests__/integration/init.test.ts` — greenfield + idempotent + `--force` + `.mcp.json` preservation + `--dry-run` + secrets-leak invariant + `EXIT_USER_RECOVERABLE` on no-marker.
+- The `init`-writes-sentinels-only assertion: parses the written `.env` and fails if any of the disallowed keys (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `GITHUB_APP_*`, `ATLASSIAN_*`, `SUPABASE_*`, `UPSTASH_*`) appears with a non-empty value. Per spec §6 agent-human boundary.
 
-`status` is the **unified state probe** described in `spec.md §4.6` — it merges:
-- **Project state**: read `<cwd>/.contextos.json` → resolve to a `projects` row → fetch the most recent `runs` row + `last decisions.created_at` + scan `context_memory/blockers.md` for non-empty entries.
-- **Service state**: live HTTP probe of MCP server `/healthz` and bridge `/healthz` (no daemon-manager `list()` reliance — that path is fragile per the M02 finding around stale subprocess state).
+**Gate:** drive `init` against a tmpdir, then immediately drive `verify-phase5-closed-loop.ts` against the resulting bridge config — must succeed with one `runs` row (F8/F9/F14 invariants live).
 
-Renders both sections in one screen per the example in `spec.md §4.6`. `--json` emits the structured object. No cache; every call is a live probe (sub-200ms target).
+**Squashed merge:** `feat(cli): init — auto-migrate + ensureGlobalProject + .mcp.json merge + Feature Pack seed + Graphify enrichment` (in `93736f6`).
 
-`team login` / `team logout` per spec §11 Decision 1 — **stubs in 08a**:
-- Both commands exist with the full flag set per `spec.md` §4 + each subcommand's `--help` text.
-- Bodies print "team mode not yet generally available — the OAuth round-trip + `~/.contextos/config.json` write land when team mode is reachable end-to-end (post-Module 04). Track via `pending-user-actions.md`." and exit 2.
-- The OAuth body + secret-write path are explicitly NOT in S8's scope and ship in the team-mode-launch slice without changing the command name, flags, or exit codes.
+## S6 — Daemon manager abstraction (landed 2026-04-27, squashed in `93736f6`)
 
-Tests:
-- `status` against four states: (all running + project registered) / (services down + project registered) / (running + cwd unregistered → falls to `__global__`) / (nothing running, no `init` ever run).
-- `--json` output schema lock (zod-validated test fixture).
+**Scope:** `packages/cli/src/lib/daemon/{launchd,systemd,taskscheduler,fallback}.ts` — one module per platform implementing a common `DaemonManager` interface, plus a `selectDaemonManager()` factory.
+
+**What landed:**
+
+- Common `DaemonManager` interface — `isAvailable / install / uninstall / start / stop / status / list`.
+- `launchd.ts` — macOS, drives `launchctl` via execa.
+- `systemd.ts` — Linux, drives `systemctl --user` via execa.
+- `taskscheduler.ts` — Windows, drives `schtasks` via execa.
+- `fallback.ts` — detached child process + PID file under `~/.contextos/pids/`. Used on Windows in 08a (Task Scheduler integration is a stub) and as the universal fallback.
+- `selectDaemonManager()` picks the right one for `process.platform`, falling back to `fallback.ts` when the native manager is unreachable.
+
+**Tests added:**
+
+- Unit tests for each implementation (mocking the underlying CLI: `launchctl`, `systemctl`, `schtasks`).
+- Opt-in integration test gated behind `CONTEXTOS_TEST_DAEMON=1` that runs against the actual native manager — only enabled in CI on the matching OS runner.
+
+**Squashed merge:** `feat(cli): daemon — launchd / systemd / Task-Scheduler / fallback abstraction` (in `93736f6`).
+
+## S7 — `contextos start` and `contextos stop` (landed 2026-04-27, squashed in `93736f6`)
+
+**Scope:** Daemon lifecycle for MCP server + Hooks Bridge. `start` walks: select daemon manager → install both units → start both → wait for `/healthz` to return ok within 10s. `stop` lists installed ContextOS units → stops each → optionally uninstalls (`--uninstall`).
+
+**What landed:**
+
+- `packages/cli/src/commands/{start,stop}.ts` — full flows. Health-check polling uses `@contextos/shared`'s logger and an exponential backoff capped at 1s.
+- `packages/cli/src/lib/services.ts` — service registry (mcp-server / hooks-bridge / sync-daemon-when-team) + spawn env composition.
+- `packages/cli/src/lib/wait-for-health.ts` — polled probe.
+
+**Tests added:** `__tests__/integration/` suites in CI on macOS + Linux runners exercising `start → status → stop` against a small MCP server binary in fixtures. Windows runner skips with TODO.
+
+**Squashed merge:** `feat(cli): start + stop — daemon lifecycle for MCP server and Hooks Bridge` (in `93736f6`).
+
+## S8 — `contextos status` + `team login` / `team logout` stubs (landed 2026-04-27, squashed in `93736f6`)
+
+**Scope:** Unified state probe per `spec.md §4.6` merging project state (read `<cwd>/.contextos.json`, latest `runs` + recent decisions + non-empty `context_memory/blockers.md`) and service state (live HTTP `/healthz` probe; no daemon-manager `list()` reliance, that path is fragile per the M02 finding around stale subprocess state). `team login` / `team logout` ship as stubs that exit 2 with a deferred-body message per spec.md §11 Decision 1.
+
+**What landed:**
+
+- `packages/cli/src/commands/status.ts` + `team.ts` — full implementations. `status --json` emits a Zod-validated structured object; sub-200ms target on the live probe path.
+- `team {login,logout}` commands have the full flag set per `spec.md` §4 + each subcommand's `--help` text. Bodies print "team mode not yet generally available — the OAuth round-trip + `~/.contextos/config.json` write land when team mode is reachable end-to-end (post-Module 04). Track via `pending-user-actions.md`." and exit 2.
+
+**Tests added:**
+
+- `status` against four states: services running + project registered / services down + project registered / services running + cwd unregistered → falls to `__global__` / nothing run yet.
+- `--json` output schema lock (Zod-validated test fixture).
 - `team login` / `team logout` snapshot tests asserting exit 2 + the deferred-body message + `--help` text.
-- Integration-harness invariant: after `init` + `start` (S7) lands, run `verify-phase5-closed-loop.ts`, then drive `status` — must report all-green and the recent-runs entry must show the closed-loop run.
 
-**Commit:** `feat(cli): status — unified project + service probe; team login / logout per OQ 1`.
+**Gate:** after `init` + `start`, run `verify-phase5-closed-loop.ts`, then drive `status` — must report all-green and the recent-runs entry must show the closed-loop run.
 
-## S9 — README, npm-pack dry run, Module 08a Context Pack
+**Squashed merge:** `feat(cli): status — unified project + service probe; team login / logout per OQ 1` (in `93736f6`).
 
-Write `packages/cli/README.md` covering: install, the 7 commands with one-line each, link back to `docs/feature-packs/08a-cli/spec.md` for the full surface.
+## S9 — README + npm-pack file-list lock + Module 08a Context Pack (landed 2026-04-27, squashed in `93736f6`)
 
-Run `pnpm --filter @contextos/cli pack --dry-run` and verify the tarball includes `dist/`, `package.json`, `README.md`, `LICENSE` and EXCLUDES `src/`, `__tests__/`, `node_modules/`. Lock the file list with a unit test that grep-asserts the output.
+**Scope:** Documentation + tarball-shape lock + Context Pack save.
 
-Save `docs/context-packs/YYYY-MM-DD-module-08a-cli.md` per `essentialsforclaude/08-implementation-order.md` §8.4.
+**What landed:**
 
-**Commit:** `docs(08a-cli): README + npm-pack file-list lock + Module 08a Context Pack`.
+- `packages/cli/README.md` — install instructions, 7-command summary, link back to `docs/feature-packs/08a-cli/spec.md`.
+- `packages/cli/__tests__/integration/npm-pack-lock.test.ts` — runs `pnpm pack --dry-run`, parses the file list, asserts inclusion of `dist/`, `package.json`, `README.md`, `LICENSE` and exclusion of `src/`, `__tests__/`, `node_modules/`, `.tsbuildinfo`.
+- `docs/context-packs/2026-04-27-module-08a-cli.md` — Context Pack saved per `essentialsforclaude/08-implementation-order.md` §8.4.
 
-## After S9 — what gets unblocked
+**Squashed merge:** `docs(08a-cli): README + npm-pack file-list lock + Module 08a Context Pack` (in `93736f6`).
+
+## Post-S9 integration-walk fixes (landed in same merge as S1–S9, `93736f6`)
+
+Five fixes surfaced by walking the M02 + M03 + M08a integration immediately after S9 finished. Squashed into the same merge so main remained green.
+
+- `fix(cli,db): seed projects row in init for the user's slug` — `ensureProject` was added to `init.ts` after S5 closed; pre-fix the bridge resolver fell back to `__global__` for every per-project audit. Closes the post-08a integration walk's first finding.
+- `fix(cli): default CONTEXTOS_LOG_DESTINATION=stderr in the CLI binary` — without this the spawned mcp-server inherited stdout-as-protocol-channel and corrupted its own stdio output.
+- `fix(cli): keep typecheck tsbuildinfo out of dist/` — `npm-pack-lock` test caught the leak; `tsconfig.typecheck.json` redirected to write `.tsbuildinfo` outside `dist/`.
+- `fix(cli): doctor check 7 (F8 invariant) reports RED on orphan run_events` — original check returned YELLOW; severity bumped to RED per the post-walk register.
+- `fix(cli): route daemon stdout/stderr to ~/.contextos/logs/` — `doctor check 8 (F15)` now has logs to read.
+
+## Post-merge cleanup (separate commits)
+
+The next seven commits extended the CLI surface as Module 03.1 / functest-cleanup / Module 04a landed. Each is named here as a doc reconciliation entry; the canonical spec for the surrounding module lives under `docs/feature-packs/<module>/`.
+
+### Post-S9.1 — PID-aware doctor + cli helper script (landed 2026-04-27, commit `64e4067`)
+
+**Scope:** Phase 2 negative-control "stop the bridge" returned YELLOW from doctor checks 10/11; that's no signal for ops. Bumped both checks to be PID-aware: RED on crash (PID file present, process gone), YELLOW on never-started (no PID file). Added `bin/cli` dev helper for running the CLI from source without `npm i -g`, plus a comment clarifying the executable-bit shebang requirement.
+
+**What landed:**
+
+- `packages/cli/src/doctor/checks/{10-mcp-healthz,11-bridge-healthz}.ts` — PID-file inspection + crash/never-started discrimination.
+- `packages/cli/bin/cli` — dev helper.
+
+**Commit:** `chore(post-08a-cleanup): PID-aware doctor + cli helper script + executable-bit comment (#3)` (`64e4067`).
+
+### Post-S9.2 — Module 03.1 outbox extends the CLI surface (landed 2026-04-28, commit `313d6f0`)
+
+**Scope:** Module 03.1 (durable audit outbox) is its own module per `docs/feature-packs/03.1-durable-outbox/`, but its `OutboxWorker` is consumed by the CLI's `start` flow + new doctor checks 21/22/23 lock the pending-jobs depth / oldest / dead-letter invariants. Doctor check 13's audit-write durability flips from permanent YELLOW to GREEN automatically.
+
+**What landed in `packages/cli/`:**
+
+- `packages/cli/src/lib/outbox/{backoff,dispatcher,index,types,worker}.ts` — full OutboxWorker landing.
+- `packages/cli/src/doctor/checks/{21-pending-jobs-depth,22-pending-jobs-oldest,23-pending-jobs-dead-letter}.ts`.
+- `packages/cli/src/doctor/checks/13-audit-durability.ts` — flips to GREEN once M03.1 is wired.
+- `packages/cli/__tests__/unit/outbox/{backoff,worker}.test.ts` (~46 + 374 tests respectively).
+
+**Commit:** `feat(module-03.1): durable audit outbox — pending_jobs + OutboxWorker + crash-safety AC (#4)` (`313d6f0`).
+
+### Post-S9.3 — Layered .env loader (Finding A from 2026-04-28 functest) (landed 2026-04-28, commits `6d16b2c` + `6bc0cad` + `0c0768a`)
+
+**Scope:** Functest 2026-04-28 surfaced Finding A: `init` writes `.env` but `resolveServices` doesn't load it before spawning daemons; the spawned bridge sees empty `LOCAL_HOOK_SECRET`. Two-layer fix landed across three commits.
+
+**What landed in `packages/cli/`:**
+
+- `packages/cli/src/lib/services.ts` — layered `.env` reading (`<cwd>/.env` + `<contextos-home>/.env` overlays); spawn env composition order pinned.
+- `packages/cli/__tests__/unit/services.test.ts` — env-layering test suite (cwd-mocked so it doesn't read the runner's repo-root `.env`).
+- Bridge solo-bypass treats `CONTEXTOS_MODE=solo` the same as the sentinel CLERK key (lands inside `apps/hooks-bridge`, mentioned here for the cwd-CLI repo-root resolution side-effect).
+
+**Commits:**
+
+- `chore(post-functest-cleanup): bridge solo-bypass + dotenv-load + CLI-path repo root + skip broken e2e + docs` (`6d16b2c`).
+- `chore(finding-a-env-loader-path): layered .env loader — closes Finding A from 2026-04-28 functest` (`6bc0cad`).
+- `test(cli): make resolveServices env-layering tests cwd-independent` (`0c0768a`).
+
+### Post-S9.4 — Pipefail-safe doctor + biome template lit (landed 2026-04-28, commit `d7a3238`)
+
+**Scope:** Two quality fixes from `verify-full-functionality.sh` running on a real ContextOS checkout. Step 9's negative-controls used `if contextos doctor 2>&1 | grep -qE "..."` which under `set -o pipefail` masked nonzero exits behind `grep -q`'s success; switched to a temp-file capture pattern. Biome template-literal hint in a doctor output formatter cleaned up.
+
+**Commit:** `chore(verify-full-functionality): pipefail-safe doctor checks + biome template lit` (`d7a3238`).
+
+### Post-S9.5 — Module 04a sync daemon + cloud-migrate command (landed 2026-04-28, commit `907db6a`)
+
+**Scope:** Module 04a (sync daemon + self-host packaging) is its own module per `docs/feature-packs/04a-sync-daemon/`, but its sync-aware doctor checks + the new `cloud-migrate` command land inside `packages/cli/`.
+
+**What landed in `packages/cli/`:**
+
+- `packages/cli/src/commands/cloud-migrate.ts` — applies Drizzle Postgres migrations to the cloud `DATABASE_URL` for team-mode self-host operators. Idempotent, refuses to run if unknown tables contain data (Module 04a OQ4 closure).
+- `packages/cli/src/doctor/checks/{24-cloud-reachability,25-sync-queue-depth,26-sync-lag,27-sync-dead-letter}.ts` — team-mode-only invariants for the sync daemon (essential-set tagging unchanged; these stay opt-in via `--full`).
+- `packages/cli/src/doctor/checks/{17-port-3100,18-port-3101}.ts` extended for the sync-daemon port surface.
+- `packages/cli/src/lib/services.ts` extended with the `sync-daemon` service entry + `--no-sync` start-flag handling.
+- `packages/cli/__tests__/integration/cloud-migrate.test.ts` (~181-line suite) + extensions to `unit/{help-output,outbox/worker,program,services}.test.ts`.
+
+**Commit:** `feat(module-04a): sync daemon + self-host packaging (#5)` (`907db6a`).
+
+## After M08a — what gets unblocked
 
 - Module 04 (Web App) can build its onboarding flow knowing the CLI exists. The web app's "Get Started" page reduces to "run `npx @contextos/cli init` then `contextos team login <invite-token>` (when team mode opens)" — exact CLI name locked per spec §11 Decision 1.
 - Module 07 (VS Code Extension) can shell out to `contextos start` / `stop` / `status` for service control without re-implementing daemon management.
@@ -184,8 +293,19 @@ Slices that touch DB / bridge config / auto-migrate paths must leave both manual
 
 If a harness regresses, the slice does not commit. Fix-or-revert before proceeding.
 
-## Doc reconciliations required in this module's commits
+## Doc reconciliations applied in this module's commits
 
-- `system-architecture.md §13` "Process management: PIDs written to `~/.contextos/pids`" expands to "PIDs written to `~/.contextos/pids/`; on macOS / Linux the daemon is also registered with the platform's native manager (launchd / systemd) so it survives reboot." Same-commit edit per amendment B in S6 or S7.
-- `system-architecture.md §1` is amended at S5 per spec §11 Decision 2 ("`~/.contextos/` may resolve to `$XDG_CONFIG_HOME/contextos/` on Linux when set; defaults to `$HOME/.contextos/` everywhere otherwise").
-- `essentialsforclaude/08-implementation-order.md` §8.1 already inserts Module 08a between 03 and 04 — confirm during S0 that this is still correct after the M03.1 placeholder landed.
+- `system-architecture.md §13` "Process management: PIDs written to `~/.contextos/pids`" expanded to "PIDs written to `~/.contextos/pids/`; on macOS / Linux the daemon is also registered with the platform's native manager (launchd / systemd) so it survives reboot." Same-commit edit per amendment B at S6 / S7.
+- `system-architecture.md §1` amended at S5 per spec §11 Decision 2 ("`~/.contextos/` may resolve to `$XDG_CONFIG_HOME/contextos/` on Linux when set; defaults to `$HOME/.contextos/` everywhere otherwise").
+- `essentialsforclaude/08-implementation-order.md` §8.1 inserts Module 08a between 03 and 04 — confirmed during S0 that this stayed correct after the M03.1 placeholder landed.
+
+## Remaining slice surface
+
+**None in the original M08a plan.** S0–S9 + the same-merge integration-walk fixes + the five post-merge follow-ups are all committed at HEAD `907db6a`.
+
+Cross-cutting work that touched `packages/cli/` after `907db6a` (uncommitted at the time of this 2026-05-02 reconciliation) is **not** new M08a slice surface — it lives in M02/M03 / cross-cutting-fix scope:
+
+- **Phase 2 (decision `dec_83ba10c1`, 2026-05-02)** — bridge-mediated autonomous Feature Pack injection at SessionStart and Context Pack auto-save at SessionEnd. Bulk of the work is in `apps/hooks-bridge/`; `packages/cli/` touches limited to wiring `~/.claude/settings.json` writes through `init`. Saved as MCP context pack `cp_715762ac`.
+- **Phase 3 (rename + Fixes A–E, 2026-05-02)** — workspace-wide `@contextos/*` → `@coodra/contextos-*` rename (252 files), `.strict()` → `.passthrough()` payload schema fix (M02/shared), `~/.claude` gate drop in `init`, `implementation.md` + `techstack.md` seeded by `seedFeaturePack` (M08a), default policy rules seeded after `ensureProject` (M08a wires `ensureDefaultPolicy` from M01-db), drop cyclic devDependencies. Saved as MCP context pack `cp_c21520f2`.
+
+When that cross-cutting work commits, it lands as `feat(workspace): rename @contextos/* → @coodra/contextos-*` + per-fix commits — not as new M08a slices.
