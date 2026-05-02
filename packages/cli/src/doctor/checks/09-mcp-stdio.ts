@@ -1,7 +1,5 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execa } from 'execa';
-import { findRepoRoot } from '../../lib/find-repo-root.js';
+import { bundledMigrationsDir, resolveRuntimeBinary } from '../../lib/runtime-paths.js';
 import type { Check } from '../types.js';
 
 export const mcpStdioCheck: Check = {
@@ -9,24 +7,20 @@ export const mcpStdioCheck: Check = {
   name: 'MCP server reachable on stdio',
   severity: 'red',
   async run(ctx) {
-    const here = dirname(fileURLToPath(import.meta.url));
-    const repoRoot = await findRepoRoot(here);
-    if (repoRoot === null) {
-      return { status: 'skipped', detail: 'cannot locate repo root from CLI install path' };
-    }
-    const binPath = resolve(repoRoot, 'apps/mcp-server/dist/index.js');
-    let exists = true;
+    let binPath: string;
+    let source: 'bundled' | 'monorepo';
     try {
-      const { access } = await import('node:fs/promises');
-      await access(binPath);
-    } catch {
-      exists = false;
-    }
-    if (!exists) {
+      const resolved = await resolveRuntimeBinary('mcp-server');
+      binPath = resolved.path;
+      source = resolved.source;
+    } catch (err) {
       return {
-        status: 'yellow',
-        detail: `mcp-server dist not found at ${binPath}`,
-        remediation: 'Run `pnpm --filter @coodra/contextos-mcp-server build` to produce the stdio binary.',
+        status: 'red',
+        detail: `cannot resolve mcp-server binary: ${(err as Error).message}`,
+        remediation:
+          'For dev contributors: run `pnpm --filter @coodra/contextos-cli build` to produce the bundled runtime ' +
+          'or `pnpm --filter @coodra/contextos-mcp-server build` to produce the monorepo dev dist. ' +
+          'For end users: reinstall `@coodra/contextos-cli` from npm — the bundle ships in the published tarball.',
       };
     }
 
@@ -38,10 +32,19 @@ export const mcpStdioCheck: Check = {
         method: 'initialize',
         params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'doctor', version: '1' } },
       });
+      const childEnv: NodeJS.ProcessEnv = { ...ctx.env, CONTEXTOS_LOG_DESTINATION: 'stderr' };
+      // When probing the bundled binary, set the migrations dir env so the
+      // embedded `@coodra/contextos-db` finds the SQL files in the cli's bundle.
+      if (source === 'bundled') {
+        const bundled = bundledMigrationsDir('sqlite');
+        if (bundled !== null) {
+          childEnv.CONTEXTOS_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
+        }
+      }
       const child = execa('node', [binPath, '--transport', 'stdio'], {
         input: `${message}\n`,
         timeout: Math.min(ctx.timeoutMs - 200, 1500),
-        env: { ...ctx.env, CONTEXTOS_LOG_DESTINATION: 'stderr' },
+        env: childEnv,
         reject: false,
         stdin: 'pipe',
         stdout: 'pipe',
@@ -50,7 +53,7 @@ export const mcpStdioCheck: Check = {
       const result = await child;
       const out = String(result.stdout ?? '');
       if (out.includes('"jsonrpc":"2.0"') && out.includes('"id":1')) {
-        return { status: 'green', detail: 'MCP server responded to initialize' };
+        return { status: 'green', detail: `MCP server responded to initialize (${source} binary)` };
       }
       return {
         status: 'red',

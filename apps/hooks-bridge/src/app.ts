@@ -40,6 +40,17 @@ export interface HookDispatchResult {
   /** What the agent should do — always 'allow' under the stub. */
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
   readonly permissionDecisionReason?: string;
+  /**
+   * Optional Markdown blob the bridge wants Claude Code to fold into
+   * the agent's turn-zero context (decision dec_83ba10c1, 2026-05-02
+   * — system-architecture §16 Pattern 20). Currently emitted only by
+   * the SessionStart handler with the project's Feature Pack body.
+   * The Claude Code adapter forwards this verbatim to
+   * `hookSpecificOutput.additionalContext`. Cursor and Windsurf
+   * adapters ignore the field — neither's hook envelope has a first-
+   * class context-injection slot.
+   */
+  readonly additionalContext?: string;
 }
 
 const allowAllDispatcher: DispatchHookEvent = async () => ({ permissionDecision: 'allow' });
@@ -143,6 +154,11 @@ export function buildApp(deps: BuildAppDeps): AppHandle {
         ...(result.permissionDecisionReason !== undefined
           ? { permissionDecisionReason: result.permissionDecisionReason }
           : {}),
+        // Pattern 20 (decision dec_83ba10c1, 2026-05-02): SessionStart
+        // returns the project's Feature Pack body in this slot so the
+        // agent receives full project context at turn zero without
+        // calling `contextos__get_feature_pack` itself.
+        ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
       },
     });
   });

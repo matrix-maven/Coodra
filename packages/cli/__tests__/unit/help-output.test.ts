@@ -28,8 +28,11 @@ describe('contextos --help (snapshot-locked surface)', () => {
         stop [options]           Stop ContextOS daemons. Idempotent.
         status [options]         Print unified project + service state for the current
                                  cwd.
-        doctor [options]         Run health checks (read-only). See spec §4.5 for the
-                                 20-check registry.
+        doctor [options]         Run health checks (read-only). Defaults to the 9
+                                 essential checks for the Claude Code + solo-mode
+                                 path; use --full for the complete 27-check registry
+                                 (debug invariants, team-mode probes, outbox
+                                 observability).
         cloud-migrate [options]  Apply Drizzle Postgres migrations to the cloud
                                  DATABASE_URL (team-mode self-host). Idempotent.
                                  Refuses to run if unknown tables contain data — see

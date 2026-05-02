@@ -1,19 +1,20 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
-import { basename, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { ensureGlobalProject, ensureProject, migrateSqlite } from '@coodra/contextos-db';
+import { homedir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
+import { ensureDefaultPolicy, ensureGlobalProject, ensureProject, migrateSqlite } from '@coodra/contextos-db';
 import pc from 'picocolors';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveContextosHome, resolveContextosLogsDir, resolveContextosPidsDir } from '../lib/contextos-home.js';
 import { detectIDE, detectLanguages, detectProjectRoot } from '../lib/detect.js';
-import { findRepoRoot } from '../lib/find-repo-root.js';
+import { mergeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { writeContextosJson } from '../lib/init/contextos-json.js';
 import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
 import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
 import { buildContextosMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { openLocalDb } from '../lib/open-local-db.js';
+import { bundledMigrationsDir, resolveRuntimeBinary } from '../lib/runtime-paths.js';
 
 export interface InitOptions {
   readonly projectSlug?: string;
@@ -22,7 +23,15 @@ export interface InitOptions {
   readonly dryRun?: boolean;
   readonly force?: boolean;
   readonly cwd?: string;
+  /** Override `~/.contextos/` location. Tests pass a tmpdir; callers default to the user's resolved home. */
   readonly home?: string;
+  /**
+   * Override `$HOME` for IDE detection AND for `~/.claude/settings.json`
+   * resolution. Tests pass a tmpdir to avoid touching the runner's
+   * real ~/.claude/. Production callers omit this and the runtime
+   * defaults to `os.homedir()`.
+   */
+  readonly userHome?: string;
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -75,8 +84,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
+  const userHome = options.userHome ?? homedir();
   const languages = await detectLanguages(root);
-  const ides = await detectIDE();
+  const ides = await detectIDE({ homeDir: userHome });
 
   io.writeStdout(`${pc.green('✓')} Detected project root: ${root}\n`);
   if (languages.length > 0) {
@@ -99,7 +109,12 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
   io.writeStdout(`${pc.green('✓')} Resolved ContextOS home: ${contextosHome}\n`);
 
-  // Apply migrations + seed F7 sentinel + register the user's project.
+  // Apply migrations + seed F7 sentinel + register the user's project +
+  // seed default policy rules (Phase 3 Fix D, 2026-05-02 — pre-Phase-3
+  // init created the project but inserted zero rules; the evaluator
+  // returned 'allow' for everything because no rule ever matched, so
+  // every fresh install shipped with policy enforcement effectively
+  // off).
   const dataDb = `${contextosHome}/data.db`;
   if (!dryRun) {
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
@@ -107,10 +122,19 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       migrateSqlite(handle.db);
       await ensureGlobalProject(handle);
       const projectResult = await ensureProject(handle, { slug: projectSlug });
+      const policyResult = await ensureDefaultPolicy(handle, projectResult.id);
       io.writeStdout(
         `${pc.green('✓')} Applied migrations + seeded __global__ + registered project '${projectSlug}' ` +
           `(${projectResult.created ? 'new' : 'existing'} id ${projectResult.id})\n`,
       );
+      if (policyResult.created) {
+        io.writeStdout(
+          `${pc.green('✓')} Seeded default policy with ${policyResult.rulesInserted} baseline rules ` +
+            '(deny .env / .git/** / node_modules/** writes; ask before Bash)\n',
+        );
+      } else {
+        io.writeStdout(`${pc.gray('=')} Default policy already present — leaving user customizations intact\n`);
+      }
     } finally {
       handle.close();
     }
@@ -118,10 +142,27 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(`${pc.yellow('⚠')} Dry run: skipping migrations + sentinel seed\n`);
   }
 
-  // Locate the mcp-server binary if we're inside the dev monorepo.
-  const here = dirname(fileURLToPath(import.meta.url));
-  const repoRoot = await findRepoRoot(here);
-  const mcpServerBin = repoRoot !== null ? `${repoRoot}/apps/mcp-server/dist/index.js` : null;
+  // Resolve the bundled mcp-server binary path. dec_83ba10c1
+  // (2026-05-02) made this a hard requirement — pre-decision the npm-
+  // installed path silently fell back to a `npx … mcp-stdio` invocation
+  // that pointed at a subcommand that did not exist. Now we either
+  // resolve a real path or fail loudly with a remediation message.
+  let mcpServerBin: string;
+  try {
+    const resolved = await resolveRuntimeBinary('mcp-server');
+    mcpServerBin = resolved.path;
+    io.writeStdout(`${pc.green('✓')} Resolved mcp-server runtime: ${resolved.source} (${resolved.path})\n`);
+  } catch (err) {
+    io.writeStderr(`${pc.red('contextos init')}: ${(err as Error).message}\n`);
+    return io.exit(EXIT_ENVIRONMENT_PROBLEM);
+  }
+  const bundledMigrations = bundledMigrationsDir('sqlite');
+  // Strip the dialect suffix so the env var conveys the parent dir
+  // (`@coodra/contextos-db::MIGRATIONS_FOLDER` re-appends the dialect). Empty
+  // when the resolver returned null (workspace dev mode) — the bundled
+  // mcp-server falls through to its package-relative default.
+  const migrationsDir =
+    bundledMigrations !== null ? bundledMigrations.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '') : null;
 
   const localHookSecret = randomBytes(32).toString('hex');
   const baselineEnv: BaselineEnv = {
@@ -139,11 +180,44 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   outcomes.push(await writeContextosJson({ cwd: root, projectSlug, force, dryRun }));
 
   // Write/merge .mcp.json with the canonical contextos entry
-  const mcpEntry = buildContextosMcpEntry({ mcpServerBin, clerkSecretKey: baselineEnv.CLERK_SECRET_KEY });
+  const mcpEntry = buildContextosMcpEntry({
+    mcpServerBin,
+    clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
+    migrationsDir,
+  });
   outcomes.push(await mergeMcpJson({ cwd: root, entry: mcpEntry, force, dryRun }));
 
   // Write/merge .env with solo-mode sentinels
   outcomes.push(await mergeEnvFile({ cwd: root, baseline: baselineEnv, force, dryRun }));
+
+  // Write/merge ~/.claude/settings.json hook entries for SessionStart /
+  // SessionEnd / PreToolUse / PostToolUse / Stop. This is the
+  // load-bearing piece for the autonomy promise (decision
+  // dec_83ba10c1, 2026-05-02): without it, Claude Code never POSTs to
+  // the bridge and the bridge-coordination defaults (Pattern 20)
+  // never fire.
+  //
+  // Phase 3 Fix B (2026-05-02): always run the merger, regardless of
+  // whether `~/.claude/` exists at init time. v1 targets Claude Code
+  // exclusively — installing ContextOS *is* the user's intent to wire
+  // Claude Code, even before Claude Code itself has been launched. The
+  // merger creates `~/.claude/` with mode 0700 if it's absent (see
+  // `claude-settings-merge.ts`). Pre-Phase-3 the gate above silently
+  // skipped the merge on machines without an existing `~/.claude/`,
+  // shipping every fresh install of ContextOS without hooks wired.
+  try {
+    const claudeMerge = await mergeClaudeSettings({
+      settingsPath: join(userHome, '.claude', 'settings.json'),
+      bridgePort: Number(baselineEnv.HOOKS_BRIDGE_PORT),
+      force,
+      dryRun,
+    });
+    outcomes.push(claudeMerge.outcome);
+  } catch (err) {
+    io.writeStderr(
+      `${pc.yellow('⚠')} Could not merge ~/.claude/settings.json hook entries: ${(err as Error).message}\n`,
+    );
+  }
 
   // Seed the feature pack folder
   const seedOutcomes = await seedFeaturePack({ cwd: root, slug: projectSlug, languages, force, dryRun });

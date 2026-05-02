@@ -63,10 +63,10 @@ describe('doctor binary — integration spawn', () => {
     };
     expect(parsed.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(parsed.contextosHome).toBe(home);
-    // M03.1 added checks 21/22/23 (pending_jobs depth, oldest, dead-letter);
-    // assertion stayed at 20 from M02 spec §4.5 and went red on origin/main
-    // post-M03.1 squash-merge. Bumped to 23 here.
-    expect(parsed.checks).toHaveLength(23);
+    // dec_83ba10c1 (2026-05-02): default `contextos doctor` runs the 9
+    // essential checks for the Claude Code + solo-mode happy path.
+    // The full 27-check registry runs only with --full.
+    expect(parsed.checks).toHaveLength(9);
     // The empty-home fixture should land at least check 3 (data.db missing) red.
     const c3 = parsed.checks.find((c) => c.id === 3);
     expect(c3?.status).toBe('red');
@@ -86,5 +86,24 @@ describe('doctor binary — integration spawn', () => {
     expect(stdout).toContain('contextos doctor');
     expect(stdout).toContain('1. Node.js >= 22.16.0');
     expect(stdout).toContain('Summary:');
+    // The trimmed default surface tells the user how to see the full one.
+    expect(stdout).toMatch(/9 essential checks shown\. Run `contextos doctor --full`/);
+  }, 30_000);
+
+  it('--full runs the complete 27-check registry', async () => {
+    const result = await execa('node', [distBin, 'doctor', '--json', '--full', '--timeout-ms', '500'], {
+      env: {
+        ...process.env,
+        CONTEXTOS_HOME: home,
+        LOCAL_HOOK_SECRET: '',
+        MCP_SERVER_PORT: '53102',
+        HOOKS_BRIDGE_PORT: '53103',
+      },
+      reject: false,
+      timeout: 30_000,
+    });
+    const stdout = String(result.stdout);
+    const parsed = JSON.parse(stdout) as { checks: Array<{ id: number }> };
+    expect(parsed.checks).toHaveLength(27);
   }, 30_000);
 });

@@ -2,4 +2,4 @@
 // rerun `pnpm --filter @coodra/contextos-cli build` (or run the script directly) after
 // bumping `package.json#version`. The committed value MUST match package.json so
 // `__tests__/unit/version-sync.test.ts` passes in CI.
-export const VERSION = '0.0.0';
+export const VERSION = '0.1.0';

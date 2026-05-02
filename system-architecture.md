@@ -877,6 +877,21 @@ When a third-party config document is read on the agent's hot path (e.g., CODEOW
 **19. Tool descriptions are agent prompts, not docstrings:**
 Every MCP tool exposed by the server is, at runtime, a standing line in the agent's system prompt. The `description` field is not documentation — it is the call-site instruction the agent's planner consults to decide whether to invoke the tool. Every description starts with an imperative trigger phrase (*"Call this BEFORE..."*, *"Call this when the user asks..."*), states the return shape, and names the consequence of skipping it. Descriptions are colocated with handlers in `manifest.ts` and tested mechanically (trigger-phrase presence, length budget, snapshot diff) on every push. This pattern is the bridge between the architecture (what tools exist) and the agent's actual behaviour (whether they get called). See §24 for the full contract.
 
+**20. Bridge-mediated autonomous coordination defaults (added 2026-05-02, decision `dec_83ba10c1`):**
+The two coordination acts that must happen on every session — Feature Pack injection at session start, and Context Pack save at session end — fire from the **hooks-bridge** by default, not from the agent's MCP tool calls. Pattern 19 (tool descriptions as agent prompts) makes the surface *callable*; this pattern makes the defaults *firing without agent cooperation*.
+
+Mechanics:
+- **SessionStart hook** → bridge resolves the project's Feature Pack via the same `featurePack` store the MCP server uses, then returns `{ permissionDecision: 'allow', additionalContext: <pack body> }`. Claude Code's hook spec injects `additionalContext` directly into the agent's turn-zero context. Result: a stranger who runs `npx @coodra/contextos-cli init` and restarts Claude Code gets the Feature Pack on turn zero with zero agent action.
+- **SessionEnd / Stop hook** → bridge generates a structured summary from `run_events` + decisions for the closing run, then calls `contextPack.save(...)` against the same store the MCP `save_context_pack` tool uses. The hook responds `allow` synchronously; the save runs through the durable outbox (Pattern 3). Result: every session produces a Context Pack, even when the agent forgets to ask.
+
+Why this lives in the bridge, not in the agent:
+- The agent-driven path (CLAUDE.md trigger contract + §24 manifest) is a *convention layer* — it nudges, doesn't enforce. Verified empirically (2026-05-02 Phase 1 audit): agents under token pressure skip the calls, and agents that don't load CLAUDE.md (raw API, future non-Claude clients firing only the hook events) never see the convention at all.
+- The bridge-side path is *protocol*. It fires whenever the hook fires. No agent cooperation required.
+
+The MCP tools `get_feature_pack` and `save_context_pack` remain in the §24 manifest. They are now **on-demand surfaces** — the agent calls them mid-session when switching modules (refresh the pack against a new `filePath`) or when the user explicitly asks "save the context pack now". The autonomous default is the bridge's job; the manual override is the tool's job.
+
+Solo-mode v1 scope: this pattern fires only for Claude Code's hook envelope (which has a first-class `additionalContext` field). Cursor and Windsurf use stdin/stdout adapters that don't surface a context-injection slot the same way; they continue to rely on Pattern 19 + the agent's trigger contract. Wider agent coverage tracked as a follow-up.
+
 ---
 
 ## 17. Graphify Integration — Full Flow
@@ -2262,6 +2277,7 @@ These are the tools every project using ContextOS exposes. They bind the agent t
 **Input:** `{ projectSlug: string, filePath?: string }`
 **Returns:** `{ pack: FeaturePack, subPack?: FeaturePack, inherited: FeaturePack[] }` — `pack` is the deepest pack whose `sourceFiles` matches the given `filePath` (or the slug's own pack when `filePath` is absent / no glob matches); `inherited` is the ancestor chain of `pack`, root-first (see Module 02 S9, decisions-log 2026-04-24 15:00). `subPack` is reserved for Module 07+ folder-nested sub-feature-packs and is always `undefined`/omitted in Module 02.
 **Latency target:** <50 ms (SQLite-local) or <200 ms (team mode, pgvector).
+**Bridge-mediated autonomous default (Pattern 20, 2026-05-02):** the hooks-bridge fires the equivalent fetch on every Claude Code SessionStart hook and returns the pack body via `additionalContext` in the hook response. The agent therefore receives the project-level Feature Pack at turn zero **without calling this tool**. This MCP tool remains the on-demand surface for two cases: (a) mid-session module switches where the agent wants the pack scoped to a specific `filePath` argument, (b) non-Claude clients whose hook envelopes don't carry `additionalContext`. The two paths share the same `featurePack` store, so both observe the same pack content.
 **Failure modes** (canonical soft-failure shape per `essentialsforclaude/09-common-patterns.md §9.1.2` — every branch carries both `error` and `howToFix`):
 - `{ ok: false, error: 'pack_not_found', howToFix: string }` — the slug is not registered on disk + DB. Caller should NOT block; proceed with default conventions.
 - `{ ok: false, error: 'feature_pack_cycle', chain: string[], howToFix: string }` — the `parentSlug` references in `meta.json` form a cycle. `chain` names the cyclic sequence so the user can fix the offending `meta.json`.
@@ -2272,6 +2288,7 @@ These are the tools every project using ContextOS exposes. They bind the agent t
 **Input:** `{ runId: string, title: string, content: string, featurePackId?: string }`
 **Returns:** `{ ok: true, contextPackId: string, savedAt: string, contentExcerpt: string }` on success. `contentExcerpt` is the first 500 Unicode code points of `content` with trailing whitespace trimmed (Q-02-3), returned for caller confirmation without a second read.
 **Side-effect:** flips `runs.status` to `'completed'` and sets `runs.endedAt` (idempotent — no-op if the run is already completed). Optionally triggers a Context Pack → JIRA/PR comment worker (§22.8, §23.11).
+**Bridge-mediated autonomous default (Pattern 20, 2026-05-02):** the hooks-bridge fires `contextPack.save(...)` on every Stop / SessionEnd hook with an auto-generated structured summary derived from the run's `run_events` + decisions. The agent therefore produces a Context Pack at every session end **without calling this tool**. This MCP tool remains the on-demand surface for two cases: (a) the agent has a richer, narrative summary than the auto-summary (e.g. user-asked-for-rich-recap), (b) the agent wants to save mid-session before a topic switch. Append-only semantics (ADR-007) hold for both paths: if the bridge already wrote one for the run, an explicit MCP call returns the existing row unchanged. Smarter LLM-generated auto-summaries are deferred to Module 05 (NL Assembly).
 **Failure modes** (canonical soft-failure shape per `essentialsforclaude/09-common-patterns.md §9.1.2` — every branch carries both `error` and `howToFix`):
 - `{ ok: false, error: 'run_not_found', howToFix: string }` — the `runId` does not match a `runs` row. Caller should call `get_run_id` first, then retry.
 - Append-only re-call: if a `context_packs` row already exists for `runId`, the store returns the existing row unchanged (same `contextPackId`, same `savedAt`, original content preserved per ADR-007) — the tool responds `{ ok: true, ... }` with the original values. This is NOT a failure; it is the idempotent happy path.

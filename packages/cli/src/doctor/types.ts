@@ -40,6 +40,20 @@ export interface Check {
   readonly id: number;
   readonly name: string;
   readonly severity: CheckSeverity;
+  /**
+   * Essential checks run by default — they certify the load-bearing
+   * invariants of the Claude Code + solo-mode happy path. Non-
+   * essential checks (debug invariants, outbox observability,
+   * team-mode-only probes) only run with `--full`. Decision
+   * dec_83ba10c1 (2026-05-02) trimmed the default surface from 27
+   * to ~9; the rest stay in the registry for opt-in inspection.
+   *
+   * Per-check files leave this field unset — the registry tags it
+   * via `tagEssential` against an authoritative ID set, so adding
+   * a new check is a one-line registry change rather than a per-
+   * file edit. Treated as `false` when undefined.
+   */
+  readonly essential?: boolean;
   /** Run the check; must always resolve (use `try/catch` internally). */
   run(context: CheckContext): Promise<CheckResult>;
 }

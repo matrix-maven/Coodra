@@ -107,9 +107,13 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const doctorRunner = options.runDoctor ?? runDoctorCommand;
   program
     .command('doctor')
-    .description('Run health checks (read-only). See spec §4.5 for the 20-check registry.')
+    .description(
+      'Run health checks (read-only). Defaults to the 9 essential checks for the Claude Code + solo-mode path; ' +
+        'use --full for the complete 27-check registry (debug invariants, team-mode probes, outbox observability).',
+    )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .option('--timeout-ms <ms>', 'Per-check timeout in milliseconds (default 2000).')
+    .option('--full', 'Run every check in the registry, not just the essentials (dec_83ba10c1, 2026-05-02).')
     .action(async (opts: DoctorOptions) => {
       await doctorRunner(opts, options.doctorIO);
     });

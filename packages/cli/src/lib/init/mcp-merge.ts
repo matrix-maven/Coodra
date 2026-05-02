@@ -3,10 +3,26 @@ import { join } from 'node:path';
 import type { WriteOutcome } from './types.js';
 
 export interface BuildMcpEntryOptions {
-  /** Absolute path to the contextos-mcp-server binary on disk, when known. */
-  readonly mcpServerBin: string | null;
+  /**
+   * Absolute path to the bundled mcp-server binary. The init command
+   * resolves this via `lib/runtime-paths.ts::resolveRuntimeBinary` —
+   * which prefers the bundled `<cli-dist>/runtime/mcp-server/index.js`
+   * (npm-install case) and falls back to `apps/mcp-server/dist/index.js`
+   * (monorepo dev). If neither exists init throws with a structured
+   * remediation BEFORE this builder runs, so the value is always a real
+   * path here.
+   */
+  readonly mcpServerBin: string;
   /** Solo-mode bypass token to set on the MCP entry. Always solo-only. */
   readonly clerkSecretKey: string;
+  /**
+   * Absolute path to the bundled drizzle migrations folder, when the
+   * runtime resolver detected a bundled deploy. `null` when the CLI
+   * is running from a workspace checkout — in that case the bundled
+   * mcp-server's `MIGRATIONS_FOLDER.sqlite` resolves correctly via
+   * `@coodra/contextos-db`'s own `import.meta.url`.
+   */
+  readonly migrationsDir?: string | null;
 }
 
 export interface ContextosMcpEntry {
@@ -16,24 +32,30 @@ export interface ContextosMcpEntry {
 }
 
 /**
- * Build the canonical `contextos` entry for `.mcp.json`. When the
- * `contextos-mcp-server` binary is on disk (dev monorepo case), the entry
- * points at it directly. Otherwise the entry uses `npx @coodra/contextos-cli mcp-stdio`
- * — the path resolves at IDE-startup time, sidestepping the npx-cache-GC
- * footgun named in techstack.md Gotchas.
+ * Build the canonical `contextos` entry for `.mcp.json`. The bundled
+ * mcp-server binary path is resolved by the init command and passed in
+ * verbatim. Pre dec_83ba10c1 we wrote a `npx -y @coodra/contextos-cli
+ * mcp-stdio` fallback when no monorepo was detected — that subcommand
+ * never existed, so npm-installed users got a `.mcp.json` that Claude
+ * Code could not spawn. With bundled dists the runtime is always on
+ * disk inside the @coodra/contextos-cli package, so the fallback is gone and
+ * init fails loudly when the binary cannot be located.
  */
 export function buildContextosMcpEntry(options: BuildMcpEntryOptions): ContextosMcpEntry {
-  if (options.mcpServerBin !== null) {
-    return {
-      command: 'node',
-      args: [options.mcpServerBin, '--transport', 'stdio'],
-      env: { CONTEXTOS_LOG_DESTINATION: 'stderr', CLERK_SECRET_KEY: options.clerkSecretKey },
-    };
+  const env: Record<string, string> = {
+    CONTEXTOS_LOG_DESTINATION: 'stderr',
+    CLERK_SECRET_KEY: options.clerkSecretKey,
+  };
+  if (typeof options.migrationsDir === 'string' && options.migrationsDir.length > 0) {
+    // Tells the bundled mcp-server's `@coodra/contextos-db::MIGRATIONS_FOLDER`
+    // where to find drizzle SQL files (the bundle inlines the code but
+    // not the SQL — those land under <cli-dist>/runtime/drizzle/).
+    env.CONTEXTOS_MIGRATIONS_DIR = options.migrationsDir;
   }
   return {
-    command: 'npx',
-    args: ['-y', '@coodra/contextos-cli', 'mcp-stdio'],
-    env: { CONTEXTOS_LOG_DESTINATION: 'stderr', CLERK_SECRET_KEY: options.clerkSecretKey },
+    command: 'node',
+    args: [options.mcpServerBin, '--transport', 'stdio'],
+    env,
   };
 }
 

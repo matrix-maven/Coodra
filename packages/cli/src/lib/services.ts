@@ -1,9 +1,8 @@
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 import { resolveContextosLogsDir } from './contextos-home.js';
 import type { DaemonUnit } from './daemon/index.js';
-import { findRepoRoot } from './find-repo-root.js';
 import { loadHomeEnv } from './load-home-env.js';
+import { bundledMigrationsDir, resolveRuntimeBinary } from './runtime-paths.js';
 
 export type ServiceName = 'mcp-server' | 'hooks-bridge' | 'sync-daemon';
 
@@ -75,30 +74,19 @@ export interface ResolvedService {
 }
 
 /**
- * Build the DaemonUnit each service runs as, given a resolved repo root
- * and the user's env. When the repo root cannot be located (e.g. CLI
- * installed via `npm i -g` outside the monorepo), this throws so `start`
- * surfaces the failure with a readable error.
+ * Build the DaemonUnit each service runs as. The mcp-server and
+ * hooks-bridge binary paths come from `lib/runtime-paths.ts::
+ * resolveRuntimeBinary` — bundled (`@coodra/contextos-cli/dist/runtime/<app>/
+ * index.js`) when available, monorepo dev path
+ * (`apps/<app>/dist/index.js`) as fallback. Pre dec_83ba10c1 this
+ * threw outright when no monorepo was detected; bundled artifacts in
+ * the published tarball mean the throw path now only fires when the
+ * dev contributor has not built the apps yet.
+ *
+ * The sync-daemon (worker, team-mode-only) ships the same way; v1
+ * skips it in solo mode so the resolver is never called.
  */
 export async function resolveServices(options: BuildServiceUnitOptions): Promise<ResolvedService[]> {
-  // Try the CLI's own install location FIRST, then process.cwd().
-  // The CLI lives at `<repo>/packages/cli/dist/lib/services.js` in the dev
-  // monorepo, so walking up from `import.meta.url` always finds the repo
-  // root that owns the apps/* binaries — regardless of where the operator
-  // invoked `contextos start` from. Pre-fix, we used cwd only and a
-  // freshly-init'd project directory failed with "Cannot locate the
-  // ContextOS repo root", contradicting init's "Run `contextos start`"
-  // instruction. Doctor (check 9) and init already use this lookup order;
-  // services.ts now matches.
-  const here = dirname(fileURLToPath(import.meta.url));
-  const repoRoot = (await findRepoRoot(here)) ?? (await findRepoRoot(process.cwd()));
-  if (repoRoot === null) {
-    throw new Error(
-      'Cannot locate the ContextOS repo root from either the CLI install path or the current directory. ' +
-        'In 08a `start`/`stop` only work from within the dev monorepo; ' +
-        '`npm i -g @coodra/contextos-cli` deployment is tracked as a follow-up.',
-    );
-  }
   // Layer the env, low → high precedence:
   //   1. `<CONTEXTOS_HOME>/.env`  — user-global defaults
   //   2. `<process.cwd()>/.env`   — per-project overrides (this is where
@@ -122,19 +110,42 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
     if (descriptor.kind === 'worker' && descriptor.requiresTeamMode && !isTeamMode) continue;
 
     const port = descriptor.kind === 'http' ? (descriptor.name === 'mcp-server' ? mcpPort : bridgePort) : null;
-    const entryPath = resolve(repoRoot, descriptor.relativeEntry);
-    const unitEnv = buildServiceEnv({ env, contextosHome: options.contextosHome, port, name: descriptor.name });
+    let entryPath: string;
+    let entrySource: 'bundled' | 'monorepo';
+    if (descriptor.name === 'sync-daemon') {
+      // Worker has no `runtime/` bundle yet — solo mode skips it above
+      // and team-mode self-host runs from the monorepo for v1.0.
+      // Maintain legacy resolution via `relativeEntry` for now.
+      entryPath = resolve(options.contextosHome, '..', descriptor.relativeEntry);
+      entrySource = 'monorepo';
+    } else {
+      const runtimeApp = descriptor.name as 'mcp-server' | 'hooks-bridge';
+      const resolvedBin = await resolveRuntimeBinary(runtimeApp);
+      entryPath = resolvedBin.path;
+      entrySource = resolvedBin.source;
+    }
+    const unitEnv = buildServiceEnv({
+      env,
+      contextosHome: options.contextosHome,
+      port,
+      name: descriptor.name,
+      entrySource,
+    });
     // pino → stderr per CONTEXTOS_LOG_DESTINATION; both streams routed into
     // <contextos-home>/logs/<name>.log so doctor check 8 can read them and
     // field debugging is possible (vs the pre-fix /dev/null sink).
     const stdoutPath = join(logsDir, `${descriptor.name}.log`);
     const stderrPath = join(logsDir, `${descriptor.name}.log`);
+    // Working directory: the daemons are env-driven and don't care about
+    // cwd. Anchor to the user's project root (process.cwd) so any
+    // accidental relative-path lookup lands somewhere sensible.
+    const workingDir = process.cwd();
     const unit: DaemonUnit = {
       name: descriptor.name,
       command: process.execPath,
       args: [entryPath],
       env: unitEnv,
-      workingDir: repoRoot,
+      workingDir,
       stdoutPath,
       stderrPath,
     };
@@ -148,15 +159,29 @@ function buildServiceEnv(args: {
   readonly contextosHome: string;
   readonly port: number | null;
   readonly name: ServiceName;
+  readonly entrySource: 'bundled' | 'monorepo';
 }): Record<string, string> {
   const env: Record<string, string> = {
     CONTEXTOS_LOG_DESTINATION: 'stderr',
     CONTEXTOS_HOME: args.contextosHome,
   };
+  // When the binary is the bundled artifact under @coodra/contextos-cli/dist/
+  // runtime/, the embedded `@coodra/contextos-db::MIGRATIONS_FOLDER` cannot
+  // self-locate the SQL files (workspace-relative `..` walks land
+  // outside the bundle). The bundler co-ships drizzle/ next to the
+  // app bundles; this env var pins the parent directory so the
+  // migrator finds it.
+  if (args.entrySource === 'bundled') {
+    const bundled = bundledMigrationsDir('sqlite');
+    if (bundled !== null) {
+      env.CONTEXTOS_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
+    }
+  }
   const FORWARD_LITERAL = new Set(['LOCAL_HOOK_SECRET', 'DATABASE_URL']);
   const RESERVED = new Set([
     'CONTEXTOS_LOG_DESTINATION',
     'CONTEXTOS_HOME',
+    'CONTEXTOS_MIGRATIONS_DIR',
     'MCP_SERVER_PORT',
     'MCP_SERVER_TRANSPORT',
     'MCP_SERVER_HOST',

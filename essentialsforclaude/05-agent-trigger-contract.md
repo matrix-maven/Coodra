@@ -6,8 +6,10 @@ The ContextOS MCP server exposes 26 tools. Their `tools/list` manifest — with 
 
 ## 5.1 Session start — FIRST, in parallel, before any other tool call
 
+> **Bridge-mediated autonomous default (Pattern 20, decision `dec_83ba10c1`, 2026-05-02):** when the project is set up via `contextos init`, the hooks-bridge fires Feature Pack injection on Claude Code's SessionStart hook and returns the project-level pack via `additionalContext`. You therefore receive the pack at turn zero *before* this trigger contract runs. The MCP calls below are still required so the agent has its **own** `runId` for `record_decision` / `save_context_pack` and so non-bridge agents (Cursor, Windsurf, raw API) get the same coverage.
+
 1. `contextos__get_run_id { projectSlug, agentSessionId?, agentType? }` — obtains the `runId` that binds every subsequent call in this session. Cache the result; reuse it. **Pass `agentSessionId` set to the same `session_id` you fire at the hooks-bridge SessionStart hook**, plus `agentType` (`claude_code | cursor | windsurf`). Without these, MCP creates a separate `runs` row keyed on the transport-generated sessionId — the bridge SessionStart row and this MCP `runs` row will not agree. Closes verification F9 (run-identity reconciliation) and F10 (`agent_type='unknown'` on MCP-minted rows).
-2. `contextos__get_feature_pack { projectSlug }` — loads architecture, conventions, permitted files, gotchas.
+2. `contextos__get_feature_pack { projectSlug }` — call this only if (a) the bridge did not inject an `additionalContext` at session start (non-Claude agents, or Claude in environments where the bridge is offline), or (b) you are switching to a new module mid-session and need the pack scoped to a specific `filePath`. Otherwise the bridge already loaded the project-level pack on your behalf.
 3. `contextos__query_run_history { projectSlug, status: 'in_progress', limit: 1 }` — checks whether a previous session left work in-flight.
 4. `contextos__search_packs_nl { projectSlug, query: <brief summary of what you are about to build> }` — retrieves prior context packs on the topic so you don't duplicate or contradict past work.
 
@@ -105,7 +107,9 @@ Triggers: *"refactor X"*, *"rename Y across the codebase"*, *"where is Z defined
 | References a GitHub issue (not PR) | `github_get_issue` |
 | Post a PR comment | `github_post_pr_comment` — **ONLY** if the `allow_agent_pr_comment` policy rule is true AND the user explicitly asked |
 
-## 5.9 At session end — mandatory
+## 5.9 At session end — mandatory for narrative recaps; auto-fired by the bridge for routine runs
+
+> **Bridge-mediated autonomous default (Pattern 20, decision `dec_83ba10c1`, 2026-05-02):** the hooks-bridge fires `contextPack.save(...)` on every Stop / SessionEnd hook with a structured auto-summary built from `run_events` + decisions. So a Context Pack lands for every Claude Code session even if the agent never calls this tool. **You should still call `save_context_pack` explicitly** when the work warrants a richer narrative recap than the structured digest — i.e., feature/bugfix/refactor closeouts, complex multi-decision sessions, anything you want a future agent to *read*. Append-only semantics (ADR-007) hold: if the bridge already wrote a pack for this `runId`, your explicit call returns the existing row unchanged — your richer content does NOT overwrite the auto-summary. To replace the auto-summary, you must call this tool **before** the SessionEnd hook fires (typically when the user signals "we're done" but before they close the session).
 
 When the feature/bugfix/refactor is complete and tests pass:
 
@@ -118,7 +122,7 @@ contextos__save_context_pack({
 })
 ```
 
-This is the only handoff mechanism to the next session. Skipping it leaves the run as dead weight. See `03-context-memory.md` for how this relates to the session-level `current-session.md`.
+This is the on-demand handoff mechanism for narrative recaps. The structured auto-summary is the safety net. See `03-context-memory.md` for how this relates to the session-level `current-session.md`.
 
 ## 5.10 Failure modes and fallbacks
 

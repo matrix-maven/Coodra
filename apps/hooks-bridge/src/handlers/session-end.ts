@@ -1,15 +1,55 @@
-import type { DbHandle } from '@coodra/contextos-db';
+import { type DbHandle, lookupRunId } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
 import type { HookEvent } from '@coodra/contextos-shared/hooks';
 
 import type { HookDispatchResult } from '../app.js';
+import { saveAutoContextPack } from '../lib/auto-context-pack.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
 import type { RunRecorder } from '../lib/run-recorder.js';
 
 /**
- * `apps/hooks-bridge/src/handlers/session-end` — closes the runs row.
- * Idempotent: a second Stop/session_end event for the same session is
- * a SQL no-op (UPDATE matches nothing once status='completed').
+ * `apps/hooks-bridge/src/handlers/session-end` — closes the `runs`
+ * row AND auto-saves a structured Context Pack for the run if the
+ * agent did not call `save_context_pack` itself.
+ *
+ * Decision dec_83ba10c1 (2026-05-02 — system-architecture §16
+ * Pattern 20). Pre-decision the SessionEnd handler only closed the
+ * `runs` row; if the agent forgot `save_context_pack`, the run
+ * left no permanent record. Now every Claude Code session produces
+ * a Context Pack at SessionEnd via the bridge — even when the
+ * agent forgets — and the agent's mid-session call (if any) is
+ * preserved unchanged via the append-only ADR-007 semantics.
+ *
+ * **Phase 3 Fix A (2026-05-02 — `dec_ea32e7ed`):** trigger source
+ * corrected. Pre-Phase-3 the auto-save fired on Claude Code's `Stop`
+ * event (per-turn end, N firings per session — deduped but wasted
+ * work). Phase 3 verification confirmed Claude Code emits a distinct
+ * `SessionEnd` event for session-termination (matcher reasons:
+ * `clear` / `resume` / `logout` / `prompt_input_exit` /
+ * `bypass_permissions_disabled` / `other`). The adapter now maps
+ * `SessionEnd → eventPhase 'session_end'` and `Stop → eventPhase
+ * 'turn_end'`; this handler fires only for the former. The unique
+ * `context_packs.run_id` index remains as defense-in-depth, but the
+ * common-case dedupe burden is gone.
+ *
+ * Failure-mode discipline: the auto-save runs **without being
+ * awaited** in the response path. The hook returns
+ * `{ permissionDecision: 'allow' }` synchronously inside the
+ * §6 / §16-pattern-3 latency budget; the DB write runs to
+ * completion in the background. Errors are logged and swallowed —
+ * an auto-save failure must never block session shutdown.
+ *
+ * Idempotency: `context_packs.run_id` is uniquely indexed; a
+ * replayed SessionEnd event triggers `saveAutoContextPack`'s
+ * select-first-then-insert path, which returns the existing row
+ * with `created: false`. Replaying the event is a no-op.
+ *
+ * Skipped when:
+ *   - projectId is undefined (no `.contextos.json` in cwd) — the
+ *     `__global__` sentinel project is not a sensible target for
+ *     a per-run Context Pack.
+ *   - lookupRunId returns null (SessionStart never fired or the
+ *     `runs` row was rolled back).
  */
 
 const sessionEndLogger = createLogger('hooks-bridge.session-end');
@@ -42,6 +82,64 @@ export function createSessionEndHandler(deps: CreateSessionEndHandlerDeps): Sess
       },
       'SessionEnd audit scheduled',
     );
+
+    // Auto-save the Context Pack in the background — fire-and-forget
+    // so the hook responds within the §6 latency budget. Errors are
+    // logged and swallowed.
+    void scheduleAutoContextPackSave({
+      sessionId: event.sessionId,
+      projectId,
+      db: deps.db,
+    });
+
     return { permissionDecision: 'allow' };
   };
+}
+
+async function scheduleAutoContextPackSave(args: {
+  readonly sessionId: string;
+  readonly projectId: string | undefined;
+  readonly db: DbHandle;
+}): Promise<void> {
+  if (args.projectId === undefined) {
+    sessionEndLogger.info(
+      { event: 'session_end_auto_pack_skipped', reason: 'no_project_id', sessionId: args.sessionId },
+      'auto-save Context Pack skipped: no project resolved for cwd',
+    );
+    return;
+  }
+  let runId: string | null = null;
+  try {
+    runId = await lookupRunId(args.db, args.projectId, args.sessionId);
+  } catch (err) {
+    sessionEndLogger.warn(
+      {
+        event: 'session_end_auto_pack_lookup_failed',
+        sessionId: args.sessionId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'auto-save Context Pack skipped: lookupRunId threw',
+    );
+    return;
+  }
+  if (runId === null) {
+    sessionEndLogger.info(
+      { event: 'session_end_auto_pack_skipped', reason: 'no_run_id', sessionId: args.sessionId },
+      'auto-save Context Pack skipped: SessionStart did not register a runs row',
+    );
+    return;
+  }
+  try {
+    await saveAutoContextPack({ runId, projectId: args.projectId, db: args.db });
+  } catch (err) {
+    sessionEndLogger.warn(
+      {
+        event: 'session_end_auto_pack_save_failed',
+        sessionId: args.sessionId,
+        runId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'auto-save Context Pack failed; session is closed regardless',
+    );
+  }
 }

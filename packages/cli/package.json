@@ -1,6 +1,6 @@
 {
   "name": "@coodra/contextos-cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "ContextOS CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",
@@ -41,8 +41,10 @@
   },
   "scripts": {
     "prebuild": "node scripts/sync-version.mjs",
-    "//build": "executable bit on dist/index.js is set by `npm publish` from the `bin` field; do not add a postbuild chmod (noise for zero real value — we always invoke via `node dist/index.js` in workspace dev)",
-    "build": "tsc -p tsconfig.json",
+    "//build": "Two-phase build (decision dec_83ba10c1, 2026-05-02). tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that workspace consumers (apps in dev) import via the `@coodra/contextos-cli/lib/outbox` exports entry. Then `scripts/bundle.mjs` runs esbuild to OVERWRITE `dist/index.js` with a self-contained bundle (workspace + npm deps inlined) and writes the bundled apps under `dist/runtime/{mcp-server,hooks-bridge}/` so `npm i -g @coodra/contextos-cli` ships everything needed. Externals: better-sqlite3 + sqlite-vec (native).",
+    "build": "tsc -p tsconfig.json && node scripts/bundle.mjs",
+    "build:tsc-only": "tsc -p tsconfig.json",
+    "build:bundle-only": "node scripts/bundle.mjs",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "biome check .",
     "dev": "tsx src/index.ts",
@@ -53,21 +55,26 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo"
   },
+  "//dependencies": "Only true npm-resolvable runtime deps live here (decision dec_83ba10c1). Native modules are kept external from the bundle so they install correctly per platform; everything else is inlined. Workspace deps + bundleable npm deps moved to devDependencies so `pnpm publish` / `npm install` of the published tarball does not try to resolve `workspace:*` placeholders.",
   "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "sqlite-vec": "0.1.9"
+  },
+  "//devDependencies": "Phase 3 Fix E (2026-05-02): @coodra/contextos-{mcp-server,hooks-bridge} were previously declared here so the bundle.mjs script's esbuild could resolve their imports via cli's node_modules. They were removed because pnpm + turbo treats devDependencies as ^build edges, and apps/{mcp-server,hooks-bridge} also declare @coodra/contextos-cli (for /lib/outbox), which produced a build-time cycle that turbo refused to schedule. esbuild reads apps/{mcp-server,hooks-bridge}/src/index.ts via absolute filesystem paths and resolves their transitive imports through the workspace-root node_modules — no cli-local dep declaration is needed.",
+  "devDependencies": {
     "@coodra/contextos-db": "workspace:*",
     "@coodra/contextos-policy": "workspace:*",
     "@coodra/contextos-shared": "workspace:*",
+    "@types/node": "^22.15.0",
     "commander": "^13.1.0",
     "dotenv": "^17.4.2",
     "env-paths": "^3.0.0",
+    "esbuild": "^0.27.7",
     "execa": "^9.6.0",
     "glob": "^11.0.4",
     "picocolors": "^1.1.1",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@types/node": "^22.15.0",
     "tmp-promise": "^3.0.3",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "zod": "^4.3.6"
   }
 }

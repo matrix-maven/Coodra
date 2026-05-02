@@ -186,16 +186,34 @@ describe('resolveServices — env layering', () => {
 });
 
 /**
- * Regression: pre-fix, `resolveServices` walked up from `process.cwd()`
- * only, looking for `pnpm-workspace.yaml`. So when an operator ran
- * `contextos start` from a freshly-init'd project (which is what `init`
- * literally tells them to do), the cwd-based walk hit `~` then `/` and
- * failed with "Cannot locate the ContextOS repo root from the current
- * directory" — directly contradicting init's "→ Run `contextos start`"
- * next-step message. The fix tries `fileURLToPath(import.meta.url)` (the
- * CLI's own install location, always inside the monorepo) BEFORE cwd.
+ * Regression / contract update (decision dec_83ba10c1, 2026-05-02):
+ *
+ * Pre-fix, `resolveServices` walked up from `process.cwd()` only, looking
+ * for `pnpm-workspace.yaml`, and threw outright when no monorepo was
+ * found — directly contradicting init's "→ Run `contextos start`" next-
+ * step message after a freshly-init'd project.
+ *
+ * Post-fix (commit a0fde…): the resolver tried `fileURLToPath(import.meta.
+ * url)` (the CLI's own install location, always inside the monorepo)
+ * BEFORE cwd. That patched the workspace-dev case but still required
+ * the CLI to live inside a monorepo at runtime — useless for the
+ * `npm i -g @coodra/contextos-cli` deployment.
+ *
+ * Now: `resolveServices` delegates to `lib/runtime-paths.ts::
+ * resolveRuntimeBinary`, which prefers bundled artifacts shipped inside
+ * `@coodra/contextos-cli/dist/runtime/<app>/index.js` and falls back to
+ * `apps/<app>/dist/index.js` only when the bundle is absent (workspace
+ * dev). `workingDir` is now `process.cwd()` because the daemons are
+ * env-driven and don't care about cwd; anchoring to the user's project
+ * directory keeps any accidental relative-path lookup sensible.
+ *
+ * The two assertions here pin the new contract:
+ *   1. bundled-wins: when `@coodra/contextos-cli` was built (dist/runtime/
+ *      exists), every entryPath resolves to that bundle, not the
+ *      monorepo apps dist tree.
+ *   2. workingDir is process.cwd().
  */
-describe('resolveServices — repo-root lookup is cwd-independent', () => {
+describe('resolveServices — runtime resolution prefers bundled', () => {
   let tmpHome: string;
   let tmpCwd: string;
   let cwdSpy: ReturnType<typeof vi.spyOn> | null = null;
@@ -213,22 +231,20 @@ describe('resolveServices — repo-root lookup is cwd-independent', () => {
     rmSync(tmpCwd, { recursive: true, force: true });
   });
 
-  it('resolves repo root from the CLI install path when process.cwd() is outside any monorepo', async () => {
-    // Force cwd to a freshly-created tmp dir that has no pnpm-workspace.yaml
-    // anywhere up the tree — this is what a freshly-init'd project dir looks
-    // like to the daemon-spawn lookup.
+  it('resolves the bundled runtime when the CLI dist/runtime tree exists, regardless of cwd', async () => {
     cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tmpCwd);
 
     const resolved = await resolveServices({ contextosHome: tmpHome, env: {} });
     const mcp = resolved.find((s) => s.descriptor.name === 'mcp-server');
     const bridge = resolved.find((s) => s.descriptor.name === 'hooks-bridge');
 
-    // Both daemons must point at the apps/*/dist/index.js inside the real
-    // monorepo (the one the CLI was built from), not at tmpCwd.
-    expect(mcp?.entryPath).toMatch(/\/apps\/mcp-server\/dist\/index\.js$/);
-    expect(bridge?.entryPath).toMatch(/\/apps\/hooks-bridge\/dist\/index\.js$/);
+    // dec_83ba10c1: bundled artifacts always win over monorepo paths.
+    // We assert the entryPath ends with the runtime bundle layout and
+    // that the working dir is the user's cwd (anchored, not the
+    // pre-fix repo root).
+    expect(mcp?.entryPath).toMatch(/\/runtime\/mcp-server\/index\.js$/);
+    expect(bridge?.entryPath).toMatch(/\/runtime\/hooks-bridge\/index\.js$/);
     expect(mcp?.entryPath.startsWith(tmpCwd)).toBe(false);
-    // workingDir is the resolved repo root — must not be tmpCwd.
-    expect(mcp?.unit.workingDir).not.toBe(tmpCwd);
+    expect(mcp?.unit.workingDir).toBe(tmpCwd);
   });
 });

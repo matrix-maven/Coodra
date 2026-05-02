@@ -146,14 +146,21 @@ async function postHook(eventName: string, body: Record<string, unknown>): Promi
 
 const SESSION_ID = `sync-roundtrip-${Date.now()}`;
 
-async function pollCloud<T>(query: string, predicate: (rows: T[]) => boolean, timeoutMs = SYNC_WINDOW_MS): Promise<T[]> {
+async function pollCloud<T>(
+  query: string,
+  predicate: (rows: T[]) => boolean,
+  timeoutMs = SYNC_WINDOW_MS,
+): Promise<T[]> {
   const start = Date.now();
   let lastRows: T[] = [];
   while (Date.now() - start < timeoutMs) {
     const out = execFileSync('psql', [databaseUrl as string, '-A', '-t', '-F', '|', '-c', query], {
       encoding: 'utf8',
     });
-    const lines = out.trim().split('\n').filter((l) => l.length > 0);
+    const lines = out
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
     lastRows = lines as unknown as T[];
     if (predicate(lastRows)) return lastRows;
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));

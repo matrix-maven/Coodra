@@ -1,6 +1,6 @@
 # 11 — Architectural Decision Records (ADRs)
 
-These are the 11 load-bearing technology/design decisions that future sessions must not silently overturn. New decisions are recorded via `contextos__record_decision` (see `05-agent-trigger-contract.md` §5.4) and appended to `context_memory/decisions-log.md` — the latter accumulates; this file only lists the foundational 11.
+These are the 12 load-bearing technology/design decisions that future sessions must not silently overturn. New decisions are recorded via `contextos__record_decision` (see `05-agent-trigger-contract.md` §5.4) and appended to `context_memory/decisions-log.md` — the latter accumulates; this file only lists the foundational set.
 
 ## ADR-001 — TypeScript MCP SDK over Python
 
@@ -45,3 +45,7 @@ Graphify (`safishamsi/graphify`, MIT license) produces a `graph.json` with tree-
 ## ADR-011 — Policy Engine as Non-Human Identity (NHI) infrastructure
 
 The policy engine treats AI coding agents as distinct non-human identities. Policy rules include an `agent_type` field (`claude_code`, `cursor`, `copilot`, `*`) enabling per-agent permission scoping. Combined with the `policy_decisions` audit table, this positions ContextOS as enterprise access governance for AI agents — not just a context injection tool.
+
+## ADR-012 — Bridge-mediated autonomous coordination defaults (2026-05-02, decision `dec_83ba10c1`)
+
+The two coordination acts that must happen on every Claude Code session — Feature Pack injection at session start and Context Pack save at session end — fire from the **hooks-bridge** by default, not from the agent's MCP tool calls. The bridge resolves the Feature Pack and returns it via Claude Code's `additionalContext` field on the SessionStart hook response, and writes a structured auto-summary Context Pack on the Stop / SessionEnd hook. The MCP tools `get_feature_pack` and `save_context_pack` remain in the §24 manifest as on-demand surfaces (mid-session module switches, narrative recaps), but the autonomous defaults no longer depend on the agent's planner choosing to call them. Phase 1 audit (2026-05-02) established that the agent-driven path is a *convention* layer that fails under token pressure and is invisible to non-Claude clients; the bridge-side path is *protocol* — it fires whenever the hook fires, no agent cooperation required. See `system-architecture.md` §16 Pattern 20 for the full pattern.

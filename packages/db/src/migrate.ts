@@ -13,10 +13,36 @@ const moduleDir = dirname(fileURLToPath(import.meta.url));
  * package is built to `dist/`, the source `drizzle/` directory sits two
  * levels above (package root). We resolve relative to the compiled
  * module so consumers that import the compiled bundle still find the SQL.
+ *
+ * Bundled-deploy override: when `@coodra/contextos-db` is inlined into the
+ * `@coodra/contextos-cli` esbuild bundle (decision `dec_83ba10c1`,
+ * 2026-05-02), `import.meta.url` points at the bundled entry and the
+ * relative `..` walk no longer reaches a `drizzle/` directory. The
+ * env vars below let the bundled CLI's boot path pin the dialect
+ * folder before invoking `migrateSqlite` / `migratePostgres`. Empty
+ * / unset → fall through to the workspace-relative default.
+ *
+ *   - `CONTEXTOS_MIGRATIONS_DIR_SQLITE`     → MIGRATIONS_FOLDER.sqlite
+ *   - `CONTEXTOS_MIGRATIONS_DIR_POSTGRES`   → MIGRATIONS_FOLDER.postgres
+ *   - `CONTEXTOS_MIGRATIONS_DIR`            → both, suffixed by dialect
+ *     (e.g. `<dir>/sqlite` and `<dir>/postgres`).
  */
+function resolveMigrationsFolderFromEnv(dialect: 'sqlite' | 'postgres', fallback: string): string {
+  const dialectKey = dialect === 'sqlite' ? 'CONTEXTOS_MIGRATIONS_DIR_SQLITE' : 'CONTEXTOS_MIGRATIONS_DIR_POSTGRES';
+  const dialectOverride = process.env[dialectKey];
+  if (typeof dialectOverride === 'string' && dialectOverride.length > 0) {
+    return dialectOverride;
+  }
+  const baseOverride = process.env.CONTEXTOS_MIGRATIONS_DIR;
+  if (typeof baseOverride === 'string' && baseOverride.length > 0) {
+    return resolve(baseOverride, dialect);
+  }
+  return fallback;
+}
+
 export const MIGRATIONS_FOLDER = {
-  sqlite: resolve(moduleDir, '..', 'drizzle', 'sqlite'),
-  postgres: resolve(moduleDir, '..', 'drizzle', 'postgres'),
+  sqlite: resolveMigrationsFolderFromEnv('sqlite', resolve(moduleDir, '..', 'drizzle', 'sqlite')),
+  postgres: resolveMigrationsFolderFromEnv('postgres', resolve(moduleDir, '..', 'drizzle', 'postgres')),
 } as const;
 
 /**

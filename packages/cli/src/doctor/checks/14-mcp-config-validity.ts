@@ -57,9 +57,30 @@ export const mcpConfigValidityCheck: Check = {
     if (cmd === 'npx') {
       return {
         status: 'yellow',
-        detail: ".mcp.json `contextos.command` is `npx` — npx-cache paths can be GC'd unexpectedly",
-        remediation: 'Install globally with `npm i -g @coodra/contextos-cli` for stable resolution (see techstack Gotchas).',
+        detail:
+          ".mcp.json `contextos.command` is `npx` — npx-cache paths can be GC'd unexpectedly. " +
+          "(Init no longer emits this fallback as of dec_83ba10c1; this entry was likely written by a pre-0.1 init or hand-edited.)",
+        remediation: 'Re-run `contextos init` to overwrite the entry with the bundled `node <abs-path>` form.',
       };
+    }
+    // dec_83ba10c1: init now resolves to an absolute path inside the
+    // bundled `@coodra/contextos-cli/dist/runtime/mcp-server/index.js`. Verify
+    // the args[0] also points at a real file (the entry's `command` is
+    // `node`; the binary is in args[0]).
+    if (cmd === 'node' && Array.isArray(entry.args) && entry.args.length > 0) {
+      const binArg = entry.args[0];
+      if (typeof binArg === 'string' && isAbsolute(binArg)) {
+        try {
+          await access(binArg);
+          return { status: 'green', detail: `.mcp.json valid; mcp-server bundle at ${binArg}` };
+        } catch {
+          return {
+            status: 'yellow',
+            detail: `.mcp.json points at ${binArg} but that path is not present`,
+            remediation: 'Run `contextos init` to update .mcp.json with the current install path.',
+          };
+        }
+      }
     }
     if (isAbsolute(cmd)) {
       try {

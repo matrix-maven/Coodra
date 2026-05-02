@@ -49,7 +49,7 @@ Edit the imported files, not this one. This file's only job is to be the stable 
 **Troubleshooting — known local-dev errors with fixes:**
 @essentialsforclaude/10-troubleshooting.md
 
-**ADRs — the 11 foundational technology/design decisions:**
+**ADRs — the 12 foundational technology/design decisions:**
 @essentialsforclaude/11-adrs.md
 
 ---
