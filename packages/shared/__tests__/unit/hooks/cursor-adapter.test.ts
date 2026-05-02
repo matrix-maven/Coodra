@@ -34,13 +34,16 @@ describe('Cursor adapter', () => {
     expect(end.eventPhase).toBe('session_end');
   });
 
-  it('payload schema rejects unknown top-level fields (.strict())', () => {
+  it('payload schema accepts unknown top-level fields (.passthrough — Phase 3 Fix A)', () => {
+    // Same widening discipline as Claude Code's schema (see Fix A
+    // commit 2026-05-02). Cursor will inevitably grow new fields and
+    // we don't want a recurrence of the strict-schema fail-open bug.
     const result = CursorHookPayloadSchema.safeParse({
       conversation_id: 'conv',
       event_type: 'pre_tool_use',
-      bogus_field: 'should fail',
+      bogus_field: 'should pass through',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('payload schema rejects unknown event_type values', () => {

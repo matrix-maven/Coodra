@@ -19,8 +19,18 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *       PreToolUse         pre_*                 pre_tool_use    → 'pre'
  *       PostToolUse        post_*                post_tool_use   → 'post'
  *       SessionStart       (synthetic on conn)   session_start   → 'session_start'
- *       Stop               post_cascade_response session_end     → 'session_end'
+ *       SessionEnd         post_cascade_response session_end     → 'session_end'
+ *       Stop               (n/a)                 (n/a)           → 'turn_end'
  *       UserPromptSubmit   pre_user_prompt       (n/a today)     → 'user_prompt'
+ *
+ *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
+ *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
+ *     fires once per session-termination. The auto-Context-Pack save
+ *     binds to 'session_end', not 'turn_end' — replaying Stop N times
+ *     a session no longer wakes the saveAutoContextPack path. 'turn_end'
+ *     is acked at the dispatch boundary today (no per-turn telemetry
+ *     consumer); future per-turn signals can attach a handler without
+ *     re-shaping the phase enum.
  *   - `sessionId` — already passed through `normalizeSessionId` by the
  *      adapter; `runKeySegmentSchema.parse` re-validates here as a
  *      defence-in-depth check.
@@ -45,7 +55,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
 export const HookEventSchema = z
   .object({
     agentType: z.enum(['claude_code', 'windsurf', 'cursor', 'unknown']),
-    eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'user_prompt']),
+    eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt']),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),
     toolName: z.string(),

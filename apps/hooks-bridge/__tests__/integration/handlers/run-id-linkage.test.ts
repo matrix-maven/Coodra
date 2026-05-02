@@ -162,7 +162,9 @@ describe('F8 closure — run_events.run_id and policy_decisions.run_id are popul
       tool_input: { file_path: '/tmp/safe/ok.ts' },
       tool_use_id: 'tu-post-1',
     });
-    await postHook('Stop', { session_id: sessionId });
+    // Phase 3 Fix A (2026-05-02): SessionEnd carries the runs-close
+    // semantics; Stop is now an ack-only per-turn-end signal.
+    await postHook('SessionEnd', { session_id: sessionId });
 
     await h.drain();
 
@@ -174,7 +176,7 @@ describe('F8 closure — run_events.run_id and policy_decisions.run_id are popul
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, PROJECT_ID), eq(sqliteSchema.runs.sessionId, sessionId)));
     expect(runs.length).toBe(1);
-    expect(runs[0]?.status).toBe('completed'); // Stop closed it.
+    expect(runs[0]?.status).toBe('completed'); // SessionEnd closed it.
     const runId = runs[0]?.id;
     expect(runId).toBeDefined();
     // Module 04a finding #9: bridge auto-create-run path now emits the

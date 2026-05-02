@@ -43,12 +43,14 @@ describe('Windsurf adapter', () => {
     }
   });
 
-  it('payload schema rejects unknown top-level fields (.strict())', () => {
+  it('payload schema accepts unknown top-level fields (.passthrough — Phase 3 Fix A)', () => {
+    // Same widening discipline as Claude Code's schema (see Fix A
+    // commit 2026-05-02).
     const result = WindsurfHookPayloadSchema.safeParse({
       agent_action_name: 'pre_write_code',
       trajectory_id: 'traj',
-      bogus_field: 'should fail',
+      bogus_field: 'should pass through',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 });

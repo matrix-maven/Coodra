@@ -14,13 +14,14 @@ import { z } from 'zod';
  *
  * Cursor's hooks system is newer and the wire format is less stable
  * than Claude Code's or Windsurf's. The schema below reflects the
- * shape ContextOS observes today — `.strict()` rejects unknown fields
- * so any drift in Cursor's payload surfaces as a parse failure (the
- * route falls open with `permissionDecision: 'allow'` + WARN log,
- * preserving the agent's turn). The first time we run Cursor in a
- * real session (Module 04 / Module 07) we will likely need to widen
- * one or two of the optional fields below; that is an expected
- * landing for the test fixtures, not a structural change.
+ * shape ContextOS observes today — `.passthrough()` accepts the
+ * fields we read while letting unknown future additions through
+ * unchanged (Phase 3 Fix A, 2026-05-02 — the prior `.strict()` wrapper
+ * rejected every real Claude Code envelope and we keep the same
+ * widening discipline here so the same regression cannot bite Cursor
+ * once we run it for real). The route still falls open with
+ * `permissionDecision: 'allow'` + WARN log on outright shape errors,
+ * preserving the agent's turn.
  */
 export const CursorHookPayloadSchema = z
   .object({
@@ -37,6 +38,6 @@ export const CursorHookPayloadSchema = z
     /** Cwd is sometimes present, sometimes not — depends on Cursor's mode. */
     cwd: z.string().optional(),
   })
-  .strict();
+  .passthrough();
 
 export type CursorHookPayload = z.infer<typeof CursorHookPayloadSchema>;

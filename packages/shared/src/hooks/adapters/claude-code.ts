@@ -12,7 +12,11 @@ const PHASE_MAP: Readonly<Record<ClaudeCodeHookPayload['hook_event_name'], HookE
   PreToolUse: 'pre',
   PostToolUse: 'post',
   SessionStart: 'session_start',
-  Stop: 'session_end',
+  // Phase 3 Fix A (2026-05-02): SessionEnd carries the auto-Context-Pack
+  // save trigger. Stop is per-turn end and acks at dispatch — see
+  // event.ts docblock + apps/hooks-bridge/src/lib/dispatch.ts.
+  SessionEnd: 'session_end',
+  Stop: 'turn_end',
   UserPromptSubmit: 'user_prompt',
 };
 

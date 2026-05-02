@@ -51,13 +51,20 @@ describe('Claude Code adapter', () => {
     expect(event.sessionId).toBe('sess-abc-fork-2');
   });
 
-  it('payload schema rejects unknown top-level fields (.strict())', () => {
+  it('payload schema accepts unknown top-level fields (.passthrough — Phase 3 Fix A)', () => {
+    // Real Claude Code envelopes carry transcript_path, permission_mode,
+    // source, model, agent_id, agent_type beyond the fields ContextOS
+    // reads. Pre-Phase-3 these were rejected with `invalid_hook_payload`
+    // and the route fell open — broken policy, no logging. After Fix A
+    // unknown top-level fields parse cleanly.
     const result = ClaudeCodeHookPayloadSchema.safeParse({
       hook_event_name: 'PreToolUse',
       session_id: 'sess',
-      bogus_field: 'should fail',
+      transcript_path: '/Users/dev/.claude/projects/abc/abc.jsonl',
+      permission_mode: 'default',
+      bogus_field: 'should pass through',
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it('payload schema rejects unknown hook_event_name values', () => {
@@ -66,5 +73,20 @@ describe('Claude Code adapter', () => {
       session_id: 'sess',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('payload schema accepts SessionEnd (Phase 3 Fix A)', () => {
+    const result = ClaudeCodeHookPayloadSchema.safeParse({
+      hook_event_name: 'SessionEnd',
+      session_id: 'sess',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('SessionEnd maps to phase=session_end; Stop maps to phase=turn_end (Phase 3 Fix A)', () => {
+    const sessionEnd = adaptClaudeCode({ hook_event_name: 'SessionEnd', session_id: 'cc' }, { now: FROZEN });
+    const stop = adaptClaudeCode({ hook_event_name: 'Stop', session_id: 'cc' }, { now: FROZEN });
+    expect(sessionEnd.eventPhase).toBe('session_end');
+    expect(stop.eventPhase).toBe('turn_end');
   });
 });

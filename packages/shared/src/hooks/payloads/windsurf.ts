@@ -31,6 +31,13 @@ import { z } from 'zod';
  * by event (file_path + edits for write_code, command for run_command,
  * etc.). Adapters pull `file_path` out separately for path-glob
  * matching but leave the rest opaque.
+ *
+ * `.passthrough()` on the outer object accepts unknown top-level
+ * fields unchanged (Phase 3 Fix A, 2026-05-02 — applied to every
+ * agent payload schema after Phase 2 verification showed `.strict()`
+ * rejected real Claude Code envelopes for fields outside our enum;
+ * Windsurf will inevitably grow new fields too, and we want them to
+ * pass through rather than fail-open).
  */
 export const WindsurfHookPayloadSchema = z
   .object({
@@ -55,6 +62,6 @@ export const WindsurfHookPayloadSchema = z
     model_name: z.string().optional(),
     tool_info: z.unknown().optional(),
   })
-  .strict();
+  .passthrough();
 
 export type WindsurfHookPayload = z.infer<typeof WindsurfHookPayloadSchema>;

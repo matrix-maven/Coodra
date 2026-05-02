@@ -9,9 +9,16 @@ import type { DispatchHookEvent, HookDispatchResult } from '../app.js';
  * pass to.
  *
  * Routing rules:
- *   - `eventPhase === 'pre'` → preToolUseHandler (real policy eval).
- *   - everything else → S8/S9/S10 will land RunRecorder + lifecycle
- *     handlers; today returns allow as a stub.
+ *   - `eventPhase === 'pre'`           → preToolUseHandler (real policy eval).
+ *   - `eventPhase === 'post'`          → postToolUseHandler (RunRecorder).
+ *   - `eventPhase === 'session_start'` → sessionStartHandler (Feature Pack inject).
+ *   - `eventPhase === 'session_end'`   → sessionEndHandler (auto-Context-Pack save + close runs).
+ *   - `eventPhase === 'turn_end'`      → ack-only. Phase 3 Fix A
+ *     (2026-05-02): Claude Code's Stop event lands here so the
+ *     auto-Context-Pack save no longer fires N times per session.
+ *     If/when per-turn telemetry gains a consumer, attach a handler
+ *     in ComposeDispatchDeps and route here.
+ *   - `eventPhase === 'user_prompt'`   → userPromptSubmitHandler.
  *
  * Returns null events (Windsurf unmapped) are surfaced from the route
  * directly, not through here. This composer assumes a non-null event.
@@ -26,7 +33,7 @@ export interface ComposeDispatchDeps {
   readonly postToolUse: (event: HookEvent) => Promise<HookDispatchResult>;
   /** SessionStart handler (S9). */
   readonly sessionStart: (event: HookEvent) => Promise<HookDispatchResult>;
-  /** SessionEnd / Stop handler (S9). */
+  /** SessionEnd handler — auto-Context-Pack + close runs row (S9 + Pattern 20). */
   readonly sessionEnd: (event: HookEvent) => Promise<HookDispatchResult>;
   /** UserPromptSubmit handler (S10). */
   readonly userPromptSubmit: (event: HookEvent) => Promise<HookDispatchResult>;
@@ -49,6 +56,11 @@ export function composeDispatch(deps: ComposeDispatchDeps): DispatchHookEvent {
     }
     if (event.eventPhase === 'session_end') {
       return deps.sessionEnd(event);
+    }
+    if (event.eventPhase === 'turn_end') {
+      // Phase 3 Fix A (2026-05-02): per-turn end. Plain ack — no
+      // saveAutoContextPack, no run_event today. See event.ts docblock.
+      return { permissionDecision: 'allow' };
     }
     if (event.eventPhase === 'user_prompt') {
       return deps.userPromptSubmit(event);

@@ -85,14 +85,19 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
     expect(cu.eventPhase).toBe('post');
   });
 
-  it('SessionStart / Stop → session_start / session_end uniformly', () => {
+  it('SessionStart / SessionEnd → session_start / session_end uniformly (Phase 3 Fix A)', () => {
+    // Pre-Phase-3 Claude Code's Stop event mapped to 'session_end',
+    // conflating per-turn-end with session-termination. Phase 3 Fix A
+    // (2026-05-02 — `dec_ea32e7ed`): SessionEnd is the canonical
+    // session-termination event in Claude Code; Stop maps to a
+    // distinct 'turn_end' phase asserted in claude-code-adapter.test.ts.
     const ccStart = adaptClaudeCode({ hook_event_name: 'SessionStart', session_id: 'cc' }, { now: FROZEN });
-    const ccStop = adaptClaudeCode({ hook_event_name: 'Stop', session_id: 'cc' }, { now: FROZEN });
+    const ccEnd = adaptClaudeCode({ hook_event_name: 'SessionEnd', session_id: 'cc' }, { now: FROZEN });
     const cuStart = adaptCursor({ conversation_id: 'conv', event_type: 'session_start' }, { now: FROZEN });
-    const cuStop = adaptCursor({ conversation_id: 'conv', event_type: 'session_end' }, { now: FROZEN });
+    const cuEnd = adaptCursor({ conversation_id: 'conv', event_type: 'session_end' }, { now: FROZEN });
     expect(ccStart.eventPhase).toBe('session_start');
-    expect(ccStop.eventPhase).toBe('session_end');
+    expect(ccEnd.eventPhase).toBe('session_end');
     expect(cuStart.eventPhase).toBe('session_start');
-    expect(cuStop.eventPhase).toBe('session_end');
+    expect(cuEnd.eventPhase).toBe('session_end');
   });
 });

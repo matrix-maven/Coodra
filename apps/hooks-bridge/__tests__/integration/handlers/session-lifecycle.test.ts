@@ -20,16 +20,24 @@ import { createRunRecorder } from '../../../src/lib/run-recorder.js';
 import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
- * Full SessionStart → 3× PostToolUse → Stop lifecycle, plus
+ * Full SessionStart → 3× PostToolUse → SessionEnd lifecycle, plus
  * idempotency for each event under retry.
  *
  * Verifies the §4.3 + §16-pattern-3 contract:
  *   - SessionStart inserts exactly one runs row, sent twice = one row.
  *   - PostToolUse appends run_events; sent twice = one event row.
- *   - Stop transitions runs.status: in_progress → completed; sent
- *     twice = idempotent (status stays completed; ended_at is the
- *     latest of the two writes which is fine — both writes happen
- *     in the same test, milliseconds apart).
+ *   - SessionEnd transitions runs.status: in_progress → completed;
+ *     sent twice = idempotent (status stays completed; ended_at is
+ *     the latest of the two writes which is fine — both writes
+ *     happen in the same test, milliseconds apart).
+ *
+ * Phase 3 Fix A (2026-05-02 — `dec_ea32e7ed`): the canonical
+ * session-termination event in Claude Code is `SessionEnd`, not
+ * `Stop`. Pre-Phase-3 the adapter conflated them and this test
+ * drove session closure via Stop; after Fix A Stop is a plain
+ * per-turn-end ack and SessionEnd carries the close-runs +
+ * auto-Context-Pack-save semantics. Stop's ack-only behaviour is
+ * covered by the dedicated test at the end of this file.
  */
 
 interface Harness {
@@ -103,7 +111,7 @@ async function postEvent(body: Record<string, unknown>): Promise<Response> {
   });
 }
 
-describe('full session lifecycle (SessionStart → 3× PostToolUse → Stop)', () => {
+describe('full session lifecycle (SessionStart → 3× PostToolUse → SessionEnd)', () => {
   const sessionId = 'sess-lifecycle-1';
 
   it('SessionStart opens runs row with status in_progress', async () => {
@@ -155,8 +163,8 @@ describe('full session lifecycle (SessionStart → 3× PostToolUse → Stop)', (
     expect(lifecycleRows.length).toBe(3);
   });
 
-  it('Stop closes the run with status=completed and sets ended_at', async () => {
-    const res = await postEvent({ hook_event_name: 'Stop', session_id: sessionId, cwd: h.cwd });
+  it('SessionEnd closes the run with status=completed and sets ended_at (Phase 3 Fix A)', async () => {
+    const res = await postEvent({ hook_event_name: 'SessionEnd', session_id: sessionId, cwd: h.cwd });
     expect(res.status).toBe(200);
     await h.drain();
 
@@ -170,8 +178,8 @@ describe('full session lifecycle (SessionStart → 3× PostToolUse → Stop)', (
     expect(rows[0]?.endedAt).toBeTruthy();
   });
 
-  it('Stop sent again is idempotent (status stays completed)', async () => {
-    const res = await postEvent({ hook_event_name: 'Stop', session_id: sessionId, cwd: h.cwd });
+  it('SessionEnd sent again is idempotent (status stays completed)', async () => {
+    const res = await postEvent({ hook_event_name: 'SessionEnd', session_id: sessionId, cwd: h.cwd });
     expect(res.status).toBe(200);
     await h.drain();
 
@@ -181,5 +189,32 @@ describe('full session lifecycle (SessionStart → 3× PostToolUse → Stop)', (
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, sessionId)));
     expect(rows[0]?.status).toBe('completed');
+  });
+
+  it('Stop is a plain ack — does not modify runs row (Phase 3 Fix A)', async () => {
+    const turnSessionId = 'sess-turn-end-1';
+    // Open a fresh run so this test does not depend on closure state
+    // from the SessionEnd tests above.
+    const startRes = await postEvent({ hook_event_name: 'SessionStart', session_id: turnSessionId, cwd: h.cwd });
+    expect(startRes.status).toBe(200);
+    await h.drain();
+
+    if (h.handle.kind !== 'sqlite') throw new Error('expected sqlite');
+    const before = await h.handle.db
+      .select()
+      .from(sqliteSchema.runs)
+      .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, turnSessionId)));
+    expect(before[0]?.status).toBe('in_progress');
+
+    const stopRes = await postEvent({ hook_event_name: 'Stop', session_id: turnSessionId, cwd: h.cwd });
+    expect(stopRes.status).toBe(200);
+    await h.drain();
+
+    const after = await h.handle.db
+      .select()
+      .from(sqliteSchema.runs)
+      .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, turnSessionId)));
+    expect(after[0]?.status).toBe('in_progress');
+    expect(after[0]?.endedAt).toBeNull();
   });
 });
