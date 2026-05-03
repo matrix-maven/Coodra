@@ -1,5 +1,16 @@
-import type { OutboxDispatchHandler, OutboxDispatchOutcome, OutboxJob, SyncLookup } from '@coodra/contextos-cli/lib/outbox';
-import { type DbHandle, type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import type {
+  OutboxDispatchHandler,
+  OutboxDispatchOutcome,
+  OutboxJob,
+  SyncLookup,
+} from '@coodra/contextos-cli/lib/outbox';
+import {
+  type DbHandle,
+  type PostgresHandle,
+  postgresSchema,
+  type SqliteHandle,
+  sqliteSchema,
+} from '@coodra/contextos-db';
 import { createLogger, type Logger } from '@coodra/contextos-shared';
 import { and, eq } from 'drizzle-orm';
 
@@ -64,7 +75,15 @@ function readLookup(value: unknown): SyncLookup | null {
   return null;
 }
 
-const SYNC_TABLES = ['runs', 'run_events', 'policy_decisions', 'decisions', 'context_packs'] as const;
+const SYNC_TABLES = [
+  'runs',
+  'run_events',
+  'policy_decisions',
+  'decisions',
+  'context_packs',
+  // M04 S8a — extends M04a OQ-1 from one-way push to bidirectional sync.
+  'kill_switches',
+] as const;
 type SyncTableName = (typeof SYNC_TABLES)[number];
 
 function isSyncTable(value: unknown): value is SyncTableName {
@@ -152,7 +171,56 @@ async function syncOne(args: SyncOneArgs): Promise<boolean> {
       return syncDecisions(args);
     case 'context_packs':
       return syncContextPacks(args);
+    case 'kill_switches':
+      return syncKillSwitches(args);
   }
+}
+
+/**
+ * M04 S8a — push side of bidirectional kill_switches sync. Pause/resume
+ * on developer A enqueues a sync_to_cloud row; this dispatcher pushes
+ * the local row to cloud Postgres. Resume operations land here too —
+ * the row's `resumed_at` field gets updated via ON CONFLICT DO UPDATE.
+ *
+ * The puller in apps/sync-daemon/src/lib/kill-switch-puller.ts handles
+ * the cloud → local direction.
+ */
+async function syncKillSwitches({ localDb, cloudDb, lookup, log, jobId }: SyncOneArgs): Promise<boolean> {
+  if (lookup.kind !== 'id') return false;
+  const lt = sqliteSchema.killSwitches;
+  const row = (await localDb.db.select().from(lt).where(eq(lt.id, lookup.value)).limit(1))[0];
+  if (!row) return false;
+  const ct = postgresSchema.killSwitches;
+  await cloudDb.db
+    .insert(ct)
+    .values({
+      id: row.id,
+      scope: row.scope,
+      target: row.target,
+      mode: row.mode,
+      reason: row.reason,
+      pausedBySessionId: row.pausedBySessionId,
+      pausedAt: row.pausedAt,
+      expiresAt: row.expiresAt,
+      resumedAt: row.resumedAt,
+      resumedBySessionId: row.resumedBySessionId,
+    })
+    .onConflictDoUpdate({
+      target: [ct.id],
+      set: {
+        // Resume + expiry updates are the only mutating dimensions
+        // post-insert. Reason / scope / target / mode are immutable
+        // (a re-pause inserts a fresh row).
+        resumedAt: row.resumedAt,
+        resumedBySessionId: row.resumedBySessionId,
+        expiresAt: row.expiresAt,
+      },
+    });
+  log.debug(
+    { event: 'sync_kill_switches_pushed', jobId, killSwitchId: row.id, scope: row.scope, target: row.target },
+    'kill_switches row pushed to cloud',
+  );
+  return true;
 }
 
 async function syncRuns({ localDb, cloudDb, lookup, log, jobId }: SyncOneArgs): Promise<boolean> {

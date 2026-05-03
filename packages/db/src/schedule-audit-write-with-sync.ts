@@ -36,7 +36,18 @@ import {
  * append-only, so the SELECT always returns the same content).
  */
 
-export type SyncTableName = 'runs' | 'run_events' | 'policy_decisions' | 'decisions' | 'context_packs';
+export type SyncTableName =
+  | 'runs'
+  | 'run_events'
+  | 'policy_decisions'
+  | 'decisions'
+  | 'context_packs'
+  // M04 S8a (extends M04a OQ-1): kill_switches sync. Bidirectional —
+  // pause/resume on developer A pushes to cloud; sync-daemon's poller
+  // on developer B pulls cloud → local. The push side reuses this
+  // paired-enqueue pattern; the pull side is a separate poller in
+  // apps/sync-daemon/src/lib/kill-switch-puller.ts.
+  | 'kill_switches';
 
 export type SyncLookup =
   | { readonly kind: 'id'; readonly value: string }

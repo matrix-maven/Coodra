@@ -8,6 +8,7 @@ import { createLogger } from '@coodra/contextos-shared';
 
 import { env } from './config/env.js';
 import { createSyncDispatchHandler } from './lib/dispatch.js';
+import { createKillSwitchPuller } from './lib/kill-switch-puller.js';
 
 /**
  * `apps/sync-daemon/src/index.ts` — boot entry.
@@ -71,7 +72,21 @@ async function main(): Promise<void> {
     'sync-daemon: OutboxWorker started; sync_to_cloud queue draining',
   );
 
-  // (4) Graceful shutdown.
+  // (4) M04 S8a — kill_switches cloud → local poller (extends M04a OQ-1
+  // from one-way push to bidirectional sync). Polls cloud every 5s
+  // (configurable via CONTEXTOS_SYNC_TICK_MS); upserts new rows into
+  // local SQLite by id; never deletes (resumed rows are soft-flipped).
+  const killSwitchPuller = createKillSwitchPuller({
+    localDb,
+    cloudDb,
+    intervalMs: env.CONTEXTOS_SYNC_TICK_MS,
+  });
+  bootLogger.info(
+    { event: 'kill_switch_puller_started', intervalMs: env.CONTEXTOS_SYNC_TICK_MS },
+    'sync-daemon: kill_switches cloud → local poller started (M04 S8a)',
+  );
+
+  // (5) Graceful shutdown.
   let shuttingDown = false;
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (shuttingDown) return;
@@ -79,6 +94,8 @@ async function main(): Promise<void> {
     bootLogger.info({ event: 'shutdown_begin', signal }, 'received shutdown signal; stopping worker + closing handles');
     await worker.stop();
     bootLogger.info({ event: 'sync_worker_stopped' }, 'OutboxWorker stopped');
+    await killSwitchPuller.stop();
+    bootLogger.info({ event: 'kill_switch_puller_stopped' }, 'kill_switches puller stopped');
     localDb.close();
     await cloudDb.close();
     bootLogger.info({ event: 'shutdown_complete' }, 'shutdown complete');

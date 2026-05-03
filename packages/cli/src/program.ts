@@ -573,6 +573,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--mode <mode>', 'hard | soft (default: hard, per OQ-1)')
     .option('--reason <reason>', 'Operator audit context (recommended; auto-generated if omitted)')
     .option('--expires-in <duration>', 'Auto-resume after duration (e.g. 5m, 1h, 24h, 7d, 1d6h)')
+    .option(
+      '--no-sync',
+      'M04 S8a: skip the paired sync_to_cloud enqueue. Local-only kill switch — does not propagate to other developers via sync-daemon. (Solo mode is local-only regardless.)',
+    )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: PauseOptions) => {
       await pauseRunner(opts, options.pauseIO);

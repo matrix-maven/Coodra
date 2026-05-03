@@ -7,6 +7,7 @@ import {
   type KillSwitchScope,
   listActiveKillSwitches,
   lookupProjectBySlug,
+  scheduleDurableWrite,
 } from '@coodra/contextos-db';
 import pc from 'picocolors';
 
@@ -45,6 +46,14 @@ export interface PauseOptions {
   readonly reason?: string;
   readonly expiresIn?: string;
   readonly json?: boolean;
+  /**
+   * M04 S8a: when true, suppress the paired sync_to_cloud enqueue so
+   * the kill switch stays local-only. Default false (sync on); the
+   * sync_to_cloud row is only emitted in team mode by
+   * scheduleAuditWriteWithSync — solo mode is a no-op for sync
+   * regardless of this flag.
+   */
+  readonly noSync?: boolean;
 }
 
 export interface PauseIO {
@@ -185,13 +194,49 @@ export async function runPauseCommand(options: PauseOptions, ioOverride?: PauseI
       return;
     }
 
+    // M04 S8a: when --no-sync, prefix the session id so the
+    // sync-daemon dispatcher can filter local-only rows out of the
+    // push-to-cloud path. Local-only rows still apply locally; they
+    // just don't propagate to the team.
+    const isLocalOnly = options.noSync === true;
+    const sessionId = isLocalOnly ? `local-only:${process.platform}-${process.pid}` : null;
+
     const inserted = await insertKillSwitch(handle, {
       scope,
       target,
       mode,
       reason,
       expiresAt,
+      pausedBySessionId: sessionId,
     });
+
+    // M04 S8a: in team mode + sync-on, enqueue a sync_to_cloud row so
+    // the sync-daemon pushes this kill switch to cloud Postgres. Solo
+    // mode skips this; the env-mode check is inside scheduleDurableWrite
+    // via the audit pairing, but for a one-sided sync we issue
+    // scheduleDurableWrite directly here (the audit IS the kill_switch
+    // row; no separate audit-write to pair with).
+    const mode_ = process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo';
+    if (mode_ === 'team' && !isLocalOnly) {
+      try {
+        await scheduleDurableWrite(handle, {
+          queue: 'sync_to_cloud',
+          payload: {
+            v: 1 as const,
+            table: 'kill_switches' as const,
+            lookup: { kind: 'id' as const, value: inserted.id },
+          },
+        });
+      } catch (err) {
+        // Non-fatal: kill switch already wrote locally; log but
+        // continue. Next pause/resume will re-attempt sync via the
+        // poller's catch-up logic when sync-daemon restarts.
+        io.writeStderr(
+          `${pc.yellow('⚠')} Could not enqueue sync_to_cloud for kill_switch ${inserted.id}: ${(err as Error).message}\n`,
+        );
+      }
+    }
+
     writePauseSuccess(io, json, inserted);
     io.exit(EXIT_OK);
   } finally {

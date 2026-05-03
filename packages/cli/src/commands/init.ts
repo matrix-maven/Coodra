@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { ensureDefaultPolicy, ensureGlobalProject, ensureProject, migrateSqlite } from '@coodra/contextos-db';
 import pc from 'picocolors';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
