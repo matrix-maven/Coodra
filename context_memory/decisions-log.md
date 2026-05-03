@@ -1196,3 +1196,103 @@ Resolution: build the id as `re_` + sha256(sessionId + '|' + toolUseId + '|' + p
 **Alternatives considered:** Sync from day one via the existing M04a cloud-sync path (rejected — no cloud product, no authorization model, premature coupling). Per-machine kill switches with optional `--sync` flag (rejected — adds the same authorization-model question without committing to the answer).
 
 **Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-8; constrains `implementation.md` S2 (no sync-daemon enqueue) + S3 (CLI never POSTs to cloud); flagged in M08b closeout pack as deferred to M04.
+
+## 2026-05-04 — M04 OQ-1 lock: storage adapter — direct better-sqlite3 in solo, Drizzle pg pool in team
+
+**Decision:** `apps/web` reads SQLite directly via `better-sqlite3` (re-using `@coodra/contextos-db::createDb({ kind: 'local' })`) in solo mode; uses a Drizzle pg pool against `DATABASE_URL` in team mode. The web never goes through HTTP-to-MCP-server / HTTP-to-bridge for reads.
+
+**Rationale:** removes the operational surface of "must have daemons running to view audit". Solo developers will routinely review yesterday's session when ContextOS is not actively running. Direct read matches how the CLI already works; the native-module coupling is acceptable because better-sqlite3 is already a workspace dep (`packages/cli` ships it bundled).
+
+**Alternatives considered:** (b) Web calls MCP-server / hooks-bridge over HTTP for every read (rejected — adds a hop, forces daemons-running prerequisite, doesn't match CLI semantics).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-1; constrains §7 + S1 storage adapter `apps/web/lib/db.ts`. Bridge / MCP server stay authoritative WRITERS — the web never bypasses them to write a `policy_decision` row directly.
+
+## 2026-05-04 — M04 OQ-2 lock: live updates via client-side polling at 1500ms default
+
+**Decision:** every "live" surface in M04 (dashboard home, `/runs/[id]/live`, kill-switch admin) uses ordinary HTTP short-polling, default 1500ms, configurable per-page. Tab-hidden pauses, exponential backoff on error, `If-Modified-Since` for short-circuit. The route handler at `/api/runs/stream` is renamed to `/api/runs/[id]/state` in S4 — and `system-architecture.md` §3.3 (which still calls it SSE) gets updated in the same commit.
+
+**Rationale:** works in both modes with one code path. LISTEN/NOTIFY only works in Postgres; we'd need a polling fallback for solo SQLite anyway, so two code paths for marginal latency win. Webhook-from-bridge requires the web to expose an inbound port the bridge can reach — trivial in solo, complicated when web sits on Vercel and bridge sits on a developer's laptop. Polling at 1.5s buys "feels live" without those costs.
+
+**Alternatives considered:** (b) Postgres `LISTEN/NOTIFY` + polling fallback (rejected — two paths). (c) Webhook from bridge to web (rejected — firewall/topology cost).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-2; constrains §8 + S4 polling adapter. Forces a documentation update on `system-architecture.md` §3.3.
+
+## 2026-05-04 — M04 OQ-3 lock: solo-mode auth = no sign-in, synthetic `__solo__` user
+
+**Decision:** in solo, the web app skips Clerk middleware entirely and renders every page as the synthetic identity `{ userId: '__solo__', orgId: '__solo__', mode: 'solo' }`. No sign-in screen; `/auth/*` routes return 404 in solo. In team, every route except `/auth/*` and `/api/healthz` is wrapped in `clerkMiddleware()`.
+
+**Rationale:** continuity with the CLI's existing `__solo__` org-default and the F7 invariant for unregistered cwds. Zero friction for the developer who just ran `contextos init`. Asking solo developers to sign in to view their own audit log would be hostile.
+
+**Alternatives considered:** (b) Show sign-in screen even in solo, accept any account (rejected — friction for no security gain). (c) Hardcode a fixed dev user with a banner (rejected — magical and confusing).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-3; constrains §9 + S1 middleware + S10 auth flow.
+
+## 2026-05-04 — M04 OQ-4 lock: cross-developer kill-switch sync via sync-daemon pull (~10s p95)
+
+**Decision:** the sync-daemon adds `kill_switches` to its existing 5s pull-table list. A switch flipped from the web admin lands in cloud Postgres; every developer's sync-daemon pulls it on the next 5s tick; the local hooks-bridge sees it on its next 5s cache miss. Total propagation: ~10s p95, no new infra.
+
+**Rationale:** builds on M04a's existing sync cadence. No push channel needed. The kill-switch evaluator's existing 5s in-process cache stays unchanged. **Explicitly EXTENDS M04a OQ-1**, which restricted M04a to one-way push only — M04 is where bidirectional sync begins.
+
+**Alternatives considered:** (b) Push channel via Supabase Realtime / NOTIFY (rejected — bigger surface, more failure modes; sub-second propagation isn't worth the cost for an admin op). (c) Manual `contextos sync` invocation (rejected — admin-flips-switch UX must Just Work without a follow-up step).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-4; constrains §10 + S8a + S8b. Sync-daemon scope grows: new pull-table + handler in `apps/sync-daemon/src/handlers/kill-switches.ts`.
+
+## 2026-05-04 — M04 OQ-5 lock: brand tokens — port the full catalog up-front into apps/web/styles/
+
+**Decision:** S1 ships `apps/web/styles/tokens.css` with the **complete** brand catalog (colors, typography, spacing, shape, motion, elevation, status palette, risk-level palette) per `brand.md` + `brand.html`. Tailwind v4's CSS-first `@theme` block consumes the tokens directly. No `packages/design-tokens/` workspace yet — extract when M07 VS Code extension reuses them.
+
+**Rationale:** brand IS the engineering-rigor differentiator; under-investing invites "looks like every dev tool". The catalog is bounded (~200 tokens, written once); porting once is one S1 effort. Growing slice-by-slice means every feature slice re-litigates a design question that's already been answered in brand.md.
+
+**Alternatives considered:** (a) Start minimal under `apps/web/styles/tokens.css`, grow per-feature (rejected — re-litigation cost). (c) Extract `packages/design-tokens/` workspace up-front (rejected — premature abstraction; defer until M07 actually needs it).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-5; constrains §11 brand contract + S1 tokens.css + every visual slice. Forces a relocation in S0.5: `brand.md` + `brand.html` move from repo root to `docs/brand/`.
+
+## 2026-05-04 — M04 OQ-6 lock: pre-M04 fix-ups land as a separate PR before S1; .strict() is item one
+
+**Decision:** the three blockers from `context_memory/blockers.md` (`.strict()` hook payload, init policy seeding, `seedFeaturePack` only writes spec.md) ship on a separate `fix/pre-m04-blockers` PR that merges to `main` BEFORE `feat/04-web-app/S1` opens. The `.strict()` fix is item one — observed firing live in the 2026-05-03 session (Stop hook returned PreToolUse shape, bridge rejected).
+
+**Rationale:** `.strict()` is observable user-impacting behaviour right now (every real Claude Code session silently fails open). The other two are only observable on a stranger install. Three small PRs would multiply review surface; one PR with three commits in order keeps the chain visible. M04 S1's first acceptance check is "fresh `contextos init`'s SessionStart hook returns a populated `additionalContext`" — that requires the `.strict()` fix.
+
+**Alternatives considered:** (a) Fold into M04 as S11 (rejected — `.strict()` is hot enough that it should not wait for 10 implementation slices). (c) Defer to a future maintenance pass (rejected — confirmed live-impacting).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §12 + §13 OQ-6; constrains the pre-M04 fix-up PR ordering. Live-observation note added to `blockers.md:98-125` in the same fix-up PR.
+
+## 2026-05-04 — M04 OQ-7 lock: defer deploy-target choice to S2
+
+**Decision:** S1 scaffolds `apps/web` for portability (no Vercel-specific config, no Railway-specific config). S2 picks Vercel vs Railway vs Fly.io based on what the deploy actually needs (build minutes, bandwidth, region), once we have a real build to deploy.
+
+**Rationale:** locking deploy target now would constrain S1 architecturally for a decision that doesn't need to be made until there's a deployable build to compare. Each platform has different gotchas — picking blind is choosing constraints sight-unseen.
+
+**Alternatives considered:** (b)/(c)/(d) Lock now to Vercel / Railway / Fly.io (rejected — premature; S2 has the information to pick right).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 OQ-7 + `techstack.md` "Deploy target — DEFERRED to S2". S1 acceptance does NOT include "deploys to <platform>"; that's S2's add.
+
+## 2026-05-04 — M04 STRUCT-1 lock: add S0.5 (IA + nav map + key-screen wireframes) between S0 and S1
+
+**Decision:** insert a dedicated UI/UX foundation slice between the kickoff docs (S0) and the apps/web scaffold (S1). S0.5 ships `docs/feature-packs/04-web-app/wireframes/` with information architecture, navigation map, per-route ASCII wireframes, and a component inventory — all referencing brand.md / brand.html token names so S1 can bake the right primitives.
+
+**Rationale:** project lead's pushback (2026-05-03): M04 is the UI/UX module — give the feature slices a target before scaffolding. Without S0.5, S1 ships chrome that S5 has to redo. Wireframes also let the user review the IA before any code lands.
+
+**Alternatives considered:** Skip S0.5 and define IA inline in S1's PR (rejected — review surface is too big; user sync on shape should happen on docs, not on code).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 STRUCT-1 + `implementation.md` S0.5. Also moves `brand.md` + `brand.html` from repo root to `docs/brand/` in the same slice.
+
+## 2026-05-04 — M04 STRUCT-2 lock: split S8 into S8a (sync-daemon backend) + S8b (web admin)
+
+**Decision:** the original S8 (kill-switch admin + sync) splits into two slices. **S8a** ships the sync-daemon's new `kill_switches` pull handler + `--no-sync` flag on `contextos pause` — backend only, no UI. **S8b** ships the web admin (`/kill-switches`) consuming cloud as source of truth.
+
+**Rationale:** project lead's pushback (2026-05-03): keep the bidirectional-sync surface revertable on its own. M04a OQ-1 explicitly restricted M04a to one-way push only — M04 STRUCT-2 makes the extension visible as its own commit on the audit trail. Backend can ship + verify against testcontainers before any web UI exists, derisking S8b.
+
+**Alternatives considered:** Ship as one big S8 (rejected — bigger blast radius, harder to revert if sync semantics need iteration).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 STRUCT-2 + §10 + `implementation.md` S8a/S8b. S8a's commit message must explicitly cite "extends M04a OQ-1" so the audit trail is self-documenting.
+
+## 2026-05-04 — M04 STRUCT-3 lock: dashboard home / as its own slice (S9), not folded into doctor
+
+**Decision:** add a dedicated S9 — Dashboard home `/` — with five tiles (active runs, denials 24h, active kill-switches, doctor RED/YELLOW summary, latest 10 events). The full doctor detail page (35 checks rendered) is **deferred** — operators run `contextos doctor --full --json` for that level of detail.
+
+**Rationale:** project lead's pushback (2026-05-03): aggregate-data home page is meaty enough for its own slice. CLI parity is `contextos doctor` (summary) + `contextos run list` + `contextos pause` status combined. Doctor full-detail web page would re-implement 35 server-side checks; not justified for v1.
+
+**Alternatives considered:** Fold dashboard tile into a doctor health page (rejected — different surfaces have different audiences; the dashboard answers "what's happening", the doctor full page answers "is the install healthy"). Skip dashboard, land on `/runs` (rejected — first-impression home matters; dashboard does the framing the brand demands).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §13 STRUCT-3 + §4 routes + §5 first-5-min + `implementation.md` S9.

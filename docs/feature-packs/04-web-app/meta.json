@@ -1,0 +1,13 @@
+{
+  "slug": "04-web-app",
+  "parentSlug": "08b-cli-expansion",
+  "sourceFiles": [
+    "apps/web/**",
+    "apps/web/styles/**",
+    "apps/sync-daemon/src/handlers/kill-switches.ts",
+    "apps/sync-daemon/src/lib/cloud-pull.ts",
+    "packages/db/src/web-server-actions/**",
+    "docs/feature-packs/04-web-app/**"
+  ],
+  "isActive": false
+}

@@ -23,13 +23,15 @@ Format:
 **What to paste back:** Output of `docker --version` (expected format: `Docker version 24.x.x, build ...`).
 **Blocking module:** None blocking right now (Module 02 + 03 unit/CI suites pass without local Docker — only the local integration test command needs it).
 
-## 2026-04-22 20:58 — Provision Clerk project (needed by Module 04 OR first team-mode flip, whichever is earlier) — S7b-refreshed 2026-04-24
+## ✅ 2026-05-03 — Clerk dev project supplied (originally 2026-04-22 ask)
 
-**What is needed:** A Clerk project with a publishable key (`pk_test_...` or `pk_live_...`) and a secret key (`sk_test_...` or `sk_live_...`).
-**Why:** Module 02 S7b ships the real `@clerk/backend@3.3.0::verifyToken` integration in `apps/mcp-server/src/lib/auth.ts`. All unit tests exercise the wire code via `@clerk/backend`'s own mocking surface (see `__tests__/unit/lib/auth-chain.test.ts`) — that is real wire code with a test double, not a shallow proxy. The middleware has **not** been exercised against a real Clerk tenant yet. First live validation is a Module 04 precondition: Module 04's first acceptance criterion must include a smoke test against a real Clerk dev project that calls the MCP server over HTTP with a real Bearer token, so the gap closes the moment keys land.
-**Steps:** Create a free project at <https://clerk.com>, grab the keys from the dashboard. The Module 02 env schema validates that the secret matches `/^sk_(test|live)_/` and the publishable matches `/^pk_(test|live)_/`; the placeholder `sk_test_replace_me` is rejected in team mode (startup ValidationError).
-**What to paste back:** Confirmation that both env vars are populated in `.env` (do NOT paste the keys themselves into chat — only confirmation). Also paste the `CLERK_JWT_ISSUER` URL (the `https://clerk.<your-tenant>.dev` value from the dashboard).
-**Blocking module:** Module 04 OR first team-mode flip (whichever is earlier). **Not** blocking Module 02 merge — the server ships wired and the solo-bypass path is tested end-to-end.
+**Resolved:** User supplied Clerk dev keys 2026-04-24 (already in `.env`); reconfirmed 2026-05-03 with explicit "I will replace the key when I am done with the testing" — these are throwaway dev creds.
+
+**Stored at:** `Coodra/.env` — `CLERK_PUBLISHABLE_KEY=pk_test_ZnVuLWdudS05Ni5jbGVyay5hY2NvdW50cy5kZXYk` + `CLERK_SECRET_KEY=sk_test_n5ifOCG...`. Tenant slug: `fun-gnu-96`.
+
+**Still pending:** `CLERK_JWT_ISSUER` URL is not yet paste-confirmed (typically `https://clerk.fun-gnu-96.accounts.dev` based on the publishable key's encoded value). M04 S1 needs to confirm by hitting Clerk's `.well-known/jwks.json` endpoint and updating `apps/mcp-server/src/lib/auth.ts` env schema.
+
+**Blocking module:** M04 S1 (web app sign-in flow + JWT validation against this tenant). Originally blocked on supplying keys; now blocked only on the live-tenant smoke test as part of S1 acceptance.
 
 ## 2026-04-24 10:45 — `LOCAL_HOOK_SECRET` config-file reads via a future `contextos team login` CLI
 
@@ -39,18 +41,18 @@ Format:
 **What to paste back:** Nothing now. When the CLI module ships, the `lib/auth.ts::verifyLocalHookSecret` integration will switch to reading `~/.contextos/config.json` first, env var second.
 **Blocking module:** None for Module 02. Follow-up for Module 07 / dedicated distribution module.
 
-## 2026-04-24 14:00 — Provision team-mode hosted infra before team deploy (we host, no BYO)
+## 🟡 2026-04-24 14:00 — Provision team-mode hosted infra before team deploy (we host, no BYO) — partially resolved 2026-05-03
 
 **What is needed:** Supabase Postgres project (pgvector extension enabled), Upstash Redis database, Railway OR Fly.io account, Clerk production project. **One stack per environment**, owned by you (the project lead). Per directive 2026-04-24 the team service is hosted by us — there is no BYO-cloud variant in v1.
-**Why:** Team-mode cloud deploy per `system-architecture.md` §13. Multi-tenant model: single Postgres with `org_id` RLS isolating teams.
-**Steps:**
-  1. Supabase: create project at <https://supabase.com/dashboard>. In SQL editor: `CREATE EXTENSION IF NOT EXISTS vector;`. Grab `DATABASE_URL` (pooled connection string).
-  2. Upstash: create Redis DB at <https://console.upstash.com>. Grab `REDIS_URL` (rediss:// TLS connection string).
-  3. Railway or Fly.io: create account; one app each for `mcp-server`, `hooks-bridge`, `web` (and later `nl-assembly`, `semantic-diff`).
-  4. Clerk: create production project at <https://clerk.com>; enable Google + GitHub + Microsoft OAuth providers + email/password fallback (per directive 2026-04-24).
-  5. Populate `.env.production` locally (never committed) with the resulting URLs / keys.
-**What to paste back:** Confirmation per service (project names only, not secrets).
-**Blocking module:** Team-mode cloud deploy (post-Module-04).
+
+**Status:**
+  1. ✅ Supabase: provisioned at `gyopozvfmggumidptmjr.supabase.co` (2026-05-03). DATABASE_URL in `.env`. `vector` extension available; will install on first Drizzle migrate. (Was previously `picihoywjtnaxbhbfgaj` — replaced.)
+  2. ❌ Upstash Redis: not yet provisioned. Required for team-mode BullMQ jobs (sync-daemon dispatch, NL Assembly enrichment, semantic-diff).
+  3. ❌ Railway/Fly.io: not yet picked. M04 S0 OQ-8 needs the user to lock the deploy target.
+  4. ✅ Clerk dev project: supplied 2026-04-24, reconfirmed 2026-05-03. Production project still TBD before any prod cutover.
+  5. ❌ `.env.production`: not yet created. Solo dev path uses `.env` directly.
+
+**Blocking module:** Items 2–5 block team-mode cloud deploy (post-M04). Items 1 + 4 unblock M04 S1 (web app boots against Supabase + Clerk).
 
 ## 2026-04-24 14:00 — `GEMINI_API_KEY` before Module 05 (Anthropic NOT required)
 
@@ -140,9 +142,13 @@ Format:
 **What to paste back:** Submission confirmation when the marketplace accepts the listing.
 **Blocking module:** None (post-launch ops, not on the critical path).
 
-## 2026-04-27 11:25 — Schedule Module 03.1 (Durable Audit Outbox) before Module 04
+## ✅ 2026-04-27 11:25 — Module 03.1 (Durable Audit Outbox) shipped before M04 (resolved)
 
-**What is needed:** A scheduling decision — Module 03.1 (Durable Audit Outbox) lands BEFORE Module 04 (Web App).
+**Resolved:** M03.1 landed (README module-status table shows ✅; `pending_jobs` substrate active in both SQLite + Postgres). M04 can start with audit-trail durability already in place. Original entry preserved below for context.
+
+---
+
+**Original ask:** A scheduling decision — Module 03.1 (Durable Audit Outbox) lands BEFORE Module 04 (Web App).
 **Why:** Today every audit row written by the bridge and by MCP `check_policy` is dispatched via `setImmediate(...)` after the HTTP response returns. The dispatch is in-process and not durable — SIGTERM mid-PreToolUse, kill -9, OOM, or deploy restart between response and audit-write loses the row. This was tolerable through M01–M03 because policy decisions are advisory and idempotency keys protect retries, but Module 04's audit-trail UI is the first read surface that surfaces "every decision in this run" — missing rows show up as gaps in the timeline. SOC2 readiness assumes the audit log is complete, not best-effort. F14 fixed audit-trail integrity at the key-shape layer; F8 fixed it at the FK layer; this module fixes it at the durability layer.
 **Design seed:** the `pending_jobs` table already exists in both SQLite and Postgres schemas (since M01) as the transactional outbox seed. No schema change required; the worker is the only new code.
 **Steps:** confirm scheduling — Module 03.1 lands BEFORE Module 04. The full spec will be written when scheduled; placeholder is at `docs/feature-packs/03.1-durable-outbox/`.
