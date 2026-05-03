@@ -7,6 +7,19 @@ import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/
 import { type ExportIO, type ExportOptions, runExportCommand } from './commands/export.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
+import {
+  type PackDeleteOptions,
+  type PackIO,
+  type PackListOptions,
+  type PackNewOptions,
+  type PackRegenerateOptions,
+  type PackShowOptions,
+  runPackDeleteCommand,
+  runPackListCommand,
+  runPackNewCommand,
+  runPackRegenerateCommand,
+  runPackShowCommand,
+} from './commands/pack.js';
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
 import {
   type PolicyAddOptions,
@@ -114,6 +127,12 @@ interface BuildProgramOptions {
   readonly runRunCancel?: (runId: string, options: RunCancelOptions, io?: RunIO) => Promise<unknown>;
   readonly exportIO?: ExportIO;
   readonly runExport?: (runId: string, options: ExportOptions, io?: ExportIO) => Promise<unknown>;
+  readonly packIO?: PackIO;
+  readonly runPackNew?: (slug: string, options: PackNewOptions, io?: PackIO) => Promise<unknown>;
+  readonly runPackList?: (options: PackListOptions, io?: PackIO) => Promise<unknown>;
+  readonly runPackShow?: (slug: string, options: PackShowOptions, io?: PackIO) => Promise<unknown>;
+  readonly runPackRegenerate?: (slug: string, options: PackRegenerateOptions, io?: PackIO) => Promise<unknown>;
+  readonly runPackDelete?: (slug: string, options: PackDeleteOptions, io?: PackIO) => Promise<unknown>;
 }
 
 /**
@@ -372,6 +391,66 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .action(async (runId: string, opts: ExportOptions) => {
       await exportRunner(runId, opts, options.exportIO);
+    });
+
+  // Module 08b S16 — pack admin (new, list, show, regenerate, delete).
+  const pack = program.command('pack').description('Manage docs/feature-packs/<slug>/ directories.');
+  const packNewRunner = options.runPackNew ?? runPackNewCommand;
+  pack
+    .command('new <slug>')
+    .description('Create a new feature pack folder + 4-file scaffold from a template.')
+    .option('--template <name|path>', 'Bundled template name OR a path to a local template dir.')
+    .option('--parent <slug>', 'parentSlug for inheritance (recorded in meta.json#parentSlug).')
+    .option('--mode <mode>', 'minimal | default | auto (auto detects template + populates @auto sections).')
+    .option('--force', 'Overwrite an existing pack at this slug.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: PackNewOptions) => {
+      await packNewRunner(slug, opts, options.packIO);
+    });
+  const packListRunner = options.runPackList ?? runPackListCommand;
+  pack
+    .command('list')
+    .description(
+      'List every feature pack under docs/feature-packs/, with isActive + parentSlug + missing-file warnings.',
+    )
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PackListOptions) => {
+      await packListRunner(opts, options.packIO);
+    });
+  const packShowRunner = options.runPackShow ?? runPackShowCommand;
+  pack
+    .command('show <slug>')
+    .description('Print one pack: meta.json + first 2KB excerpt of each markdown file + missing-file flags.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: PackShowOptions) => {
+      await packShowRunner(slug, opts, options.packIO);
+    });
+  const packRegenerateRunner = options.runPackRegenerate ?? runPackRegenerateCommand;
+  pack
+    .command('regenerate <slug>')
+    .description(
+      'Refresh @auto sections in spec/implementation/techstack from project shape. Preserves all user-edited content outside markers.',
+    )
+    .option(
+      '--mode <mode>',
+      'auto (default) | minimal — auto repopulates from project shape; minimal leaves placeholders.',
+    )
+    .option('--dry-run', 'Print which files would change without writing.')
+    .option('--force', 'Reserved for future use (currently has no effect).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: PackRegenerateOptions) => {
+      await packRegenerateRunner(slug, opts, options.packIO);
+    });
+  const packDeleteRunner = options.runPackDelete ?? runPackDeleteCommand;
+  pack
+    .command('delete <slug>')
+    .description(
+      'Remove docs/feature-packs/<slug>/ from disk + flip feature_packs.is_active to false (row preserved per ADR-007). Refuses without --force.',
+    )
+    .option('--force', 'Confirm the destructive delete (required).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: PackDeleteOptions) => {
+      await packDeleteRunner(slug, opts, options.packIO);
     });
 
   // Module 08b S11 — run admin (list, show, cancel).

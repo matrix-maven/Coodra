@@ -47,6 +47,7 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   policy_decisions audit trail by default;
                                   --include-audit opts in. JSON always includes the
                                   audit.
+        pack                      Manage docs/feature-packs/<slug>/ directories.
         run                       Inspect + cancel rows in the \`runs\` table.
         uninstall [options]       Reverse \`contextos init\`: remove \`__contextos__\`
                                   matchers from ~/.claude/settings.json + \`contextos\`
