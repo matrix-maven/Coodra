@@ -25,6 +25,9 @@ import { cloudReachabilityCheck } from './checks/24-cloud-reachability.js';
 import { syncQueueDepthCheck } from './checks/25-sync-queue-depth.js';
 import { syncLagCheck } from './checks/26-sync-lag.js';
 import { syncDeadLetterCheck } from './checks/27-sync-dead-letter.js';
+import { claudeHookRegistrationCheck } from './checks/28-claude-hook-registration.js';
+import { preToolUseLoopCheck } from './checks/29-pre-tool-use-loop.js';
+import { staleRunsCheck } from './checks/30-stale-runs.js';
 import type { Check } from './types.js';
 
 /**
@@ -48,7 +51,12 @@ import type { Check } from './types.js';
  * observability (21/22/23), launch-mode dependent (9/15/16),
  * placeholder (13). All available via `contextos doctor --full`.
  */
-const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 11, 12, 14, 20]);
+// Slice 5 (2026-05-03 audit §14.1) adds 28+29 to the essential set —
+// these catch the §3.2 / §9.2 bug class (matcher gate, SessionEnd
+// registration) that doctor missed for weeks because it only checked
+// process health. Check 30 (stale-runs warning) stays off-essential —
+// it's an observability signal, not an install-gate invariant.
+const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 11, 12, 14, 20, 28, 29]);
 
 function tagEssential(checks: readonly Check[]): readonly Check[] {
   return checks.map((c) => ({ ...c, essential: ESSENTIAL_IDS.has(c.id) }));
@@ -82,6 +90,10 @@ export const ALL_CHECKS: readonly Check[] = tagEssential([
   syncQueueDepthCheck,
   syncLagCheck,
   syncDeadLetterCheck,
+  // Slice 5 (2026-05-03 audit §14.1) — lifecycle invariants.
+  claudeHookRegistrationCheck,
+  preToolUseLoopCheck,
+  staleRunsCheck,
 ]);
 
 /**

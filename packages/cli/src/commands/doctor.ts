@@ -30,6 +30,23 @@ export const DEFAULT_DOCTOR_IO: DoctorIO = {
     process.stderr.write(chunk);
   },
   exit: (code) => {
+    // Slice 5 (2026-05-03 audit §14.1): set exitCode + drain stdout
+    // BEFORE calling process.exit. Node's process.exit is synchronous
+    // and cuts off any in-flight stdout writes when stdout is piped
+    // (e.g. when execa or another parent captures the output). The
+    // doctor's --full JSON exceeded the default pipe buffer somewhere
+    // around 8KB and was being truncated mid-stream in the integration
+    // test. Setting exitCode and ending stdout cleanly fixes the leak.
+    process.exitCode = code;
+    if (process.stdout.writableLength > 0) {
+      // Wait for the pipe to drain, then exit. Cast through never for
+      // the function-signature contract.
+      process.stdout.once('drain', () => process.exit(code));
+      // Belt-and-suspenders: if the drain event takes too long, force-
+      // exit anyway so tests don't hang.
+      setTimeout(() => process.exit(code), 100).unref();
+      return undefined as never;
+    }
     process.exit(code);
   },
 };
