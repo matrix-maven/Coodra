@@ -1,5 +1,6 @@
 export { type BaseEnv, baseEnvSchema, loadBaseEnv, parseEnv } from './config.js';
 export { EMBEDDING_DIM, type EmbeddingDim } from './constants.js';
+export { contextPackFilename, defaultContextPacksRoot } from './context-pack-paths.js';
 export {
   AppError,
   type AppErrorOptions,

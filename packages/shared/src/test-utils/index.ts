@@ -10,16 +10,6 @@
  */
 
 export {
-  assertManifestDescriptionValid,
-  MAX_DESCRIPTION_LENGTH,
-  MAX_DESCRIPTION_WORD_COUNT,
-  type ManifestDescriptionValidationOptions,
-  MIN_DESCRIPTION_LENGTH,
-  MIN_DESCRIPTION_WORD_COUNT,
-  TOOL_NAME_PATTERN,
-} from './manifest-assertions.js';
-
-export {
   ALL_REAL_ENVELOPES,
   CWD,
   MODEL,
@@ -32,3 +22,12 @@ export {
   SESSION_ID,
   TRANSCRIPT_PATH,
 } from './fixtures/claude-code-real-envelope.js';
+export {
+  assertManifestDescriptionValid,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_DESCRIPTION_WORD_COUNT,
+  type ManifestDescriptionValidationOptions,
+  MIN_DESCRIPTION_LENGTH,
+  MIN_DESCRIPTION_WORD_COUNT,
+  TOOL_NAME_PATTERN,
+} from './manifest-assertions.js';

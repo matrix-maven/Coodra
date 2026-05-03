@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { type DbHandle, sqliteSchema } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
+import { contextPackFilename, defaultContextPacksRoot } from '@coodra/contextos-shared/context-pack-paths';
 import { asc, eq } from 'drizzle-orm';
 
 /**
@@ -8,12 +11,27 @@ import { asc, eq } from 'drizzle-orm';
  * Context Pack auto-save invoked from the SessionEnd handler
  * (decision dec_83ba10c1, 2026-05-02 — Pattern 20). Mirrors the
  * happy-path INSERT from `apps/mcp-server/src/lib/context-pack.ts`
- * minus the embedding column and the FS materialisation: those
- * are mcp-server's jobs (NL Assembly + curated archive). Auto-saved
- * packs land only in the DB; the user can run
- * `contextos__save_context_pack` mid-session to overlay a richer
- * narrative, which the existing append-only logic surfaces back
- * unchanged (ADR-007).
+ * minus the embedding column.
+ *
+ * **Phase 4 Fix H (Slice 3 — 2026-05-03 audit):** the auto-save now
+ * ALSO materialises a `~/.contextos/packs/<yyyy-mm-dd>-<runId>.md`
+ * file alongside the DB insert. Pre-Fix-H auto-saves landed in DB
+ * only — the audit observed 4 packs in DB but only 2 on filesystem
+ * (the manually-saved ones). Users opening `~/.contextos/packs/`
+ * couldn't see autonomous saves and the closeout grep workflow was
+ * broken. Path computation is shared with `lib/context-pack.ts` via
+ * `@coodra/contextos-shared/context-pack-paths` so a manual mid-session
+ * save and the bridge's autonomous SessionEnd save produce the same
+ * filename for the same runId (which the `context_packs.run_id` unique
+ * constraint catches as a no-op anyway, but matching filenames keep
+ * `ls ~/.contextos/packs/` coherent across both write-paths).
+ *
+ * The user can still call `contextos__save_context_pack` mid-session
+ * to overlay a richer narrative — the existing append-only / idempotent
+ * logic surfaces the manual pack back unchanged (ADR-007). Per the
+ * audit's §9.1 correction, the auto-pack body already enumerates
+ * decisions under a `## Decisions` heading via `buildAutoSummary`;
+ * Slice 3 only fixes the FS materialization gap.
  *
  * Idempotency: `context_packs.run_id` is unique. The implementation
  * checks for an existing row before inserting; the unique index is
@@ -37,6 +55,12 @@ export interface AutoContextPackInput {
   readonly runId: string;
   readonly projectId: string;
   readonly db: DbHandle;
+  /**
+   * Override the on-disk root for the materialised `.md` file.
+   * Defaults to `~/.contextos/packs/` per `defaultContextPacksRoot()`.
+   * Tests pass a tmpdir; production uses the default. (Slice 3.)
+   */
+  readonly contextPacksRoot?: string;
 }
 
 interface RunEventRow {
@@ -238,11 +262,41 @@ export async function saveAutoContextPack(input: AutoContextPackInput): Promise<
     contentExcerpt,
   });
 
+  // Phase 4 Fix H (Slice 3 — 2026-05-03 audit): materialise to FS so
+  // users can see autonomous saves alongside manual ones in
+  // `~/.contextos/packs/`. Failure here is non-fatal — DB row already
+  // landed, FS is reconcilable. Same posture as the MCP `save_context_pack`
+  // tool's store (apps/mcp-server/src/lib/context-pack.ts:303-321).
+  // The createdAt used for the filename is `new Date()` rather than the
+  // DB-returned `created_at` column because this code path doesn't
+  // round-trip the row read; close-enough since the date stamp is
+  // YYYY-MM-DD granularity and the filename is informational.
+  const contextPacksRoot = input.contextPacksRoot ?? defaultContextPacksRoot();
+  let filePath: string | null = null;
+  try {
+    await mkdir(contextPacksRoot, { recursive: true });
+    const filename = contextPackFilename(input.runId, new Date());
+    const fullPath = resolve(contextPacksRoot, filename);
+    await writeFile(fullPath, summary.content, 'utf8');
+    filePath = fullPath;
+  } catch (err) {
+    autoContextPackLogger.warn(
+      {
+        event: 'auto_context_pack_fs_write_failed',
+        runId: input.runId,
+        contextPacksRoot,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'auto-context-pack: DB insert succeeded but FS materialise failed; row is durable, FS is reconcilable',
+    );
+  }
+
   autoContextPackLogger.info(
     {
       event: 'auto_context_pack_saved',
       runId: input.runId,
       contextPackId: id,
+      filePath,
       eventCount: events.length,
       decisionCount: decisions.length,
       contentBytes: summary.content.length,

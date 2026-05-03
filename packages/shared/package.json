@@ -32,6 +32,10 @@
       "types": "./dist/constants.d.ts",
       "import": "./dist/constants.js"
     },
+    "./context-pack-paths": {
+      "types": "./dist/context-pack-paths.d.ts",
+      "import": "./dist/context-pack-paths.js"
+    },
     "./test-utils": {
       "types": "./dist/test-utils/index.d.ts",
       "import": "./dist/test-utils/index.js"
