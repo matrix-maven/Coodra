@@ -91,6 +91,11 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   const steps: UninstallStepResult[] = [];
 
   // Step 1: ~/.claude/settings.json
+  // settingsPath precedence: explicit IO override (tests) > CLAUDE_SETTINGS_PATH
+  // env (sandbox runners) > defaultClaudeSettingsPath() (production default).
+  // The env override lands inside `removeClaudeSettings`'s default-path
+  // resolution so we don't have to thread it through here when the IO
+  // override is absent.
   try {
     const result = await removeClaudeSettings({
       ...(io.settingsPath !== undefined ? { settingsPath: io.settingsPath } : {}),

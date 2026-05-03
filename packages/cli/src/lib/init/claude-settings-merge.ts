@@ -150,7 +150,25 @@ interface ClaudeSettings {
   [k: string]: unknown;
 }
 
-export function defaultClaudeSettingsPath(home: string = homedir()): string {
+/**
+ * Resolves the path to Claude Code's settings file.
+ *
+ * Override precedence:
+ *   1. `CLAUDE_SETTINGS_PATH` env var (added M08b S8.5, 2026-05-03 —
+ *      gives sandbox-runners and CI scripts a way to redirect the
+ *      uninstall + init writes away from the operator's real
+ *      `~/.claude/settings.json`).
+ *   2. `<home>/.claude/settings.json` per Claude Code's documented
+ *      default.
+ *
+ * The `home` parameter overrides `os.homedir()` for tests; production
+ * callers omit it.
+ */
+export function defaultClaudeSettingsPath(home: string = homedir(), env: NodeJS.ProcessEnv = process.env): string {
+  const override = env.CLAUDE_SETTINGS_PATH;
+  if (typeof override === 'string' && override.length > 0) {
+    return override;
+  }
   return join(home, '.claude', 'settings.json');
 }
 
