@@ -294,7 +294,11 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     }
   }
 
-  // Seed the feature pack folder
+  // Seed the feature pack folder. Module 08b S15: when --mode auto AND
+  // a template was resolved, also auto-populate the template's
+  // <!-- @auto:* --> sections from project shape (deps, directory tree,
+  // scripts, entry points).
+  const autoPopulate = options.mode === 'auto' && template !== undefined;
   const seedOutcomes = await seedFeaturePack({
     cwd: root,
     slug: projectSlug,
@@ -302,8 +306,14 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     force,
     dryRun,
     ...(template !== undefined ? { template } : {}),
+    autoPopulate,
   });
   outcomes.push(...seedOutcomes);
+  if (autoPopulate && template !== undefined) {
+    io.writeStdout(
+      `${pc.green('✓')} Auto-populated ${template.meta.autoSections.length} <!-- @auto:* --> section(s) from project shape.\n`,
+    );
+  }
 
   // Graphify is optional and out of 08a's required scope.
   if (options.graphify === false) {

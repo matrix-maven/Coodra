@@ -1,9 +1,11 @@
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { replaceAutoSections } from '../auto-marker/index.js';
 import type { Language } from '../detect.js';
 import type { TemplateDefinition } from '../templates/load-template.js';
 import { renderTemplate } from '../templates/render.js';
+import { populateAutoSections } from './auto-populate.js';
 import type { WriteOutcome } from './types.js';
 
 export interface SeedFeaturePackOptions {
@@ -20,6 +22,15 @@ export interface SeedFeaturePackOptions {
    * population (M08b S15 --mode auto) layers on top of this output.
    */
   readonly template?: TemplateDefinition;
+  /**
+   * Module 08b S15 — when true (set by `init --mode auto`), the rendered
+   * template's `<!-- @auto:* -->` sections are populated from project
+   * shape (deps from package.json/pyproject.toml/Cargo.toml/go.mod;
+   * directory tree to depth 3; etc.) before write. Requires
+   * `template !== undefined`; no-op without a template since the
+   * legacy skeletons don't carry auto-section markers.
+   */
+  readonly autoPopulate?: boolean;
 }
 
 const LANGUAGE_GLOB: Record<Language, string[]> = {
@@ -58,6 +69,19 @@ export async function seedFeaturePack(options: SeedFeaturePackOptions): Promise<
     specBody = rendered['spec.md'];
     implementationBody = rendered['implementation.md'];
     techstackBody = rendered['techstack.md'];
+    // Module 08b S15: if autoPopulate, walk each rendered file and
+    // replace `<!-- @auto:* -->` section content with project-shape-
+    // derived content. Empty/no-data sections get a placeholder
+    // line so they stay explicitly marked rather than going blank.
+    if (options.autoPopulate === true && options.template.meta.autoSections.length > 0) {
+      const populated = populateAutoSections(options.cwd, options.template.meta.autoSections);
+      const replacements = Object.fromEntries(Object.entries(populated).map(([k, v]) => [k, { content: `\n${v}\n` }]));
+      specBody = replaceAutoSections(specBody, replacements).markdown;
+      implementationBody = replaceAutoSections(implementationBody, replacements).markdown;
+      techstackBody = replaceAutoSections(techstackBody, replacements).markdown;
+      // meta.json doesn't carry auto sections in any current template;
+      // skip the markup pass for it.
+    }
   } else {
     const sourceFiles = options.languages.flatMap((lang) => LANGUAGE_GLOB[lang]);
     const meta = {
