@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+@import '../styles/tokens.css';
+
+/*
+ * Tailwind v4 @theme block consumes the CSS custom properties from
+ * tokens.css. Tailwind utilities like `bg-status-success` generate from
+ * `--color-status-success` automatically.
+ */
+@theme {
+  --color-brand: var(--color-brand);
+  --color-brand-hover: var(--color-brand-hover);
+  --color-bg-base: var(--color-bg-base);
+  --color-bg-surface: var(--color-bg-surface);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-text-primary: var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-code: var(--color-text-code);
+  --color-status-success: var(--color-status-success);
+  --color-status-warning: var(--color-status-warning);
+  --color-status-error: var(--color-status-error);
+  --color-status-info: var(--color-status-info);
+  --color-status-neutral: var(--color-status-neutral);
+  --color-risk-low: var(--color-risk-low);
+  --color-risk-medium: var(--color-risk-medium);
+  --color-risk-high: var(--color-risk-high);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-border-default: var(--color-border-default);
+  --color-border-strong: var(--color-border-strong);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --spacing: 4px;
+
+  /* Override Tailwind's rounded-* utilities to no-op (brand: zero radius). */
+  --radius: 0;
+}
+
+/* Reset + body */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-base);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Brand-mandated zero radius — overrides any Tailwind rounded-* utility. */
+* {
+  border-radius: 0 !important;
+}
+
+/* Focus ring per brand.md — 2px Precision Blue with 2px offset on :focus-visible. */
+*:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Suppress mouse-click focus outlines. */
+*:focus:not(:focus-visible) {
+  outline: none;
+}

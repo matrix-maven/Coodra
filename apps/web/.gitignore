@@ -1,0 +1,16 @@
+# Next.js build artefacts
+.next/
+out/
+next-env.d.ts
+
+# Local env (use .env.local.example as the template)
+.env.local
+.env.production
+.env.development
+
+# Test
+coverage/
+
+# Editor
+.DS_Store
+*.tsbuildinfo
