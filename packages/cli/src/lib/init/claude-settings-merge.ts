@@ -438,3 +438,112 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
 
 // Internal exports for tests.
 export { LEGACY_CONTEXTOS_MATCHER, TOOL_EVENT_MATCHER };
+
+/**
+ * Module 08b S8 — `contextos uninstall` reverse for `~/.claude/settings.json`.
+ *
+ * Removes every ContextOS-owned hook entry (URL-prefix detection per
+ * Phase 4 Fix F) AND every legacy `matcher === '__contextos__'`
+ * sentinel entry. User entries (which never carry the bridge URL)
+ * stay untouched. Idempotent: re-running on a file with no owned
+ * entries is a no-op.
+ *
+ * The `hooks` block keeps its overall shape — only the contextos
+ * entries inside per-event arrays are stripped. Empty per-event
+ * arrays are removed so the file shrinks rather than carrying empty
+ * scaffolding.
+ */
+export interface RemoveClaudeSettingsOptions {
+  readonly settingsPath?: string;
+  readonly bridgePort: number;
+  readonly bridgeHost?: string;
+  readonly dryRun: boolean;
+}
+
+export async function removeClaudeSettings(options: RemoveClaudeSettingsOptions): Promise<MergeClaudeSettingsResult> {
+  const path = options.settingsPath ?? defaultClaudeSettingsPath();
+  const host = options.bridgeHost ?? '127.0.0.1';
+  const bridgeUrlPrefix = `http://${host}:${options.bridgePort}/v1/hooks/claude-code`;
+
+  let raw: string | null = null;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') {
+      return {
+        path,
+        outcome: { path, action: 'unchanged', notes: 'no ~/.claude/settings.json exists; nothing to remove' },
+      };
+    }
+    throw err;
+  }
+
+  let settings: ClaudeSettings;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) {
+      throw new Error(`${path} is not a JSON object`);
+    }
+    settings = parsed as ClaudeSettings;
+  } catch (err) {
+    throw new Error(`Cannot parse ${path}: ${(err as Error).message}`);
+  }
+
+  const hooksBlock: NonNullable<ClaudeSettings['hooks']> = (settings.hooks as ClaudeSettings['hooks']) ?? {};
+  let anyChanged = false;
+  const updates: Record<string, ClaudeHookEntry[]> = {};
+  for (const [eventName, entries] of Object.entries(hooksBlock)) {
+    if (!Array.isArray(entries)) {
+      // Preserve unknown shape verbatim.
+      updates[eventName] = entries as ClaudeHookEntry[];
+      continue;
+    }
+    const filtered = entries.filter((e) => {
+      if (e === undefined || e === null || typeof e !== 'object') return true;
+      // Drop both: URL-prefix-owned (post-Fix-F) AND legacy sentinel-matcher entries.
+      if (isContextosOwnedEntry(e, bridgeUrlPrefix)) return false;
+      if (e.matcher === LEGACY_CONTEXTOS_MATCHER) return false;
+      return true;
+    });
+    if (filtered.length !== entries.length) anyChanged = true;
+    if (filtered.length > 0) {
+      updates[eventName] = filtered;
+    }
+    // If filtered is empty, omit the per-event key entirely so the file shrinks.
+  }
+
+  if (!anyChanged) {
+    return {
+      path,
+      outcome: { path, action: 'unchanged', notes: 'no contextos-owned hook entries found; nothing to remove' },
+    };
+  }
+
+  const next: ClaudeSettings = { ...settings, hooks: updates };
+  const nextRaw = `${JSON.stringify(next, null, 2)}\n`;
+
+  if (options.dryRun) {
+    return {
+      path,
+      outcome: { path, action: 'merged', notes: 'dry-run: contextos hook entries would be removed' },
+    };
+  }
+
+  // Backup the original on the first divergent write.
+  const backupPath = `${path}.contextos-uninstall-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  try {
+    await writeFile(backupPath, raw, 'utf8');
+  } catch {
+    // best-effort
+  }
+
+  const tmpPath = `${path}.contextos.tmp`;
+  await writeFile(tmpPath, nextRaw, 'utf8');
+  await rename(tmpPath, path);
+
+  return {
+    path,
+    outcome: { path, action: 'merged', notes: 'removed contextos hook entries' },
+  };
+}

@@ -146,3 +146,47 @@ async function pathExists(path: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Module 08b S8 — `contextos uninstall` reverse for `.mcp.json`.
+ *
+ * Removes the `contextos` key from `mcpServers` if present. Leaves
+ * every other server entry untouched. Returns a WriteOutcome
+ * describing what happened (action='unchanged' on no-op, 'merged'
+ * when the entry was actually removed, 'wrote' is unused).
+ *
+ * Idempotent: re-running on a file with no `contextos` entry is
+ * action='unchanged'.
+ */
+export async function removeMcpJson(options: { cwd: string; dryRun: boolean }): Promise<WriteOutcome> {
+  const path = join(options.cwd, '.mcp.json');
+  const exists = await pathExists(path);
+  if (!exists) {
+    return { path, action: 'unchanged', notes: '.mcp.json does not exist; nothing to remove' };
+  }
+
+  const raw = await readFile(path, 'utf8');
+  let parsed: { mcpServers?: Record<string, unknown>; [k: string]: unknown };
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Cannot parse existing .mcp.json: ${(err as Error).message}`);
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error(`.mcp.json must be a JSON object`);
+  }
+
+  const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
+  if (!Object.hasOwn(servers, 'contextos')) {
+    return { path, action: 'unchanged', notes: 'no contextos entry to remove' };
+  }
+
+  const next: Record<string, unknown> = { ...servers };
+  delete next.contextos;
+  parsed.mcpServers = next;
+
+  if (!options.dryRun) {
+    await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+  }
+  return { path, action: 'merged', notes: 'removed contextos entry from .mcp.json' };
+}

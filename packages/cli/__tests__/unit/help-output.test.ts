@@ -39,6 +39,11 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   Module 04a OQ4.
         db                        Database administration: migrate / backup / restore
                                   the local SQLite primary store.
+        uninstall [options]       Reverse \`contextos init\`: remove \`__contextos__\`
+                                  matchers from ~/.claude/settings.json + \`contextos\`
+                                  server from .mcp.json. Default-safe (preserves data
+                                  + config + feature/context packs); --purge removes
+                                  ~/.contextos/.
         upgrade [options]         Check for a newer @coodra/contextos-cli on npm. Does
                                   NOT self-update — prints the install command. After
                                   install, re-run to apply migrations + restart

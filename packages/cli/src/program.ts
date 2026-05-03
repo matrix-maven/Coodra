@@ -17,6 +17,7 @@ import {
   type TeamCommandIO,
   type TeamLoginOptions,
 } from './commands/team.js';
+import { runUninstallCommand, type UninstallIO, type UninstallOptions } from './commands/uninstall.js';
 import { runUpgradeCommand, type UpgradeIO, type UpgradeOptions } from './commands/upgrade.js';
 import { VERSION } from './version.js';
 
@@ -56,6 +57,8 @@ interface BuildProgramOptions {
   readonly runDbRestore?: (source: string, options: DbRestoreOptions, io?: DbRestoreIO) => Promise<unknown>;
   readonly upgradeIO?: UpgradeIO;
   readonly runUpgrade?: (options: UpgradeOptions, io?: UpgradeIO) => Promise<unknown>;
+  readonly uninstallIO?: UninstallIO;
+  readonly runUninstall?: (options: UninstallOptions, io?: UninstallIO) => Promise<unknown>;
 }
 
 /**
@@ -194,6 +197,20 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (source: string, opts: DbRestoreOptions) => {
       await dbRestoreRunner(source, opts, options.dbRestoreIO);
+    });
+
+  // Module 08b S8 — reverse `init` writes.
+  const uninstallRunner = options.runUninstall ?? runUninstallCommand;
+  program
+    .command('uninstall')
+    .description(
+      'Reverse `contextos init`: remove `__contextos__` matchers from ~/.claude/settings.json + `contextos` server from .mcp.json. Default-safe (preserves data + config + feature/context packs); --purge removes ~/.contextos/.',
+    )
+    .option('--purge', 'Remove ~/.contextos/ as well (data + config + logs + pids).')
+    .option('--dry-run', 'Print what would change without touching disk.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: UninstallOptions) => {
+      await uninstallRunner(opts, options.uninstallIO);
     });
 
   // Module 08b S7 — version-aware orchestration around npm install.

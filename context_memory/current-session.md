@@ -117,3 +117,10 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S7 — wired upgrade into program.ts (13 top-level commands now: cloud-migrate, db, doctor, init, logs, pause, resume, start, status, stop, team, upgrade)
 - [HH:mm] S7 — wrote 6 unit fixtures (5 spec + 1 bonus for downgrade scenario)
 - [HH:mm] S7 — refreshed help-output snapshot, lint clean, 176/176 CLI unit green
+- [HH:mm] S7 committed (`b33665f`): upgrade command (npm view + semver + restart hooks injectable)
+- [HH:mm] S8 — added `removeMcpJson` to `lib/init/mcp-merge.ts` (idempotent contextos-key removal preserving other servers)
+- [HH:mm] S8 — added `removeClaudeSettings` to `lib/init/claude-settings-merge.ts` (drops URL-prefix-owned + legacy `__contextos__` matcher entries; empty per-event arrays removed; backup of original on first divergent write)
+- [HH:mm] S8 — wrote `packages/cli/src/commands/uninstall.ts` (best-effort 3-step pipeline: claude-settings → mcp-json → optional purge of ~/.contextos/; always prints `npm uninstall -g @coodra/contextos-cli` for user)
+- [HH:mm] S8 — wired into program.ts (14 top-level commands now)
+- [HH:mm] S8 — wrote 5 integration fixtures (claude-settings URL-owned removal preserving user entries, mcp-json contextos removal preserving other servers, default-safe data preservation, --purge wipe, idempotent re-run)
+- [HH:mm] S8 — refreshed help-output snapshot, lint clean, 176/176 CLI unit + 5/5 S8 integration green
