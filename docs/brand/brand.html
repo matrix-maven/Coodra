@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ContextOS — Brand Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── TOKENS ─── */
+    :root {
+      --color-brand:         #1C69D4;
+      --color-brand-hover:   #0653B6;
+      --color-brand-muted:   rgba(28,105,212,0.08);
+      --color-brand-subtle:  #EBF2FC;
+
+      --color-bg-base:       #FFFFFF;
+      --color-bg-surface:    #F7F7FA;
+      --color-bg-elevated:   #EEEEF2;
+      --color-bg-overlay:    #E4E4EA;
+
+      --color-text-primary:  #262626;
+      --color-text-secondary:#757575;
+      --color-text-tertiary: #BBBBBB;
+      --color-text-inverted: #FFFFFF;
+      --color-text-code:     #0653B6;
+
+      --color-border-subtle: rgba(0,0,0,0.06);
+      --color-border-default:rgba(0,0,0,0.10);
+      --color-border-strong: rgba(0,0,0,0.20);
+
+      --color-status-success:#22C55E;
+      --color-status-warning:#F59E0B;
+      --color-status-error:  #EF4444;
+      --color-status-info:   #1C69D4;
+      --color-status-neutral:#6B7280;
+
+      --color-risk-low:      #22C55E;
+      --color-risk-medium:   #F59E0B;
+      --color-risk-high:     #EF4444;
+
+      --font-display: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --font-sans:    'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+      --space-1: 4px; --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+      --space-6: 24px; --space-8: 32px; --space-12: 48px; --space-16: 64px;
+
+      --shadow-sm:    0 1px 2px rgba(0,0,0,0.05);
+      --shadow-md:    0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg:    0 8px 32px rgba(0,0,0,0.10);
+      --shadow-brand: 0 0 0 2px rgba(28,105,212,0.3);
+
+      /* Hero section uses inverted dark treatment */
+      --hero-bg: #1A1A1A;
+      --hero-text: #FFFFFF;
+      --hero-secondary: rgba(255,255,255,0.65);
+      --hero-border: rgba(255,255,255,0.10);
+    }
+
+    [data-theme="dark"] {
+      --color-bg-base:       #0A0A0F;
+      --color-bg-surface:    #111118;
+      --color-bg-elevated:   #1A1A24;
+      --color-bg-overlay:    #22222E;
+      --color-text-primary:  #F0F0F5;
+      --color-text-secondary:#9898B0;
+      --color-text-tertiary: #5C5C78;
+      --color-text-code:     #A8EDBA;
+      --color-border-subtle: rgba(255,255,255,0.06);
+      --color-border-default:rgba(255,255,255,0.12);
+      --color-border-strong: rgba(255,255,255,0.24);
+      --shadow-sm:    0 1px 2px rgba(0,0,0,0.4);
+      --shadow-md:    0 4px 12px rgba(0,0,0,0.5);
+      --shadow-lg:    0 8px 32px rgba(0,0,0,0.6);
+      --hero-bg: #0A0A0F;
+      --hero-text: #F0F0F5;
+      --hero-secondary: rgba(255,255,255,0.55);
+      --hero-border: rgba(255,255,255,0.08);
+    }
+
+    /* ─── RESET ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-bg-base);
+      color: var(--color-text-primary);
+      font-size: 16px;
+      line-height: 1.15;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: var(--color-bg-base);
+      border-bottom: 1px solid var(--color-border-subtle);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 var(--space-12);
+      height: 56px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 20px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--color-text-primary);
+      text-decoration: none;
+    }
+    .nav-logo span { color: var(--color-brand); }
+    .nav-links { display: flex; gap: var(--space-8); align-items: center; }
+    .nav-links a {
+      font-family: var(--font-sans); font-size: 13px; font-weight: 900;
+      color: var(--color-text-secondary); text-decoration: none;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--color-brand); }
+
+    .theme-toggle {
+      background: transparent; border: 1px solid var(--color-border-default);
+      color: var(--color-text-secondary); padding: 6px 12px;
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .theme-toggle:hover { border-color: var(--color-brand); color: var(--color-brand); }
+
+    /* ─── HERO ─── */
+    .hero {
+      min-height: 100vh;
+      background: var(--hero-bg);
+      display: flex; flex-direction: column; justify-content: flex-end;
+      padding: var(--space-12);
+      padding-top: 56px;
+      position: relative; overflow: hidden;
+    }
+    .hero-grid {
+      position: absolute; inset: 0; top: 56px;
+      background-image:
+        linear-gradient(var(--hero-border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--hero-border) 1px, transparent 1px);
+      background-size: 64px 64px;
+      opacity: 0.4;
+    }
+    .hero-accent-bar {
+      position: absolute; top: 56px; left: 0; right: 0; height: 3px;
+      background: var(--color-brand);
+    }
+    .hero-eyebrow {
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      color: var(--color-brand); letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: var(--space-4); position: relative;
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-size: clamp(52px, 8vw, 96px);
+      font-weight: 300; line-height: 1.05;
+      text-transform: uppercase; letter-spacing: 0.02em;
+      color: var(--hero-text);
+      position: relative;
+      margin-bottom: var(--space-6);
+    }
+    .hero-title em { font-style: normal; color: var(--color-brand); }
+    .hero-subtitle {
+      font-family: var(--font-sans); font-size: 16px; font-weight: 400;
+      color: var(--hero-secondary); max-width: 480px;
+      line-height: 1.50; position: relative; margin-bottom: var(--space-8);
+    }
+    .hero-meta {
+      display: flex; gap: var(--space-8); align-items: center;
+      position: relative;
+      padding-top: var(--space-6);
+      border-top: 1px solid var(--hero-border);
+    }
+    .hero-meta-item {
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .hero-meta-label {
+      font-family: var(--font-sans); font-size: 10px; font-weight: 700;
+      color: var(--hero-secondary); letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .hero-meta-value {
+      font-family: var(--font-mono); font-size: 13px; font-weight: 400;
+      color: #FFFFFF;
+    }
+    .hero-divider { width: 1px; height: 32px; background: var(--hero-border); }
+
+    /* ─── SECTIONS ─── */
+    section { padding: var(--space-16) var(--space-12); border-top: 1px solid var(--color-border-subtle); }
+    .section-label {
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      color: var(--color-brand); letter-spacing: 0.12em; text-transform: uppercase;
+      margin-bottom: var(--space-3);
+    }
+    .section-title {
+      font-family: var(--font-display); font-size: 40px; font-weight: 300;
+      text-transform: uppercase; line-height: 1.15; letter-spacing: 0.02em;
+      color: var(--color-text-primary); margin-bottom: var(--space-8);
+    }
+
+    /* ─── COLORS ─── */
+    .color-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--space-3);
+    }
+    .color-swatch {
+      display: flex; flex-direction: column;
+    }
+    .swatch-block {
+      height: 72px;
+      border: 1px solid var(--color-border-subtle);
+    }
+    .swatch-info { padding: var(--space-2) 0; }
+    .swatch-name {
+      font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+      color: var(--color-text-primary); margin-bottom: 2px;
+    }
+    .swatch-value {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 400;
+      color: var(--color-text-code);
+    }
+
+    .color-group { margin-bottom: var(--space-8); }
+    .color-group-label {
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      color: var(--color-text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    /* ─── TYPOGRAPHY ─── */
+    .type-rows { display: flex; flex-direction: column; gap: var(--space-6); }
+    .type-row {
+      display: grid; grid-template-columns: 200px 1fr;
+      gap: var(--space-6); align-items: center;
+      padding-bottom: var(--space-6); border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .type-meta { display: flex; flex-direction: column; gap: var(--space-1); }
+    .type-meta-name {
+      font-family: var(--font-sans); font-size: 12px; font-weight: 700;
+      color: var(--color-text-primary);
+    }
+    .type-meta-detail {
+      font-family: var(--font-mono); font-size: 11px; color: var(--color-text-code);
+    }
+
+    /* ─── COMPONENTS ─── */
+    .component-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--space-4); }
+    .component-card {
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      padding: var(--space-6);
+      display: flex; flex-direction: column; gap: var(--space-4);
+    }
+    .component-card-label {
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      color: var(--color-text-tertiary); letter-spacing: 0.1em; text-transform: uppercase;
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background: var(--color-brand); color: var(--color-text-inverted);
+      border: none; padding: 10px 20px;
+      font-family: var(--font-sans); font-size: 14px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--color-brand-hover); }
+
+    .btn-ghost {
+      background: transparent; color: var(--color-text-primary);
+      border: 1px solid var(--color-border-default); padding: 10px 20px;
+      font-family: var(--font-sans); font-size: 14px; font-weight: 700;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      cursor: pointer; transition: border-color 0.15s;
+    }
+    .btn-ghost:hover { border-color: var(--color-brand); color: var(--color-brand); }
+
+    /* Badges */
+    .badge-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      border: 1px solid; padding: 3px 8px;
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .badge-dot { width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+    .badge-success { color: var(--color-status-success); border-color: var(--color-status-success); }
+    .badge-error   { color: var(--color-status-error);   border-color: var(--color-status-error); }
+    .badge-warning { color: var(--color-status-warning); border-color: var(--color-status-warning); }
+    .badge-neutral { color: var(--color-status-neutral); border-color: var(--color-status-neutral); }
+    .badge-info    { color: var(--color-status-info);    border-color: var(--color-status-info); }
+
+    /* Input */
+    .input-demo {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-default);
+      color: var(--color-text-primary);
+      padding: 10px 12px; width: 100%;
+      font-family: var(--font-sans); font-size: 14px;
+      outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .input-demo:focus { border-color: var(--color-brand); box-shadow: var(--shadow-brand); }
+    .input-demo::placeholder { color: var(--color-text-tertiary); }
+
+    /* Code block */
+    .code-block {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      padding: var(--space-4);
+      font-family: var(--font-mono); font-size: 12px; font-weight: 400;
+      color: var(--color-text-code); line-height: 1.6;
+      overflow-x: auto; white-space: pre;
+    }
+
+    /* Risk indicators */
+    .risk-row { display: flex; gap: var(--space-2); }
+    .risk-chip {
+      display: flex; align-items: center; gap: var(--space-2);
+      border: 1px solid; padding: 5px 10px;
+      font-family: var(--font-sans); font-size: 11px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .risk-dot { width: 8px; height: 8px; border-radius: 9999px; }
+    .risk-low    { color: var(--color-risk-low);    border-color: var(--color-risk-low); }
+    .risk-low    .risk-dot { background: var(--color-risk-low); }
+    .risk-medium { color: var(--color-risk-medium); border-color: var(--color-risk-medium); }
+    .risk-medium .risk-dot { background: var(--color-risk-medium); }
+    .risk-high   { color: var(--color-risk-high);   border-color: var(--color-risk-high); }
+    .risk-high   .risk-dot { background: var(--color-risk-high); }
+
+    /* Sidebar demo */
+    .sidebar-demo {
+      display: flex; height: 240px;
+      border: 1px solid var(--color-border-subtle);
+      overflow: hidden;
+    }
+    .sidebar-demo-nav {
+      width: 200px; background: var(--color-bg-surface);
+      border-right: 1px solid var(--color-border-subtle);
+      display: flex; flex-direction: column;
+      padding: var(--space-3) 0;
+    }
+    .sidebar-item {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-4);
+      font-family: var(--font-sans); font-size: 13px; font-weight: 400;
+      color: var(--color-text-secondary); cursor: pointer;
+      transition: background 0.1s;
+    }
+    .sidebar-item:hover { background: var(--color-bg-overlay); color: var(--color-text-primary); }
+    .sidebar-item.active {
+      background: var(--color-brand-muted);
+      color: var(--color-text-primary); font-weight: 700;
+      border-left: 2px solid var(--color-brand);
+      padding-left: calc(var(--space-4) - 2px);
+    }
+    .sidebar-icon { width: 14px; height: 14px; opacity: 0.7; flex-shrink: 0; }
+    .sidebar-demo-content {
+      flex: 1; background: var(--color-bg-base);
+      padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);
+    }
+    .demo-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: var(--space-3) var(--space-4);
+      background: var(--color-bg-surface);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+    .demo-row-label {
+      font-family: var(--font-mono); font-size: 12px; color: var(--color-text-code);
+    }
+
+    /* ─── ARCHITECTURE DIAGRAM ─── */
+    .arch-diagram {
+      background: var(--color-bg-surface);
+      border: 1px solid var(--color-border-subtle);
+      padding: var(--space-8);
+    }
+    .arch-modes { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--space-4); align-items: start; }
+    .arch-mode {
+      border: 1px solid var(--color-border-default);
+      padding: var(--space-6);
+    }
+    .arch-mode-title {
+      font-family: var(--font-sans); font-size: 11px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--color-brand); margin-bottom: var(--space-4);
+    }
+    .arch-services { display: flex; flex-direction: column; gap: var(--space-2); }
+    .arch-service {
+      display: flex; align-items: center; gap: var(--space-2);
+      padding: var(--space-2) var(--space-3);
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-subtle);
+      font-family: var(--font-mono); font-size: 11px; color: var(--color-text-code);
+    }
+    .arch-service-dot { width: 6px; height: 6px; border-radius: 9999px; flex-shrink: 0; }
+    .arch-sync-arrow {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: var(--space-2); padding-top: var(--space-8);
+    }
+    .arch-sync-label {
+      font-family: var(--font-sans); font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--color-text-tertiary); text-align: center;
+    }
+    .arch-sync-line {
+      width: 2px; height: 48px; background: var(--color-border-strong);
+      position: relative;
+    }
+    .arch-sync-line::after {
+      content: '▼'; position: absolute; bottom: -16px; left: 50%;
+      transform: translateX(-50%); font-size: 10px; color: var(--color-text-tertiary);
+    }
+
+    /* ─── SPACING DISPLAY ─── */
+    .spacing-rows { display: flex; flex-direction: column; gap: var(--space-3); }
+    .spacing-row { display: flex; align-items: center; gap: var(--space-4); }
+    .spacing-bar-wrap { flex: 1; }
+    .spacing-bar { height: 16px; background: var(--color-brand-muted); border-left: 2px solid var(--color-brand); }
+    .spacing-meta {
+      display: flex; gap: var(--space-6); min-width: 200px;
+    }
+    .spacing-token { font-family: var(--font-mono); font-size: 12px; color: var(--color-text-code); }
+    .spacing-value { font-family: var(--font-sans); font-size: 12px; color: var(--color-text-secondary); }
+
+    /* ─── PRINCIPLES ─── */
+    .principles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
+    .principle-card {
+      border-top: 2px solid var(--color-brand);
+      padding: var(--space-6) 0;
+    }
+    .principle-num {
+      font-family: var(--font-display); font-size: 40px; font-weight: 300;
+      color: var(--color-text-tertiary); line-height: 1; margin-bottom: var(--space-3);
+    }
+    .principle-title {
+      font-family: var(--font-sans); font-size: 14px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--color-text-primary); margin-bottom: var(--space-2);
+    }
+    .principle-body {
+      font-family: var(--font-sans); font-size: 13px; font-weight: 400;
+      color: var(--color-text-secondary); line-height: 1.50;
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      border-top: 1px solid var(--color-border-subtle);
+      padding: var(--space-8) var(--space-12);
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-logo {
+      font-family: var(--font-display); font-size: 18px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-text-secondary);
+    }
+    .footer-meta {
+      font-family: var(--font-sans); font-size: 12px; color: var(--color-text-tertiary);
+    }
+    .footer-version {
+      font-family: var(--font-mono); font-size: 11px; color: var(--color-text-code);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">Context<span>OS</span></a>
+    <div class="nav-links">
+      <a href="#colors">Colors</a>
+      <a href="#typography">Typography</a>
+      <a href="#components">Components</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#principles">Principles</a>
+      <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-grid"></div>
+    <div class="hero-accent-bar"></div>
+    <p class="hero-eyebrow">Brand Guide — v2.0</p>
+    <h1 class="hero-title">Context<em>OS</em><br>Design System</h1>
+    <p class="hero-subtitle">Precision tooling for agent governance. Every design decision is deliberate, measured, and justified. Nothing decorative. Everything functional.</p>
+    <div class="hero-meta">
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Primary Accent</span>
+        <span class="hero-meta-value">#1C69D4</span>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Display Font</span>
+        <span class="hero-meta-value">Inter 300</span>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Border Radius</span>
+        <span class="hero-meta-value">0px — always</span>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-meta-item">
+        <span class="hero-meta-label">Base Unit</span>
+        <span class="hero-meta-value">8px</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLORS -->
+  <section id="colors">
+    <p class="section-label">01 — Color</p>
+    <h2 class="section-title">Color Palette</h2>
+
+    <div class="color-group">
+      <div class="color-group-label">Brand</div>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#1C69D4"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Precision Blue</div>
+            <div class="swatch-value">--color-brand / #1C69D4</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#0653B6"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Focus Blue</div>
+            <div class="swatch-value">--color-brand-hover / #0653B6</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:rgba(28,105,212,0.12); border: 1px solid rgba(28,105,212,0.3)"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Brand Muted</div>
+            <div class="swatch-value">--color-brand-muted / rgba(28,105,212,0.12)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="color-group">
+      <div class="color-group-label">Background — Light Mode (Default)</div>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#FFFFFF; border:1px solid rgba(0,0,0,0.1)"></div>
+          <div class="swatch-info"><div class="swatch-name">Base</div><div class="swatch-value">#FFFFFF</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#F7F7FA; border:1px solid rgba(0,0,0,0.06)"></div>
+          <div class="swatch-info"><div class="swatch-name">Surface</div><div class="swatch-value">#F7F7FA</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#EEEEF2; border:1px solid rgba(0,0,0,0.06)"></div>
+          <div class="swatch-info"><div class="swatch-name">Elevated</div><div class="swatch-value">#EEEEF2</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#E4E4EA; border:1px solid rgba(0,0,0,0.06)"></div>
+          <div class="swatch-info"><div class="swatch-name">Overlay</div><div class="swatch-value">#E4E4EA</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="color-group">
+      <div class="color-group-label">Status</div>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#22C55E"></div>
+          <div class="swatch-info"><div class="swatch-name">Success</div><div class="swatch-value">#22C55E — Allowed</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#F59E0B"></div>
+          <div class="swatch-info"><div class="swatch-name">Warning</div><div class="swatch-value">#F59E0B — Partial</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#EF4444"></div>
+          <div class="swatch-info"><div class="swatch-name">Error</div><div class="swatch-value">#EF4444 — Denied</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#1C69D4"></div>
+          <div class="swatch-info"><div class="swatch-name">Info</div><div class="swatch-value">#1C69D4 — PreToolUse</div></div>
+        </div>
+        <div class="color-swatch">
+          <div class="swatch-block" style="background:#6B7280"></div>
+          <div class="swatch-info"><div class="swatch-name">Neutral</div><div class="swatch-value">#6B7280 — Inactive</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TYPOGRAPHY -->
+  <section id="typography">
+    <p class="section-label">02 — Typography</p>
+    <h2 class="section-title">Type System</h2>
+
+    <div class="type-rows">
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Display Hero</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">60px · wt 300 · lh 1.30</div>
+          <div class="type-meta-detail">UPPERCASE</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:60px;font-weight:300;line-height:1.20;text-transform:uppercase;letter-spacing:0.02em;color:var(--color-text-primary)">
+          Context OS
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Section Heading</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">32px · wt 400 · lh 1.30</div>
+          <div class="type-meta-detail">UPPERCASE</div>
+        </div>
+        <div style="font-family:var(--font-display);font-size:32px;font-weight:400;line-height:1.25;text-transform:uppercase;letter-spacing:0.02em;color:var(--color-text-primary)">
+          System Architecture
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Nav / CTA</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">16px · wt 900 · lh 1.20</div>
+          <div class="type-meta-detail">UPPERCASE</div>
+        </div>
+        <div style="font-family:var(--font-sans);font-size:16px;font-weight:900;line-height:1.20;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-text-primary)">
+          Get Started — View Docs — Deploy Now
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Body</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">16px · wt 400 · lh 1.15</div>
+        </div>
+        <div style="font-family:var(--font-sans);font-size:16px;font-weight:400;line-height:1.15;color:var(--color-text-primary)">
+          ContextOS is developer tooling for agent governance. Solo mode runs fully local on SQLite with zero external dependencies. Team mode adds optional cloud sync with Postgres and Redis.
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Secondary</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">13px · wt 400 · lh 1.50</div>
+        </div>
+        <div style="font-family:var(--font-sans);font-size:13px;font-weight:400;line-height:1.50;color:var(--color-text-secondary)">
+          Hook payloads are ~1–5 KB. Protobuf saves ~30% on 2 KB = 600 bytes. Irrelevant at scale targets of 1–10 developers.
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Monospace</div>
+          <div class="type-meta-detail">JetBrains Mono</div>
+          <div class="type-meta-detail">13px · wt 400 · lh 1.60</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:13px;font-weight:400;line-height:1.60;color:var(--color-text-code)">
+          src/auth.ts · session_id: "abc123" · pre_tool_use · org_dev_local
+        </div>
+      </div>
+
+      <div class="type-row">
+        <div class="type-meta">
+          <div class="type-meta-name">Label / Badge</div>
+          <div class="type-meta-detail">Inter</div>
+          <div class="type-meta-detail">11px · wt 700 · lh 1.40</div>
+          <div class="type-meta-detail">UPPERCASE</div>
+        </div>
+        <div style="font-family:var(--font-sans);font-size:11px;font-weight:700;line-height:1.40;text-transform:uppercase;letter-spacing:0.1em;color:var(--color-text-tertiary)">
+          Section Group · Metadata · Badge Label
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section id="components">
+    <p class="section-label">03 — Components</p>
+    <h2 class="section-title">Component Library</h2>
+
+    <div class="component-grid">
+
+      <!-- Buttons -->
+      <div class="component-card">
+        <div class="component-card-label">Buttons</div>
+        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap">
+          <button class="btn-primary">Primary Action</button>
+          <button class="btn-ghost">Ghost Button</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-tertiary)">
+          border-radius: 0px · weight: 700
+        </div>
+      </div>
+
+      <!-- Status Badges -->
+      <div class="component-card">
+        <div class="component-card-label">Status Badges</div>
+        <div class="badge-row">
+          <span class="badge badge-success"><span class="badge-dot"></span>Allowed</span>
+          <span class="badge badge-error"><span class="badge-dot"></span>Denied</span>
+          <span class="badge badge-warning"><span class="badge-dot"></span>Partial</span>
+          <span class="badge badge-info"><span class="badge-dot"></span>PreToolUse</span>
+          <span class="badge badge-neutral"><span class="badge-dot"></span>Inactive</span>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-tertiary)">
+          Always paired with label text — never color alone
+        </div>
+      </div>
+
+      <!-- Input -->
+      <div class="component-card">
+        <div class="component-card-label">Input — Rest / Focus</div>
+        <input class="input-demo" type="text" placeholder="Search context packs..." />
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-tertiary)">
+          Click to see focus ring — brand border + shadow
+        </div>
+      </div>
+
+      <!-- Risk Level -->
+      <div class="component-card">
+        <div class="component-card-label">Risk Level Indicators</div>
+        <div class="risk-row">
+          <div class="risk-chip risk-low"><div class="risk-dot"></div>Low</div>
+          <div class="risk-chip risk-medium"><div class="risk-dot"></div>Medium</div>
+          <div class="risk-chip risk-high"><div class="risk-dot"></div>High</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-tertiary)">
+          Context pack enrichment risk classification
+        </div>
+      </div>
+
+      <!-- Code Block -->
+      <div class="component-card" style="grid-column: span 2">
+        <div class="component-card-label">Code / Monospace Block</div>
+        <div class="code-block">{"hook_event_name":"PreToolUse","session_id":"abc123",
+ "tool_name":"Write","tool_use_id":"tool-uuid-456",
+ "cwd":"/home/dev/myapp",
+ "tool_input":{"file_path":"src/auth.ts"}}</div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar + Row Demo -->
+    <div style="margin-top:var(--space-6)">
+      <div class="component-card-label" style="font-family:var(--font-sans);font-size:11px;font-weight:700;color:var(--color-text-tertiary);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:var(--space-3)">Sidebar + Content Row</div>
+      <div class="sidebar-demo">
+        <div class="sidebar-demo-nav">
+          <div class="sidebar-item active">
+            <svg class="sidebar-icon" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" stroke="currentColor" stroke-width="1.5"/><path d="M4 7h6M7 4v6" stroke="currentColor" stroke-width="1.2"/></svg>
+            Context Packs
+          </div>
+          <div class="sidebar-item">
+            <svg class="sidebar-icon" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/></svg>
+            Policy Rules
+          </div>
+          <div class="sidebar-item">
+            <svg class="sidebar-icon" viewBox="0 0 14 14" fill="none"><path d="M2 4h10M2 7h10M2 10h6" stroke="currentColor" stroke-width="1.3"/></svg>
+            Event Log
+          </div>
+          <div class="sidebar-item">
+            <svg class="sidebar-icon" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.3"/></svg>
+            Sessions
+          </div>
+        </div>
+        <div class="sidebar-demo-content">
+          <div class="demo-row">
+            <span class="demo-row-label">src/auth.ts · PreToolUse · Write</span>
+            <span class="badge badge-success" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>Allowed</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-row-label">infra/deploy.sh · PreToolUse · Bash</span>
+            <span class="badge badge-error" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>Denied</span>
+          </div>
+          <div class="demo-row">
+            <span class="demo-row-label">src/api/routes.ts · PostToolUse · Edit</span>
+            <span class="badge badge-neutral" style="font-size:10px;padding:2px 6px"><span class="badge-dot"></span>Recorded</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section id="architecture">
+    <p class="section-label">04 — Architecture</p>
+    <h2 class="section-title">Two-Mode Architecture</h2>
+
+    <div class="arch-diagram">
+      <div class="arch-modes">
+        <div class="arch-mode">
+          <div class="arch-mode-title">Solo Mode — Local</div>
+          <div class="arch-services">
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>MCP Server :3100 — TypeScript / Express</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>Hooks Bridge :3101 — TypeScript / Hono</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>Web App :3000 — Next.js 15</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>NL Assembly :3200 — Python / FastAPI</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>Semantic Diff :3201 — Python / FastAPI</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-warning)"></div>SQLite WAL — ~/.contextos/data.db</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-warning)"></div>sqlite-vec — Cosine KNN</div>
+          </div>
+        </div>
+
+        <div class="arch-sync-arrow">
+          <div class="arch-sync-label">REST Batch Sync<br>opt-in / 30s</div>
+          <div class="arch-sync-line"></div>
+        </div>
+
+        <div class="arch-mode">
+          <div class="arch-mode-title">Team / Cloud Mode — Optional</div>
+          <div class="arch-services">
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>Sync Daemon — Node.js background</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>Cloud Web App — Railway / Fly.io</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>BullMQ Workers — Upstash Redis</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>Supabase Postgres + pgvector</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>Clerk JWT — Team auth</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPACING -->
+  <section>
+    <p class="section-label">05 — Spacing</p>
+    <h2 class="section-title">Spacing Scale</h2>
+    <div class="spacing-rows">
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-1</span><span class="spacing-value">4px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:4px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-2</span><span class="spacing-value">8px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:8px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-3</span><span class="spacing-value">12px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:12px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-4</span><span class="spacing-value">16px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:16px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-6</span><span class="spacing-value">24px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:24px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-8</span><span class="spacing-value">32px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:32px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-12</span><span class="spacing-value">48px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:48px"></div></div></div>
+      <div class="spacing-row"><div class="spacing-meta"><span class="spacing-token">--space-16</span><span class="spacing-value">64px</span></div><div class="spacing-bar-wrap"><div class="spacing-bar" style="width:64px"></div></div></div>
+    </div>
+  </section>
+
+  <!-- PRINCIPLES -->
+  <section id="principles">
+    <p class="section-label">06 — Principles</p>
+    <h2 class="section-title">Engineering Principles</h2>
+    <div class="principles-grid">
+      <div class="principle-card">
+        <div class="principle-num">01</div>
+        <div class="principle-title">Never Block the Agent</div>
+        <div class="principle-body">Every error path defaults to allow and continue. The hook response latency is sacred. Record second, respond first.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">02</div>
+        <div class="principle-title">Respond First, Record Second</div>
+        <div class="principle-body">DB writes never sit in the critical path of a hook response. Async always. The agent keeps moving.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">03</div>
+        <div class="principle-title">Every Write Is Idempotent</div>
+        <div class="principle-body">Retries, crashes, and replays produce the same state. Idempotency keys on every operation. No duplicates.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">04</div>
+        <div class="principle-title">Type Safety End to End</div>
+        <div class="principle-body">Drizzle schema to Drizzle types. Zod schema to TypeScript types. No manually maintained interfaces at boundaries.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">05</div>
+        <div class="principle-title">Mode Is a Storage Adapter</div>
+        <div class="principle-body">Solo and team share all service logic. The adapter pattern means <code style="font-family:var(--font-mono);font-size:11px;color:var(--color-text-code)">if (mode === 'solo')</code> never appears in business code.</div>
+      </div>
+      <div class="principle-card">
+        <div class="principle-num">06</div>
+        <div class="principle-title">Normalize at the Boundary</div>
+        <div class="principle-body">Each agent's payload shape is translated to HookEvent exactly once, at ingress. Everything downstream is agent-agnostic.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">ContextOS</div>
+    <div class="footer-meta">Brand Guide · Design System</div>
+    <div class="footer-version">v2.0.0 · 2025</div>
+  </footer>
+
+  <script>
+    // Theme toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('contextos:theme', html.dataset.theme);
+    }
+
+    // Restore theme on load
+    const saved = localStorage.getItem('contextos:theme');
+    if (saved) document.documentElement.dataset.theme = saved;
+  </script>
+
+</body>
+</html>
