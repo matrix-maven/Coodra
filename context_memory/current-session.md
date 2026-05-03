@@ -1,80 +1,64 @@
-# Current Session — 2026-04-28 (Module 04a Sync Daemon + Self-Host Packaging)
+# Current Session — 2026-05-03 (Module 08b — CLI Expansion: kickoff + S0)
 
 ## Goal
 
-Build Module 04a (Sync Daemon + Self-Host Packaging) end-to-end on `feat/04a-sync-daemon`. Eight slices S0 → S8 per `docs/feature-packs/04a-sync-daemon/implementation.md`, one commit each, M03.1 cadence (test/fix/document inline, no separate verification report). Land a context pack at S8 and re-call `contextos__save_context_pack`.
+Build Module 08b (CLI Expansion) end-to-end on `feat/08b-cli-expansion`. 19 slices S0 → S19 per `docs/feature-packs/08b-cli-expansion/implementation.md`, one commit per slice. Strengthen `@coodra/contextos-cli` from "install + lifecycle" (the M08a scope) into a complete operational + admin surface that ships three orthogonal concerns together: (1) operational essentials (logs/migrate/backup/restore/upgrade/uninstall + pause/resume kill switches via the new `kill_switches` table); (2) admin surfaces (`policy/project/run/export`); (3) Feature Pack flexibility (7 bundled templates + `init --template/--mode` + `pack {new,list,show,regenerate,delete}` + `<!-- @auto -->` marker contract).
 
-The single load-bearing AC: a write to local SQLite must appear in cloud Postgres within the sync window (5–30s, OQ2-locked at 30s catchup poll), with idempotency holding under cloud unreachability + recovery.
+The single load-bearing AC: `contextos pause` writes a row that the hooks-bridge consults BEFORE the existing policy evaluator on every PreToolUse — hard mode denies, soft mode allows + audits. Local-only in M08b (cross-developer sync is M04's surface).
 
 ## Context loaded
 
-- `docs/feature-packs/04a-sync-daemon/{spec.md,implementation.md,techstack.md}` — kickoff triplet at HEAD `734b6c2` post-OQ-sign-off (7 OQs answered with constraints).
-- `system-architecture.md` §1 (two-mode), §3.6 (cloud sync), §4.1/§4.2 (schema parity), §5 (eventual consistency), §13 (infra), §16 pattern 3 (Outbox).
-- `essentialsforclaude/11-adrs.md` — ADR-008 (cloud Postgres as the team-sync layer; this module brings it online).
-- Prior archived session: `context_memory/sessions/2026-04-27-m01-m02-m03-verification-and-closeout.md` and the previous current-session (M03.1 durable outbox).
+- `docs/feature-packs/08b-cli-expansion/{spec.md,implementation.md,techstack.md,meta.json}` — kickoff triplet authored as untracked files; this S0 commit publishes them with the 8 OQs locked + migration number bumped 0006→0007 (Phase 4 Fix K already took 0006).
+- `system-architecture.md` §1 (modes), §4 (data-at-rest — `kill_switches` fits §4.3 idempotency-key principle), §7 (fail-open — kill-switch evaluator inherits this), §13 (server setup — `pause/resume` is operational, not policy), §16 patterns 1/2/3/4/12/19/20.
+- `essentialsforclaude/02-agent-human-boundary.md` §2.2 (uninstall, db restore are user-confirmable destructive ops).
+- Recent prior work on `main`: Phase 4 Fixes A–L (default policy + matcher coverage, SessionEnd registration, auto-pack to filesystem, `query_decisions` tool, orphaned-run cleanup, `policy_rules` UNIQUE constraint, doctor lifecycle checks). The audit at `docs/audit/2026-05-03-product-audit.md` documents the post-Phase-3 state and informed Phase 4 Fix surface.
+- `docs/feature-packs/08a-cli/` — every M08b command extends an M08a surface; package, exit codes, daemon manager, runtime-paths resolver, init pipeline, claude-settings-merge are reused verbatim.
 
 ## Last completed
 
-**Module 04a complete.** All 8 slices S0 → S8 landed on `feat/04a-sync-daemon`:
+**S0 in progress (this commit).** Drafts of spec/implementation/techstack/meta exist on disk; this commit publishes them with:
+- §11 of `spec.md` flipped from "Open questions" to "Locked design decisions (signed off 2026-05-03)" — all 8 OQs locked per the spec author's recommendations (see §3.3 below).
+- Migration number bumped 0006→0007 in spec.md (4 references), implementation.md (5 references), and meta.json (2 file globs). 0006 was claimed by Phase 4 Fix K (`policy_rules` UNIQUE-constraint cleanup, commit `92e37a6`).
+- 9 new entries in `context_memory/decisions-log.md`: M08b kickoff overview + the 8 OQ-by-OQ lock entries.
 
-- S0 `734b6c2` — feature-pack triplet
-- S1 `871cec0` — `contextos cloud-migrate` (idempotent + OQ4 pre-flight refusal)
-- S2 `5379f7b` — `scheduleAuditWriteWithSync` paired-enqueue + worker `queueFilter` (OQ7)
-- S3 `4ba37a0` — `apps/sync-daemon` package: dual-handle boot, dispatch handler, integration tests
-- S4 `c94883f` — `contextos start/stop/status` supervises sync-daemon as third managed process in team mode
-- S5 `4c7a62a` — doctor checks 24–27 (cloud reachability with time escalation, sync queue depth/lag/dead-letter); finding #4 (port-availability false-warn) closed
-- S6 `713cc06` — bridge auto-create-run uses `generateRunKey` for canonical 4-segment ids; migration 0005 backfills bare UUIDs (reversible via `_runid_backfill_0005` audit table); finding #9 closed
-- S7 `9d97da8` — Dockerfiles (4) + Compose stack + `.env.example` + `docs/deploy/self-host.md`; `cloud-migrate` image built and ran successfully against compose Postgres
-- S8 (this closeout) — `verify-sync-roundtrip.ts` harness: ALL PASS (1 runs canonical-id + 5 policy_decisions + 1 run_events landed in cloud within ~6s; disconnect-and-recover variant drained 5 backlog rows on daemon restart). Closeout pack at `docs/context-packs/2026-04-28-module-04a-sync-daemon.md`.
+Verified post-Phase-4 baseline before starting:
+- `apps/hooks-bridge/src/handlers/pre-tool-use.ts` — Phase 4 Fix F matcher landed; `Write|Edit|MultiEdit|NotebookEdit|Bash` per-event regex via `claude-settings-merge.ts`.
+- `apps/hooks-bridge/src/handlers/session-end.ts` — Pattern 20 auto-Context-Pack save fires fire-and-forget; Phase 4 Fix H materializes to `~/.contextos/packs/<runId>.md`.
+- `apps/mcp-server/src/tools/index.ts` — 10 tools registered (ping, get_run_id, get_feature_pack, save_context_pack, search_packs_nl, record_decision, query_run_history, check_policy, query_codebase_graph, query_decisions); Fix I's `query_decisions` is the cross-session decisions read-path the audit flagged.
 
-7 OQ decisions locked at sign-off 2026-04-28:
-- OQ1 — one-way push for v1 (local→cloud)
-- OQ2 — 30-second catchup poll
-- OQ3 — GREEN reachable / YELLOW after 5min / RED after 1h cloud unreachability
-- OQ4 — separate `contextos cloud-migrate` CLI command WITH constraint: refuses if unknown tables contain rows
-- OQ5 — Docker Compose canonical, Railway/Fly.io brief mentions
-- OQ6 — doctor only for v1 (no /metrics)
-- OQ7 — reuse `pending_jobs` with `queue='sync_to_cloud'`, paired-job pattern WITH constraint: each worker filters by queue type AND fails loudly on cross-pollination
+## Decisions locked at S0 sign-off (2026-05-03)
 
-Side-task constraints honoured:
-- Finding #4 close: port-availability checks suppress yellow when /healthz answers OK
-- Finding #9 close: bridge canonical 4-segment runIds + reversible migration 0005 with `_runid_backfill_0005` audit table
+| OQ | Locked answer |
+|---|---|
+| 1 | Both modes available; default = `--mode hard` |
+| 2 | Polymorphic `(scope text NOT NULL, target text)` schema |
+| 3 | Default backup = single-file `.sqlite` (VACUUM INTO); `--include-logs` switches to tarball |
+| 4 | Atomic restore + auto-backup-of-current; refuses if daemons running; no escape hatch |
+| 5 | Uninstall preserves data + config + feature/context packs by default; `--purge` opts in to wipe |
+| 6 | `run cancel` flips `runs.status` only; bridge keeps recording any post events |
+| 7 | Non-JSON `export` formats exclude policy_decisions by default; `--include-audit` opts in |
+| 8 | Kill switches are local-only in M08b; cross-developer sync is M04's surface |
 
-## Verification at session end
-
-```bash
-pnpm exec turbo run typecheck lint test:unit                                        # all green
-DATABASE_URL='postgres://contextos:contextos_dev_password@localhost:5432/contextos' \
-  pnpm --filter @coodra/contextos-cli test:integration                                     # 6/6 (cloud-migrate)
-pnpm --filter @coodra/contextos-db test:integration                                        # 45/45
-pnpm --filter @coodra/contextos-hooks-bridge test:integration                              # 38/38
-pnpm --filter @coodra/contextos-mcp-server test:integration                                # 179/179
-DATABASE_URL='postgres://...' pnpm --filter @coodra/contextos-sync-daemon test:integration # 5/5
-pnpm test:e2e                                                                       # 32 passed (1 pre-existing skip)
-CONTEXTOS_MODE=solo pnpm exec tsx __tests__/manual/verify-outbox-crash-safety.ts   # ALL PASS (M03.1 untouched)
-pnpm exec tsx __tests__/manual/verify-f5-live.ts                                    # PASS
-DATABASE_URL='postgres://...' pnpm exec tsx __tests__/manual/verify-sync-roundtrip.ts  # ALL PASS (new M04a primary AC)
-```
+Each is mirrored in `decisions-log.md` and referenced from the matching `### OQ-X` subsection of `spec.md §11`.
 
 ## Next action
 
-**Squash-merge `feat/04a-sync-daemon` to `main` after PR review** (M02/M03/M03.1 pattern). After merge: re-run `verify-sync-roundtrip.ts` against the production cloud Postgres URL (Supabase or whichever you provision) to confirm the post-merge state across services. The harness is parameterized on `DATABASE_URL` so the same script works against compose pg today and Supabase tomorrow.
+**Commit S0** with message `docs(08b-cli-expansion): kickoff spec + slice plan + locked OQ answers`, then begin **S1 — `kill_switches` schema + migration 0007 + helpers**:
 
-Then start **Module 04b (Web App)** per `docs/feature-packs/04b-web-app/spec.md` (to be authored). The Supabase memory at `~/.claude/projects/-Users-abishaikc-Coodra/memory/supabase-project.md` carries the project URL + publishable key + canonical `@supabase/ssr` boilerplate for that work.
+1. Append `killSwitches` table to `packages/db/src/schema/sqlite.ts` and `postgres.ts` (polymorphic `(scope, target)` per OQ-2).
+2. Run `pnpm --filter @coodra/contextos-db db:generate` to produce `packages/db/drizzle/{sqlite,postgres}/0007_<animal>.sql`.
+3. Add `packages/db/src/kill-switches.ts` with 5 helpers (`listActiveKillSwitches`, `insertKillSwitch`, `softResumeKillSwitch`, `softResumeAllKillSwitches`, `findKillSwitchMatchingEvent`).
+4. Re-export from `packages/db/src/index.ts`.
+5. Add `packages/db/__tests__/integration/kill-switches.test.ts` with 7 fixtures.
+6. Update `External api and library reference.md` (Drizzle subsection — `kill_switches` polymorphic-scope pattern).
+7. Verify `pnpm --filter @coodra/contextos-db check:migration-lock`, schema-parity test, and integration tests are green.
 
 ## Log (append-only per PostToolUse)
 
-- [09:18] saved closeout pack `docs/context-packs/2026-04-28-module-04a-sync-daemon.md`
-- [09:18] re-ran M03.1 crash-safety + F5 harnesses — both PASS, no regression
-- [09:13] verify-sync-roundtrip.ts ALL PASS against compose pg (1 runs canonical-id + 5 policy_decisions + 1 run_events; disconnect/recover drained 5 backlog rows)
-- [09:11] S8 — verify-sync-roundtrip.ts authored
-- [09:08] S7 cloud-migrate image built + ran successfully against compose pg
-- [09:00] S7 — Dockerfiles + compose.yaml + self-host.md + .env.example
-- [08:55] S6 — bridge canonical 4-segment runIds via `generateRunKey`; migration 0005 (sqlite + postgres)
-- [08:50] S5 — doctor checks 24–27 + finding #4 (port-availability false-warn suppression on /healthz OK)
-- [08:45] S4 — sync-daemon as third managed process (services discriminated union; team-mode gating)
-- [08:35] S3 — sync-daemon scaffold (dispatch + boot + 5 integration tests against compose pg)
-- [08:25] S2 — paired sync_to_cloud enqueue + worker queueFilter + 9 new tests
-- [08:00] S1 — `contextos cloud-migrate` + 6 integration tests + program test wiring
-- [07:48] S0 — feature-pack triplet committed (`734b6c2`); 7 OQs answered with constraints
-- [07:30] git state intact (branch `main` @ `d7a3238`, identity Abishai <abishai95141@gmail.com>); branched `feat/04a-sync-daemon`
+- [HH:mm] verified post-Phase-4 hooks/tools state (matcher fix F, SessionEnd registration G, auto-pack-to-disk H, query_decisions tool I)
+- [HH:mm] created branch `feat/08b-cli-expansion` off `main` (HEAD `d4cd2f8`)
+- [HH:mm] created 20 TaskCreate tasks for S0–S19 + closeout
+- [HH:mm] bumped migration number 0006→0007 across spec.md/implementation.md/meta.json (Phase 4 Fix K already took 0006 on `main`)
+- [HH:mm] flipped spec.md §11 Open questions → Locked design decisions; added Decision/Why/Constrains block to each of OQ-1..OQ-8
+- [HH:mm] archived prior `current-session.md` (M04a state) to `sessions/2026-04-28-module-04a-sync-daemon.md`
+- [HH:mm] wrote fresh `current-session.md` for M08b

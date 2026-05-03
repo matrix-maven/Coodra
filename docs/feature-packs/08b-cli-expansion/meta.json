@@ -1,0 +1,24 @@
+{
+  "slug": "08b-cli-expansion",
+  "parentSlug": "08a-cli",
+  "sourceFiles": [
+    "packages/cli/src/commands/{db-migrate,db-backup,db-restore,upgrade,uninstall,pause,resume,logs,policy,project,run,export,pack,template}.ts",
+    "packages/cli/src/lib/{auto-marker,export,pack,templates,duration,log-reader,npm-view,sqlite-magic}/**",
+    "packages/cli/src/lib/init/auto-populate.ts",
+    "packages/cli/src/lib/template-paths.ts",
+    "packages/cli/src/doctor/checks/{kill-switches,upgrade-available,stale-backups,bundled-templates,auto-marker-smoke}.ts",
+    "packages/cli/templates/**",
+    "packages/cli/scripts/bundle.mjs",
+    "apps/hooks-bridge/src/lib/kill-switch-evaluator.ts",
+    "apps/hooks-bridge/src/handlers/pre-tool-use.ts",
+    "packages/db/src/kill-switches.ts",
+    "packages/db/src/policies.ts",
+    "packages/db/src/projects.ts",
+    "packages/db/src/runs-admin.ts",
+    "packages/db/src/schema/{sqlite,postgres}.ts",
+    "packages/db/drizzle/sqlite/0007_*.sql",
+    "packages/db/drizzle/postgres/0007_*.sql",
+    "docs/feature-packs/08b-cli-expansion/**"
+  ],
+  "isActive": false
+}

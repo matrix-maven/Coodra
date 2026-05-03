@@ -1106,3 +1106,93 @@ Resolution: build the id as `re_` + sha256(sessionId + '|' + toolUseId + '|' + p
 
 **Reference:** `packages/db/src/ensure-default-policy.ts` (DEFAULT_RULES expansion + additive-merge); `packages/cli/src/lib/init/claude-settings-merge.ts` (per-event matchers + URL-based ownership + legacy migration); `apps/hooks-bridge/__tests__/integration/handlers/default-policy-tool-coverage.test.ts` (regression test); `docs/feature-packs/08a-cli/implementation.md` (Phase 3 Fix D entry updated to reference Phase 4 Fix F).
 
+
+## 2026-05-03 — Module 08b (CLI Expansion) kickoff: 19 slices, 8 OQs locked
+
+**Decision:** Open `feat/08b-cli-expansion` and execute the 19-slice plan in `docs/feature-packs/08b-cli-expansion/implementation.md` (one commit per slice). Three orthogonal concerns ship together because each is too small for its own module and all share M08a's package, exit-code contract, daemon manager, runtime-paths resolver, and init pipeline: (S1–S8 + S18) operational essentials + kill switches; (S9–S12) admin surfaces (policy/project/run/export); (S13–S17) Feature Pack flexibility (7 bundled templates + `init --template/--mode` + `pack {new,list,show,regenerate,delete}` + the `<!-- @auto -->` marker contract). One schema delta only: `kill_switches` table at migration `0007_*` (the 0006 slot is taken by Phase 4 Fix K's `policy_rules` UNIQUE-constraint cleanup landed on `main` 2026-05-03 at commit `92e37a6`). M08b is non-blocking for every other module — every other module CAN ship without it; M08b makes operating ContextOS pleasant rather than possible.
+
+**Rationale:** The `2026-05-03 product audit` and the Phase 4 Fix series surfaced that the M02/M03 backbone is sound but operating it requires raw SQLite editing today. M08b makes admin surfaces first-class without changing the architectural shape (no new services, no new wire formats, no schema rework). Bundling operational + admin + template work into one module keeps the surface coherent — splitting them would force three rounds of `init` re-wiring and three CLI version bumps.
+
+**Alternatives considered:** Defer admin surfaces to M04 Web App (rejected — M04 will render against M08b's CLI shapes, not the other way around; building admin in the Web App first would couple the admin contract to React/Next.js renderer choices). Ship kill switches as a separate micro-module (rejected — too small, would force two `init` re-runs). Skip templates entirely and rely on the existing `generic` skeleton (rejected — the 2026-05-03 audit observed that `init` produces an unhelpful skeleton in real-world projects; templates buy real first-run UX without any architecture change).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/{spec.md,implementation.md,techstack.md,meta.json}`; `docs/audit/2026-05-03-product-audit.md`; commits `d4cd2f8` (Phase 4 Fix L) → kickoff branch base.
+
+## 2026-05-03 — M08b OQ-1 lock: kill-switch default mode = hard
+
+**Decision:** `contextos pause` accepts `--mode hard` and `--mode soft`; default = `hard` when `--mode` is omitted. Hard mode causes the bridge to return `permissionDecision: 'deny'` with reason `kill_switch_paused:<id>` for matching pre-tool events. Soft mode causes the bridge to return `permissionDecision: 'allow'` AND record a synthetic `policy_decisions` row with reason `kill_switch_paused:<id>` so the audit trail is preserved without enforcement.
+
+**Rationale:** "Pause" reads as "stop the system" in operator parlance; hard-by-default matches that mental model and the deny-by-default posture the rest of the policy chain enforces. Soft is the rare case where the user wants observability without enforcement (e.g., running a demo while still capturing what the agent attempted).
+
+**Alternatives considered:** Hard-only (rejected — eliminates the observability use case). Soft-only (rejected — fights the mental model). Both available with default = soft (rejected — surprising default; users who type `pause` expect things to stop).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-1; constrains `implementation.md` S2 (bridge translation) + S3 (CLI default flag).
+
+## 2026-05-03 — M08b OQ-2 lock: kill-switch schema = polymorphic (scope, target)
+
+**Decision:** `kill_switches.scope` is `text NOT NULL CHECK (scope IN ('global','project','tool','agent_type'))`; `kill_switches.target` is `text NULL` (null when scope='global', otherwise the projectId / toolName / agentType the switch applies to). Bridge match query is `WHERE resumed_at IS NULL AND (expires_at IS NULL OR expires_at > now()) AND (scope='global' OR (scope=? AND target=?))`.
+
+**Rationale:** Adding a fifth scope value (e.g., `org`, `repo`) is a one-line CHECK-constraint update rather than a column-addition migration; the bridge's match logic is a 4-row table read either way. The compactness wins for both the schema-parity test (M01 enforces that SQLite and Postgres dialects differ only by text↔vector) and the JSON shape exposed via `contextos run show`.
+
+**Alternatives considered:** Multi-column shape with four nullable cols (`project_id` FK, `tool_name`, `agent_type`, all-null = global) (rejected — adding a fifth scope is a schema migration; no column gives a useful FK except `project_id`, which doesn't justify the shape change for one column).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §6 + §11 OQ-2; constrains `implementation.md` S1 (migration shape) + S2 (bridge evaluator's match query).
+
+## 2026-05-03 — M08b OQ-3 lock: db backup default = single-file VACUUM INTO; --include-logs = tarball
+
+**Decision:** `contextos db backup` defaults to a single-file `.sqlite` produced via `VACUUM INTO`. With `--include-logs`, it produces a `.tar.gz` containing `data.db.bak` + `logs/*.log` + `config.json` (mode-0600 preserved). No compression on the default single-file path — SQLite is already compact and gzip adds restore friction.
+
+**Rationale:** Single-file is the operator-friendly default — drops cleanly into any backup tool (Time Machine, rsync, Duplicati, AWS Backup). The tarball is for full-environment reproduction (e.g., reproducing a bug for support; sending a frozen-in-time snapshot of a developer's local state).
+
+**Alternatives considered:** Tarball-only with the SQLite file inside (rejected — restore friction for the common case). Compressed `.sqlite.gz` default (rejected — adds gzip-decompress step on restore for negligible space win on already-compact SQLite).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-3; constrains `implementation.md` S6 (default backup path doesn't pull in `tar` dep; `--include-logs` does).
+
+## 2026-05-03 — M08b OQ-4 lock: db restore = atomic replace + auto-backup-of-current; refuses if daemons running
+
+**Decision:** `contextos db restore <path>` validates the source file (SQLite magic-bytes header `53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00`), refuses if any of the three daemons (mcp-server, hooks-bridge, sync-daemon) are running per the M08a `pid-status.ts` check, takes an automatic backup of the current `~/.contextos/data.db` to `<current>.pre-restore-<ISO>` (skippable via `--no-auto-backup` with an aloud warning), then atomic-replaces the live DB via temp-file + rename. No `--with-daemons-running` escape hatch.
+
+**Rationale:** Live import is meaningless for a primary store — merge semantics for `runs.status` transitions, `policy_decisions.idempotency_key` collisions, and the append-only `decisions` table are all ill-defined. SQLite WAL + concurrent writers + atomic file replace = silent corruption; an escape hatch would be a footgun that solves no real operator problem (operators stop daemons before restoring; they never want a "fast" restore with running writers).
+
+**Alternatives considered:** Live row-merge import (rejected — undefined semantics on append-only tables). Stop daemons automatically before restore (rejected — surprising side effect; user should know the daemons are stopping). Allow daemons-running with a `--force --with-daemons-running` escape hatch (rejected — silent-corruption footgun).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-4; constrains `implementation.md` S6 (restore daemons-running check refuses; auto-backup is unconditional unless `--no-auto-backup`).
+
+## 2026-05-03 — M08b OQ-5 lock: uninstall preserves data by default; --purge opts in to wipe
+
+**Decision:** `contextos uninstall` defaults to a conservative removal: drops the `__contextos__` matcher entries from `~/.claude/settings.json`, removes daemon-manager units, removes the `contextos` server entry from `<cwd>/.mcp.json`. Preserves `~/.contextos/data.db`, `~/.contextos/config.json`, every `docs/feature-packs/<slug>/` folder, every `docs/context-packs/` file. `--purge` adds removal of `~/.contextos/`. The CLI prints (does NOT execute) `npm uninstall -g @coodra/contextos-cli` for the user to run manually.
+
+**Rationale:** Matches the principle of least surprise — `apt-get remove` preserves config by default; `apt-get purge` is the explicit wipe. Users who reinstall expect their feature packs / context packs / kill-switch history to still be there. The npm-uninstall step is left to the user because the binary is mid-execution and self-uninstall is unreliable on Windows.
+
+**Alternatives considered:** Default = wipe everything with `--keep-data` / `--keep-config` opt-outs (rejected — destroys user work on a typo). Default = wipe data but preserve feature/context packs (rejected — the data DB and the packs are coherent state; partial wipe is more surprising than full preserve).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-5; constrains `implementation.md` S8 (default-safe path; `--purge` opt-in).
+
+## 2026-05-03 — M08b OQ-6 lock: run cancel flips status only; bridge keeps recording
+
+**Decision:** `contextos run cancel <runId>` writes `runs.status='cancelled'` + `runs.ended_at=now()` and nothing else. The bridge keeps recording any PostToolUse / PreToolUse / SessionEnd events that arrive for that run if any do; cancellation is informational metadata. The bridge does NOT consult `runs.status` on the latency-sensitive event paths.
+
+**Rationale:** Adding a `runs.status` lookup on every PostToolUse costs ~1 ms of SQLite roundtrip on a path with a 10 ms p95 budget per M03; the gain (refusing to record events for an already-cancelled run) is debugging-utility-grade, not production-grade. Once a developer closes a session, no PostToolUse events arrive anyway. A future "replay events through the bridge" feature would benefit from cancellation-as-block, but that's an M04 / M05 surface, not M08b.
+
+**Alternatives considered:** Bridge denies / refuses to record post-cancel events (rejected — costs latency, solves a non-problem in production). Bridge re-opens the run (sets status back to in_progress) on receiving a post-cancel event (rejected — silently undoes user intent).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-6; constrains `implementation.md` S11 (`run cancel` writes `runs.status` only).
+
+## 2026-05-03 — M08b OQ-7 lock: export non-JSON formats exclude audit by default
+
+**Decision:** `contextos export <runId> --format markdown|html|slack` excludes `policy_decisions` rows from the rendered output by default. `--include-audit` opts in to include them. `--format json` ALWAYS includes the full audit (machine-readable consumers want full fidelity).
+
+**Rationale:** Markdown / HTML / Slack are narrative formats — the reader (a stakeholder, a code reviewer, a Slack channel) wants "what was decided + why + what files changed", not a 200-row deny audit interleaved with the prose. JSON consumers (CI exports, SOC2 review tooling, future M04 admin pages) need the full audit to do their job.
+
+**Alternatives considered:** Default-include audit for all formats (rejected — narrative formats become unreadable for non-trivial runs). Per-format default config in `~/.contextos/config.json` (rejected — adds config surface for one rare flag toggle).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-7; constrains `implementation.md` S12 (renderers default `includeAudit=false` for narrative formats; JSON renderer hard-codes `includeAudit=true`).
+
+## 2026-05-03 — M08b OQ-8 lock: kill switches are local-only in M08b; cross-developer sync is M04's surface
+
+**Decision:** A kill switch flipped on developer A's machine does NOT propagate to developer B in M08b. Synced kill switches are an M04 admin-surface concern (admin flips a global switch from the dashboard; the cloud-sync path established in M04a replicates the row to every connected hooks-bridge). M08b's kill switches write to local SQLite only; the sync-daemon (M04a) does not enqueue kill-switch rows.
+
+**Rationale:** M08b ships solo + team-mode-self-host but no managed-cloud product yet — there is no "the team" to sync to. M04 owns the cross-developer admin surface; building the sync path now would couple M08b to a not-yet-decided cloud authorization model (who is allowed to flip a global kill switch on someone else's machine?). The local-only kill switch still solves the operator's "stop the system on my machine" problem completely.
+
+**Alternatives considered:** Sync from day one via the existing M04a cloud-sync path (rejected — no cloud product, no authorization model, premature coupling). Per-machine kill switches with optional `--sync` flag (rejected — adds the same authorization-model question without committing to the answer).
+
+**Reference:** `docs/feature-packs/08b-cli-expansion/spec.md` §11 OQ-8; constrains `implementation.md` S2 (no sync-daemon enqueue) + S3 (CLI never POSTs to cloud); flagged in M08b closeout pack as deferred to M04.
