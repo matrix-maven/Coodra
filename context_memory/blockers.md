@@ -95,7 +95,17 @@ if (!ides.includes('claude')) {
 
 **Verification status:** caught in T2 of the 2026-05-02 cold-install verification. Workaround for verification: pre-create `~/.claude/` to simulate a real Claude Code user. Real fix: drop the gate in `init.ts`. This is a P1 follow-up for the publish-flag-day commit.
 
-## 2026-05-02 14:52 — Claude Code hook payload schema is `.strict()` and rejects `transcript_path` + `source` — autonomy goal C1 silently fails on real wire format
+## ✅ 2026-05-02 14:52 — Claude Code hook payload schema `.strict()` rejection — RESOLVED by Phase 3 Fix A
+
+**Audit 2026-05-04 (M04 pre-S1 review):** verified all three adapter payload schemas at `packages/shared/src/hooks/payloads/{claude-code,windsurf,cursor}.ts` use `.passthrough()` on the outer object, with explicit docblock notes citing Phase 3 Fix A (2026-05-02) and the rationale ("the wire protocol is controlled by the OTHER side, `.strict()` is wrong by construction"). The route handler at `apps/hooks-bridge/src/app.ts` calls `safeParse` and on failure logs `invalid_hook_payload` + fails open — same fail-open posture, but the parse no longer fails for the real envelope. Closes the original C1 / C2 autonomy gap.
+
+**Adjacent finding (NOT a blocker, low priority):** the bridge's `200 OK` response shape is identical for every event type (`hookSpecificOutput.{hookEventName, permissionDecision, permissionDecisionReason, additionalContext?}`). Per Claude Code's hook-response spec (fetched 2026-05-04 from `code.claude.com/docs/en/hooks`), only PreToolUse + SessionStart use `hookSpecificOutput`; PostToolUse / Stop / SessionEnd / SubagentStop expect top-level `decision: 'block'` + `reason` (or empty body to allow). For these events Claude Code "silently ignores" the bridge's PreToolUse-shaped fields per the docs, so there is no user-visible bug — just response-shape fidelity drift that surfaces as a silently-ignored field, not as a rejected hook. Reserved as M04 S11 cleanup (per-event response shaping in `apps/hooks-bridge/src/app.ts`); not a fix-up PR concern.
+
+---
+
+**Original entry (preserved for context):**
+
+
 
 **Blocks:** Phase 2 autonomy goal C1 (and C2). Every real Claude Code SessionStart, PreToolUse, PostToolUse, and Stop hook is rejected by Zod's strict-object validation; the bridge fails open per §7 with `{ permissionDecision: 'allow', reason: 'invalid_hook_payload' }`. The SessionStart handler is **never invoked**, so no `additionalContext` is computed, no runs row is created via the bridge, and no Context Pack auto-saves at SessionEnd. Phase 2's unit + integration tests are green only because they construct stripped payloads matching the schema.
 
@@ -124,7 +134,15 @@ POST same-without-transcript_path-without-source
 
 **Verification status:** caught in T4.1 of the 2026-05-02 cold-install verification. **This is the most consequential Phase 2 finding.** It means autonomy goals C1 and C2 DO NOT WORK on real Claude Code traffic. The fix is one line per payload file. NOT applying it as part of this verification run per the user's discipline reminder ("If a check fails, do not patch it to make this run go green"). Phase T4-T6 continue with stripped payloads to keep producing data; every check that depends on real wire format gets a YELLOW/qualified pass with this caveat noted in the findings report.
 
-## 2026-05-02 14:55 — `contextos init` seeds zero policy rules; deny path is untested on a stranger install
+## ✅ 2026-05-02 14:55 — `contextos init` seeds zero policy rules — RESOLVED by Phase 3 Fix D
+
+**Audit 2026-05-04 (M04 pre-S1 review):** `packages/cli/src/commands/init.ts:142` calls `ensureDefaultPolicy(handle, projectResult.id)` (Phase 3 Fix D, 2026-05-02). The helper at `packages/db/src/ensure-default-policy.ts` inserts the baseline rule set described in the original "path to unblock" — denies on `.env` / `**/.env` / `**/.env.production` / `.git/**` / `node_modules/**` for the file-mutating tools (Write, Edit, MultiEdit, NotebookEdit), with `Bash` requiring `ask`. Init-time stdout confirms with `✓ Seeded default policy with N baseline rules`. Phase 4 Fix F (2026-05-03) further hardened by adding the per-event matcher coverage. No further work needed.
+
+---
+
+**Original entry (preserved for context):**
+
+
 
 **Blocks:** Phase 2 autonomy claim about "policy denials surface in-path." A stranger who runs `contextos init` ends up with empty `policies` and `policy_rules` tables. Every PreToolUse decision returns `permissionDecision: 'allow', reason: 'no_rule_matched'`. There is no install-time guidance for the user on how to author a rule.
 
@@ -147,7 +165,15 @@ These are universal-safe deny rules. They live in `init.ts` as a hardcoded seed 
 
 **Verification status:** caught in T4.3 of the 2026-05-02 cold-install verification. Lower-priority than the strict-schema finding above. Workaround for verification: hand-seeded one deny rule. Real fix: ship a default-deny fixture in init. P2 follow-up.
 
-## 2026-05-02 14:55 — `seedFeaturePack` seeds only `spec.md`; mcp-server's `get_feature_pack` requires implementation.md + techstack.md too
+## ✅ 2026-05-02 14:55 — `seedFeaturePack` seeds only spec.md — RESOLVED by Phase 3 Fix C
+
+**Audit 2026-05-04 (M04 pre-S1 review):** `packages/cli/src/lib/init/feature-pack-seed.ts:99-109` seeds all four files (`meta.json`, `spec.md`, `implementation.md`, `techstack.md`) per Phase 3 Fix C (2026-05-02), with an in-code citation of this very blocker entry. `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk:139-144` still does `Promise.all([readFile(...), readFile(...), readFile(...), readFile(...)])` (fail-fast on any missing file), so a manually-created pack with only spec.md would still throw `handler_threw` — but that case no longer occurs through the supported `contextos init` path, so it's a latent fragility rather than a blocker. Reserved as M04 S11 cleanup (mirror the bridge's `readMaybe` pattern in mcp-server) for symmetry; not a pre-M04 PR concern.
+
+---
+
+**Original entry (preserved for context):**
+
+
 
 **Blocks:** the MCP tool path of `get_feature_pack` on a freshly init'd project throws `ENOENT` on `implementation.md`. Bridge-side SessionStart injection works (the slim loader tolerates missing optional files), but any agent that calls `get_feature_pack` mid-session (e.g. on a module switch) gets `{ ok: false, error: 'handler_threw' }`. Verified in T5.3.
 

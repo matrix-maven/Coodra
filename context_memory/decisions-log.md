@@ -1296,3 +1296,15 @@ Resolution: build the id as `re_` + sha256(sessionId + '|' + toolUseId + '|' + p
 **Alternatives considered:** Fold dashboard tile into a doctor health page (rejected — different surfaces have different audiences; the dashboard answers "what's happening", the doctor full page answers "is the install healthy"). Skip dashboard, land on `/runs` (rejected — first-impression home matters; dashboard does the framing the brand demands).
 
 **Reference:** `docs/feature-packs/04-web-app/spec.md` §13 STRUCT-3 + §4 routes + §5 first-5-min + `implementation.md` S9.
+
+## 2026-05-04 — M04 OQ-6 lock REVISITED: pre-M04 fix-ups PR retired (audit found all three blockers already shipped)
+
+**Decision:** retire the original OQ-6 lock (separate `fix/pre-m04-blockers` PR before S1). On audit 2026-05-04 — performed before any fix-up commit landed — all three Phase 2 verification findings (`.strict()` schema rejection, init seeding zero policy rules, `seedFeaturePack` writes only spec.md) were already resolved on `main` via Phase 3 Fix A / D / C respectively, all shipped 2026-05-02. The `context_memory/blockers.md` entries had not been marked resolved, so the M04 kickoff inherited stale to-dos.
+
+**Rationale:** the original OQ-6 lock was correct for the information available 2026-05-03 (user observed a hook misbehaviour live; blockers.md said the cause was `.strict()`; lock said fix it). The audit revealed the user's "live observation" was actually a different phenomenon — Claude Code silently ignores wrong-shape `hookSpecificOutput` for non-PreToolUse events per the docs at `code.claude.com/docs/en/hooks` (fetched 2026-05-04). The bridge's response-shape drift is a fidelity gap, not a rejected hook. No fix-up PR ships; the response-shape cleanup is reserved as M04 S11 hygiene.
+
+**What landed:** `blockers.md` lines 98 / 127 / 150 marked ✅ with Phase 3 Fix citations + audit-date. M04 spec §12 + table OQ-6 + implementation.md "outstanding before S1" + "Pre-M04 fix-ups PR" section all updated to reflect the retirement. Two reserved cleanups (per-event response shaping in bridge; mcp-server reader symmetry) tracked as M04 S11 work.
+
+**Alternatives considered:** Ship the fix-up PR anyway with a no-op `.strict()`/seed/seedFeaturePack delta + the response-shape refactor (rejected — pollutes the audit trail with a PR titled for blockers that aren't real blockers; future readers would conclude wrong things about the project state on 2026-05-04). Ship just the response-shape refactor as a hot-fix PR (rejected — not user-impacting per the docs; reasonable to bundle with M04 closeout for one coherent commit on the "M04 made the bridge fully spec-compliant" arc).
+
+**Reference:** `docs/feature-packs/04-web-app/spec.md` §12 (audit-not-needed) + `implementation.md` §"Pre-M04 fix-ups PR — RETIRED" + S11 (carries the two cleanups). `context_memory/blockers.md` entries at lines 98 / 127 / 150 carry ✅ markers with Phase 3 Fix citations. Supersedes the 2026-05-03 OQ-6 lock.

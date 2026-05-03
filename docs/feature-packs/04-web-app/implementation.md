@@ -12,9 +12,9 @@ These are already in place as of the S0 commit:
 - ✅ Auto-memory (`~/.claude/projects/-Users-abishaikc-Coodra/memory/supabase-project.md`) updated to point at the new project + `@supabase/ssr` boilerplate snippets the user prefers.
 - ✅ Pending-user-actions reconciled: Clerk creds ✅, Supabase ✅, Module 03.1 ✅; remaining team-mode infra (Upstash Redis, deploy target, Clerk prod tenant) is post-M04.
 
-**Outstanding before S2:**
+**Outstanding before S1:**
 
-- The pre-M04 fix-ups PR (`fix/pre-m04-blockers`) must merge to `main` BEFORE `feat/04-web-app/S1` opens. See `spec.md` §12. Branch off `main`, three commits in order: `.strict()` → policy seed → `seedFeaturePack`. Land on `main` via squash-merge. Rebase `feat/04-web-app` on the new `main` before continuing.
+- ~~Pre-M04 fix-ups PR~~ — RETIRED 2026-05-04 (audit found all three blockers already shipped via Phase 3 Fixes A/C/D 2026-05-02; see spec.md §12). S1 opens directly off `main` after S0.5.
 - `! supabase login` (browser-interactive — operator runs themselves). Optional for M04 — Drizzle owns migrations; CLI is only useful for `gen types typescript --linked` which `packages/db`'s `$inferSelect` supersedes.
 
 ## Slice sequence
@@ -356,7 +356,12 @@ These are already in place as of the S0 commit:
 
 ---
 
-### S11 — Closeout context pack + README module-status flip
+### S11 — Closeout context pack + README module-status flip + reserved cleanups
+
+**Two reserved cleanups land in this slice** (carried over from spec §12 audit):
+
+- **Per-event response shaping in the bridge.** `apps/hooks-bridge/src/app.ts` currently returns `hookSpecificOutput.{hookEventName, permissionDecision, permissionDecisionReason}` for every event type. Per the Claude Code hook docs (fetched 2026-05-04), only PreToolUse + SessionStart use `hookSpecificOutput`; PostToolUse / Stop / SessionEnd / SubagentStop expect top-level `decision: 'block'` + `reason` (or empty body to allow). Refactor the route handler to shape the response based on `hook_event_name`. Add unit tests asserting per-event response shape matches the spec. **Not user-impacting today** (Claude Code silently ignores wrong-shape `hookSpecificOutput` per the docs); this is fidelity hygiene.
+- **mcp-server feature-pack reader symmetry.** `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk:139-144` does `Promise.all` over all four pack files — fail-fast on any missing one. Mirror the bridge's `readMaybe` pattern from `apps/hooks-bridge/src/lib/feature-pack-loader.ts:52` so a hand-created pack with only `spec.md` doesn't throw `handler_threw`. Add unit test asserting `get_feature_pack` returns successfully when only spec.md exists.
 
 **Closeout context pack:** `docs/context-packs/YYYY-MM-DD-module-04-web-app.md` per `essentialsforclaude/08-implementation-order.md §8.4` template. Same shape as M08b's closeout pack (`docs/context-packs/2026-05-03-module-08b-cli-expansion.md`). Sections: header, outcome, scope boundary, decisions made (cross-ref decisions-log), files touched (grouped by package), tests, open questions, pending user actions, handoff to next session, references.
 
@@ -371,39 +376,17 @@ These are already in place as of the S0 commit:
 
 ---
 
-## Pre-M04 fix-ups PR (separate branch — lands BEFORE S1 opens)
+## Pre-M04 fix-ups PR — RETIRED (audit 2026-05-04)
 
-**Branch:** `fix/pre-m04-blockers` (off `main` at current HEAD).
+The original OQ-6 lock scoped a separate `fix/pre-m04-blockers` PR to ship three Phase 2 verification findings before M04 S1. On audit (2026-05-04, before any fix-up commit landed) all three were already resolved on `main`:
 
-**Three fixes in this order, each as its own commit:**
+- `.strict()` schema rejection → fixed by **Phase 3 Fix A** 2026-05-02 (every adapter payload uses `.passthrough()`)
+- init seeds zero policy rules → fixed by **Phase 3 Fix D** 2026-05-02 (`init.ts:142` calls `ensureDefaultPolicy`)
+- `seedFeaturePack` writes only spec.md → fixed by **Phase 3 Fix C** 2026-05-02 (seeds all four files)
 
-1. **`fix(shared): swap .strict() for .passthrough() on hook payload schemas`**
-   - Files: `packages/shared/src/hooks/payloads/{claude-code,windsurf,cursor}.ts`
-   - Add integration test `apps/hooks-bridge/__tests__/integration/passthrough-tolerance.test.ts` that POSTs Claude Code's actual SessionStart wire payload (with `transcript_path` + `source`) and asserts:
-     - Response is `200 OK` AND `additionalContext` is populated (not just `permission_decision: allow + reason: invalid_hook_payload`)
-     - The same payload mis-tagged as Stop is routed to the Stop handler (not silently failing open)
-   - **Live-observed in this very session 2026-05-03** — Stop hook returned PreToolUse shape, bridge rejected.
+`context_memory/blockers.md` updated with ✅ resolved markers + Phase 3 Fix citations on the same audit. Two reserved cleanups (per-event response shaping in the bridge; mcp-server feature-pack reader symmetry with the bridge's `readMaybe`) land in M04 S11 alongside the closeout pack — see spec.md §12 for the rationale.
 
-2. **`feat(cli,db): seed default-deny policy rules on contextos init`**
-   - Files: `packages/cli/src/commands/init.ts`, `packages/db/drizzle/seeds/default-deny.json` (NEW)
-   - Universal-safe denies (per `context_memory/blockers.md:127-148`):
-     - Write to `**/.env.production` + `**/.env.*.production`
-     - Bash for `rm -rf /`-shaped commands (regex match `^rm\s+-[a-z]*r[a-z]*f.*\s\/(\s|$)`)
-     - Write to `.git/**`
-   - Apply after migrations during `contextos init`. Idempotent (don't re-seed if rules already exist).
-   - Add unit test for the seed application; integration test that runs init then verifies `policy_rules` count > 0.
-
-3. **`fix(mcp-server): tolerate missing implementation.md / techstack.md in feature-pack reader`**
-   - Files: `apps/mcp-server/src/lib/feature-pack.ts`
-   - Soften `readPackFromDisk` to make `implementation.md` + `techstack.md` optional (mirror `apps/hooks-bridge/src/lib/feature-pack-loader.ts`'s `readMaybe` helper). `spec.md` stays required.
-   - Add unit test asserting `get_feature_pack` returns successfully when only spec.md exists.
-   - Add integration test running the full flow against a freshly-init'd project.
-
-**PR acceptance:**
-
-- All three fixes ship in one PR; lint + typecheck + unit + integration all pass.
-- Manual verification on a sandbox: `pnpm --filter @coodra/contextos-cli build`, init a fresh sandbox CONTEXTOS_HOME, fire Claude Code's actual SessionStart wire payload to the bridge, observe `additionalContext` returned non-empty.
-- Squash-merge to `main`. **`feat/04-web-app/S1` does NOT open until this PR is on `main`.** Rebase `feat/04-web-app` on the new `main` before continuing.
+**Net effect on the slice plan:** S1 opens directly off `main` after S0.5 commits. No upstream rebase needed. Saves one round-trip and ~1 day of work.
 
 ---
 
