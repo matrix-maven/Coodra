@@ -14,10 +14,21 @@ describe('buildProgram — full surface (post-S8)', () => {
     exitSpy.mockRestore();
   });
 
-  it('registers all 10 top-level subcommands (M08a 8 + M08b S3 pause/resume)', () => {
+  it('registers all 11 top-level subcommands (M08a 8 + M08b S3 pause/resume + S4 logs)', () => {
     const program = buildProgram();
     const top = program.commands.map((c) => c.name()).sort();
-    expect(top).toEqual(['cloud-migrate', 'doctor', 'init', 'pause', 'resume', 'start', 'status', 'stop', 'team']);
+    expect(top).toEqual([
+      'cloud-migrate',
+      'doctor',
+      'init',
+      'logs',
+      'pause',
+      'resume',
+      'start',
+      'status',
+      'stop',
+      'team',
+    ]);
 
     const team = program.commands.find((c) => c.name() === 'team');
     expect(team).toBeDefined();

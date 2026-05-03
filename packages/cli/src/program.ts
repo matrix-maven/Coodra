@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { type CloudMigrateIO, type CloudMigrateOptions, runCloudMigrateCommand } from './commands/cloud-migrate.js';
 import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/doctor.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
+import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
 import { type ResumeIO, type ResumeOptions, runResumeCommand } from './commands/resume.js';
 import { runStartCommand, type StartIO, type StartOptions } from './commands/start.js';
@@ -41,6 +42,8 @@ interface BuildProgramOptions {
   readonly runPause?: (options: PauseOptions, io?: PauseIO) => Promise<unknown>;
   readonly resumeIO?: ResumeIO;
   readonly runResume?: (options: ResumeOptions, io?: ResumeIO) => Promise<unknown>;
+  readonly logsIO?: LogsIO;
+  readonly runLogs?: (service: string, options: LogsOptions, io?: LogsIO) => Promise<unknown>;
 }
 
 /**
@@ -136,6 +139,20 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: CloudMigrateOptions) => {
       await cloudMigrateRunner(opts, options.cloudMigrateIO);
+    });
+
+  // Module 08b S4 — log tail/read.
+  const logsRunner = options.runLogs ?? runLogsCommand;
+  program
+    .command('logs <service>')
+    .description(
+      'Tail or print recent lines from ~/.contextos/logs/<service>.log. Pure file-read; no DB. Service ∈ {mcp-server, hooks-bridge, sync-daemon}.',
+    )
+    .option('--follow', 'Keep streaming new lines as they arrive (Ctrl-C to exit).')
+    .option('--lines <N>', 'Print the last N lines (default 100; max 1,000,000).')
+    .option('--since <input>', 'ISO-8601 timestamp OR relative duration (e.g. "5m", "1h", "7d").')
+    .action(async (service: string, opts: LogsOptions) => {
+      await logsRunner(service, opts, options.logsIO);
     });
 
   // Module 08b S3 — operator pause/resume backed by `kill_switches`.

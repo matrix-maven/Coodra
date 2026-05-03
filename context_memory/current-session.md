@@ -90,3 +90,9 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S3 — wrote 13 duration unit fixtures, 8 pause unit fixtures (6 spec + 2 bonus for project-scope + expires_in), 5 resume unit fixtures (4 spec + 1 bonus for scope-filtered bulk-resume), 1 integration roundtrip (pause global → resume by id → pause again → second pause on different scope → resume --all → empty --all exits 1 → 3 audit rows preserved)
 - [HH:mm] S3 — updated `__tests__/unit/program.test.ts` (8→10 commands) and inline snapshot in `__tests__/unit/help-output.test.ts` (added pause + resume entries; also caught stale 9-essential / 27-full doctor counts predating Phase 4 Fix L which actually shipped 11/30 — refreshed in passing)
 - [HH:mm] S3 — typecheck clean, lint clean, 156/156 CLI unit + 1/1 S3 integration roundtrip green
+- [HH:mm] S3 committed (`7b1e2c9`): pause/resume CLI commands
+- [HH:mm] S4 — wrote `packages/cli/src/lib/log-reader.ts` (chunked reverse-seek `readLastNLines` + forward `readLinesSince` with JSON time-field filter; non-JSON lines kept verbatim)
+- [HH:mm] S4 — wrote `packages/cli/src/commands/logs.ts` (validates service ∈ {mcp-server, hooks-bridge, sync-daemon}, exits 1 on unknown service, exits 2 with `contextos start` remediation on missing log file, --since parses ISO OR duration, --follow uses fs.watch)
+- [HH:mm] S4 — wired `logs <service>` into program.ts (now 11 top-level commands)
+- [HH:mm] S4 — wrote 7 log-reader unit fixtures, 7 logs-command unit fixtures, 1 integration roundtrip (100-line file → last 10 via --lines 10)
+- [HH:mm] S4 — refreshed help-output snapshot to include `logs` entry; lint clean, 170/170 CLI unit + 1/1 S4 integration green
