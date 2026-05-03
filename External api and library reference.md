@@ -379,6 +379,40 @@ export default defineConfig({
 - `mode` is preserved as an auth-strategy hint that flows through to the auth chain. It does NOT change DB choice.
 - Module 02 introduced a `CONTEXTOS_DB_OVERRIDE_MODE` env var as a stop-gap so a developer could exercise the team-mode auth chain locally without spinning up Postgres. Module 03 S4 makes the override unnecessary by separating `kind` from `mode`. The env knob is removed; existing callers passed it implicitly via `CONTEXTOS_MODE=team` and the new contract handles that case natively.
 
+#### `kill_switches` polymorphic-scope pattern + soft-resume (Module 08b S1)
+
+Migration `0007_*` (commit landed 2026-05-03 on `feat/08b-cli-expansion`) adds the `kill_switches` table on both dialects. The shape is the load-bearing schema for the M08b operator-pause/resume surface AND the bridge's pre-policy short-circuit at PreToolUse.
+
+```ts
+// packages/db/src/schema/sqlite.ts (postgres mirrors with timestamp(withTimezone))
+export const killSwitches = sqliteTable(
+  'kill_switches',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').notNull(),                  // 'global' | 'project' | 'tool' | 'agent_type'
+    target: text('target'),                           // null when scope='global'
+    mode: text('mode').notNull().default('hard'),    // 'hard' (deny) | 'soft' (allow + audit)
+    reason: text('reason').notNull(),
+    pausedAt: integer('paused_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    pausedBySessionId: text('paused_by_session_id'),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),  // null = never
+    resumedAt: integer('resumed_at', { mode: 'timestamp' }), // null = active
+    resumedBySessionId: text('resumed_by_session_id'),
+  },
+  (t) => [index('kill_switches_active_idx').on(t.resumedAt, t.scope, t.target)],
+);
+```
+
+Two patterns this table demonstrates that recur elsewhere in the schema:
+
+1. **Polymorphic `(scope, target)`.** Adding a fifth scope value (e.g., `org`, `repo`) is a one-line CHECK update — not a column-addition migration. The bridge's match query in `listActiveKillSwitches` is `WHERE scope IN ('global','tool','agent_type') OR (scope='project' AND target=?)` — project-scoped rows for unrelated projects stay out of the result set. The `findKillSwitchMatchingEvent` pure function then narrows in-memory by `(toolName, agentType)`.
+
+2. **Soft-resume / append-only audit.** `resumed_at IS NULL` is the canonical "active" predicate. Resume sets `resumed_at` + `resumed_by_session_id` — the row stays in the table as audit history, parallels ADR-007's append-only spirit for `decisions` and `context_packs`. The `kill_switches_active_idx` on `(resumed_at, scope, target)` partitions active vs history at the leading column so the bridge's hot-path query touches only the active set.
+
+**Bridge-side cache TTL: 5 seconds.** Much shorter than the 60s policy cache because pause/resume should feel instantaneous to the operator. Local DB read is ~1ms; the cache is a one-line Map with a clock-driven invalidation. Implemented in M08b S2 (`apps/hooks-bridge/src/lib/kill-switch-evaluator.ts`).
+
+**Local-only in M08b** (per OQ-8 lock 2026-05-03). The `sync_to_cloud` queue is NOT enqueued for `kill_switches` writes; cross-developer sync is M04's surface. Document this for any future "why doesn't dev B see dev A's pause?" question.
+
 ***
 
 ## Queues, Workers & Redis

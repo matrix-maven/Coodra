@@ -229,6 +229,59 @@ export const decisions = sqliteTable(
   (t) => [index('decisions_run_created_idx').on(t.runId, t.createdAt)],
 );
 
+/**
+ * Module 08b S1 — kill switches.
+ *
+ * Polymorphic `(scope, target)` shape per OQ-2 lock (2026-05-03).
+ * `scope` is one of `'global' | 'project' | 'tool' | 'agent_type'`;
+ * `target` is null when scope='global' and otherwise carries the
+ * scope's value (projectId / toolName / agentType). Adding a fifth
+ * scope is a one-line CHECK-constraint update — no schema migration.
+ *
+ * `mode` defaults to `'hard'` per OQ-1 lock — `contextos pause` with
+ * no `--mode` flag yields a deny-on-match switch. Soft mode causes
+ * the bridge to allow the event but record an audit row marked
+ * `kill_switch_paused:<id>`.
+ *
+ * Soft-resume semantics: the row is never deleted. `contextos resume`
+ * sets `resumed_at` + `resumed_by_session_id` so the row remains as
+ * audit history (parallels ADR-007's append-only spirit for decisions
+ * and context_packs). The active-switch query is
+ *   `WHERE resumed_at IS NULL AND (expires_at IS NULL OR expires_at > now())`
+ * which is what the bridge runs on every PreToolUse (cached for 5s).
+ *
+ * Local-only in M08b per OQ-8: no sync-daemon enqueue. The cross-
+ * developer admin surface lands in M04.
+ */
+export const killSwitches = sqliteTable(
+  'kill_switches',
+  {
+    id: text('id').primaryKey(),
+    // 'global' | 'project' | 'tool' | 'agent_type' — see OQ-2 (polymorphic).
+    scope: text('scope').notNull(),
+    // null when scope='global'; projectId / toolName / agentType otherwise.
+    target: text('target'),
+    // 'hard' (bridge denies on match) | 'soft' (bridge allows + audits). OQ-1: default = hard.
+    mode: text('mode').notNull().default('hard'),
+    reason: text('reason').notNull(),
+    pausedAt: integer('paused_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    // null when CLI-initiated (no session); set if the bridge ever flips a switch programmatically (post-M08b).
+    pausedBySessionId: text('paused_by_session_id'),
+    // null = no auto-expiry; bridge treats `expires_at < now()` as already-resumed.
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    // null = active; set by `contextos resume` (soft delete).
+    resumedAt: integer('resumed_at', { mode: 'timestamp' }),
+    resumedBySessionId: text('resumed_by_session_id'),
+  },
+  (t) => [
+    // Active-switch lookup is the bridge's hot path (cached 5s; query budget
+    // is well within the §6 / §16-pattern-4 50ms PreToolUse latency budget).
+    // Leading column `resumed_at` partitions active vs audit history;
+    // (scope, target) drives the per-event match.
+    index('kill_switches_active_idx').on(t.resumedAt, t.scope, t.target),
+  ],
+);
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Run = typeof runs.$inferSelect;
@@ -249,3 +302,5 @@ export type FeaturePack = typeof featurePacks.$inferSelect;
 export type NewFeaturePack = typeof featurePacks.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type KillSwitch = typeof killSwitches.$inferSelect;
+export type NewKillSwitch = typeof killSwitches.$inferInsert;

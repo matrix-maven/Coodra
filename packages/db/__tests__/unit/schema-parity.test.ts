@@ -9,7 +9,9 @@ import * as sq from '../../src/schema/sqlite.js';
  * carried forward into Module 02).
  *
  * This file fails the build if the SQLite and Postgres dialects drift on:
- *   - the set of tables (5-table Module-01 core + 4-table Module-02 additions)
+ *   - the set of tables (5-table Module-01 core + 5-table Module-02
+ *     additions including `decisions` + 1 M08b-S1 addition `kill_switches`
+ *     = 11 tables)
  *   - column names per table
  *   - notNull flags per column
  *   - Drizzle dataType category per column (with the architected exemption)
@@ -25,6 +27,14 @@ import * as sq from '../../src/schema/sqlite.js';
  *     `packages/db/migrations.lock.json`). Postgres materialises the
  *     index directly on the main column via an HNSW index hand-appended
  *     to the same migration. See `docs/feature-packs/02-mcp-server/spec.md` §4.
+ *
+ * **History note:** the `decisions` table was added in M02 but was never
+ * added to `tablePairs` below until M08b S1 (2026-05-03). Schema parity
+ * for `decisions` was never enforced between M02 and M08b S1; future
+ * migrations to that table that drift sqlite from postgres would have
+ * gone undetected. M08b S1 adds both `decisions` and `kill_switches` to
+ * the parity matrix in the same commit so the gap closes alongside the
+ * M08b schema delta.
  */
 
 const tablePairs = [
@@ -37,6 +47,8 @@ const tablePairs = [
   ['policy_rules', sq.policyRules, pg.policyRules],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
   ['feature_packs', sq.featurePacks, pg.featurePacks],
+  ['decisions', sq.decisions, pg.decisions],
+  ['kill_switches', sq.killSwitches, pg.killSwitches],
 ] as const;
 
 /** Columns whose dialect-specific type difference is architecturally intentional. */
@@ -48,8 +60,8 @@ function columnsOf(table: unknown): Record<string, Column> {
   return getTableColumns(table as Parameters<typeof getTableColumns>[0]) as Record<string, Column>;
 }
 
-describe('nine-table schema is present in both dialects', () => {
-  it('SQLite exports all nine tables', () => {
+describe('eleven-table schema is present in both dialects', () => {
+  it('SQLite exports all eleven tables', () => {
     expect(sq.projects).toBeDefined();
     expect(sq.runs).toBeDefined();
     expect(sq.runEvents).toBeDefined();
@@ -59,9 +71,11 @@ describe('nine-table schema is present in both dialects', () => {
     expect(sq.policyRules).toBeDefined();
     expect(sq.policyDecisions).toBeDefined();
     expect(sq.featurePacks).toBeDefined();
+    expect(sq.decisions).toBeDefined();
+    expect(sq.killSwitches).toBeDefined();
   });
 
-  it('Postgres exports all nine tables', () => {
+  it('Postgres exports all eleven tables', () => {
     expect(pg.projects).toBeDefined();
     expect(pg.runs).toBeDefined();
     expect(pg.runEvents).toBeDefined();
@@ -71,6 +85,8 @@ describe('nine-table schema is present in both dialects', () => {
     expect(pg.policyRules).toBeDefined();
     expect(pg.policyDecisions).toBeDefined();
     expect(pg.featurePacks).toBeDefined();
+    expect(pg.decisions).toBeDefined();
+    expect(pg.killSwitches).toBeDefined();
   });
 });
 

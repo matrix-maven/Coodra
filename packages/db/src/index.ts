@@ -28,6 +28,19 @@ export {
   ensureProject,
   SOLO_ORG_ID,
 } from './ensure-project.js';
+export {
+  findKillSwitchMatchingEvent,
+  type InsertKillSwitchInput,
+  insertKillSwitch,
+  KILL_SWITCH_MODES,
+  KILL_SWITCH_SCOPES,
+  type KillSwitchMode,
+  type KillSwitchRecord,
+  type KillSwitchScope,
+  listActiveKillSwitches,
+  softResumeAllKillSwitches,
+  softResumeKillSwitch,
+} from './kill-switches.js';
 export { lookupRunId } from './lookup-run.js';
 export {
   ensurePgVector,

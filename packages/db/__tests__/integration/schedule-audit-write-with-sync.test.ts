@@ -63,7 +63,8 @@ describe('@coodra/contextos-db::scheduleAuditWriteWithSync', () => {
     const sync = all.find((r) => r.queue === 'sync_to_cloud');
     expect(audit).toBeDefined();
     expect(sync).toBeDefined();
-    expect(JSON.parse(sync?.payload)).toEqual({
+    if (sync === undefined) throw new Error('unreachable: expect(sync).toBeDefined() guards above');
+    expect(JSON.parse(sync.payload)).toEqual({
       v: 1,
       table: 'run_events',
       lookup: { kind: 'id', value: 're_team1' },

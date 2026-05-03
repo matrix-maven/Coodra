@@ -43,15 +43,16 @@ Each is mirrored in `decisions-log.md` and referenced from the matching `### OQ-
 
 ## Next action
 
-**Commit S0** with message `docs(08b-cli-expansion): kickoff spec + slice plan + locked OQ answers`, then begin **S1 — `kill_switches` schema + migration 0007 + helpers**:
+**Begin S2 — hooks-bridge kill-switch evaluator wired into pre-tool-use chain.**
 
-1. Append `killSwitches` table to `packages/db/src/schema/sqlite.ts` and `postgres.ts` (polymorphic `(scope, target)` per OQ-2).
-2. Run `pnpm --filter @coodra/contextos-db db:generate` to produce `packages/db/drizzle/{sqlite,postgres}/0007_<animal>.sql`.
-3. Add `packages/db/src/kill-switches.ts` with 5 helpers (`listActiveKillSwitches`, `insertKillSwitch`, `softResumeKillSwitch`, `softResumeAllKillSwitches`, `findKillSwitchMatchingEvent`).
-4. Re-export from `packages/db/src/index.ts`.
-5. Add `packages/db/__tests__/integration/kill-switches.test.ts` with 7 fixtures.
-6. Update `External api and library reference.md` (Drizzle subsection — `kill_switches` polymorphic-scope pattern).
-7. Verify `pnpm --filter @coodra/contextos-db check:migration-lock`, schema-parity test, and integration tests are green.
+1. Author `apps/hooks-bridge/src/lib/kill-switch-evaluator.ts` exporting `createKillSwitchEvaluator(deps: { db: DbHandle; cacheMs?: number; clock?: () => Date }): { check(event): Promise<{ matched, decision } | null> }`. Pure async; fail-open on DB throw.
+2. Modify `apps/hooks-bridge/src/handlers/pre-tool-use.ts` to consult the evaluator BEFORE the existing policy chain. Hard-mode match → return deny + `kill_switch_paused:<id>` reason; soft-mode match → return allow + record synthetic `policy_decisions` row with the same reason; no match → fall through to existing policy chain.
+3. 5s in-process cache (much shorter than 60s policy cache) to keep pause/resume feeling instant; cache key is `projectId|null`.
+4. 5 integration fixtures + 8 unit fixtures per implementation.md S2.
+5. Extend `__tests__/e2e/full-session.test.ts` with a kill-switch-deny path; verify the audit row lands.
+6. Translate decision in `apps/hooks-bridge/src/lib/translate-decision.ts` so the deny surfaces clearly to Claude Code's permission prompt.
+
+S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helpers shipped on `feat/08b-cli-expansion`. Schema-parity test now covers `decisions` + `kill_switches` (decisions was a pre-M08b gap closed in passing). 9 integration fixtures green; 54/54 unit tests green; biome lint clean; typecheck clean (pre-existing `schedule-audit-write-with-sync.test.ts(66,23)` `JSON.parse(sync?.payload)` type error fixed in passing — was blocking `pnpm --filter @coodra/contextos-db typecheck` on `main`).
 
 ## Log (append-only per PostToolUse)
 
@@ -62,3 +63,13 @@ Each is mirrored in `decisions-log.md` and referenced from the matching `### OQ-
 - [HH:mm] flipped spec.md §11 Open questions → Locked design decisions; added Decision/Why/Constrains block to each of OQ-1..OQ-8
 - [HH:mm] archived prior `current-session.md` (M04a state) to `sessions/2026-04-28-module-04a-sync-daemon.md`
 - [HH:mm] wrote fresh `current-session.md` for M08b
+- [HH:mm] S0 committed (`ee8ac9c`): kickoff spec + locked OQ answers
+- [HH:mm] S1 — added `killSwitches` table to `packages/db/src/schema/{sqlite,postgres}.ts` (polymorphic `(scope, target)` shape per OQ-2)
+- [HH:mm] S1 — generated migrations `0007_thick_nightmare.sql` (sqlite) and `0007_bitter_miek.sql` (postgres) via `pnpm --filter @coodra/contextos-db db:generate`; no hand-written preserve blocks needed (clean delta)
+- [HH:mm] S1 — wrote `packages/db/src/kill-switches.ts` (5 helpers: `listActiveKillSwitches`, `insertKillSwitch`, `softResumeKillSwitch`, `softResumeAllKillSwitches`, `findKillSwitchMatchingEvent`); re-exports from `packages/db/src/index.ts`
+- [HH:mm] S1 — schema-parity test extended to include `kill_switches` AND `decisions` (decisions was a pre-M08b parity-test gap; closed in passing). Heading flipped from "nine-table schema" to "eleven-table schema"
+- [HH:mm] S1 — `client.test.ts` table count expectation updated 11→12
+- [HH:mm] S1 — fixed pre-existing `schedule-audit-write-with-sync.test.ts(66,23)` `JSON.parse(sync?.payload)` type error blocking `pnpm typecheck` on `main`
+- [HH:mm] S1 — wrote `__tests__/integration/kill-switches.test.ts` with 9 fixtures (7 spec + 2 bonus for invariant validation + paused_at ordering); first run failed Fixture 7 (re-resume idempotency) because SQLite `.update()` doesn't return rows — fixed by using `RunResult.changes` to detect zero-row updates
+- [HH:mm] S1 — appended `External api and library reference.md` Drizzle subsection: `kill_switches` polymorphic-scope pattern + soft-resume + 5s bridge cache TTL + local-only-in-M08b note
+- [HH:mm] S1 — typecheck + lint + 54/54 unit + 9/9 integration green; ready to commit

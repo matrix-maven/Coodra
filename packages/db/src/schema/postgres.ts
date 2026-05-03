@@ -214,6 +214,34 @@ export const decisions = pgTable(
   (t) => [index('decisions_run_created_idx').on(t.runId, t.createdAt)],
 );
 
+/**
+ * Module 08b S1 — kill switches (postgres mirror of sqlite.ts::killSwitches).
+ *
+ * Same shape, dialect-appropriate timestamp columns. The schema-parity test
+ * enforces that column names and Drizzle dataType categories match. See
+ * `./sqlite.ts` for the full design rationale.
+ */
+export const killSwitches = pgTable(
+  'kill_switches',
+  {
+    id: text('id').primaryKey(),
+    scope: text('scope').notNull(),
+    target: text('target'),
+    mode: text('mode').notNull().default('hard'),
+    reason: text('reason').notNull(),
+    pausedAt: timestamp('paused_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    pausedBySessionId: text('paused_by_session_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    resumedAt: timestamp('resumed_at', { withTimezone: true, mode: 'date' }),
+    resumedBySessionId: text('resumed_by_session_id'),
+  },
+  (t) => [
+    // Mirror of the SQLite active-switch index. See sqlite.ts for the
+    // hot-path rationale.
+    index('kill_switches_active_idx').on(t.resumedAt, t.scope, t.target),
+  ],
+);
+
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Run = typeof runs.$inferSelect;
@@ -234,3 +262,5 @@ export type FeaturePack = typeof featurePacks.$inferSelect;
 export type NewFeaturePack = typeof featurePacks.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type KillSwitch = typeof killSwitches.$inferSelect;
+export type NewKillSwitch = typeof killSwitches.$inferInsert;

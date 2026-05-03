@@ -50,6 +50,13 @@
       "when": 1777805798275,
       "tag": "0006_clumsy_banshee",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1777818589985,
+      "tag": "0007_thick_nightmare",
+      "breakpoints": true
     }
   ]
 }
