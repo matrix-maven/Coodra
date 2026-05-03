@@ -70,3 +70,45 @@ describe('feature-pack — inheritance cycle detection', () => {
     expect(msg).toContain('c');
   });
 });
+
+/**
+ * Slice 9 (2026-05-03 audit §12): self-referential cycle. The
+ * 3-node test above covers the common multi-hop case but does NOT
+ * exercise the boundary condition where a single pack's
+ * `meta.json` declares itself as its own parent. The visited-set
+ * walker should catch this on the first ancestor step (the seed slug
+ * is added to `visited` before walking; the first cursor equals the
+ * leaf, which is already in the set, so the cycle predicate fires
+ * immediately). This test locks that contract — a future refactor
+ * that seeds `visited` after the first walk step would silently
+ * permit self-cycles, hanging the get-feature-pack handler.
+ */
+describe('feature-pack — self-referential cycle (slug → slug)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'fp-self-cycle-'));
+  const dbOwner = createDbClient({ mode: 'solo', sqlite: { path: ':memory:', skipPragmas: true } });
+  const handle = dbOwner.asInternalHandle();
+  if (handle.kind !== 'sqlite') throw new Error('expected sqlite handle');
+
+  beforeAll(() => {
+    migrateSqlite(handle.db);
+    writePack(root, 'self', 'self'); // pathological — meta.parentSlug === slug
+  });
+
+  afterAll(async () => {
+    await dbOwner.client.close();
+  });
+
+  it('throws InternalError without infinite-walking', async () => {
+    const store = createFeaturePackStore({ db: handle, featurePacksRoot: root });
+    let thrown: unknown;
+    try {
+      await store.get({ projectSlug: 'self' });
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(InternalError);
+    const msg = (thrown as Error).message;
+    expect(msg).toMatch(/feature_pack_cycle/);
+    expect(msg).toContain('self');
+  });
+});
