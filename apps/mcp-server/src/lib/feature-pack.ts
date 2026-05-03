@@ -130,18 +130,44 @@ function packDir(root: string, slug: string): string {
   return resolve(root, slug);
 }
 
+/**
+ * Read a single file or return null on ENOENT. Mirrors the bridge's
+ * `readMaybe` pattern at apps/hooks-bridge/src/lib/feature-pack-loader.ts:52
+ * (M04 S11 cleanup — the two readers are now symmetric).
+ */
+async function readMaybe(path: string): Promise<string | null> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 async function readPackFromDisk(
   root: string,
   slug: string,
 ): Promise<{ content: FeaturePackContent; meta: FeaturePackMeta } | null> {
   const dir = packDir(root, slug);
   if (!existsSync(dir)) return null;
+  // M04 S11 cleanup: spec.md + meta.json stay required; implementation.md
+  // and techstack.md are optional (mirror the bridge's loader, fixing the
+  // pre-existing latent fragility documented in
+  // context_memory/blockers.md ✅ 2026-05-02 entry: a hand-created pack
+  // with only spec.md previously threw `handler_threw` from the MCP-side
+  // get_feature_pack roundtrip).
   const [specTxt, implTxt, techTxt, metaTxt] = await Promise.all([
-    readFile(join(dir, 'spec.md'), 'utf8'),
-    readFile(join(dir, 'implementation.md'), 'utf8'),
-    readFile(join(dir, 'techstack.md'), 'utf8'),
-    readFile(join(dir, 'meta.json'), 'utf8'),
+    readMaybe(join(dir, 'spec.md')),
+    readMaybe(join(dir, 'implementation.md')),
+    readMaybe(join(dir, 'techstack.md')),
+    readMaybe(join(dir, 'meta.json')),
   ]);
+  if (specTxt === null) {
+    throw new InternalError(`feature-pack '${slug}' missing required spec.md`);
+  }
+  if (metaTxt === null) {
+    throw new InternalError(`feature-pack '${slug}' missing required meta.json`);
+  }
   const parsed = metaJsonSchema.safeParse(JSON.parse(metaTxt));
   if (!parsed.success) {
     throw new InternalError(
@@ -156,8 +182,10 @@ async function readPackFromDisk(
   return {
     content: {
       spec: specTxt,
-      implementation: implTxt,
-      techstack: techTxt,
+      // Optional fields default to empty strings so the rest of the
+      // pipeline (checksum, search, agent context) sees a stable shape.
+      implementation: implTxt ?? '',
+      techstack: techTxt ?? '',
       sourceFiles: parsed.data.sourceFiles ?? [],
     },
     meta: parsed.data,

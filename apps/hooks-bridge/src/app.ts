@@ -90,6 +90,72 @@ function failOpen(
   };
 }
 
+/**
+ * Shape the bridge's response per Claude Code's hook-response spec
+ * (`code.claude.com/docs/en/hooks`). PreToolUse + SessionStart consume
+ * `hookSpecificOutput`; PostToolUse / Stop / SessionEnd / SubagentStop
+ * use top-level `decision: 'block'` + `reason` (or empty body to allow).
+ *
+ * The result of dispatch() is event-type-agnostic
+ * (`{ permissionDecision, permissionDecisionReason?, additionalContext? }`);
+ * this shaper picks the right wrapper per event.
+ *
+ * M04 S11 cleanup: pre-cleanup the bridge returned the PreToolUse shape
+ * for every event, which Claude Code "silently ignores" for non-PreToolUse
+ * events per the docs (so no user-visible regression). This shaper
+ * brings the bridge to spec compliance.
+ */
+function shapeClaudeCodeResponse(hookEventName: string, result: HookDispatchResult): Record<string, unknown> {
+  const reason = result.permissionDecisionReason;
+  const additionalContext = result.additionalContext;
+  switch (hookEventName) {
+    case 'PreToolUse':
+      return {
+        ok: true,
+        hookSpecificOutput: {
+          hookEventName,
+          permissionDecision: result.permissionDecision,
+          ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+          ...(additionalContext !== undefined ? { additionalContext } : {}),
+        },
+      };
+    case 'SessionStart':
+      return {
+        ok: true,
+        hookSpecificOutput: {
+          hookEventName,
+          ...(additionalContext !== undefined ? { additionalContext } : {}),
+        },
+      };
+    case 'UserPromptSubmit': {
+      const isBlock = result.permissionDecision === 'deny';
+      return {
+        ok: true,
+        ...(isBlock ? { decision: 'block', reason } : {}),
+        hookSpecificOutput: {
+          hookEventName,
+          ...(additionalContext !== undefined ? { additionalContext } : {}),
+        },
+      };
+    }
+    case 'PostToolUse':
+    case 'Stop':
+    case 'SubagentStop': {
+      const isBlock = result.permissionDecision === 'deny';
+      const body: Record<string, unknown> = { ok: true };
+      if (isBlock) {
+        body.decision = 'block';
+        if (reason !== undefined) body.reason = reason;
+      }
+      return body;
+    }
+    case 'SessionEnd':
+      return { ok: true };
+    default:
+      return { ok: true };
+  }
+}
+
 export function buildApp(deps: BuildAppDeps): AppHandle {
   const serverStartedAt = deps.serverStartedAt ?? new Date();
   const dispatch = deps.dispatch ?? allowAllDispatcher;
@@ -146,21 +212,16 @@ export function buildApp(deps: BuildAppDeps): AppHandle {
       'hook ingress',
     );
     const result = await dispatch(event);
-    return c.json({
-      ok: true,
-      hookSpecificOutput: {
-        hookEventName: parse.data.hook_event_name,
-        permissionDecision: result.permissionDecision,
-        ...(result.permissionDecisionReason !== undefined
-          ? { permissionDecisionReason: result.permissionDecisionReason }
-          : {}),
-        // Pattern 20 (decision dec_83ba10c1, 2026-05-02): SessionStart
-        // returns the project's Feature Pack body in this slot so the
-        // agent receives full project context at turn zero without
-        // calling `contextos__get_feature_pack` itself.
-        ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
-      },
-    });
+    // M04 S11 cleanup — per-event response shape per Claude Code's hook-
+    // response spec (`code.claude.com/docs/en/hooks` fetched 2026-05-04).
+    // Pre-cleanup the bridge returned `hookSpecificOutput.permissionDecision`
+    // for every event type. That worked for PreToolUse + SessionStart
+    // (the two events that consume hookSpecificOutput); for PostToolUse /
+    // Stop / SessionEnd / SubagentStop the spec says wrong-shape
+    // hookSpecificOutput is "silently ignored", so the drift wasn't
+    // user-impacting — but it's fidelity hygiene to ship the right shape.
+    const responseBody = shapeClaudeCodeResponse(parse.data.hook_event_name, result);
+    return c.json(responseBody);
   });
 
   // ---------------------------------------------------------------------
