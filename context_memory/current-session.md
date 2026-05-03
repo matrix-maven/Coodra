@@ -80,3 +80,13 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S2 — wrote `__tests__/unit/lib/kill-switch-evaluator.test.ts` (10 fixtures: 8 spec + 2 bonus for invalidate + null-project-key)
 - [HH:mm] S2 — wrote `__tests__/integration/handlers/kill-switch-pre-tool-use.test.ts` (5 fixtures: hard-global, soft-global, tool-scoped, project-scoped, post-resume policy fall-through)
 - [HH:mm] S2 — lint clean, typecheck clean, 46/46 bridge unit tests + 34/34 key integration tests (incl. existing default-policy-tool-coverage + pre-tool-use suites) green
+- [HH:mm] S2 committed (`ecc22cf`): bridge kill-switch evaluator + pre-tool-use chain wiring
+- [HH:mm] S3 — added exit codes 5 (kill-switch refusal) and 6 (backup/restore precondition) to packages/cli/src/exit-codes.ts
+- [HH:mm] S3 — added `lookupProjectBySlug` helper to packages/db (slug → projectId, no auto-create unlike `ensureProject`); re-exported from index.ts
+- [HH:mm] S3 — wrote `packages/cli/src/lib/duration.ts` (parser for "5m", "1h", "1d6h" composites, case-insensitive, throws DurationParseError with code='empty'|'no_match'|'unknown_unit'|'overflow')
+- [HH:mm] S3 — wrote `packages/cli/src/commands/pause.ts` (default scope=global, default mode=hard per OQ-1, slug→projectId resolution for project scope, idempotency check via listActiveKillSwitches before insert returning EXIT_KILL_SWITCH_REFUSAL=5 on duplicate, JSON output behind --json)
+- [HH:mm] S3 — wrote `packages/cli/src/commands/resume.ts` (mutually-exclusive --id/--all/--scope[/target], same slug→projectId resolution, EXIT_USER_RECOVERABLE=1 on no-match)
+- [HH:mm] S3 — wired both commands into `packages/cli/src/program.ts` (10 top-level commands now: cloud-migrate, doctor, init, pause, resume, start, status, stop, team)
+- [HH:mm] S3 — wrote 13 duration unit fixtures, 8 pause unit fixtures (6 spec + 2 bonus for project-scope + expires_in), 5 resume unit fixtures (4 spec + 1 bonus for scope-filtered bulk-resume), 1 integration roundtrip (pause global → resume by id → pause again → second pause on different scope → resume --all → empty --all exits 1 → 3 audit rows preserved)
+- [HH:mm] S3 — updated `__tests__/unit/program.test.ts` (8→10 commands) and inline snapshot in `__tests__/unit/help-output.test.ts` (added pause + resume entries; also caught stale 9-essential / 27-full doctor counts predating Phase 4 Fix L which actually shipped 11/30 — refreshed in passing)
+- [HH:mm] S3 — typecheck clean, lint clean, 156/156 CLI unit + 1/1 S3 integration roundtrip green

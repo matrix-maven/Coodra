@@ -28,15 +28,21 @@ describe('contextos --help (snapshot-locked surface)', () => {
         stop [options]           Stop ContextOS daemons. Idempotent.
         status [options]         Print unified project + service state for the current
                                  cwd.
-        doctor [options]         Run health checks (read-only). Defaults to the 9
+        doctor [options]         Run health checks (read-only). Defaults to the 11
                                  essential checks for the Claude Code + solo-mode
-                                 path; use --full for the complete 27-check registry
+                                 path; use --full for the complete 30-check registry
                                  (debug invariants, team-mode probes, outbox
-                                 observability).
+                                 observability, lifecycle invariants).
         cloud-migrate [options]  Apply Drizzle Postgres migrations to the cloud
                                  DATABASE_URL (team-mode self-host). Idempotent.
                                  Refuses to run if unknown tables contain data — see
                                  Module 04a OQ4.
+        pause [options]          Pause ContextOS enforcement on the local machine via
+                                 a row in \`kill_switches\`. Hard mode (default) denies;
+                                 soft mode allows + audits. Local-only (M08b OQ-8);
+                                 cross-developer sync is M04.
+        resume [options]         Resume one or more active kill switches. Use --id,
+                                 --all, or --scope[/--target].
         team                     Team-mode commands. Bodies land when team mode is
                                  reachable end-to-end (post-Module 04).
         help [command]           display help for command

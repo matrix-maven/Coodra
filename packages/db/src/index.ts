@@ -41,6 +41,7 @@ export {
   softResumeAllKillSwitches,
   softResumeKillSwitch,
 } from './kill-switches.js';
+export { lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
 export {
   ensurePgVector,

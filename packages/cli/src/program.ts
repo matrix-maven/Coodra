@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import { type CloudMigrateIO, type CloudMigrateOptions, runCloudMigrateCommand } from './commands/cloud-migrate.js';
 import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/doctor.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
+import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
+import { type ResumeIO, type ResumeOptions, runResumeCommand } from './commands/resume.js';
 import { runStartCommand, type StartIO, type StartOptions } from './commands/start.js';
 import { runStatusCommand, type StatusIO, type StatusOptions } from './commands/status.js';
 import { runStopCommand, type StopIO, type StopOptions } from './commands/stop.js';
@@ -35,6 +37,10 @@ interface BuildProgramOptions {
   readonly runTeamLogout?: (io?: TeamCommandIO) => Promise<unknown>;
   readonly cloudMigrateIO?: CloudMigrateIO;
   readonly runCloudMigrate?: (options: CloudMigrateOptions, io?: CloudMigrateIO) => Promise<unknown>;
+  readonly pauseIO?: PauseIO;
+  readonly runPause?: (options: PauseOptions, io?: PauseIO) => Promise<unknown>;
+  readonly resumeIO?: ResumeIO;
+  readonly runResume?: (options: ResumeOptions, io?: ResumeIO) => Promise<unknown>;
 }
 
 /**
@@ -130,6 +136,39 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: CloudMigrateOptions) => {
       await cloudMigrateRunner(opts, options.cloudMigrateIO);
+    });
+
+  // Module 08b S3 — operator pause/resume backed by `kill_switches`.
+  const pauseRunner = options.runPause ?? runPauseCommand;
+  program
+    .command('pause')
+    .description(
+      'Pause ContextOS enforcement on the local machine via a row in `kill_switches`. Hard mode (default) denies; soft mode allows + audits. Local-only (M08b OQ-8); cross-developer sync is M04.',
+    )
+    .option('--scope <scope>', 'global | project | tool | agent_type (default: global)')
+    .option('--target <value>', 'projectSlug | toolName | agentType (required when --scope != global)')
+    .option('--mode <mode>', 'hard | soft (default: hard, per OQ-1)')
+    .option('--reason <reason>', 'Operator audit context (recommended; auto-generated if omitted)')
+    .option('--expires-in <duration>', 'Auto-resume after duration (e.g. 5m, 1h, 24h, 7d, 1d6h)')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: PauseOptions) => {
+      await pauseRunner(opts, options.pauseIO);
+    });
+
+  const resumeRunner = options.runResume ?? runResumeCommand;
+  program
+    .command('resume')
+    .description('Resume one or more active kill switches. Use --id, --all, or --scope[/--target].')
+    .option('--id <id>', 'Resume the named switch (ks_…).')
+    .option('--all', 'Resume every currently-active switch.')
+    .option(
+      '--scope <scope>',
+      'Filter by scope (global | project | tool | agent_type) — resumes every matching active row.',
+    )
+    .option('--target <value>', 'Used with --scope to filter further (projectSlug | toolName | agentType).')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: ResumeOptions) => {
+      await resumeRunner(opts, options.resumeIO);
     });
 
   const team = program
