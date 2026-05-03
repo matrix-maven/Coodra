@@ -2267,7 +2267,9 @@ Anti-patterns banned:
 - *"Useful for..."* — hedging. If it's useful, say when.
 - Descriptions outside the word-count envelope — **40–80 words is the soft target, 120 is the hard maximum** (amended 2026-04-23 per Q-02-6; the old ~80-word cap was too tight for tools with structured outputs that need an extra sentence of shape documentation). Character length is additionally capped at < 800 as a belt-and-braces defence against the system-prompt budget.
 
-### 24.4 Core Tool Manifest — 8 ContextOS Tools
+### 24.4 Core Tool Manifest — 10 ContextOS Tools
+
+> Slice 4 (2026-05-03 audit) added the 10th tool, `query_decisions` — see entry below `query_codebase_graph`. Pre-Slice-4 the manifest was 9 tools (Phase 4 Fix F's `ping` + the original 8); Slice 4 adds `query_decisions` to close the cross-session memory gap (audit §3.5: `record_decision` writes were unreadable from the agent surface). Section header retained as-is for git history; canonical count is 10.
 
 These are the tools every project using ContextOS exposes. They bind the agent to the Feature Pack / Context Pack / Policy / Decision lifecycle described in §2 and §18.
 
@@ -2372,6 +2374,16 @@ These are the tools every project using ContextOS exposes. They bind the agent t
 **Input:** `{ projectSlug: string }`
 **Returns:** `{ runId: string, startedAt: string }`
 **Mechanism:** reads the most recent `runs` row where `status = 'in_progress'` and the session matches the caller's `sessionId`. Creates one if none exists.
+
+#### `query_decisions` (added 2026-05-03 — audit Slice 4)
+> Call this when the user asks "what did we decide about X?" or "any prior decisions on Y?" or you need to reconcile your current approach against decisions recorded in earlier sessions. Returns the chronological (most-recent-first) list of decisions logged via `record_decision` for this project, optionally narrowed by a substring against description+rationale or by an exact runId. Use alongside `query_run_history` when answering "what happened recently" and as the cross-session memory primitive that `search_packs_nl` cannot serve until M05 ships embeddings.
+
+**Input:** `{ projectSlug: string, query?: string, runId?: string, limit?: number (default 10, max 200) }`
+**Returns (success):** `{ ok: true, decisions: Array<{ id, runId, description, rationale, alternatives: string[], createdAt: ISO 8601 }> }`
+**Mechanism:** SELECT decisions.* INNER JOIN runs ON decisions.run_id = runs.id WHERE runs.project_id = ? [AND decisions.run_id = ?] [AND (description LIKE %query% OR rationale LIKE %query%)] ORDER BY decisions.created_at DESC LIMIT ?. The INNER JOIN excludes orphan decisions (run_id NULL after a run deletion — see schema docblock); these survive in the DB for permanent history per ADR-007 but are unreachable from this tool by design. `alternatives` is parsed from JSON-encoded string[]; pre-JSON plain-text rows surface as a single-element array.
+**Soft-failures:**
+- `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered. Remediation: `contextos init`.
+**Empty result** (project exists, zero decisions in scope) → `{ ok: true, decisions: [] }` — NOT a soft-failure. Same rule as `query_run_history`.
 
 ### 24.5 Integration Tool Manifests — JIRA (8) + GitHub (10)
 

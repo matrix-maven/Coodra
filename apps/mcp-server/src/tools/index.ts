@@ -6,6 +6,7 @@ import { getFeaturePackToolRegistration } from './get-feature-pack/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
 import { createQueryCodebaseGraphToolRegistration } from './query-codebase-graph/manifest.js';
+import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
 import { createQueryRunHistoryToolRegistration } from './query-run-history/manifest.js';
 import { createRecordDecisionToolRegistration } from './record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from './save-context-pack/manifest.js';
@@ -46,4 +47,8 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(createQueryRunHistoryToolRegistration({ db: deps.db }));
   registry.register(createCheckPolicyToolRegistration({ db: deps.db }));
   registry.register(createQueryCodebaseGraphToolRegistration({ db: deps.db }));
+  // Slice 4 (2026-05-03 audit): cross-session decisions read-path. Closes
+  // the gap that record_decision wrote rows nothing in the 9-tool surface
+  // could read back. See manifest.ts docblock.
+  registry.register(createQueryDecisionsToolRegistration({ db: deps.db }));
 }

@@ -68,9 +68,10 @@ Do not batch these. Do not wait for `save_context_pack`. Log each as you make it
 
 Triggers: *"what was done before?"*, *"has X been tried?"*, *"what is the state of Y?"*, *"why did we choose Z?"*.
 
-1. `contextos__search_packs_nl { projectSlug, query }` — semantic search over prior context packs.
-2. `contextos__query_run_history { projectSlug, limit: 10 }` — chronological recent runs.
-3. Answer from the retrieved data. **Do not answer from memory.** If both return empty, say so — don't confabulate.
+1. `contextos__query_decisions { projectSlug, query?, runId?, limit: 10 }` — direct read of the `decisions` table for this project. Use this **first** for "what did we decide about X?" / "why did we pick Y?" — every `record_decision` call is durable history and this is the authoritative read-path. Quoted descriptions and rationales surface verbatim; if a query string is supplied it LIKE-matches against description+rationale.
+2. `contextos__search_packs_nl { projectSlug, query }` — semantic search over prior context packs (LIKE-substring fallback until M05 NL Assembly ships embeddings).
+3. `contextos__query_run_history { projectSlug, limit: 10 }` — chronological recent runs.
+4. Answer from the retrieved data. **Do not answer from memory.** If all three return empty, say so — don't confabulate.
 
 ## 5.6 Before structural refactors or unfamiliar code navigation
 

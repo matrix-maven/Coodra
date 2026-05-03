@@ -71,9 +71,10 @@ afterAll(async () => {
 }, 30_000);
 
 describe('boot — CONTEXTOS_MODE=team with no override knob (finding §8.3 closed)', () => {
-  it('binary boots with team-mode auth + sqlite store; tools/list returns 9 tools', async () => {
+  it('binary boots with team-mode auth + sqlite store; tools/list returns 10 tools', async () => {
     const { tools } = await h.client.listTools();
-    expect(tools.length).toBe(9);
+    // Slice 4 (2026-05-03 audit): query_decisions added → 10 tools.
+    expect(tools.length).toBe(10);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {

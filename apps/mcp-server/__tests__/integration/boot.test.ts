@@ -67,7 +67,10 @@ afterAll(async () => {
 describe('boot auto-migrate (verification finding §8.1)', () => {
   it('tools/list succeeds against a fresh SQLite path with no pre-migration', async () => {
     const { tools } = await h.client.listTools();
-    expect(tools.length).toBe(9);
+    // Slice 4 (2026-05-03 audit): query_decisions added → 10 tools.
+    // Locks the count so future "added a tool but never wired it"
+    // regressions surface immediately (essentialsforclaude/10-troubleshooting.md).
+    expect(tools.length).toBe(10);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {
