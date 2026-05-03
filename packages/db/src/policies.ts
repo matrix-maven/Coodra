@@ -122,9 +122,10 @@ function toRuleRow(row: RawRuleRow): PolicyRuleRow {
 export async function listPolicies(db: DbHandle, projectId: string | null): Promise<PolicyWithRules[]> {
   if (db.kind === 'sqlite') {
     const t = sqliteSchema.policies;
-    const policies = projectId === null
-      ? await db.db.select().from(t).orderBy(asc(t.projectId), asc(t.name))
-      : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(asc(t.name));
+    const policies =
+      projectId === null
+        ? await db.db.select().from(t).orderBy(asc(t.projectId), asc(t.name))
+        : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(asc(t.name));
     const rt = sqliteSchema.policyRules;
     const out: PolicyWithRules[] = [];
     for (const p of policies) {
@@ -139,9 +140,10 @@ export async function listPolicies(db: DbHandle, projectId: string | null): Prom
   }
 
   const t = postgresSchema.policies;
-  const policies = projectId === null
-    ? await db.db.select().from(t).orderBy(asc(t.projectId), asc(t.name))
-    : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(asc(t.name));
+  const policies =
+    projectId === null
+      ? await db.db.select().from(t).orderBy(asc(t.projectId), asc(t.name))
+      : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(asc(t.name));
   const rt = postgresSchema.policyRules;
   const out: PolicyWithRules[] = [];
   for (const p of policies) {
@@ -172,9 +174,10 @@ export async function getPolicy(
 
   if (db.kind === 'sqlite') {
     const t = sqliteSchema.policies;
-    const conditions = options.projectId !== undefined
-      ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
-      : or(eq(t.id, identifier), eq(t.name, identifier));
+    const conditions =
+      options.projectId !== undefined
+        ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
+        : or(eq(t.id, identifier), eq(t.name, identifier));
     const rows = await db.db.select().from(t).where(conditions).limit(1);
     if (rows.length === 0) return null;
     const policy = rows[0] as RawPolicyRow;
@@ -188,9 +191,10 @@ export async function getPolicy(
   }
 
   const t = postgresSchema.policies;
-  const conditions = options.projectId !== undefined
-    ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
-    : or(eq(t.id, identifier), eq(t.name, identifier));
+  const conditions =
+    options.projectId !== undefined
+      ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
+      : or(eq(t.id, identifier), eq(t.name, identifier));
   const rows = await db.db.select().from(t).where(conditions).limit(1);
   if (rows.length === 0) return null;
   const policy = rows[0] as RawPolicyRow;
@@ -378,19 +382,17 @@ export async function setPolicyActive(
 ): Promise<PolicyRow | null> {
   if (db.kind === 'sqlite') {
     const t = sqliteSchema.policies;
-    const conditions = options.projectId !== undefined
-      ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
-      : or(eq(t.id, identifier), eq(t.name, identifier));
+    const conditions =
+      options.projectId !== undefined
+        ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
+        : or(eq(t.id, identifier), eq(t.name, identifier));
     const rows = await db.db.select().from(t).where(conditions).limit(1);
     if (rows.length === 0) return null;
     const policy = rows[0] as RawPolicyRow;
     if (policy.isActive === active) {
       return toPolicyRow(policy); // no-op
     }
-    await db.db
-      .update(t)
-      .set({ isActive: active, updatedAt: new Date() })
-      .where(eq(t.id, policy.id));
+    await db.db.update(t).set({ isActive: active, updatedAt: new Date() }).where(eq(t.id, policy.id));
     const after = await db.db.select().from(t).where(eq(t.id, policy.id)).limit(1);
     const updated = after[0];
     if (updated === undefined) return null;
@@ -398,9 +400,10 @@ export async function setPolicyActive(
   }
 
   const t = postgresSchema.policies;
-  const conditions = options.projectId !== undefined
-    ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
-    : or(eq(t.id, identifier), eq(t.name, identifier));
+  const conditions =
+    options.projectId !== undefined
+      ? and(or(eq(t.id, identifier), eq(t.name, identifier)), eq(t.projectId, options.projectId))
+      : or(eq(t.id, identifier), eq(t.name, identifier));
   const rows = await db.db.select().from(t).where(conditions).limit(1);
   if (rows.length === 0) return null;
   const policy = rows[0] as RawPolicyRow;

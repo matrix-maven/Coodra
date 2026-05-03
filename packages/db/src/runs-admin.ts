@@ -108,7 +108,12 @@ export async function listRunsForProject(db: DbHandle, filter: ListRunsFilter = 
     const rows =
       conditions.length === 0
         ? await db.db.select().from(t).orderBy(desc(t.startedAt)).limit(limit)
-        : await db.db.select().from(t).where(and(...conditions)).orderBy(desc(t.startedAt)).limit(limit);
+        : await db.db
+            .select()
+            .from(t)
+            .where(and(...conditions))
+            .orderBy(desc(t.startedAt))
+            .limit(limit);
     return rows.map(toRunRow);
   }
 
@@ -119,7 +124,12 @@ export async function listRunsForProject(db: DbHandle, filter: ListRunsFilter = 
   const rows =
     conditions.length === 0
       ? await db.db.select().from(t).orderBy(desc(t.startedAt)).limit(limit)
-      : await db.db.select().from(t).where(and(...conditions)).orderBy(desc(t.startedAt)).limit(limit);
+      : await db.db
+          .select()
+          .from(t)
+          .where(and(...conditions))
+          .orderBy(desc(t.startedAt))
+          .limit(limit);
   return rows.map(toRunRow);
 }
 
@@ -248,11 +258,7 @@ export async function cancelRun(db: DbHandle, runId: string, now: Date = new Dat
   if (row.status !== 'in_progress') {
     return { status: 'already_terminal', run: toRunRow(row) };
   }
-  const updated = await db.db
-    .update(t)
-    .set({ status: 'cancelled', endedAt: now })
-    .where(eq(t.id, runId))
-    .returning();
+  const updated = await db.db.update(t).set({ status: 'cancelled', endedAt: now }).where(eq(t.id, runId)).returning();
   const after = updated[0];
   if (after === undefined) return { status: 'not_found' };
   return { status: 'cancelled', run: toRunRow(after) };

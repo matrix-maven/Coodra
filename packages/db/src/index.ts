@@ -38,11 +38,19 @@ export {
   type KillSwitchRecord,
   type KillSwitchScope,
   listActiveKillSwitches,
+  listAllActiveKillSwitches,
   softResumeAllKillSwitches,
   softResumeKillSwitch,
 } from './kill-switches.js';
 export { lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
+export {
+  ensurePgVector,
+  MIGRATIONS_FOLDER,
+  migratePostgres,
+  migrateSqlite,
+  resolveMigrationsFolder,
+} from './migrate.js';
 export {
   type AddPolicyRuleArgs,
   type AddPolicyRuleResult,
@@ -67,8 +75,8 @@ export {
 } from './projects.js';
 export {
   type CancelRunResult,
-  cancelRun,
   type ContextPackRow,
+  cancelRun,
   type DecisionRow,
   getRunWithEverything,
   type ListRunsFilter,
@@ -78,13 +86,6 @@ export {
   type RunRow,
   type RunWithEverything,
 } from './runs-admin.js';
-export {
-  ensurePgVector,
-  MIGRATIONS_FOLDER,
-  migratePostgres,
-  migrateSqlite,
-  resolveMigrationsFolder,
-} from './migrate.js';
 export {
   type ScheduleAuditWriteWithSyncArgs,
   type ScheduleAuditWriteWithSyncResult,

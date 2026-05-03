@@ -28,6 +28,11 @@ import { syncDeadLetterCheck } from './checks/27-sync-dead-letter.js';
 import { claudeHookRegistrationCheck } from './checks/28-claude-hook-registration.js';
 import { preToolUseLoopCheck } from './checks/29-pre-tool-use-loop.js';
 import { staleRunsCheck } from './checks/30-stale-runs.js';
+import { activeKillSwitchesCheck } from './checks/31-active-kill-switches.js';
+import { upgradeAvailableCheck } from './checks/32-upgrade-available.js';
+import { staleBackupsCheck } from './checks/33-stale-backups.js';
+import { bundledTemplatesCheck } from './checks/34-bundled-templates.js';
+import { autoMarkerSmokeCheck } from './checks/35-auto-marker-smoke.js';
 import type { Check } from './types.js';
 
 /**
@@ -94,6 +99,13 @@ export const ALL_CHECKS: readonly Check[] = tagEssential([
   claudeHookRegistrationCheck,
   preToolUseLoopCheck,
   staleRunsCheck,
+  // M08b S18 — operational visibility checks (operator-facing,
+  // never essential — `--full` only).
+  activeKillSwitchesCheck,
+  upgradeAvailableCheck,
+  staleBackupsCheck,
+  bundledTemplatesCheck,
+  autoMarkerSmokeCheck,
 ]);
 
 /**

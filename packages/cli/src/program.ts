@@ -225,7 +225,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('doctor')
     .description(
       'Run health checks (read-only). Defaults to the 11 essential checks for the Claude Code + solo-mode path; ' +
-        'use --full for the complete 30-check registry (debug invariants, team-mode probes, outbox observability, lifecycle invariants).',
+        'use --full for the complete 35-check registry (debug invariants, team-mode probes, outbox observability, lifecycle invariants, M08b operational visibility).',
     )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .option('--timeout-ms <ms>', 'Per-check timeout in milliseconds (default 2000).')

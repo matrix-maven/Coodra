@@ -30,9 +30,10 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   current cwd.
         doctor [options]          Run health checks (read-only). Defaults to the 11
                                   essential checks for the Claude Code + solo-mode
-                                  path; use --full for the complete 30-check registry
+                                  path; use --full for the complete 35-check registry
                                   (debug invariants, team-mode probes, outbox
-                                  observability, lifecycle invariants).
+                                  observability, lifecycle invariants, M08b
+                                  operational visibility).
         cloud-migrate [options]   Apply Drizzle Postgres migrations to the cloud
                                   DATABASE_URL (team-mode self-host). Idempotent.
                                   Refuses to run if unknown tables contain data — see

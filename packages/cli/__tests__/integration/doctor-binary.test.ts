@@ -92,7 +92,7 @@ describe('doctor binary — integration spawn', () => {
     expect(stdout).toMatch(/11 essential checks shown\. Run `contextos doctor --full`/);
   }, 30_000);
 
-  it('--full runs the complete 30-check registry', async () => {
+  it('--full runs the complete 35-check registry', async () => {
     const result = await execa('node', [distBin, 'doctor', '--json', '--full', '--timeout-ms', '500'], {
       env: {
         ...process.env,
@@ -110,6 +110,6 @@ describe('doctor binary — integration spawn', () => {
     });
     const stdout = String(result.stdout);
     const parsed = JSON.parse(stdout) as { checks: Array<{ id: number }> };
-    expect(parsed.checks).toHaveLength(30);
+    expect(parsed.checks).toHaveLength(35);
   }, 30_000);
 });

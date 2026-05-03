@@ -144,10 +144,7 @@ export async function getProjectByIdentifier(db: DbHandle, identifier: string): 
       .where(eq(runs.projectId, p.id))
       .orderBy(asc(runs.startedAt))
       .limit(5);
-    const allRunsForCount = await db.db
-      .select({ status: runs.status })
-      .from(runs)
-      .where(eq(runs.projectId, p.id));
+    const allRunsForCount = await db.db.select({ status: runs.status }).from(runs).where(eq(runs.projectId, p.id));
     const statusCounts: Record<string, number> = {};
     for (const r of allRunsForCount) {
       statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
@@ -271,9 +268,9 @@ export async function resetProject(
       const decResult = db.raw.prepare(`DELETE FROM decisions WHERE run_id IN (${placeholders})`).run(...runIds);
       decisionsDeleted = decResult.changes ?? 0;
     }
-    const contextPacksResult = (await db.db
-      .delete(s.contextPacks)
-      .where(eq(s.contextPacks.projectId, projectId))) as { changes?: number };
+    const contextPacksResult = (await db.db.delete(s.contextPacks).where(eq(s.contextPacks.projectId, projectId))) as {
+      changes?: number;
+    };
     const runsResult = (await db.db.delete(s.runs).where(eq(s.runs.projectId, projectId))) as { changes?: number };
 
     let killSwitchesDeleted = 0;
@@ -285,7 +282,10 @@ export async function resetProject(
         .where(and(eq(s.killSwitches.scope, 'project'), eq(s.killSwitches.target, projectId)))) as { changes?: number };
       killSwitchesDeleted = ksResult.changes ?? 0;
       // Find policies for this project, delete their rules, then delete policies.
-      const policyIdRows = await db.db.select({ id: s.policies.id }).from(s.policies).where(eq(s.policies.projectId, projectId));
+      const policyIdRows = await db.db
+        .select({ id: s.policies.id })
+        .from(s.policies)
+        .where(eq(s.policies.projectId, projectId));
       if (policyIdRows.length > 0) {
         const policyIds = policyIdRows.map((r) => r.id);
         const ph = policyIds.map(() => '?').join(',');

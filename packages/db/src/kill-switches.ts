@@ -210,6 +210,43 @@ export async function listActiveKillSwitches(
 }
 
 /**
+ * Scope-agnostic active-row read.
+ *
+ * `listActiveKillSwitches` filters by project-context to scope what
+ * the bridge evaluator needs per event. The doctor (M08b S18 check 31)
+ * and any future "show me everything paused" surface (web app, CLI
+ * status) need EVERY active row regardless of scope, including
+ * `scope='project'` rows for projects other than the current cwd's.
+ *
+ * Same active-row predicate (`resumed_at IS NULL` AND
+ * `expires_at IS NULL OR > now`); no scope filter.
+ */
+export async function listAllActiveKillSwitches(
+  db: DbHandle,
+  options: { now?: Date } = {},
+): Promise<KillSwitchRecord[]> {
+  const now = options.now ?? new Date();
+
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.killSwitches;
+    const rows = await db.db
+      .select()
+      .from(t)
+      .where(and(isNull(t.resumedAt), or(isNull(t.expiresAt), gt(t.expiresAt, now))))
+      .orderBy(asc(t.pausedAt));
+    return rows.map((r) => toRecord(r as RawKillSwitchRow));
+  }
+
+  const t = postgresSchema.killSwitches;
+  const rows = await db.db
+    .select()
+    .from(t)
+    .where(and(isNull(t.resumedAt), or(isNull(t.expiresAt), gt(t.expiresAt, now))))
+    .orderBy(asc(t.pausedAt));
+  return rows.map((r) => toRecord(r as RawKillSwitchRow));
+}
+
+/**
  * CLI `contextos pause` writes a row via this helper. Validates the
  * polymorphic shape (target null iff scope='global'), generates the
  * UUID, applies the OQ-1 default mode='hard'.
