@@ -55,8 +55,9 @@ See `docs/DEVELOPMENT.md` for the running-services playbook (added as each modul
 | 01 | Foundation | ✅ complete (`docs/context-packs/2026-04-22-module-01-foundation.md`) |
 | 02 | MCP Server | ✅ complete (`docs/context-packs/2026-04-25-module-02-mcp-server.md`) |
 | 03 | Hooks Bridge | ✅ complete (`docs/context-packs/2026-04-26-module-03-hooks-bridge.md`) |
-| 08a | CLI (`@coodra/contextos-cli`) | 🔨 next (placeholder spec at `docs/feature-packs/08a-cli/`) |
-| 04 | Web App | ⏳ blocked on 08a |
+| 08a | CLI (`@coodra/contextos-cli`) — install + lifecycle | ✅ complete (`docs/context-packs/2026-04-27-module-08a-cli.md`) |
+| 08b | CLI Expansion — operational + admin + Feature-Pack flexibility | ✅ complete (`docs/context-packs/2026-05-03-module-08b-cli-expansion.md`) |
+| 04 | Web App | 🔨 next (depends on 01, 02, 08a; M08b admin surfaces shape M04's contract but are non-blocking) |
 | 05 | NL Assembly (Python) | ⏳ blocked on 03 |
 | 06 | Semantic Diff (Python) | ⏳ blocked on 03 |
 | 07 | VS Code Extension | ⏳ blocked on 04, 08a |
