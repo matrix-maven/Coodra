@@ -15,12 +15,22 @@
     {
       "file": "packages/db/drizzle/postgres/0006_lush_switch.sql",
       "blockMarker": "policy-rules-dedup-cleanup-postgres",
-      "sha256": "f2ccabf8e8fd852830071a0e67bfdb7cd557f9ae9250001e002d8436496a5755",
+      "sha256": "677e8a250d70d151898bf8b66c478c0b9428d5aa5747de49632236d4caf588c1",
       "lineRange": [
         10,
-        25
+        33
       ],
-      "generatedAt": "2026-05-03T11:05:37.762Z"
+      "generatedAt": "2026-05-03T11:32:01.638Z"
+    },
+    {
+      "file": "packages/db/drizzle/postgres/0006_lush_switch.sql",
+      "blockMarker": "policy-rules-dedup-delete-postgres",
+      "sha256": "055060cba1b5824b3feaf24bbe92d6fe6c7462b68d3a2c9d8d431dd4b9c100ba",
+      "lineRange": [
+        35,
+        47
+      ],
+      "generatedAt": "2026-05-03T11:32:01.638Z"
     },
     {
       "file": "packages/db/drizzle/sqlite/0001_chief_turbo.sql",
@@ -35,12 +45,22 @@
     {
       "file": "packages/db/drizzle/sqlite/0006_clumsy_banshee.sql",
       "blockMarker": "policy-rules-dedup-cleanup-sqlite",
-      "sha256": "4bfcac85a1a81921db67271f50df2a24ef6c0c1c04fde40b50609fd2b9d7feaa",
+      "sha256": "47028e35c0564fab8dacbef2ba8a7aef77660e11b1bb42a07c7dba255319b3d5",
       "lineRange": [
         30,
-        41
+        54
       ],
-      "generatedAt": "2026-05-03T11:05:37.707Z"
+      "generatedAt": "2026-05-03T11:32:01.636Z"
+    },
+    {
+      "file": "packages/db/drizzle/sqlite/0006_clumsy_banshee.sql",
+      "blockMarker": "policy-rules-dedup-delete-sqlite",
+      "sha256": "e479dbb6bbe8e5be66cec1464811cbc8b55d6121d267bbca37a28456efffc7c5",
+      "lineRange": [
+        56,
+        66
+      ],
+      "generatedAt": "2026-05-03T11:32:01.636Z"
     }
   ]
 }

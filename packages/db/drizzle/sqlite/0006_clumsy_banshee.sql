@@ -33,11 +33,36 @@
 -- locked in `packages/db/migrations.lock.json`. If drizzle-kit regenerates
 -- this migration and wipes this block, restore from git and re-run
 -- `pnpm --filter @coodra/contextos-db check:migration-lock --write`.
+--
+-- Step 1: NULL out policy_decisions.matched_rule_id FK references that
+-- would prevent the duplicate DELETE below. The schema FK has no
+-- ON DELETE clause (defaults to RESTRICT in SQLite when foreign_keys
+-- pragma is on), so deleting a referenced rule row would otherwise
+-- fail with SQLITE_CONSTRAINT_FOREIGNKEY. Setting the audit's
+-- matched_rule_id to NULL preserves the audit row's existence; the
+-- canonical rule_id (the surviving MIN(id) per key tuple) is the one
+-- that future audits will reference.
+UPDATE policy_decisions
+SET matched_rule_id = NULL
+WHERE matched_rule_id IN (
+  SELECT id FROM policy_rules
+  WHERE id NOT IN (
+    SELECT MIN(id) FROM policy_rules
+    GROUP BY policy_id, priority, match_event_type, match_tool_name, match_path_glob
+  )
+);
+-- @preserve-end hand-written:policy-rules-dedup-cleanup-sqlite
+--> statement-breakpoint
+-- @preserve-begin hand-written:policy-rules-dedup-delete-sqlite
+-- Block owner: Slice 7 (2026-05-03 audit §14.2). Step 2 of the dedup —
+-- collapse duplicates to a single row per key tuple, keeping MIN(id)
+-- as the survivor. Drizzle-Kit does NOT emit this; sha256 of this
+-- block is locked in `packages/db/migrations.lock.json`.
 DELETE FROM policy_rules
 WHERE id NOT IN (
   SELECT MIN(id) FROM policy_rules
   GROUP BY policy_id, priority, match_event_type, match_tool_name, match_path_glob
 );
--- @preserve-end hand-written:policy-rules-dedup-cleanup-sqlite
+-- @preserve-end hand-written:policy-rules-dedup-delete-sqlite
 --> statement-breakpoint
 CREATE UNIQUE INDEX `policy_rules_dedup_uk` ON `policy_rules` (`policy_id`,`priority`,`match_event_type`,`match_tool_name`,`match_path_glob`);

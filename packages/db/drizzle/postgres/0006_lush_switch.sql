@@ -13,6 +13,28 @@
 -- locked in `packages/db/migrations.lock.json`. If drizzle-kit regenerates
 -- this migration and wipes this block, restore from git and re-run
 -- `pnpm --filter @coodra/contextos-db check:migration-lock --write`.
+--
+-- Step 1: NULL out policy_decisions.matched_rule_id FK references that
+-- would prevent the duplicate DELETE below. See sqlite mirror for the
+-- full rationale.
+WITH duplicate_rule_ids AS (
+  SELECT id FROM (
+    SELECT id,
+           ROW_NUMBER() OVER (
+             PARTITION BY policy_id, priority, match_event_type, match_tool_name, match_path_glob
+             ORDER BY id ASC
+           ) AS rn
+    FROM policy_rules
+  ) r WHERE rn > 1
+)
+UPDATE policy_decisions
+SET matched_rule_id = NULL
+WHERE matched_rule_id IN (SELECT id FROM duplicate_rule_ids);
+-- @preserve-end hand-written:policy-rules-dedup-cleanup-postgres
+--> statement-breakpoint
+-- @preserve-begin hand-written:policy-rules-dedup-delete-postgres
+-- Step 2: collapse duplicates to a single row per key tuple, keeping
+-- the lexicographically smallest id as the survivor.
 WITH ranked AS (
   SELECT id,
          ROW_NUMBER() OVER (
@@ -22,6 +44,6 @@ WITH ranked AS (
   FROM policy_rules
 )
 DELETE FROM policy_rules WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
--- @preserve-end hand-written:policy-rules-dedup-cleanup-postgres
+-- @preserve-end hand-written:policy-rules-dedup-delete-postgres
 --> statement-breakpoint
 CREATE UNIQUE INDEX "policy_rules_dedup_uk" ON "policy_rules" USING btree ("policy_id","priority","match_event_type","match_tool_name","match_path_glob");
