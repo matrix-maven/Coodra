@@ -7,6 +7,18 @@ import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
+import {
+  type PolicyAddOptions,
+  type PolicyEnableDisableOptions,
+  type PolicyIO,
+  type PolicyListOptions,
+  type PolicyShowOptions,
+  runPolicyAddCommand,
+  runPolicyDisableCommand,
+  runPolicyEnableCommand,
+  runPolicyListCommand,
+  runPolicyShowCommand,
+} from './commands/policy.js';
 import { type ResumeIO, type ResumeOptions, runResumeCommand } from './commands/resume.js';
 import { runStartCommand, type StartIO, type StartOptions } from './commands/start.js';
 import { runStatusCommand, type StatusIO, type StatusOptions } from './commands/status.js';
@@ -59,6 +71,20 @@ interface BuildProgramOptions {
   readonly runUpgrade?: (options: UpgradeOptions, io?: UpgradeIO) => Promise<unknown>;
   readonly uninstallIO?: UninstallIO;
   readonly runUninstall?: (options: UninstallOptions, io?: UninstallIO) => Promise<unknown>;
+  readonly policyIO?: PolicyIO;
+  readonly runPolicyList?: (options: PolicyListOptions, io?: PolicyIO) => Promise<unknown>;
+  readonly runPolicyShow?: (identifier: string, options: PolicyShowOptions, io?: PolicyIO) => Promise<unknown>;
+  readonly runPolicyAdd?: (options: PolicyAddOptions, io?: PolicyIO) => Promise<unknown>;
+  readonly runPolicyEnable?: (
+    identifier: string,
+    options: PolicyEnableDisableOptions,
+    io?: PolicyIO,
+  ) => Promise<unknown>;
+  readonly runPolicyDisable?: (
+    identifier: string,
+    options: PolicyEnableDisableOptions,
+    io?: PolicyIO,
+  ) => Promise<unknown>;
 }
 
 /**
@@ -197,6 +223,64 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (source: string, opts: DbRestoreOptions) => {
       await dbRestoreRunner(source, opts, options.dbRestoreIO);
+    });
+
+  // Module 08b S9 — policy admin (list, show, add, enable, disable).
+  const policy = program.command('policy').description('Manage policies + policy_rules in the local SQLite store.');
+  const policyListRunner = options.runPolicyList ?? runPolicyListCommand;
+  policy
+    .command('list')
+    .description('Print every policy (with attached rules) for one project or all projects.')
+    .option('--project <slug>', 'Limit to a single project slug.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicyListOptions) => {
+      await policyListRunner(opts, options.policyIO);
+    });
+  const policyShowRunner = options.runPolicyShow ?? runPolicyShowCommand;
+  policy
+    .command('show <identifier>')
+    .description('Print one policy by id or name (project-scoped via --project when names collide).')
+    .option('--project <slug>', 'Restrict the lookup to a single project.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (identifier: string, opts: PolicyShowOptions) => {
+      await policyShowRunner(identifier, opts, options.policyIO);
+    });
+  const policyAddRunner = options.runPolicyAdd ?? runPolicyAddCommand;
+  policy
+    .command('add')
+    .description(
+      "Add a rule to the project's __default__ policy (auto-created if absent). Rule lands at priority 100+ to stay below the seeded defaults.",
+    )
+    .requiredOption('--project <slug>', 'Project slug (must already exist; run `contextos init` first).')
+    .requiredOption('--tool <name>', 'Tool name to match (e.g. Write, Edit, Bash).')
+    .requiredOption('--decision <decision>', 'allow | deny | ask')
+    .requiredOption('--reason <text>', 'Operator audit context (required).')
+    .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
+    .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
+    .option('--agent-type <type>', 'Agent type to match: claude_code | cursor | windsurf | * (default: *).')
+    .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
+    .option('--policy-name <name>', 'Target policy name (default: __default__).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicyAddOptions) => {
+      await policyAddRunner(opts, options.policyIO);
+    });
+  const policyEnableRunner = options.runPolicyEnable ?? runPolicyEnableCommand;
+  policy
+    .command('enable <identifier>')
+    .description('Enable a policy (sets is_active=true). Idempotent.')
+    .option('--project <slug>', 'Restrict the lookup to a single project (use when names collide).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
+      await policyEnableRunner(identifier, opts, options.policyIO);
+    });
+  const policyDisableRunner = options.runPolicyDisable ?? runPolicyDisableCommand;
+  policy
+    .command('disable <identifier>')
+    .description('Disable a policy (sets is_active=false). Idempotent. Bridge stops applying its rules within ~60s.')
+    .option('--project <slug>', 'Restrict the lookup to a single project (use when names collide).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
+      await policyDisableRunner(identifier, opts, options.policyIO);
     });
 
   // Module 08b S8 — reverse `init` writes.

@@ -124,3 +124,12 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S8 — wired into program.ts (14 top-level commands now)
 - [HH:mm] S8 — wrote 5 integration fixtures (claude-settings URL-owned removal preserving user entries, mcp-json contextos removal preserving other servers, default-safe data preservation, --purge wipe, idempotent re-run)
 - [HH:mm] S8 — refreshed help-output snapshot, lint clean, 176/176 CLI unit + 5/5 S8 integration green
+- [HH:mm] S8 committed (`7fbed49`): uninstall command
+- [HH:mm] S1-S8 functional verification end-to-end: built CLI, sandboxed CONTEXTOS_HOME, exercised every command + bridge integration. All green. Found one design gap in S8 (no env override for ~/.claude/settings.json path → real-machine verification destructive). Restored ~/.claude/settings.json from auto-backup.
+- [HH:mm] S8.5 follow-up — added `CLAUDE_SETTINGS_PATH` env var honored by `defaultClaudeSettingsPath()`. Verified sandbox redirect works; real ~/.claude/settings.json untouched. Committed (`f815a30`).
+- [HH:mm] S9 — wrote `packages/db/src/policies.ts` (5 helpers: `listPolicies`, `getPolicy`, `addPolicyRule` (auto-creates `__default__` if absent, default priority `max+10` or 100), `setPolicyActive` (idempotent), `DEFAULT_POLICY_NAME` const)
+- [HH:mm] S9 — re-exported from packages/db/src/index.ts
+- [HH:mm] S9 — wrote `packages/cli/src/commands/policy.ts` (5 subcommands: list, show, add, enable, disable; uses lookupProjectBySlug for slug→projectId resolution; human + JSON output; cache-staleness note for the 60s policy-client TTL)
+- [HH:mm] S9 — wired policy parent + 5 subcommands into program.ts (15 top-level commands now)
+- [HH:mm] S9 — functest end-to-end (full sandbox CONTEXTOS_HOME): list empty, add 2 rules to auto-created __default__ at priority 100/110, show by name, show unknown → exit 1, disable + verify `is_active=0`, disable idempotent re-run, enable + verify `is_active=1`, 3 error paths (invalid decision, unknown project slug, empty reason). All correct.
+- [HH:mm] S9 — refreshed program test (15 commands, policy subcommands [add, disable, enable, list, show]) + help-output snapshot, lint clean, 176/176 CLI unit pass

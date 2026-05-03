@@ -44,6 +44,19 @@ export {
 export { lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
 export {
+  type AddPolicyRuleArgs,
+  type AddPolicyRuleResult,
+  addPolicyRule,
+  DEFAULT_POLICY_NAME,
+  getPolicy,
+  listPolicies,
+  type PolicyDecisionKind,
+  type PolicyRow,
+  type PolicyRuleRow,
+  type PolicyWithRules,
+  setPolicyActive,
+} from './policies.js';
+export {
   ensurePgVector,
   MIGRATIONS_FOLDER,
   migratePostgres,

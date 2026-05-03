@@ -39,6 +39,8 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   Module 04a OQ4.
         db                        Database administration: migrate / backup / restore
                                   the local SQLite primary store.
+        policy                    Manage policies + policy_rules in the local SQLite
+                                  store.
         uninstall [options]       Reverse \`contextos init\`: remove \`__contextos__\`
                                   matchers from ~/.claude/settings.json + \`contextos\`
                                   server from .mcp.json. Default-safe (preserves data
