@@ -6,8 +6,8 @@ import type { WriteOutcome } from './types.js';
 /**
  * `lib/init/claude-settings-merge.ts` — writes the ContextOS hook
  * entries into `~/.claude/settings.json` so Claude Code POSTs
- * SessionStart, PreToolUse, PostToolUse, and Stop events to the
- * local hooks-bridge.
+ * SessionStart, PreToolUse, PostToolUse, Stop, and SessionEnd events
+ * to the local hooks-bridge.
  *
  * History:
  *
@@ -50,7 +50,7 @@ import type { WriteOutcome } from './types.js';
  *        pre-Fix-F ContextOS entry and replaced with the new shape on
  *        next merge. The original is backed up first.
  *
- * Hook shape after Fix F:
+ * Hook shape after Fix F + Fix G:
  *
  *   {
  *     "hooks": {
@@ -66,6 +66,9 @@ import type { WriteOutcome } from './types.js';
  *         "hooks": [{ "type": "http", "url": "...", "headers": {...}, ... }]
  *       }],
  *       "Stop": [{
+ *         "hooks": [{ "type": "http", "url": "...", "headers": {...}, ... }]
+ *       }],
+ *       "SessionEnd": [{
  *         "hooks": [{ "type": "http", "url": "...", "headers": {...}, ... }]
  *       }]
  *     }
@@ -93,7 +96,23 @@ const TOOL_EVENT_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit|Bash' as const;
  */
 const LEGACY_CONTEXTOS_MATCHER = '__contextos__' as const;
 
-const CLAUDE_HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop'] as const;
+/**
+ * Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd added to the hook
+ * registration list. Pre-Fix-G init wrote 4 entries (SessionStart, PreToolUse,
+ * PostToolUse, Stop). The bridge dispatcher correctly routes `'session_end'`
+ * → status flip + auto-Context-Pack save (per `apps/hooks-bridge/src/lib/dispatch.ts`),
+ * but `~/.claude/settings.json` had no SessionEnd entry, so Claude Code
+ * never POSTed SessionEnd events for real sessions. Result: real `runs`
+ * rows accumulated as `status='in_progress'` indefinitely; auto-Context-Pack
+ * saves never fired for real sessions. Adding SessionEnd here closes that
+ * gap with no other code changes — the bridge already handles the event.
+ *
+ * SessionEnd is NOT a tool event (Claude Code's hook spec documents the
+ * `matcher` regex as applying only to PreToolUse / PostToolUse). It stays
+ * out of `TOOL_EVENTS` below — the writer omits `matcher` for non-tool
+ * events the same way it does for SessionStart and Stop.
+ */
+const CLAUDE_HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const;
 type ClaudeHookEvent = (typeof CLAUDE_HOOK_EVENTS)[number];
 
 const TOOL_EVENTS: ReadonlySet<ClaudeHookEvent> = new Set(['PreToolUse', 'PostToolUse']);

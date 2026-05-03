@@ -18,7 +18,7 @@ const distBin = resolve(cliRoot, 'dist', 'index.js');
  *   2. After init, the four artifacts are on disk:
  *      - `<cwd>/.mcp.json` — points at the bundled mcp-server
  *      - `<cwd>/.env`     — solo-mode sentinels
- *      - `<HOME>/.claude/settings.json` — four hook entries
+ *      - `<HOME>/.claude/settings.json` — five hook entries (post-Fix-G)
  *      - `<CONTEXTOS_HOME>/data.db` — migrations applied
  *   3. The path in `.mcp.json` is `node <abs-path>` and the abs path
  *      is a real file (the bundled mcp-server).
@@ -106,17 +106,29 @@ describe('cold install — bundled binary works end-to-end', () => {
     expect(envBody).toContain('CLERK_SECRET_KEY=sk_test_replace_me');
     expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
 
-    // 5) ~/.claude/settings.json got four hook entries.
+    // 5) ~/.claude/settings.json got five hook entries (post-Fix-G).
     const settingsPath = join(claudeHome, '.claude', 'settings.json');
     const settings = JSON.parse(await readFile(settingsPath, 'utf8'));
     expect(settings.hooks.SessionStart).toHaveLength(1);
     expect(settings.hooks.PreToolUse).toHaveLength(1);
     expect(settings.hooks.PostToolUse).toHaveLength(1);
     expect(settings.hooks.Stop).toHaveLength(1);
+    // Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd registered
+    // so real Claude Code POSTs SessionEnd → bridge flips runs.status to
+    // completed AND auto-saves the Context Pack. Pre-Fix-G real sessions
+    // accumulated as `in_progress` indefinitely.
+    expect(settings.hooks.SessionEnd).toHaveLength(1);
     const ours = settings.hooks.SessionStart[0];
-    expect(ours.matcher).toBe('__contextos__');
+    // Phase 4 Fix F (2026-05-02): non-tool events omit `matcher` entirely.
+    // Pre-Fix-F asserted `'__contextos__'` here, but the literal sentinel
+    // never matched any tool. Fix F switched ownership detection to URL.
+    expect(ours.matcher).toBeUndefined();
     expect(ours.hooks[0].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/hooks\/claude-code$/);
     expect(ours.hooks[0].headers['X-Local-Hook-Secret']).toBe('$LOCAL_HOOK_SECRET');
+    // SessionEnd: same shape as SessionStart (no matcher, bridge URL).
+    const sessionEnd = settings.hooks.SessionEnd[0];
+    expect(sessionEnd.matcher).toBeUndefined();
+    expect(sessionEnd.hooks[0].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/hooks\/claude-code$/);
 
     // 6) Phase 3 Fix C (2026-05-02): Feature Pack seeded with all
     // four files (meta.json + spec.md + implementation.md +
@@ -147,7 +159,11 @@ describe('cold install — bundled binary works end-to-end', () => {
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
-      params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'cold-install-test', version: '1' } },
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'cold-install-test', version: '1' },
+      },
     });
     const initializedNotif = JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
     const toolsListMsg = JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });

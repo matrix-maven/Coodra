@@ -59,7 +59,7 @@ export const mcpConfigValidityCheck: Check = {
         status: 'yellow',
         detail:
           ".mcp.json `contextos.command` is `npx` — npx-cache paths can be GC'd unexpectedly. " +
-          "(Init no longer emits this fallback as of dec_83ba10c1; this entry was likely written by a pre-0.1 init or hand-edited.)",
+          '(Init no longer emits this fallback as of dec_83ba10c1; this entry was likely written by a pre-0.1 init or hand-edited.)',
         remediation: 'Re-run `contextos init` to overwrite the entry with the bundled `node <abs-path>` form.',
       };
     }

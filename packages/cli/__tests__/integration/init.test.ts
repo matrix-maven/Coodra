@@ -107,19 +107,23 @@ describe('runInitCommand — integration', () => {
 
   it('--force overwrites .contextos.json baseline (Decision 3)', async () => {
     const { io: io1 } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'first' }, io1)).rejects.toThrow('__exit__:0');
+    await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'first' }, io1)).rejects.toThrow(
+      '__exit__:0',
+    );
     expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('first');
 
     // Without --force, providing a different slug preserves the existing value.
     const { io: io2 } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second' }, io2)).rejects.toThrow('__exit__:0');
+    await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second' }, io2)).rejects.toThrow(
+      '__exit__:0',
+    );
     expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('first');
 
     // With --force, baseline overwrites.
     const { io: io3 } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second', force: true }, io3)).rejects.toThrow(
-      '__exit__:0',
-    );
+    await expect(
+      runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second', force: true }, io3),
+    ).rejects.toThrow('__exit__:0');
     expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('second');
   });
 
@@ -237,6 +241,11 @@ describe('runInitCommand — integration', () => {
     expect(settings.hooks.PreToolUse).toHaveLength(1);
     expect(settings.hooks.PostToolUse).toHaveLength(1);
     expect(settings.hooks.Stop).toHaveLength(1);
+    // Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd registered.
+    // Pre-Fix-G real Claude Code never POSTed SessionEnd → bridge's
+    // status-flip + auto-pack-save never fired for real sessions →
+    // runs accumulated as `in_progress` forever in the demo DB.
+    expect(settings.hooks.SessionEnd).toHaveLength(1);
     // Phase 4 Fix F: tool events get the file-mutating-tool regex; non-tool
     // events omit `matcher` entirely. Pre-Fix-F all four had matcher='__contextos__'
     // which never matched any real Claude Code tool, so PreToolUse hooks
@@ -247,6 +256,10 @@ describe('runInitCommand — integration', () => {
     const preToolUse = settings.hooks.PreToolUse[0];
     expect(preToolUse.matcher).toBe('Write|Edit|MultiEdit|NotebookEdit|Bash');
     expect(preToolUse.hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
+    // SessionEnd: same shape as SessionStart (no matcher, bridge URL).
+    const sessionEnd = settings.hooks.SessionEnd[0];
+    expect(sessionEnd.matcher).toBeUndefined();
+    expect(sessionEnd.hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
   });
 
   it('fails with EXIT_USER_RECOVERABLE when no project root marker is found', async () => {

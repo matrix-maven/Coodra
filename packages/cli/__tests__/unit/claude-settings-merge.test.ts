@@ -5,11 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildContextosHookSpec, mergeClaudeSettings } from '../../src/lib/init/claude-settings-merge.js';
 
 /**
- * Locks the hook-merger contract across Phase-3 dec_83ba10c1
- * and Phase-4 Fix F (both 2026-05-02):
+ * Locks the hook-merger contract across Phase-3 dec_83ba10c1,
+ * Phase-4 Fix F (both 2026-05-02), and Phase-4 Fix G (Slice 2,
+ * 2026-05-03 audit — SessionEnd added):
  *
  *   1. Greenfield write — absent settings.json → baseline file with
- *      all four ContextOS hook entries.
+ *      all five ContextOS hook entries (SessionStart, PreToolUse,
+ *      PostToolUse, Stop, SessionEnd).
  *   2. Idempotent merge — twice with identical inputs is a no-op.
  *   3. User entries preserved — entries with no bridge URL survive.
  *   4. Backup on first divergent write.
@@ -63,7 +65,7 @@ describe('mergeClaudeSettings — write contract', () => {
     expect(body.hooks.SessionStart).toHaveLength(1);
   });
 
-  it('Phase 4 Fix F greenfield: tool events get the file-mutating-tool regex; non-tool events omit matcher', async () => {
+  it('Phase 4 Fix F + Fix G greenfield: tool events get the file-mutating-tool regex; non-tool events (SessionStart/Stop/SessionEnd) omit matcher', async () => {
     const settingsPath = join(home, 'settings.json');
     const result = await mergeClaudeSettings({
       settingsPath,
@@ -78,6 +80,12 @@ describe('mergeClaudeSettings — write contract', () => {
     expect(body.hooks.PreToolUse).toHaveLength(1);
     expect(body.hooks.PostToolUse).toHaveLength(1);
     expect(body.hooks.Stop).toHaveLength(1);
+    // Phase 4 Fix G (Slice 2 — 2026-05-03 audit). Without SessionEnd
+    // here, real Claude Code never POSTs SessionEnd → bridge's
+    // status-flip + auto-pack-save never fires for real sessions →
+    // runs accumulate as `in_progress` forever. Bridge dispatcher was
+    // already correct; only this list was missing the entry.
+    expect(body.hooks.SessionEnd).toHaveLength(1);
 
     // Tool events: matcher is the tool-name regex covering every tool the
     // default policy governs. Without this Claude Code's hook would never
@@ -86,13 +94,15 @@ describe('mergeClaudeSettings — write contract', () => {
     expect(body.hooks.PostToolUse[0].matcher).toBe('Write|Edit|MultiEdit|NotebookEdit|Bash');
 
     // Non-tool events: matcher is OMITTED — Claude Code's hook spec
-    // doesn't use matcher for SessionStart/Stop, and the legacy
-    // sentinel value made these events functionally inert.
+    // doesn't use matcher for SessionStart/Stop/SessionEnd, and the
+    // legacy `__contextos__` sentinel value made tool events
+    // functionally inert. SessionEnd follows the same shape.
     expect(body.hooks.SessionStart[0].matcher).toBeUndefined();
     expect(body.hooks.Stop[0].matcher).toBeUndefined();
+    expect(body.hooks.SessionEnd[0].matcher).toBeUndefined();
 
-    // Hook spec shape unchanged across all four events.
-    for (const eventName of ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop'] as const) {
+    // Hook spec shape unchanged across all five events.
+    for (const eventName of ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const) {
       const entry = body.hooks[eventName][0];
       expect(entry.hooks).toHaveLength(1);
       const spec = entry.hooks[0];

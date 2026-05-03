@@ -2,11 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import {
-  bundledMigrationsDir,
-  bundledRuntimeCandidates,
-  resolveRuntimeBinary,
-} from '../../src/lib/runtime-paths.js';
+import { bundledMigrationsDir, bundledRuntimeCandidates, resolveRuntimeBinary } from '../../src/lib/runtime-paths.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cliRoot = resolve(here, '..', '..');
