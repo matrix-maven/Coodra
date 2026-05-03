@@ -41,6 +41,7 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   the local SQLite primary store.
         policy                    Manage policies + policy_rules in the local SQLite
                                   store.
+        project                   Manage project rows in the local SQLite store.
         uninstall [options]       Reverse \`contextos init\`: remove \`__contextos__\`
                                   matchers from ~/.claude/settings.json + \`contextos\`
                                   server from .mcp.json. Default-safe (preserves data

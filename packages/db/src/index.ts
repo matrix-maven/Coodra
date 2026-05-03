@@ -57,6 +57,15 @@ export {
   setPolicyActive,
 } from './policies.js';
 export {
+  getProjectByIdentifier,
+  listProjects,
+  type ProjectDetailRow,
+  type ProjectListRow,
+  type ResetProjectOptions,
+  type ResetProjectResult,
+  resetProject,
+} from './projects.js';
+export {
   ensurePgVector,
   MIGRATIONS_FOLDER,
   migratePostgres,

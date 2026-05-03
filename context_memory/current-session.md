@@ -133,3 +133,9 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S9 — wired policy parent + 5 subcommands into program.ts (15 top-level commands now)
 - [HH:mm] S9 — functest end-to-end (full sandbox CONTEXTOS_HOME): list empty, add 2 rules to auto-created __default__ at priority 100/110, show by name, show unknown → exit 1, disable + verify `is_active=0`, disable idempotent re-run, enable + verify `is_active=1`, 3 error paths (invalid decision, unknown project slug, empty reason). All correct.
 - [HH:mm] S9 — refreshed program test (15 commands, policy subcommands [add, disable, enable, list, show]) + help-output snapshot, lint clean, 176/176 CLI unit pass
+- [HH:mm] S9 committed (`ab12658`): policy admin commands
+- [HH:mm] S10 — wrote `packages/db/src/projects.ts` (3 helpers: `listProjects` with run-count + last-run via join; `getProjectByIdentifier` with recent runs + status histogram; `resetProject` with FK-aware cascade ordering — policy_decisions → run_events/decisions → context_packs → runs → optional kill_switches/policies/policy_rules)
+- [HH:mm] S10 — wrote `packages/cli/src/commands/project.ts` (3 subcommands; --include-global flag for list; --force required for reset; --keep-policies default true; refuses to reset __global__ sentinel per F7)
+- [HH:mm] S10 — wired into program.ts (16 top-level commands)
+- [HH:mm] S10 — functest: list/show worked, refusals correct (no --force → exit 2; __global__ → exit 1), `reset --force` deleted 2 runs + 3 run_events with returned counts matching DB state
+- [HH:mm] S10 — refreshed snapshots, lint clean, 176/176 unit pass

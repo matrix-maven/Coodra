@@ -14,7 +14,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     exitSpy.mockRestore();
   });
 
-  it('registers all 15 top-level subcommands (M08a 8 + M08b S3-S9: pause/resume/logs/db/upgrade/uninstall/policy)', () => {
+  it('registers all 16 top-level subcommands (M08a 8 + M08b S3-S10: pause/resume/logs/db/upgrade/uninstall/policy/project)', () => {
     const program = buildProgram();
     const top = program.commands.map((c) => c.name()).sort();
     expect(top).toEqual([
@@ -25,6 +25,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'logs',
       'pause',
       'policy',
+      'project',
       'resume',
       'start',
       'status',
@@ -48,6 +49,11 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(policy).toBeDefined();
     const policySub = policy?.commands.map((c) => c.name()).sort() ?? [];
     expect(policySub).toEqual(['add', 'disable', 'enable', 'list', 'show']);
+
+    const projectCmd = program.commands.find((c) => c.name() === 'project');
+    expect(projectCmd).toBeDefined();
+    const projectSub = projectCmd?.commands.map((c) => c.name()).sort() ?? [];
+    expect(projectSub).toEqual(['list', 'reset', 'show']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {

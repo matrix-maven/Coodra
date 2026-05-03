@@ -19,6 +19,15 @@ import {
   runPolicyListCommand,
   runPolicyShowCommand,
 } from './commands/policy.js';
+import {
+  type ProjectIO,
+  type ProjectListOptions,
+  type ProjectResetOptions,
+  type ProjectShowOptions,
+  runProjectListCommand,
+  runProjectResetCommand,
+  runProjectShowCommand,
+} from './commands/project.js';
 import { type ResumeIO, type ResumeOptions, runResumeCommand } from './commands/resume.js';
 import { runStartCommand, type StartIO, type StartOptions } from './commands/start.js';
 import { runStatusCommand, type StatusIO, type StatusOptions } from './commands/status.js';
@@ -85,6 +94,10 @@ interface BuildProgramOptions {
     options: PolicyEnableDisableOptions,
     io?: PolicyIO,
   ) => Promise<unknown>;
+  readonly projectIO?: ProjectIO;
+  readonly runProjectList?: (options: ProjectListOptions, io?: ProjectIO) => Promise<unknown>;
+  readonly runProjectShow?: (identifier: string, options: ProjectShowOptions, io?: ProjectIO) => Promise<unknown>;
+  readonly runProjectReset?: (identifier: string, options: ProjectResetOptions, io?: ProjectIO) => Promise<unknown>;
 }
 
 /**
@@ -281,6 +294,39 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
       await policyDisableRunner(identifier, opts, options.policyIO);
+    });
+
+  // Module 08b S10 — project admin (list, show, reset).
+  const project = program.command('project').description('Manage project rows in the local SQLite store.');
+  const projectListRunner = options.runProjectList ?? runProjectListCommand;
+  project
+    .command('list')
+    .description('List every registered project (with run counts + last-run timestamps).')
+    .option('--include-global', 'Also show the __global__ sentinel project (audit-fallback row).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: ProjectListOptions) => {
+      await projectListRunner(opts, options.projectIO);
+    });
+  const projectShowRunner = options.runProjectShow ?? runProjectShowCommand;
+  project
+    .command('show <identifier>')
+    .description('Print one project (slug or id) with run-count, status breakdown, and last 5 runs.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (identifier: string, opts: ProjectShowOptions) => {
+      await projectShowRunner(identifier, opts, options.projectIO);
+    });
+  const projectResetRunner = options.runProjectReset ?? runProjectResetCommand;
+  project
+    .command('reset <identifier>')
+    .description(
+      'DESTRUCTIVE: delete every per-run audit row (runs, run_events, policy_decisions, decisions, context_packs) for the project. Refuses without --force; refuses against the __global__ sentinel.',
+    )
+    .option('--force', 'Confirm the destructive delete (required).')
+    .option('--keep-policies', 'Preserve policies + policy_rules + project-scoped kill_switches (default: true).', true)
+    .option('--no-keep-policies', 'Also delete policies + policy_rules + project-scoped kill_switches.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (identifier: string, opts: ProjectResetOptions) => {
+      await projectResetRunner(identifier, opts, options.projectIO);
     });
 
   // Module 08b S8 — reverse `init` writes.
