@@ -37,8 +37,8 @@ describe('contextos --help (snapshot-locked surface)', () => {
                                   DATABASE_URL (team-mode self-host). Idempotent.
                                   Refuses to run if unknown tables contain data — see
                                   Module 04a OQ4.
-        db                        Database administration: migrate the local SQLite
-                                  primary store.
+        db                        Database administration: migrate / backup / restore
+                                  the local SQLite primary store.
         logs [options] <service>  Tail or print recent lines from
                                   ~/.contextos/logs/<service>.log. Pure file-read; no
                                   DB. Service ∈ {mcp-server, hooks-bridge,

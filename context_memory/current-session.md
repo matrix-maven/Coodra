@@ -101,3 +101,12 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S5 — wired `db migrate` under a new `db` subcommand parent in program.ts (12 top-level commands now: cloud-migrate, db, doctor, init, logs, pause, resume, start, status, stop, team)
 - [HH:mm] S5 — wrote 5 integration fixtures (clean DB applies all, re-run is no-op, alive daemon → exit 1, --dry-run no mutation, --with-daemons-running bypasses)
 - [HH:mm] S5 — refreshed help-output snapshot, lint clean, 170/170 CLI unit + 5/5 S5 integration green
+- [HH:mm] S5 committed (`fea549f`): db migrate command
+- [HH:mm] S6 — added `tar ^7.4.3` to packages/cli devDependencies (bundled at build time, dynamic-imported in db-backup.ts so the default backup path stays dep-free)
+- [HH:mm] S6 — wrote `packages/cli/src/lib/sqlite-magic.ts` (16-byte header check for SQLite v3 format)
+- [HH:mm] S6 — wrote `packages/cli/src/commands/db-backup.ts` (default VACUUM INTO single-file via openLocalDb, --include-logs uses staging-dir + tar.create for portable archive members `data.db.bak`/`logs/*.log`/`config.json`, SQLITE_BUSY retries with [100,250,1000]ms backoff)
+- [HH:mm] S6 — wrote `packages/cli/src/commands/db-restore.ts` (refuses on alive daemon PID — no escape hatch per OQ-4 lock; magic-bytes validation; auto-backup-of-current to `<target>.pre-restore-<ISO>` unless --no-auto-backup; atomic copy+rename + WAL/SHM cleanup)
+- [HH:mm] S6 — wired both under existing `db` parent (now: `db migrate`, `db backup`, `db restore`)
+- [HH:mm] S6 — bug fix during testing: `io.exit()` throw was being caught by my outer try/catch in runSqliteBackup masking success as a SQLite error — restructured to capture success state and exit AFTER the try
+- [HH:mm] S6 — wrote 6 integration fixtures (default sqlite backup, --include-logs tarball with member assertions, byte-identical roundtrip, alive-daemon refusal, magic-bytes rejection of fake .txt source, auto-backup-of-current preserves prior bytes)
+- [HH:mm] S6 — refreshed help-output snapshot, lint clean, 170/170 CLI unit + 6/6 S6 integration green

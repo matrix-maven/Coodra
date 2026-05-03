@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 import { type CloudMigrateIO, type CloudMigrateOptions, runCloudMigrateCommand } from './commands/cloud-migrate.js';
+import { type DbBackupIO, type DbBackupOptions, runDbBackupCommand } from './commands/db-backup.js';
 import { type DbMigrateIO, type DbMigrateOptions, runDbMigrateCommand } from './commands/db-migrate.js';
+import { type DbRestoreIO, type DbRestoreOptions, runDbRestoreCommand } from './commands/db-restore.js';
 import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/doctor.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
@@ -47,6 +49,10 @@ interface BuildProgramOptions {
   readonly runLogs?: (service: string, options: LogsOptions, io?: LogsIO) => Promise<unknown>;
   readonly dbMigrateIO?: DbMigrateIO;
   readonly runDbMigrate?: (options: DbMigrateOptions, io?: DbMigrateIO) => Promise<unknown>;
+  readonly dbBackupIO?: DbBackupIO;
+  readonly runDbBackup?: (options: DbBackupOptions, io?: DbBackupIO) => Promise<unknown>;
+  readonly dbRestoreIO?: DbRestoreIO;
+  readonly runDbRestore?: (source: string, options: DbRestoreOptions, io?: DbRestoreIO) => Promise<unknown>;
 }
 
 /**
@@ -144,8 +150,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await cloudMigrateRunner(opts, options.cloudMigrateIO);
     });
 
-  // Module 08b S5 — `db migrate` standalone surface.
-  const db = program.command('db').description('Database administration: migrate the local SQLite primary store.');
+  // Module 08b S5 + S6 — `db {migrate,backup,restore}`.
+  const db = program
+    .command('db')
+    .description('Database administration: migrate / backup / restore the local SQLite primary store.');
   const dbMigrateRunner = options.runDbMigrate ?? runDbMigrateCommand;
   db.command('migrate')
     .description(
@@ -159,6 +167,30 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: DbMigrateOptions) => {
       await dbMigrateRunner(opts, options.dbMigrateIO);
+    });
+
+  const dbBackupRunner = options.runDbBackup ?? runDbBackupCommand;
+  db.command('backup')
+    .description(
+      'Backup ~/.contextos/data.db. Default = single-file VACUUM INTO snapshot. --include-logs switches to a tarball with logs + config.',
+    )
+    .option('--out <path>', 'Destination path (default: ~/.contextos/backups/data.db.bak.<ISO>.sqlite).')
+    .option('--include-logs', 'Produce a .tar.gz containing data.db.bak + logs/*.log + config.json.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: DbBackupOptions) => {
+      await dbBackupRunner(opts, options.dbBackupIO);
+    });
+
+  const dbRestoreRunner = options.runDbRestore ?? runDbRestoreCommand;
+  db.command('restore <source>')
+    .description(
+      'Restore ~/.contextos/data.db from <source> (a SQLite file). Atomic replace + auto-backup of current DB. Refuses if any daemon is alive — no override.',
+    )
+    .option('--no-auto-backup', 'Skip the safety snapshot of the current DB before replacing it.')
+    .option('--force', 'Skip the interactive confirmation prompt (reserved for future TTY-aware prompting).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (source: string, opts: DbRestoreOptions) => {
+      await dbRestoreRunner(source, opts, options.dbRestoreIO);
     });
 
   // Module 08b S4 — log tail/read.

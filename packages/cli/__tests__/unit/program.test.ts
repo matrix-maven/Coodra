@@ -39,7 +39,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     const db = program.commands.find((c) => c.name() === 'db');
     expect(db).toBeDefined();
     const dbSub = db?.commands.map((c) => c.name()).sort() ?? [];
-    expect(dbSub).toEqual(['migrate']);
+    expect(dbSub).toEqual(['backup', 'migrate', 'restore']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {
