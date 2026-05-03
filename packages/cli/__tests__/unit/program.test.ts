@@ -14,13 +14,14 @@ describe('buildProgram — full surface (post-S8)', () => {
     exitSpy.mockRestore();
   });
 
-  it('registers all 17 top-level subcommands (M08a 8 + M08b S3-S11: pause/resume/logs/db/upgrade/uninstall/policy/project/run)', () => {
+  it('registers all 18 top-level subcommands (M08a 8 + M08b S3-S12: pause/resume/logs/db/upgrade/uninstall/policy/project/run/export)', () => {
     const program = buildProgram();
     const top = program.commands.map((c) => c.name()).sort();
     expect(top).toEqual([
       'cloud-migrate',
       'db',
       'doctor',
+      'export',
       'init',
       'logs',
       'pause',

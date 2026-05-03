@@ -145,3 +145,10 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S11 — wired into program.ts (17 top-level commands)
 - [HH:mm] S11 — functest: list with status filter, show full timeline (1 event + 1 policy_decision + 1 decision + null context_pack), cancel in_progress→cancelled with ended_at set, exit 2 on already-terminal completed run, exit 1 on unknown id
 - [HH:mm] S11 — refreshed snapshots, lint clean, 176/176 unit pass
+- [HH:mm] S11 committed (`5e3b2f8`): run admin commands
+- [HH:mm] S12 — wrote 4 renderers under `packages/cli/src/lib/export/`: markdown (sub-tagged metadata + decisions + tool-use timeline + opt-in audit table), json (always-include audit, structured 5-key payload), html (markdown→HTML transformer with embedded CSS, sentinel-based code-span placeholder), slack (Slack mrkdwn — `*bold*`, `_italic_`, truncated narrative ≤600 chars per excerpt)
+- [HH:mm] S12 — wrote `packages/cli/src/commands/export.ts` (read-only assembler; --format markdown|json|html|slack required; --out writes to file else stdout; --webhook (slack only) POSTs to webhook URL with stdout fallback on failure; --include-audit no-op for json)
+- [HH:mm] S12 — wired into program.ts (18 top-level commands)
+- [HH:mm] S12 — functest end-to-end: all 4 formats render correctly against a seeded run with 3 events + 2 policy_decisions + 1 decision + 1 context pack; markdown without --include-audit drops the policy table; markdown --include-audit adds it; json shape has all 5 keys; html writes 2968-byte self-contained doc; slack format compact mrkdwn; invalid format → exit 1; unknown runId → exit 1
+- [HH:mm] S12 — biome --write mangled my code-span sentinel into NUL bytes; rewrote renderInline to use `__CTX_CODE_N__` literal sentinel instead of literal-space delimiter (defensive against future biome reformats)
+- [HH:mm] S12 — refreshed snapshots, lint clean, 176/176 unit pass

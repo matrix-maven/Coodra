@@ -4,6 +4,7 @@ import { type DbBackupIO, type DbBackupOptions, runDbBackupCommand } from './com
 import { type DbMigrateIO, type DbMigrateOptions, runDbMigrateCommand } from './commands/db-migrate.js';
 import { type DbRestoreIO, type DbRestoreOptions, runDbRestoreCommand } from './commands/db-restore.js';
 import { type DoctorIO, type DoctorOptions, runDoctorCommand } from './commands/doctor.js';
+import { type ExportIO, type ExportOptions, runExportCommand } from './commands/export.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
@@ -111,6 +112,8 @@ interface BuildProgramOptions {
   readonly runRunList?: (options: RunListOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunShow?: (runId: string, options: RunShowOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunCancel?: (runId: string, options: RunCancelOptions, io?: RunIO) => Promise<unknown>;
+  readonly exportIO?: ExportIO;
+  readonly runExport?: (runId: string, options: ExportOptions, io?: ExportIO) => Promise<unknown>;
 }
 
 /**
@@ -340,6 +343,27 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string, opts: ProjectResetOptions) => {
       await projectResetRunner(identifier, opts, options.projectIO);
+    });
+
+  // Module 08b S12 — read-only export <runId> --format markdown|json|html|slack.
+  const exportRunner = options.runExport ?? runExportCommand;
+  program
+    .command('export <runId>')
+    .description(
+      'Render one run as markdown / json / html / slack. Read-only. Per OQ-7, non-JSON formats exclude the policy_decisions audit trail by default; --include-audit opts in. JSON always includes the audit.',
+    )
+    .requiredOption('--format <format>', 'markdown | json | html | slack')
+    .option('--out <path>', 'Write output to <path> instead of stdout.')
+    .option(
+      '--include-audit',
+      'Include policy_decisions in markdown/html/slack output (no effect on json — always included).',
+    )
+    .option(
+      '--webhook <url>',
+      'Slack format only: POST `{ "text": <body> }` to the URL. Falls back to stdout on failure.',
+    )
+    .action(async (runId: string, opts: ExportOptions) => {
+      await exportRunner(runId, opts, options.exportIO);
     });
 
   // Module 08b S11 — run admin (list, show, cancel).
