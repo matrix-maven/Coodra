@@ -74,18 +74,19 @@ describe('MarkdownRenderer — XSS hardening (S4)', () => {
     expect(container.querySelectorAll('pre').length).toBeGreaterThan(0);
   });
 
-  it('renders headings as the brand-styled H1-H3 (font-display + uppercase)', () => {
+  it('renders headings as font-display semibold (refined sentence-case, no uppercase)', () => {
     const minimal = '# Top heading\n\n## Second heading\n\n### Third heading\n';
     const { container } = render(<MarkdownRenderer body={minimal} />);
     const h1 = container.querySelector('h1');
     const h2 = container.querySelector('h2');
     const h3 = container.querySelector('h3');
     expect(h1?.className).toContain('font-display');
-    expect(h1?.className).toContain('uppercase');
+    expect(h1?.className).toContain('font-semibold');
+    expect(h1?.className).not.toContain('uppercase');
     expect(h2?.className).toContain('font-display');
-    expect(h2?.className).toContain('uppercase');
+    expect(h2?.className).toContain('font-semibold');
     expect(h3?.className).toContain('font-display');
-    expect(h3?.className).toContain('uppercase');
+    expect(h3?.className).toContain('font-semibold');
   });
 
   it('renders inline code with mono font + bordered background', () => {

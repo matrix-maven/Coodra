@@ -16,10 +16,8 @@ export default function SignInPage() {
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center gap-8">
       <div className="flex flex-col items-center gap-2">
-        <h1 className="font-display text-5xl font-black uppercase tracking-wider">[CTX]OS</h1>
-        <p className="font-display text-sm font-light uppercase tracking-widest text-(--color-text-secondary)">
-          Sign in to continue
-        </p>
+        <h1 className="font-display text-5xl font-black font-medium">[CTX]OS</h1>
+        <p className="font-display text-sm font-light font-medium text-text-secondary">Sign in to continue</p>
       </div>
       <SignIn appearance={clerkAppearance} />
     </div>

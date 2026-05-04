@@ -12,7 +12,7 @@ export function ToolBadge({ name }: ToolBadgeProps) {
     <span
       data-testid="tool-badge"
       data-tool={name}
-      className="inline-flex h-5 items-center border border-(--color-border-subtle) bg-(--color-bg-elevated) px-2 font-mono text-[11px] font-medium text-(--color-text-primary)"
+      className="inline-flex h-5 items-center border border-border-subtle bg-bg-elevated px-2 font-mono text-[11px] font-medium text-text-primary"
     >
       {name}
     </span>

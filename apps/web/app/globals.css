@@ -3,27 +3,36 @@
 
 /*
  * Tailwind v4 @theme block consumes the CSS custom properties from
- * tokens.css. Tailwind utilities like `bg-status-success` generate from
- * `--color-status-success` automatically.
+ * tokens.css. Utilities like `bg-brand`, `text-text-primary`,
+ * `border-border-default`, `shadow-md` generate from these tokens.
+ *
+ * The full redesign drops the prior brutalist mandate (zero radius,
+ * forced uppercase, flat surfaces) in favor of a refined Linear/
+ * Vercel-inspired developer-dashboard aesthetic.
  */
 @theme {
   --color-brand: var(--color-brand);
   --color-brand-hover: var(--color-brand-hover);
+  --color-brand-soft: var(--color-brand-soft);
+  --color-brand-fg: var(--color-brand-fg);
   --color-bg-base: var(--color-bg-base);
   --color-bg-surface: var(--color-bg-surface);
   --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-sidebar: var(--color-bg-sidebar);
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
   --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-muted: var(--color-text-muted);
   --color-text-code: var(--color-text-code);
   --color-status-success: var(--color-status-success);
+  --color-status-success-soft: var(--color-status-success-soft);
   --color-status-warning: var(--color-status-warning);
+  --color-status-warning-soft: var(--color-status-warning-soft);
   --color-status-error: var(--color-status-error);
+  --color-status-error-soft: var(--color-status-error-soft);
   --color-status-info: var(--color-status-info);
+  --color-status-info-soft: var(--color-status-info-soft);
   --color-status-neutral: var(--color-status-neutral);
-  --color-risk-low: var(--color-risk-low);
-  --color-risk-medium: var(--color-risk-medium);
-  --color-risk-high: var(--color-risk-high);
   --color-border-subtle: var(--color-border-subtle);
   --color-border-default: var(--color-border-default);
   --color-border-strong: var(--color-border-strong);
@@ -34,11 +43,21 @@
 
   --spacing: 4px;
 
-  /* Override Tailwind's rounded-* utilities to no-op (brand: zero radius). */
-  --radius: 0;
+  /* Refined radius scale */
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  /* Soft shadow scale */
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
 }
 
-/* Reset + body */
+/* Reset */
 *,
 *::before,
 *::after {
@@ -50,57 +69,76 @@
 html {
   scroll-behavior: smooth;
   font-size: 16px;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   font-family: var(--font-sans);
   background: var(--color-bg-base);
   color: var(--color-text-primary);
+  font-size: var(--text-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
-/* Brand-mandated zero radius — overrides any Tailwind rounded-* utility. */
-* {
-  border-radius: 0 !important;
-}
-
-/* Focus ring per brand.md — 2px Precision Blue with 2px offset on :focus-visible. */
+/* Refined focus ring — soft, brand-tinted, AA-compliant */
 *:focus-visible {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
 }
-
-/* Suppress mouse-click focus outlines. */
 *:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Skip-to-main link (M04 Phase 2 UI a11y).
- * Visible only on keyboard focus. Tab from the top of any page lands here
- * first; activating jumps past the workspace + project navs into <main>. */
+/* Selection */
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--color-text-primary);
+}
+
+/* Scrollbar — subtle, modern */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-bg-base);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Skip-to-main link — visible only on keyboard focus */
 .skip-to-main {
   position: absolute;
   top: -100px;
-  left: 0;
+  left: 16px;
   z-index: 100;
   background: var(--color-brand);
-  color: var(--color-text-inverted);
-  padding: 12px 24px;
+  color: var(--color-brand-fg);
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
   font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  transition: top 150ms ease;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-md);
+  transition: top var(--motion-base) var(--ease-out);
 }
 .skip-to-main:focus,
 .skip-to-main:focus-visible {
-  top: 0;
+  top: 16px;
 }
 
-/* Honor prefers-reduced-motion across every animated surface (M04 Phase 2 UI a11y). */
+/* Honor prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -110,4 +148,10 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Default link styling for inline links inside prose */
+a {
+  color: inherit;
+  text-decoration: inherit;
 }

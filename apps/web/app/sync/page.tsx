@@ -120,7 +120,7 @@ export default async function SyncPage({ searchParams }: { searchParams: Promise
                         </Button>
                       </form>
                     ) : (
-                      <span className="text-(--color-text-tertiary)">—</span>
+                      <span className="text-text-tertiary">—</span>
                     )}
                   </TD>
                 </TR>
@@ -174,7 +174,7 @@ export default async function SyncPage({ searchParams }: { searchParams: Promise
         )}
       </Section>
 
-      <p className="flex items-center gap-2 text-xs text-(--color-text-tertiary)">
+      <p className="flex items-center gap-2 text-xs text-text-tertiary">
         <StatusDot tone={totalDead > 0 ? 'error' : 'success'} size="sm" />
         <span>
           See{' '}

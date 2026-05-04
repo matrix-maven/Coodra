@@ -39,7 +39,7 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
             Saved <span className="font-mono">{formatDate(pack.createdAt)}</span> from run{' '}
             <Link
               href={`${baseHref}/runs/${encodeURIComponent(pack.runId)}` as never}
-              className="font-mono text-(--color-brand) hover:underline"
+              className="font-mono text-brand hover:underline"
             >
               {pack.runId}
             </Link>
@@ -65,7 +65,7 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
                   value={
                     <Link
                       href={`${baseHref}/runs/${encodeURIComponent(pack.runId)}` as never}
-                      className="font-mono text-(--color-brand) hover:underline"
+                      className="font-mono text-brand hover:underline"
                     >
                       {pack.runId}
                     </Link>
@@ -84,7 +84,7 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
 
           <Section title="Excerpt">
             <Card size="sm">
-              <p className="text-xs text-(--color-text-tertiary)">{pack.contentExcerpt || '—'}</p>
+              <p className="text-xs text-text-tertiary">{pack.contentExcerpt || '—'}</p>
             </Card>
           </Section>
         </aside>
@@ -96,10 +96,8 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

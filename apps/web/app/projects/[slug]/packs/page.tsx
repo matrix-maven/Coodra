@@ -98,7 +98,7 @@ export default async function PacksListPage({
                       {p.fileCount}/4
                       {p.fileCount < 4 ? (
                         <AlertTriangleIcon
-                          className="h-3 w-3 text-(--color-status-warning)"
+                          className="h-3 w-3 text-status-warning"
                           aria-label={`Missing: ${[
                             !p.hasMeta && 'meta.json',
                             !p.hasSpec && 'spec.md',
@@ -116,7 +116,7 @@ export default async function PacksListPage({
                       href={
                         `/projects/${encodeURIComponent(project.slug)}/packs/${encodeURIComponent(p.slug)}` as never
                       }
-                      className="font-display text-xs font-bold uppercase tracking-widest text-(--color-brand) transition-colors duration-200 hover:text-(--color-brand-hover)"
+                      className="text-xs font-medium text-brand transition-colors duration-200 hover:text-brand-hover"
                     >
                       View
                     </Link>

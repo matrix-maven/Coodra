@@ -116,7 +116,7 @@ export default async function PackDetailPage({
             value={
               <span className="inline-flex items-center gap-2 font-mono">
                 {pack.fileCount}/4
-                {pack.fileCount < 4 ? <AlertTriangleIcon className="h-3 w-3 text-(--color-status-warning)" /> : null}
+                {pack.fileCount < 4 ? <AlertTriangleIcon className="h-3 w-3 text-status-warning" /> : null}
               </span>
             }
           />
@@ -149,7 +149,7 @@ function FileBody({ body, mono }: { readonly body: string | null; readonly mono?
   if (body === null) {
     return (
       <Card size="md">
-        <p className="text-center text-sm text-(--color-text-tertiary)">File not present.</p>
+        <p className="text-center text-sm text-text-tertiary">File not present.</p>
       </Card>
     );
   }
@@ -157,8 +157,8 @@ function FileBody({ body, mono }: { readonly body: string | null; readonly mono?
     <pre
       className={
         mono === true
-          ? 'overflow-x-auto whitespace-pre border border-(--color-border-subtle) bg-(--color-bg-surface) p-4 font-mono text-xs text-(--color-text-primary)'
-          : 'overflow-x-auto whitespace-pre-wrap border border-(--color-border-subtle) bg-(--color-bg-surface) p-4 font-mono text-xs text-(--color-text-primary)'
+          ? 'overflow-x-auto whitespace-pre border border-border-subtle bg-bg-surface p-4 font-mono text-xs text-text-primary'
+          : 'overflow-x-auto whitespace-pre-wrap border border-border-subtle bg-bg-surface p-4 font-mono text-xs text-text-primary'
       }
     >
       {body}
@@ -170,7 +170,7 @@ function MarkdownBody({ body }: { readonly body: string | null }) {
   if (body === null) {
     return (
       <Card size="md">
-        <p className="text-center text-sm text-(--color-text-tertiary)">File not present.</p>
+        <p className="text-center text-sm text-text-tertiary">File not present.</p>
       </Card>
     );
   }
@@ -184,10 +184,8 @@ function MarkdownBody({ body }: { readonly body: string | null }) {
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }
@@ -207,8 +205,8 @@ function ActionMenuShell({
 }) {
   const summaryClass =
     variant === 'destructive'
-      ? 'inline-flex h-7 cursor-pointer items-center gap-1.5 border border-(--color-status-error)/40 bg-(--color-bg-base) px-3 font-display text-[10px] font-bold uppercase tracking-widest text-(--color-status-error) transition-colors duration-200 hover:bg-(--color-status-error)/10'
-      : 'inline-flex h-7 cursor-pointer items-center gap-1.5 border border-(--color-border-default) bg-(--color-bg-base) px-3 font-display text-[10px] font-bold uppercase tracking-widest text-(--color-text-primary) transition-colors duration-200 hover:border-(--color-brand) hover:text-(--color-brand)';
+      ? 'inline-flex h-7 cursor-pointer items-center gap-1.5 border border-status-error/40 bg-bg-base px-3 text-xs font-medium text-status-error transition-colors duration-200 hover:bg-status-error/10'
+      : 'inline-flex h-7 cursor-pointer items-center gap-1.5 border border-border-default bg-bg-base px-3 text-xs font-medium text-text-primary transition-colors duration-200 hover:border-brand hover:text-brand';
   return (
     <details className="group relative">
       <summary className={`list-none ${summaryClass}`}>
@@ -216,8 +214,8 @@ function ActionMenuShell({
         <ChevronDownIcon className="h-3 w-3 transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div
-        className={`absolute right-0 z-10 mt-1 w-96 border bg-(--color-bg-surface) p-4 shadow-md ${
-          variant === 'destructive' ? 'border-(--color-status-error)/40' : 'border-(--color-border-default)'
+        className={`absolute right-0 z-10 mt-1 w-96 border bg-bg-surface p-4 shadow-md ${
+          variant === 'destructive' ? 'border-status-error/40' : 'border-border-default'
         }`}
       >
         {children}
@@ -241,7 +239,7 @@ function RegenerateMenu({
         <input type="hidden" name="projectSlug" value={projectSlug} />
         <input type="hidden" name="packSlug" value={packSlug} />
         <input type="hidden" name="cwd" value={cwd} />
-        <p className="text-xs text-(--color-text-secondary)">
+        <p className="text-xs text-text-secondary">
           Re-renders auto-managed sections from the template. User-edited content outside auto-marker blocks is
           preserved.
         </p>
@@ -272,7 +270,7 @@ function InstallTemplateMenu({
         <input type="hidden" name="projectSlug" value={projectSlug} />
         <input type="hidden" name="packSlug" value={packSlug} />
         <input type="hidden" name="cwd" value={cwd} />
-        <p className="text-xs text-(--color-text-secondary)">
+        <p className="text-xs text-text-secondary">
           Overlays a bundled template onto this pack. Auto-managed sections are replaced; unmanaged user content is
           preserved by the seed merger.
         </p>
@@ -327,7 +325,7 @@ function DeleteMenu({
         <input type="hidden" name="projectSlug" value={projectSlug} />
         <input type="hidden" name="packSlug" value={packSlug} />
         <input type="hidden" name="cwd" value={cwd} />
-        <p className="text-xs text-(--color-text-primary)">
+        <p className="text-xs text-text-primary">
           Per CLI semantics: removes <span className="font-mono">{`docs/feature-packs/${packSlug}/`}</span> from disk
           AND flips <span className="font-mono">feature_packs.is_active = false</span>. Row preserved per ADR-007.
         </p>

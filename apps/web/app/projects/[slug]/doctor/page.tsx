@@ -144,7 +144,7 @@ export default async function DoctorPage({
         </Table>
       </Section>
 
-      <p className="text-xs text-(--color-text-tertiary)">
+      <p className="text-xs text-text-tertiary">
         contextos home: <span className="font-mono">{report.contextosHome}</span> · cwd:{' '}
         <span className="font-mono">{report.cwd}</span> · version <span className="font-mono">{report.version}</span>
       </p>
@@ -172,18 +172,14 @@ function SummaryStrip({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Pill colorClass="bg-(--color-status-success)/15 text-(--color-status-success)">{ok} green</Pill>
-      <Pill colorClass="bg-(--color-status-warning)/15 text-(--color-status-warning)">{warn} yellow</Pill>
-      <Pill colorClass="bg-(--color-status-error)/15 text-(--color-status-error)">{fail} red</Pill>
-      <Pill colorClass="bg-(--color-bg-elevated) text-(--color-text-tertiary)">{skipped} skipped</Pill>
+      <Pill colorClass="bg-status-success/15 text-status-success">{ok} green</Pill>
+      <Pill colorClass="bg-status-warning/15 text-status-warning">{warn} yellow</Pill>
+      <Pill colorClass="bg-status-error/15 text-status-error">{fail} red</Pill>
+      <Pill colorClass="bg-bg-elevated text-text-tertiary">{skipped} skipped</Pill>
     </div>
   );
 }
 
 function Pill({ colorClass, children }: { readonly colorClass: string; readonly children: React.ReactNode }) {
-  return (
-    <span className={`px-3 py-1 font-display text-xs font-bold uppercase tracking-widest ${colorClass}`}>
-      {children}
-    </span>
-  );
+  return <span className={`px-3 py-1 text-xs font-medium ${colorClass}`}>{children}</span>;
 }

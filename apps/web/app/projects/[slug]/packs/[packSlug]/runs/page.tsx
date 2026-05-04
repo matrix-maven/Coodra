@@ -64,7 +64,7 @@ export default async function PackActivityPage({ params }: { params: Promise<{ s
         subtitle={
           <>
             Runs and context packs for the project{' '}
-            <Link href={baseHref as never} className="font-mono text-(--color-brand) hover:underline">
+            <Link href={baseHref as never} className="font-mono text-brand hover:underline">
               {project.slug}
             </Link>{' '}
             that owns this pack. Pack-grain filtering arrives with M05 — the schema does not yet store the feature-pack
@@ -98,7 +98,7 @@ export default async function PackActivityPage({ params }: { params: Promise<{ s
                   <TD mono>
                     <Link
                       href={`${baseHref}/context-packs/${encodeURIComponent(cp.id)}` as never}
-                      className="text-(--color-brand) hover:underline"
+                      className="text-brand hover:underline"
                     >
                       {cp.title}
                     </Link>
@@ -112,7 +112,7 @@ export default async function PackActivityPage({ params }: { params: Promise<{ s
                   <TD mono muted>
                     <Link
                       href={`${baseHref}/runs/${encodeURIComponent(cp.runId)}` as never}
-                      className="hover:text-(--color-brand)"
+                      className="hover:text-brand"
                     >
                       {cp.runId.slice(0, 8)}…
                     </Link>
@@ -147,7 +147,7 @@ export default async function PackActivityPage({ params }: { params: Promise<{ s
                   <TD mono>
                     <Link
                       href={`${baseHref}/runs/${encodeURIComponent(r.id)}` as never}
-                      className="text-(--color-brand) hover:underline"
+                      className="text-brand hover:underline"
                     >
                       {r.id.slice(0, 8)}…
                     </Link>

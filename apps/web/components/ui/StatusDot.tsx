@@ -1,15 +1,10 @@
 /**
- * `apps/web/components/ui/StatusDot.tsx` — colored circle indicator
- * (M04 Phase 2 UI).
+ * `apps/web/components/ui/StatusDot.tsx` — colored circle indicator.
  *
- * Replaces the 4 hand-rolled "colored span" implementations across
- * doctor, workspace settings, project picker (ProjectCard), sync, and
- * project home. One palette, three sizes, optional inline label.
- *
- * The `tone` prop maps to brand status colors. The optional `label`
- * makes the dot self-describing for screen readers — when omitted the
- * dot becomes purely decorative (aria-hidden) and the surrounding
- * text owns the semantics.
+ * Two variants: a bare dot (decorative, sits beside text) and an
+ * inline pill ({ label } prop) where the dot + label form a single
+ * accessible chip. Used everywhere a status needs a quick glance:
+ * doctor checks, sync queue, project picker rows.
  */
 
 export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral';
@@ -17,24 +12,22 @@ export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 export interface StatusDotProps {
   readonly tone: StatusTone;
   readonly size?: 'sm' | 'md' | 'lg';
-  /** When set, renders the dot + the label inline; the label is the accessible name. */
   readonly label?: string;
-  /** When set without a label, applies as the title attribute (tooltip). */
   readonly title?: string;
 }
 
 const TONE_BG: Record<StatusTone, string> = {
-  success: 'bg-(--color-status-success)',
-  warning: 'bg-(--color-status-warning)',
-  error: 'bg-(--color-status-error)',
-  info: 'bg-(--color-status-info)',
-  neutral: 'bg-(--color-text-tertiary)',
+  success: 'bg-status-success',
+  warning: 'bg-status-warning',
+  error: 'bg-status-error',
+  info: 'bg-status-info',
+  neutral: 'bg-text-muted',
 };
 
 const SIZE_CLASS: Record<NonNullable<StatusDotProps['size']>, string> = {
-  sm: 'h-2 w-2',
-  md: 'h-3 w-3',
-  lg: 'h-4 w-4',
+  sm: 'h-1.5 w-1.5',
+  md: 'h-2 w-2',
+  lg: 'h-2.5 w-2.5',
 };
 
 export function StatusDot({ tone, size = 'md', label, title }: StatusDotProps) {
@@ -47,9 +40,9 @@ export function StatusDot({ tone, size = 'md', label, title }: StatusDotProps) {
   );
   if (label === undefined) return dot;
   return (
-    <span className="inline-flex items-center gap-2">
+    <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary">
       {dot}
-      <span className="font-mono text-xs text-(--color-text-secondary)">{label}</span>
+      <span className="font-mono">{label}</span>
     </span>
   );
 }

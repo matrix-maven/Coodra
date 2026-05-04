@@ -76,11 +76,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ slug
             label="Ended"
             value={
               run.endedAt === null ? (
-                <span className="text-(--color-text-tertiary)">(in progress)</span>
+                <span className="text-text-tertiary">(in progress)</span>
               ) : (
                 <>
                   <RelativeTime date={run.endedAt} mode="compact" />
-                  <span className="ml-2 text-(--color-text-tertiary)">({compactDuration(startedMs, endedMs)})</span>
+                  <span className="ml-2 text-text-tertiary">({compactDuration(startedMs, endedMs)})</span>
                 </>
               )
             }
@@ -92,7 +92,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ slug
         {events.length === 0 ? (
           <EmptyState title="No events" body="No events recorded for this run." />
         ) : (
-          <div className="border border-(--color-border-subtle)">
+          <div className="border border-border-subtle">
             {events.map((evt) => (
               <RunEventRow
                 key={evt.id}
@@ -163,12 +163,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ slug
           <Card size="md">
             <article className="flex flex-col gap-3">
               <div className="flex items-baseline justify-between gap-3">
-                <h3 className="font-display text-lg font-bold text-(--color-text-primary)">{contextPack.title}</h3>
-                <span className="text-xs text-(--color-text-tertiary)">
+                <h3 className="font-display text-lg font-bold text-text-primary">{contextPack.title}</h3>
+                <span className="text-xs text-text-tertiary">
                   <RelativeTime date={contextPack.createdAt} mode="compact" />
                 </span>
               </div>
-              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs text-(--color-text-primary)">
+              <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs text-text-primary">
                 {contextPack.contentExcerpt}
               </pre>
             </article>
@@ -182,10 +182,8 @@ export default async function RunDetailPage({ params }: { params: Promise<{ slug
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

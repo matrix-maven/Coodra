@@ -219,29 +219,23 @@ function DoctorSummary({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Pill colorClass="bg-(--color-status-success)/15 text-(--color-status-success)">{ok} green</Pill>
-      <Pill colorClass="bg-(--color-status-warning)/15 text-(--color-status-warning)">{warn} yellow</Pill>
-      <Pill colorClass="bg-(--color-status-error)/15 text-(--color-status-error)">{fail} red</Pill>
-      <Pill colorClass="bg-(--color-bg-elevated) text-(--color-text-tertiary)">of {total} total</Pill>
+      <Pill colorClass="bg-status-success/15 text-status-success">{ok} green</Pill>
+      <Pill colorClass="bg-status-warning/15 text-status-warning">{warn} yellow</Pill>
+      <Pill colorClass="bg-status-error/15 text-status-error">{fail} red</Pill>
+      <Pill colorClass="bg-bg-elevated text-text-tertiary">of {total} total</Pill>
     </div>
   );
 }
 
 function Pill({ colorClass, children }: { readonly colorClass: string; readonly children: React.ReactNode }) {
-  return (
-    <span className={`px-3 py-1 font-display text-xs font-bold uppercase tracking-widest ${colorClass}`}>
-      {children}
-    </span>
-  );
+  return <span className={`px-3 py-1 text-xs font-medium ${colorClass}`}>{children}</span>;
 }
 
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

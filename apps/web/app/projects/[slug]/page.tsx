@@ -139,7 +139,7 @@ export default async function ProjectHomePage({ params }: { params: Promise<{ sl
                         {evt.runId !== null ? (
                           <Link
                             href={`${baseHref}/runs/${encodeURIComponent(evt.runId)}` as never}
-                            className="text-(--color-text-code) hover:text-(--color-brand-hover)"
+                            className="text-text-code hover:text-brand-hover"
                           >
                             {evt.runId.length > 30 ? `${evt.runId.slice(0, 30)}…` : evt.runId}
                           </Link>
@@ -193,10 +193,8 @@ export default async function ProjectHomePage({ params }: { params: Promise<{ sl
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

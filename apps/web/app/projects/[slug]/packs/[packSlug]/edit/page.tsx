@@ -130,10 +130,7 @@ export default async function EditPackPage({
           <input type="hidden" name="fileName" value={file} />
           <input type="hidden" name="mtimeMs" value={mtimeMs} />
 
-          <label
-            htmlFor={`edit-content-${file}`}
-            className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)"
-          >
+          <label htmlFor={`edit-content-${file}`} className="text-xs font-medium text-text-secondary">
             {file}
           </label>
           <Textarea
@@ -145,7 +142,7 @@ export default async function EditPackPage({
             className="h-[60vh]"
           />
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs text-(--color-text-tertiary)">
+            <p className="text-xs text-text-tertiary">
               File mtime: <span className="font-mono">{mtimeMs}</span> · Marker contract enforced server-side.
             </p>
             <Button type="submit" variant="primary">
@@ -158,20 +155,20 @@ export default async function EditPackPage({
           <Section title="Auto-marker sections">
             <Card size="sm">
               {parse.errors.length > 0 ? (
-                <p className="flex items-start gap-2 text-xs text-(--color-status-error)">
+                <p className="flex items-start gap-2 text-xs text-status-error">
                   <AlertTriangleIcon className="mt-0.5 h-3 w-3 shrink-0" />
                   <span>Parse errors: {summarizeParseErrors(parse.errors)}</span>
                 </p>
               ) : null}
               {parse.sections.length === 0 ? (
-                <p className="text-xs text-(--color-text-tertiary)">No auto markers in this file.</p>
+                <p className="text-xs text-text-tertiary">No auto markers in this file.</p>
               ) : (
                 <ul className="flex flex-col gap-1.5 text-xs">
                   {parse.sections.map((s) => (
                     <li key={s.name} className="flex items-baseline gap-2 font-mono">
-                      <span className="text-(--color-text-tertiary)">L{s.openLine}</span>
-                      <span className="text-(--color-text-primary)">{s.name}</span>
-                      <span className="text-(--color-text-tertiary)">
+                      <span className="text-text-tertiary">L{s.openLine}</span>
+                      <span className="text-text-primary">{s.name}</span>
+                      <span className="text-text-tertiary">
                         ({s.innerLines.length} {s.innerLines.length === 1 ? 'line' : 'lines'})
                       </span>
                     </li>
@@ -183,7 +180,7 @@ export default async function EditPackPage({
 
           <Section title="Editing rules">
             <Card size="sm">
-              <ul className="flex flex-col gap-1 text-xs text-(--color-text-secondary)">
+              <ul className="flex flex-col gap-1 text-xs text-text-secondary">
                 <li>
                   Edit text inside <span className="font-mono">@auto:NAME</span> sections freely.
                 </li>
@@ -213,7 +210,7 @@ function FileTabs({
   readonly active: EditableFile;
 }) {
   return (
-    <nav aria-label="File" className="flex border-b border-(--color-border-subtle)">
+    <nav aria-label="File" className="flex border-b border-border-subtle">
       {EDITABLE_FILES.map((f) => (
         <Link
           key={f}
@@ -222,9 +219,7 @@ function FileTabs({
           }
           aria-current={f === active ? 'page' : undefined}
           className={`-mb-px border-b-2 px-4 py-2 font-mono text-sm transition-colors duration-200 ${
-            f === active
-              ? 'border-(--color-brand) text-(--color-brand)'
-              : 'border-transparent text-(--color-text-secondary) hover:text-(--color-text-primary)'
+            f === active ? 'border-brand text-brand' : 'border-transparent text-text-secondary hover:text-text-primary'
           }`}
         >
           {f}

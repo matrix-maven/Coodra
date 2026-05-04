@@ -105,20 +105,14 @@ function Populated({
       <Section title="Search">
         <form className="flex flex-wrap items-end gap-3" action={`${baseHref}/graph`}>
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="graph-q"
-              className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)"
-            >
+            <label htmlFor="graph-q" className="text-xs font-medium text-text-secondary">
               Symbol or path
             </label>
             <Input id="graph-q" name="q" defaultValue={q} mono placeholder="substring" className="w-72" />
           </div>
           {communities.length > 0 ? (
             <div className="flex flex-col gap-1.5">
-              <label
-                htmlFor="graph-community"
-                className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)"
-              >
+              <label htmlFor="graph-community" className="text-xs font-medium text-text-secondary">
                 Community
               </label>
               <Select id="graph-community" name="community" defaultValue={community} mono className="w-48">
@@ -142,7 +136,7 @@ function Populated({
         </form>
       </Section>
 
-      <p className="text-xs text-(--color-text-tertiary)">
+      <p className="text-xs text-text-tertiary">
         {result.nodes.length} nodes · {result.edgeCount} edges · {filtered.length} match
         {filtered.length === 1 ? '' : 'es'}
         {truncated ? ` (showing first ${PAGE_LIMIT})` : ''} · indexed{' '}
@@ -178,10 +172,10 @@ function Populated({
                   </TD>
                   <TD align="right">
                     <details>
-                      <summary className="cursor-pointer font-display text-xs font-bold uppercase tracking-widest text-(--color-brand) hover:text-(--color-brand-hover)">
+                      <summary className="cursor-pointer text-xs font-medium text-brand hover:text-brand-hover">
                         View
                       </summary>
-                      <pre className="mt-2 max-w-md overflow-x-auto whitespace-pre border border-(--color-border-subtle) bg-(--color-bg-base) p-2 text-left font-mono text-[11px] text-(--color-text-primary)">
+                      <pre className="mt-2 max-w-md overflow-x-auto whitespace-pre border border-border-subtle bg-bg-base p-2 text-left font-mono text-[11px] text-text-primary">
                         {JSON.stringify(n.raw, null, 2)}
                       </pre>
                     </details>
@@ -193,7 +187,7 @@ function Populated({
         </Section>
       )}
 
-      <p className="text-xs text-(--color-text-tertiary)">
+      <p className="text-xs text-text-tertiary">
         File: <span className="font-mono break-all">{result.path}</span>
       </p>
     </>
@@ -222,19 +216,19 @@ function MissingState({
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
           <StatusDot tone="neutral" />
-          <h2 className="font-display text-xl font-bold uppercase tracking-wide text-(--color-text-primary)">
+          <h2 className="font-display text-xl font-bold uppercase tracking-wide text-text-primary">
             No graphify index yet
           </h2>
         </div>
-        <p className="text-sm text-(--color-text-secondary)">
+        <p className="text-sm text-text-secondary">
           ContextOS reads <span className="font-mono">graph.json</span> from{' '}
           <span className="break-all font-mono">{path}</span>. The graphify CLI is third-party (ADR-010) — install it
           once, then scan from the repo root for <span className="font-mono">{slug}</span>.
         </p>
-        <pre className="overflow-x-auto whitespace-pre border border-(--color-border-default) bg-(--color-bg-base) p-3 font-mono text-xs text-(--color-text-primary)">
+        <pre className="overflow-x-auto whitespace-pre border border-border-default bg-bg-base p-3 font-mono text-xs text-text-primary">
           {howToFix}
         </pre>
-        <p className="text-xs text-(--color-text-tertiary)">
+        <p className="text-xs text-text-tertiary">
           Once <span className="font-mono">graph.json</span> exists, this page renders the searchable symbol table — no
           rebuild needed.
         </p>
@@ -248,18 +242,18 @@ function InvalidState({ path, reason }: { readonly path: string; readonly reason
     <Card size="lg" tone="danger">
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <AlertTriangleIcon className="h-5 w-5 text-(--color-status-error)" />
-          <h2 className="font-display text-xl font-bold uppercase tracking-wide text-(--color-status-error)">
+          <AlertTriangleIcon className="h-5 w-5 text-status-error" />
+          <h2 className="font-display text-xl font-bold uppercase tracking-wide text-status-error">
             graph.json is invalid
           </h2>
         </div>
-        <p className="text-sm text-(--color-text-primary)">
+        <p className="text-sm text-text-primary">
           File at <span className="break-all font-mono">{path}</span> exists but failed to parse.
         </p>
         <Banner kind="error" code="parse_failed">
           {reason}
         </Banner>
-        <p className="text-xs text-(--color-text-tertiary)">
+        <p className="text-xs text-text-tertiary">
           Re-run <span className="font-mono">graphify scan</span> from the repo root, or open{' '}
           <span className="font-mono break-all">{path}</span> manually to inspect.
         </p>

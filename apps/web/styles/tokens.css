@@ -1,120 +1,145 @@
 /*
- * apps/web/styles/tokens.css — full brand catalog ported from
- * docs/brand/brand.html per OQ-5 lock (2026-05-03). Every token
- * here matches the source verbatim. When the brand evolves, edit
- * docs/brand/brand.html first, then port the delta here.
+ * apps/web/styles/tokens.css — modern developer-dashboard design system.
+ *
+ * Replaces the brutalist zero-radius / heavy-uppercase look with a
+ * refined Linear/Vercel-inspired aesthetic: soft rounded surfaces,
+ * subtle depth via shadow + border, generous whitespace, sentence-
+ * case labels, restrained brand color usage.
  *
  * Tailwind v4 consumes these via the @theme block in app/globals.css.
- *
- * The unit test in M04 acceptance criterion 10 (spec.md §2 AC-10) greps
- * the built CSS for hardcoded "#" outside this file (and border-radius
- * values > 0 anywhere). Keep colours and shapes here, not inline.
  */
 
 :root {
   /* ─── Brand ─── */
-  --color-brand: #1c69d4;
-  --color-brand-hover: #0653b6;
-  --color-brand-muted: rgba(28, 105, 212, 0.08);
-  --color-brand-subtle: #ebf2fc;
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-active: #1e40af;
+  --color-brand-soft: #eff6ff;
+  --color-brand-fg: #ffffff;
 
-  /* ─── Surfaces (light mode default) ─── */
-  --color-bg-base: #ffffff;
-  --color-bg-surface: #f7f7fa;
-  --color-bg-elevated: #eeeef2;
-  --color-bg-overlay: #e4e4ea;
+  /* ─── Surfaces ─── */
+  --color-bg-base: #fafafa;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f4f4f5;
+  --color-bg-overlay: rgba(15, 23, 42, 0.6);
+  --color-bg-sidebar: #ffffff;
 
-  /* ─── Text ───
-   * Phase 2 UI a11y: secondary bumped from #757575 (4.5:1) to #525252 (7.4:1),
-   * tertiary bumped from #bbbbbb (2.5:1, FAIL) to #737373 (5.7:1, AA pass).
-   * Both pass WCAG AA against the white #ffffff base. */
-  --color-text-primary: #262626;
-  --color-text-secondary: #525252;
-  --color-text-tertiary: #737373;
+  /* ─── Text — refined zinc ramp, AA contrast ─── */
+  --color-text-primary: #18181b;
+  --color-text-secondary: #52525b;
+  --color-text-tertiary: #71717a;
+  --color-text-muted: #a1a1aa;
   --color-text-inverted: #ffffff;
-  --color-text-code: #0653b6;
+  --color-text-code: #1d4ed8;
+  --color-text-link: var(--color-brand);
 
   /* ─── Borders ─── */
-  --color-border-subtle: rgba(0, 0, 0, 0.06);
-  --color-border-default: rgba(0, 0, 0, 0.1);
-  --color-border-strong: rgba(0, 0, 0, 0.2);
+  --color-border-subtle: #f4f4f5;
+  --color-border-default: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+  --color-border-focus: var(--color-brand);
 
   /* ─── Status ─── */
-  --color-status-success: #22c55e;
+  --color-status-success: #10b981;
+  --color-status-success-soft: #ecfdf5;
   --color-status-warning: #f59e0b;
+  --color-status-warning-soft: #fffbeb;
   --color-status-error: #ef4444;
-  --color-status-info: #1c69d4;
+  --color-status-error-soft: #fef2f2;
+  --color-status-info: #3b82f6;
+  --color-status-info-soft: #eff6ff;
   --color-status-neutral: #6b7280;
 
   /* ─── Risk ─── */
-  --color-risk-low: #22c55e;
-  --color-risk-medium: #f59e0b;
-  --color-risk-high: #ef4444;
+  --color-risk-low: var(--color-status-success);
+  --color-risk-medium: var(--color-status-warning);
+  --color-risk-high: var(--color-status-error);
 
   /* ─── Type families ─── */
   --font-display: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
 
+  /* ─── Type scale (rem; 16px base) ─── */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.8125rem;   /* 13px */
+  --text-base: 0.875rem;  /* 14px — body */
+  --text-md: 1rem;        /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px — page titles */
+  --text-4xl: 2.25rem;    /* 36px */
+
   /* ─── Spacing ─── */
+  --space-0: 0;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
   --space-12: 48px;
   --space-16: 64px;
 
-  /* ─── Layout rhythm (Phase 2 UI) ───
-   * One canonical horizontal page gutter, vertical section spacing,
-   * default vertical stack between elements, and minimum touch-target /
-   * input baseline. Pages compose from PageShell + Section to stay
-   * visually consistent — see apps/web/components/ui/. */
+  /* ─── Layout rhythm ─── */
   --space-page-x: 32px;
-  --space-section: 32px;
+  --space-page-y: 32px;
+  --space-section: 28px;
   --space-stack: 16px;
-  --table-row-height: 44px;
-  --input-height: 40px;
+  --sidebar-width: 248px;
+  --topbar-height: 56px;
+  --table-row-height: 48px;
+  --input-height: 36px;
+  --input-height-lg: 44px;
+  --button-height: 36px;
+  --button-height-sm: 28px;
 
-  /* ─── Elevation (kept for parity; brand uses flat by default) ─── */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
-  --shadow-brand: 0 0 0 2px rgba(28, 105, 212, 0.3);
+  /* ─── Radius — refined, not brutalist ─── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 9999px;
 
-  /* ─── Hero (dark inverted treatment) ─── */
-  --hero-bg: #1a1a1a;
-  --hero-text: #ffffff;
-  --hero-secondary: rgba(255, 255, 255, 0.65);
-  --hero-border: rgba(255, 255, 255, 0.1);
+  /* ─── Shadows — soft elevation ─── */
+  --shadow-xs: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px -2px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 28px -8px rgba(15, 23, 42, 0.16), 0 6px 8px -4px rgba(15, 23, 42, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(37, 99, 235, 0.18);
 
   /* ─── Motion ─── */
-  --motion-quick: 120ms;
-  --motion-section: 200ms;
-  --motion-route: 320ms;
-
-  /* ─── Shape — zero radius is brand-mandatory ─── */
-  --radius: 0;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 [data-theme='dark'] {
-  --color-bg-base: #0a0a0f;
-  --color-bg-surface: #111118;
-  --color-bg-elevated: #1a1a24;
-  --color-bg-overlay: #22222e;
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #9898b0;
-  --color-text-tertiary: #5c5c78;
-  --color-text-code: #a8edba;
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.12);
-  --color-border-strong: rgba(255, 255, 255, 0.24);
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
-  --hero-bg: #0a0a0f;
-  --hero-text: #f0f0f5;
-  --hero-secondary: rgba(255, 255, 255, 0.55);
-  --hero-border: rgba(255, 255, 255, 0.08);
+  --color-bg-base: #09090b;
+  --color-bg-surface: #18181b;
+  --color-bg-elevated: #27272a;
+  --color-bg-sidebar: #18181b;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #a1a1aa;
+  --color-text-tertiary: #71717a;
+  --color-text-muted: #52525b;
+  --color-text-code: #93c5fd;
+  --color-border-subtle: #27272a;
+  --color-border-default: #3f3f46;
+  --color-border-strong: #52525b;
+  --color-brand-soft: rgba(59, 130, 246, 0.12);
+  --color-status-success-soft: rgba(16, 185, 129, 0.12);
+  --color-status-warning-soft: rgba(245, 158, 11, 0.12);
+  --color-status-error-soft: rgba(239, 68, 68, 0.12);
+  --color-status-info-soft: rgba(59, 130, 246, 0.12);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 28px -8px rgba(0, 0, 0, 0.7);
 }

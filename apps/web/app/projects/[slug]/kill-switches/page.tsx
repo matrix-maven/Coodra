@@ -62,7 +62,7 @@ export default async function KillSwitchesPage({
             Pause and resume agent enforcement at four scopes: global, project, tool, agent type. Hard mode denies on
             match; soft mode allows + audits.
             <br />
-            <span className="text-(--color-text-tertiary)">
+            <span className="text-text-tertiary">
               {actor.mode === 'team'
                 ? 'Pauses propagate to all developers within ~10s (sync-daemon pulls every 5s, bridge cache TTL 5s).'
                 : 'Solo mode — pause is local only. No cross-developer propagation.'}

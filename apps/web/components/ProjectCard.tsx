@@ -1,16 +1,13 @@
 import Link from 'next/link';
 
 import { type ProjectStatusDotKind, StatusDot } from '@/components/StatusDot';
+import { ChevronRightIcon } from '@/components/ui';
 import { relativeTime } from '@/lib/format';
 
 /**
  * `apps/web/components/ProjectCard.tsx` — project tile for the `/`
- * picker hub (M04 Phase 2 S2b, restyled in Phase 2 UI).
- *
- * Whole card is a clickable Link to `/projects/[slug]`. Adds smooth
- * hover transition (consistent with Tile / Card primitives) +
- * cursor-pointer + the project name styled in mono normal-case for
- * better legibility against the hover state.
+ * picker hub. Refined for the new design: rounded card, soft shadow,
+ * lift-on-hover, three-metric strip + footer with org + last-activity.
  */
 
 export interface ProjectCardProps {
@@ -20,69 +17,75 @@ export interface ProjectCardProps {
   readonly activeRuns: number;
   readonly denials24h: number;
   readonly activeKillSwitches: number;
-  readonly lastActivityAt: string | null; // ISO
+  readonly lastActivityAt: string | null;
   readonly statusDot: ProjectStatusDotKind;
 }
 
 export function ProjectCard(props: ProjectCardProps) {
   const lastActivityLabel =
-    props.lastActivityAt === null ? 'No runs yet' : relativeTime(new Date(props.lastActivityAt));
+    props.lastActivityAt === null ? 'No activity yet' : relativeTime(new Date(props.lastActivityAt));
   return (
     <Link
       href={`/projects/${encodeURIComponent(props.slug)}` as never}
       data-testid="project-card"
       data-slug={props.slug}
-      className="group flex cursor-pointer flex-col border border-(--color-border-subtle) bg-(--color-bg-surface) transition-colors duration-200 hover:border-(--color-brand) hover:bg-(--color-bg-elevated)"
+      className="group flex cursor-pointer flex-col rounded-lg border border-border-default bg-bg-surface shadow-xs transition-all duration-200 hover:border-border-strong hover:shadow-md"
     >
-      <div className="flex items-center gap-3 border-b border-(--color-border-subtle) px-6 py-4">
-        <h3 className="font-mono text-base font-medium text-(--color-text-primary)">{props.slug}</h3>
-        <span className="ml-auto inline-flex items-center gap-2">
-          <StatusDot kind={props.statusDot} />
-          <span className="font-display text-[10px] font-bold uppercase tracking-widest text-(--color-text-tertiary)">
-            {props.statusDot}
-          </span>
-        </span>
+      <div className="flex items-center gap-3 px-5 py-4">
+        <StatusDot kind={props.statusDot} />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-mono text-sm font-medium text-text-primary">{props.slug}</h3>
+          <p className="truncate text-xs text-text-tertiary">{props.name}</p>
+        </div>
+        <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-text-secondary" />
       </div>
-      <div className="grid grid-cols-3 gap-px bg-(--color-border-subtle) text-center">
+      <div className="grid grid-cols-3 border-t border-border-subtle">
         <Metric label="Active runs" value={props.activeRuns} tone={props.activeRuns > 0 ? 'info' : 'muted'} />
-        <Metric label="Denials · 24h" value={props.denials24h} tone={props.denials24h > 0 ? 'error' : 'muted'} />
         <Metric
-          label="Active pauses"
+          label="Denials · 24h"
+          value={props.denials24h}
+          tone={props.denials24h > 0 ? 'error' : 'muted'}
+          divider
+        />
+        <Metric
+          label="Pauses"
           value={props.activeKillSwitches}
           tone={props.activeKillSwitches > 0 ? 'warning' : 'muted'}
+          divider
         />
       </div>
-      <div className="flex items-center gap-2 border-t border-(--color-border-subtle) px-6 py-3 text-xs">
-        <span className="text-(--color-text-secondary)">Last activity</span>
-        <span className="font-mono text-(--color-text-primary)">{lastActivityLabel}</span>
-        <span className="ml-auto font-mono text-[11px] text-(--color-text-tertiary)">{props.orgId}</span>
+      <div className="flex items-center justify-between gap-2 border-t border-border-subtle px-5 py-3 text-xs">
+        <span className="text-text-tertiary">{lastActivityLabel}</span>
+        <span className="font-mono text-text-muted">{props.orgId}</span>
       </div>
     </Link>
   );
 }
 
 const TONE_TEXT: Record<'info' | 'warning' | 'error' | 'muted', string> = {
-  info: 'text-(--color-status-info)',
-  warning: 'text-(--color-status-warning)',
-  error: 'text-(--color-status-error)',
-  muted: 'text-(--color-text-tertiary)',
+  info: 'text-status-info',
+  warning: 'text-status-warning',
+  error: 'text-status-error',
+  muted: 'text-text-secondary',
 };
 
 function Metric({
   label,
   value,
   tone,
+  divider,
 }: {
   readonly label: string;
   readonly value: number;
   readonly tone: 'info' | 'warning' | 'error' | 'muted';
+  readonly divider?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1 bg-(--color-bg-surface) px-2 py-4">
-      <div className={`font-display text-3xl font-black ${TONE_TEXT[tone]}`}>{value}</div>
-      <div className="font-display text-[10px] font-bold uppercase tracking-wider text-(--color-text-tertiary)">
-        {label}
-      </div>
+    <div
+      className={`flex flex-col items-start gap-0.5 px-4 py-3 ${divider === true ? 'border-l border-border-subtle' : ''}`}
+    >
+      <span className={`font-display text-xl font-semibold ${TONE_TEXT[tone]}`}>{value}</span>
+      <span className="text-[11px] text-text-tertiary">{label}</span>
     </div>
   );
 }

@@ -28,20 +28,20 @@ function parseAlternatives(raw: string | null): readonly string[] {
 export function DecisionCard({ description, rationale, alternatives, createdAt }: DecisionCardProps) {
   const alts = parseAlternatives(alternatives);
   return (
-    <article className="border border-(--color-border-subtle) bg-(--color-bg-surface) p-6">
-      <h3 className="font-display text-lg font-bold text-(--color-text-primary)">{description}</h3>
-      <div className="mt-1 text-xs text-(--color-text-tertiary)">
+    <article className="border border-border-subtle bg-bg-surface p-6">
+      <h3 className="font-display text-lg font-bold text-text-primary">{description}</h3>
+      <div className="mt-1 text-xs text-text-tertiary">
         <RelativeTime date={createdAt} mode="compact" />
       </div>
       <div className="mt-4 space-y-2 text-sm">
         <div>
-          <span className="font-display font-bold text-(--color-text-secondary)">Rationale: </span>
-          <span className="text-(--color-text-primary)">{rationale}</span>
+          <span className="font-display font-bold text-text-secondary">Rationale: </span>
+          <span className="text-text-primary">{rationale}</span>
         </div>
         {alts.length > 0 ? (
           <div>
-            <div className="font-display font-bold text-(--color-text-secondary)">Alternatives considered:</div>
-            <ul className="mt-1 list-disc pl-6 text-(--color-text-primary)">
+            <div className="font-display font-bold text-text-secondary">Alternatives considered:</div>
+            <ul className="mt-1 list-disc pl-6 text-text-primary">
               {alts.map((alt) => (
                 <li key={alt}>{alt}</li>
               ))}

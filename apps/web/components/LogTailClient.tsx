@@ -2,20 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { Checkbox, Input, StatusDot, type StatusTone } from '@/components/ui';
+
 /**
  * `apps/web/components/LogTailClient.tsx` — client subscriber for the
- * SSE log stream (M04 Phase 2 S11).
+ * SSE log stream.
  *
- * Renders the initial server-fetched lines, then opens an EventSource
- * against `/api/projects/[slug]/logs/[service]/stream?fromOffset=…`.
- * New lines are appended to the bottom; the viewport auto-scrolls to
- * follow tail unless the user has scrolled up (sticky-tail toggle).
- *
- * Filter input does a case-insensitive substring match across visible
- * lines — purely client-side, doesn't change what the server sends.
- *
- * On EventSource errors the browser auto-reconnects per the SSE spec;
- * we surface a small "reconnecting…" badge while in that state.
+ * Refined for the new design: rounded surfaces, sentence-case labels,
+ * brand-tinted status badge.
  */
 
 export interface LogTailClientProps {
@@ -65,9 +59,6 @@ export function LogTailClient({ slug, service, initialLines, initialOffset }: Lo
     };
   }, [slug, service, initialOffset]);
 
-  // Auto-scroll on new lines when stickyTail is on. We trigger on
-  // `lines.length` so a fresh batch of appended lines re-runs the
-  // effect even though we don't read `lines` inside the body.
   // biome-ignore lint/correctness/useExhaustiveDependencies: lines.length is the trigger; intentional dep
   useEffect(() => {
     if (!stickyTail) return;
@@ -82,18 +73,16 @@ export function LogTailClient({ slug, service, initialLines, initialOffset }: Lo
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <input
-            type="text"
+          <Input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="filter (substring, case-insensitive)"
-            className="w-72 border border-(--color-border-default) bg-(--color-bg-base) px-2 py-1.5 font-mono text-sm"
+            placeholder="Filter (substring, case-insensitive)"
+            mono
+            className="w-72"
           />
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={stickyTail} onChange={(e) => setStickyTail(e.target.checked)} />
-            <span className="font-display font-bold uppercase tracking-wider text-(--color-text-secondary)">
-              Sticky tail
-            </span>
+          <label htmlFor="log-sticky" className="flex items-center gap-2 text-sm text-text-secondary">
+            <Checkbox id="log-sticky" checked={stickyTail} onChange={(e) => setStickyTail(e.target.checked)} />
+            <span>Sticky tail</span>
           </label>
         </div>
         <StatusBadge status={status} count={lines.length} visible={visible.length} />
@@ -101,10 +90,10 @@ export function LogTailClient({ slug, service, initialLines, initialOffset }: Lo
 
       <div
         ref={containerRef}
-        className="h-[60vh] overflow-y-auto overflow-x-auto border border-(--color-border-default) bg-(--color-bg-base) p-3 font-mono text-[11px] leading-snug text-(--color-text-primary)"
+        className="h-[60vh] overflow-x-auto overflow-y-auto rounded-lg border border-border-default bg-bg-surface p-4 font-mono text-[12px] leading-relaxed text-text-primary shadow-xs"
       >
         {visible.length === 0 ? (
-          <p className="text-(--color-text-tertiary)">
+          <p className="text-text-tertiary">
             {lines.length === 0 ? 'No log lines yet — waiting for the service to write.' : 'No lines match the filter.'}
           </p>
         ) : (
@@ -124,15 +113,14 @@ function StatusBadge({
   readonly count: number;
   readonly visible: number;
 }): React.JSX.Element {
-  const tone =
-    status === 'live'
-      ? 'bg-(--color-status-success)/15 text-(--color-status-success)'
-      : status === 'reconnecting'
-        ? 'bg-(--color-status-warning)/15 text-(--color-status-warning)'
-        : 'bg-(--color-bg-elevated) text-(--color-text-tertiary)';
+  const tone: StatusTone = status === 'live' ? 'success' : status === 'reconnecting' ? 'warning' : 'neutral';
   return (
-    <span className={`px-3 py-1 font-display text-xs font-bold uppercase tracking-wider ${tone}`}>
-      ● {status} · {visible}/{count} lines
+    <span className="inline-flex items-center gap-2 rounded-full bg-bg-elevated px-3 py-1 text-xs font-medium text-text-secondary">
+      <StatusDot tone={tone} size="sm" />
+      <span>{status}</span>
+      <span className="font-mono text-text-tertiary">
+        {visible}/{count}
+      </span>
     </span>
   );
 }

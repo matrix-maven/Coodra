@@ -69,7 +69,7 @@ export default async function ProjectPickerPage() {
         </section>
       )}
 
-      <footer className="text-center text-xs text-(--color-text-tertiary)">
+      <footer className="text-center text-xs text-text-tertiary">
         Last refreshed {new Date(snapshot.fetchedAt).toLocaleTimeString()}
       </footer>
     </PageShell>

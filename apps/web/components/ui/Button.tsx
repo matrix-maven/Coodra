@@ -2,45 +2,39 @@ import Link from 'next/link';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * `apps/web/components/ui/Button.tsx` — canonical button (M04 Phase 2 UI).
+ * `apps/web/components/ui/Button.tsx` — refined button system.
  *
- * Three components in one file:
+ * Three components share one shape:
+ *   <Button>      native <button>; honors type="submit".
+ *   <LinkButton>  same look, renders <Link> (or <a download> when needed).
+ *   <IconButton>  square icon-only with required aria-label.
  *
- *   - `<Button>`      — native <button>, supports type="submit" for forms.
- *   - `<LinkButton>`  — same look, renders <Link> for client-side nav.
- *   - `<IconButton>`  — square icon-only, requires aria-label.
+ * Variants: primary | secondary | ghost | destructive | outline.
+ * Sizes:    sm | md (default).
  *
- * Variants align with the brand palette + the data-dense dashboard
- * style spec:
- *
- *   primary     — solid brand blue, white text. CTA / submit.
- *   secondary   — subtle border, hover gains brand border + text.
- *   ghost       — no border, hover gains brand text. Inline links.
- *   destructive — red border + red text. Delete / Stop.
- *
- * Sizes: `sm` (28px height, dense tables) and `md` (40px, default).
- * Both meet the touch-target rule when paired with adequate hit slop.
+ * Sentence-case labels (no more uppercase tracking everywhere).
  */
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'outline';
 export type ButtonSize = 'sm' | 'md';
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-(--color-brand) text-white hover:bg-(--color-brand-hover) border border-(--color-brand)',
+  primary: 'bg-brand text-white border border-brand hover:bg-brand-hover hover:border-brand-hover shadow-xs',
   secondary:
-    'bg-(--color-bg-base) text-(--color-text-primary) border border-(--color-border-default) hover:border-(--color-brand) hover:text-(--color-brand)',
-  ghost: 'bg-transparent text-(--color-text-secondary) hover:text-(--color-brand) border border-transparent',
+    'bg-bg-surface text-text-primary border border-border-default hover:bg-bg-elevated hover:border-border-strong shadow-xs',
+  ghost: 'bg-transparent text-text-secondary border border-transparent hover:bg-bg-elevated hover:text-text-primary',
   destructive:
-    'bg-(--color-bg-base) text-(--color-status-error) border border-(--color-status-error)/40 hover:bg-(--color-status-error)/10',
+    'bg-bg-surface text-status-error border border-status-error/30 hover:bg-status-error/10 hover:border-status-error/50',
+  outline: 'bg-transparent text-brand border border-brand/40 hover:bg-brand-soft hover:border-brand',
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {
-  sm: 'h-7 px-3 text-[10px]',
-  md: 'h-10 px-4 text-xs',
+  sm: 'h-(--button-height-sm) px-3 text-xs gap-1.5',
+  md: 'h-(--button-height) px-4 text-sm gap-2',
 };
 
 const BASE_CLASS =
-  'inline-flex items-center justify-center gap-2 font-display font-bold uppercase tracking-widest cursor-pointer transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center rounded-md font-medium transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none';
 
 function classFor(variant: ButtonVariant, size: ButtonSize, extra?: string): string {
   return `${BASE_CLASS} ${SIZE_CLASS[size]} ${VARIANT_CLASS[variant]}${extra !== undefined ? ` ${extra}` : ''}`;
@@ -98,8 +92,6 @@ export function LinkButton({
   target,
   rel,
 }: LinkButtonProps) {
-  // External / file-download links bypass next/link to keep the
-  // download attribute behavior + avoid the SPA navigation guard.
   if (download === true || target !== undefined) {
     return (
       <a
@@ -137,7 +129,7 @@ export function IconButton({
   type = 'button',
   ...rest
 }: IconButtonProps) {
-  const sizeClass = size === 'sm' ? 'h-7 w-7' : 'h-10 w-10';
+  const sizeClass = size === 'sm' ? 'h-7 w-7' : 'h-9 w-9';
   return (
     <button
       type={type}

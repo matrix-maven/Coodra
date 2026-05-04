@@ -1,18 +1,21 @@
 import type { ReactNode } from 'react';
 
 /**
- * Small inline status chip per `docs/feature-packs/04-web-app/wireframes/03-component-inventory.md`.
- * Used in tile values, table cells, and inline run status. Tokens drive everything; no inline hex.
+ * `apps/web/components/StatusChip.tsx` — small status pill.
+ *
+ * Refined for the new design: rounded pill, soft tinted bg, matching
+ * text color. Sentence-case (no more uppercase). Used in run-status,
+ * pack active/inactive, decision allow/ask/deny, etc.
  */
 
 export type StatusChipKind = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
 const STATUS_CLASSES: Record<StatusChipKind, string> = {
-  success: 'bg-(--color-status-success)/10 border-l-2 border-l-(--color-status-success) text-(--color-text-primary)',
-  warning: 'bg-(--color-status-warning)/10 border-l-2 border-l-(--color-status-warning) text-(--color-text-primary)',
-  error: 'bg-(--color-status-error)/10 border-l-2 border-l-(--color-status-error) text-(--color-text-primary)',
-  info: 'bg-(--color-status-info)/10 border-l-2 border-l-(--color-status-info) text-(--color-text-primary)',
-  neutral: 'bg-(--color-status-neutral)/10 border-l-2 border-l-(--color-status-neutral) text-(--color-text-primary)',
+  success: 'bg-status-success-soft text-status-success ring-1 ring-status-success/20',
+  warning: 'bg-status-warning-soft text-status-warning ring-1 ring-status-warning/20',
+  error: 'bg-status-error-soft text-status-error ring-1 ring-status-error/20',
+  info: 'bg-status-info-soft text-status-info ring-1 ring-status-info/20',
+  neutral: 'bg-bg-elevated text-text-secondary ring-1 ring-border-default',
 };
 
 export interface StatusChipProps {
@@ -25,7 +28,7 @@ export function StatusChip({ status, children }: StatusChipProps) {
     <span
       data-testid="status-chip"
       data-status={status}
-      className={`inline-flex h-6 items-center px-2 font-mono text-[11px] font-medium uppercase ${STATUS_CLASSES[status]}`}
+      className={`inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium ${STATUS_CLASSES[status]}`}
     >
       {children}
     </span>

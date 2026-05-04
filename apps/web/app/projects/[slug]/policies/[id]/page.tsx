@@ -205,7 +205,7 @@ export default async function PolicyDetailPage({
                 Add rule
               </Button>
             </div>
-            <p className="text-xs text-(--color-text-tertiary) md:col-span-2">
+            <p className="text-xs text-text-tertiary md:col-span-2">
               Bridge cache TTL is 60s. New rules visible to running bridges on the next cache miss.
             </p>
           </form>
@@ -217,7 +217,7 @@ export default async function PolicyDetailPage({
           <form action={setActiveAction} className="flex flex-col gap-3">
             <input type="hidden" name="identifier" value={policy.id} />
             <input type="hidden" name="active" value={policy.isActive ? 'false' : 'true'} />
-            <p className="text-sm text-(--color-text-secondary)">
+            <p className="text-sm text-text-secondary">
               {policy.isActive
                 ? `Disabling ${policy.name} stops all ${policy.rules.length} of its rules from applying within ~60s.`
                 : `Enabling ${policy.name} resumes all ${policy.rules.length} of its rules within ~60s.`}
@@ -235,10 +235,8 @@ export default async function PolicyDetailPage({
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

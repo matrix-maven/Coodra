@@ -66,8 +66,8 @@ export default async function TemplatesPage({
       ) : null}
 
       <Section title="Install from local path">
-        <details className="group border border-(--color-border-subtle) bg-(--color-bg-surface) p-4">
-          <summary className="flex cursor-pointer items-center gap-2 font-display text-xs font-bold uppercase tracking-widest text-(--color-text-primary)">
+        <details className="group border border-border-subtle bg-bg-surface p-4">
+          <summary className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-primary">
             <PlusIcon className="h-3 w-3" />
             <span>Install a template from a local path</span>
             <ChevronDownIcon className="ml-auto h-3 w-3 transition-transform duration-200 group-open:rotate-180" />
@@ -144,11 +144,11 @@ function TemplateCard({
     <Card size="md">
       <article className="flex flex-col gap-2">
         <div className="flex items-baseline gap-3">
-          <h3 className="font-mono text-xl font-medium text-(--color-text-primary)">{name}</h3>
+          <h3 className="font-mono text-xl font-medium text-text-primary">{name}</h3>
           <StatusChip status={source === 'bundled' ? 'info' : 'neutral'}>{source}</StatusChip>
-          {version !== null ? <span className="font-mono text-xs text-(--color-text-tertiary)">v{version}</span> : null}
+          {version !== null ? <span className="font-mono text-xs text-text-tertiary">v{version}</span> : null}
         </div>
-        {description !== null ? <p className="text-sm text-(--color-text-secondary)">{description}</p> : null}
+        {description !== null ? <p className="text-sm text-text-secondary">{description}</p> : null}
         <dl className="grid grid-cols-1 gap-1 text-xs md:grid-cols-2">
           <Field label="Languages" value={languages.length > 0 ? languages.join(', ') : '—'} />
           <Field label="@auto sections" value={autoSections.length > 0 ? autoSections.join(', ') : '—'} />
@@ -170,10 +170,8 @@ function Field({
 }) {
   return (
     <div className={`flex gap-2 ${full === true ? 'md:col-span-2' : ''}`}>
-      <dt className="font-display text-[10px] font-bold uppercase tracking-widest text-(--color-text-tertiary)">
-        {label}:
-      </dt>
-      <dd className="text-(--color-text-secondary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-tertiary">{label}:</dt>
+      <dd className="text-text-secondary">{value}</dd>
     </div>
   );
 }

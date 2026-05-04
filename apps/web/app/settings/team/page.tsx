@@ -14,9 +14,7 @@ export default function TeamSettingsPage() {
     <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-8 py-12">
       <header className="flex flex-col gap-2">
         <h1 className="font-display text-4xl font-black uppercase tracking-wide">Team settings</h1>
-        <p className="text-sm text-(--color-text-secondary)">
-          Manage members, invitations, roles, and org-level configuration.
-        </p>
+        <p className="text-sm text-text-secondary">Manage members, invitations, roles, and org-level configuration.</p>
       </header>
       <OrganizationProfile appearance={clerkAppearance} />
     </div>

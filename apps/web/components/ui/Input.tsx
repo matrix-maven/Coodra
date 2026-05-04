@@ -1,23 +1,19 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 /**
- * `apps/web/components/ui/Input.tsx` — text inputs (M04 Phase 2 UI).
+ * `apps/web/components/ui/Input.tsx` — refined form controls.
  *
- * Three primitives, one shape:
- *   - <Input>     native text/email/number input.
- *   - <Textarea>  resizable native textarea.
- *   - <Select>    native select (no JS, no popover).
- *
- * All three accept `invalid` to switch border to status-error and
- * mono to render in JetBrains Mono (slugs / paths). Height + padding
- * pinned via the --input-height token + --space-3 token.
+ * Rounded (radius-md), soft border, subtle hover, brand-tinted focus.
+ * `mono` toggles JetBrains Mono for slug/path inputs. `invalid`
+ * switches the border to status-error.
  */
 
 const BASE =
-  'block w-full border bg-(--color-bg-base) px-3 text-sm text-(--color-text-primary) transition-colors duration-200 placeholder:text-(--color-text-tertiary)';
+  'block w-full rounded-md border bg-bg-surface px-3 text-sm text-text-primary transition-colors duration-150 placeholder:text-text-muted focus-visible:outline-none';
 const HEIGHT = 'h-(--input-height)';
-const BORDER_DEFAULT = 'border-(--color-border-default) focus:border-(--color-brand)';
-const BORDER_INVALID = 'border-(--color-status-error) focus:border-(--color-status-error)';
+const BORDER_DEFAULT =
+  'border-border-default hover:border-border-strong focus:border-brand focus:shadow-[0_0_0_3px_rgba(37,99,235,0.18)]';
+const BORDER_INVALID = 'border-status-error focus:border-status-error focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]';
 
 function inputClass(invalid: boolean | undefined, mono: boolean | undefined, extra?: string): string {
   return [
@@ -48,14 +44,12 @@ export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaE
 }
 
 export function Textarea({ invalid, mono, className, ...rest }: TextareaProps) {
-  // Textarea overrides the fixed input height with `min-h-32` and
-  // honors the className override (most callers want a tall editor).
   return (
     <textarea
       {...rest}
       className={[
         BASE,
-        'min-h-32 resize-y py-3',
+        'min-h-32 resize-y py-3 leading-6',
         invalid === true ? BORDER_INVALID : BORDER_DEFAULT,
         mono === true ? 'font-mono' : '',
         className ?? '',
@@ -75,7 +69,7 @@ export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement
 
 export function Select({ invalid, mono, className, children, ...rest }: SelectProps) {
   return (
-    <select {...rest} className={inputClass(invalid, mono, className)}>
+    <select {...rest} className={`${inputClass(invalid, mono, className)} appearance-none pr-8`}>
       {children}
     </select>
   );
@@ -90,7 +84,9 @@ export function Checkbox({ className, ...rest }: CheckboxProps) {
     <input
       {...rest}
       type="checkbox"
-      className={`h-4 w-4 cursor-pointer accent-(--color-brand)${className !== undefined ? ` ${className}` : ''}`}
+      className={`h-4 w-4 cursor-pointer rounded border-border-default accent-brand${
+        className !== undefined ? ` ${className}` : ''
+      }`}
     />
   );
 }

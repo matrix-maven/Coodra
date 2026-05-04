@@ -34,30 +34,27 @@ export function ProjectsSwitcher({ currentSlug, options }: ProjectsSwitcherProps
   const current = options.find((o) => o.slug === currentSlug);
 
   return (
-    <div className="flex items-center gap-3">
+    <label htmlFor="project-switcher" className="flex items-center gap-2">
       {current !== undefined ? <StatusDot kind={current.statusDot} /> : null}
-      <label className="flex items-center gap-2">
-        <span className="font-display text-[10px] font-bold uppercase tracking-widest text-(--color-text-secondary)">
-          Project
-        </span>
-        <select
-          value={currentSlug}
-          onChange={(e) => {
-            const next = e.target.value;
-            if (next === currentSlug) return;
-            setPending(true);
-            router.push(`/projects/${encodeURIComponent(next)}` as never);
-          }}
-          disabled={pending}
-          className="border border-(--color-border-default) bg-(--color-bg-base) px-3 py-1.5 font-mono text-sm text-(--color-text-primary) hover:border-(--color-brand)"
-        >
-          {options.map((opt) => (
-            <option key={opt.slug} value={opt.slug}>
-              {opt.slug}
-            </option>
-          ))}
-        </select>
-      </label>
-    </div>
+      <span className="text-xs text-text-tertiary">Switch</span>
+      <select
+        id="project-switcher"
+        value={currentSlug}
+        onChange={(e) => {
+          const next = e.target.value;
+          if (next === currentSlug) return;
+          setPending(true);
+          router.push(`/projects/${encodeURIComponent(next)}` as never);
+        }}
+        disabled={pending}
+        className="h-8 rounded-md border border-border-default bg-bg-surface px-3 pr-8 font-mono text-xs text-text-primary transition-colors duration-150 hover:border-border-strong focus-visible:outline-none focus:border-brand"
+      >
+        {options.map((opt) => (
+          <option key={opt.slug} value={opt.slug}>
+            {opt.slug}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

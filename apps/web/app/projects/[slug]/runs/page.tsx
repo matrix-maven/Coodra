@@ -71,10 +71,7 @@ export default async function RunsListPage({
       <Card size="sm">
         <form className="flex flex-wrap items-end gap-4">
           <div className="flex flex-col gap-1.5">
-            <label
-              htmlFor="runs-status"
-              className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)"
-            >
+            <label htmlFor="runs-status" className="text-xs font-medium text-text-secondary">
               Status
             </label>
             <Select id="runs-status" name="status" defaultValue={sp.status ?? ''} className="w-48" mono>

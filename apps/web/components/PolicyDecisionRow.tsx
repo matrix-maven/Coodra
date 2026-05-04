@@ -33,8 +33,8 @@ export function PolicyDecisionRow({
   // Truncate reason to 80 chars in the table; full text on hover.
   const displayReason = reason.length > 80 ? `${reason.slice(0, 80)}…` : reason;
   return (
-    <tr className="border-b border-(--color-border-subtle) hover:bg-(--color-bg-surface)">
-      <td className="px-3 py-2 text-xs text-(--color-text-secondary)">
+    <tr className="border-b border-border-subtle hover:bg-bg-surface">
+      <td className="px-3 py-2 text-xs text-text-secondary">
         <RelativeTime date={createdAt} mode="compact" />
       </td>
       <td className="px-3 py-2">
@@ -43,10 +43,10 @@ export function PolicyDecisionRow({
       <td className="px-3 py-2">
         <ToolBadge name={toolName || '—'} />
       </td>
-      <td className="px-3 py-2 text-sm text-(--color-text-primary)" title={reason}>
+      <td className="px-3 py-2 text-sm text-text-primary" title={reason}>
         {displayReason}
       </td>
-      <td className="px-3 py-2 font-mono text-xs text-(--color-text-tertiary)">{matchedRuleId ?? '—'}</td>
+      <td className="px-3 py-2 font-mono text-xs text-text-tertiary">{matchedRuleId ?? '—'}</td>
     </tr>
   );
 }

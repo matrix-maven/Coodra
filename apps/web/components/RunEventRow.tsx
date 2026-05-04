@@ -44,35 +44,31 @@ export function RunEventRow({ phase, toolName, toolUseId, toolInput, outcome, cr
     }
   }
   return (
-    <details className="border-b border-(--color-border-subtle) py-2 [&_summary]:cursor-pointer">
+    <details className="border-b border-border-subtle py-2 [&_summary]:cursor-pointer">
       <summary className="flex items-center gap-3 px-3">
-        <span className="font-mono text-sm text-(--color-text-tertiary)" title={`phase: ${phase}`}>
+        <span className="font-mono text-sm text-text-tertiary" title={`phase: ${phase}`}>
           {glyph}
         </span>
-        <span className="w-12 font-mono text-xs uppercase text-(--color-text-tertiary)">{phase}</span>
+        <span className="w-12 font-mono text-xs uppercase text-text-tertiary">{phase}</span>
         <ToolBadge name={toolName || '—'} />
-        <span className="font-mono text-xs text-(--color-text-tertiary)">{toolUseId}</span>
-        <span className="ml-auto text-xs text-(--color-text-secondary)">
+        <span className="font-mono text-xs text-text-tertiary">{toolUseId}</span>
+        <span className="ml-auto text-xs text-text-secondary">
           <RelativeTime date={createdAt} mode="compact" />
         </span>
       </summary>
       <div className="mt-2 space-y-2 px-3 pb-3">
         {inputPretty !== '' && inputPretty !== '{}' ? (
           <div>
-            <div className="font-display text-xs font-bold uppercase tracking-wider text-(--color-text-secondary)">
-              Tool input
-            </div>
-            <pre className="mt-1 overflow-x-auto bg-(--color-bg-surface) p-3 font-mono text-xs text-(--color-text-primary)">
+            <div className="text-xs font-medium text-text-secondary">Tool input</div>
+            <pre className="mt-1 overflow-x-auto bg-bg-surface p-3 font-mono text-xs text-text-primary">
               {inputPretty}
             </pre>
           </div>
         ) : null}
         {outcomePretty !== null ? (
           <div>
-            <div className="font-display text-xs font-bold uppercase tracking-wider text-(--color-text-secondary)">
-              Outcome
-            </div>
-            <pre className="mt-1 overflow-x-auto bg-(--color-bg-surface) p-3 font-mono text-xs text-(--color-text-primary)">
+            <div className="text-xs font-medium text-text-secondary">Outcome</div>
+            <pre className="mt-1 overflow-x-auto bg-bg-surface p-3 font-mono text-xs text-text-primary">
               {outcomePretty}
             </pre>
           </div>

@@ -21,10 +21,11 @@ describe('StatusChip', () => {
     expect(chip.textContent).toBe('label');
   });
 
-  it('uses the correct status color border-left', () => {
+  it('uses the correct status color tint (success → success-soft bg + ring)', () => {
     const { getByTestId } = render(<StatusChip status="success">ok</StatusChip>);
     const chip = getByTestId('status-chip');
-    expect(chip.className).toContain('border-l-(--color-status-success)');
+    expect(chip.className).toContain('bg-status-success-soft');
+    expect(chip.className).toContain('text-status-success');
   });
 });
 

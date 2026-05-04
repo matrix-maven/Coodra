@@ -1,23 +1,14 @@
-/**
- * `apps/web/components/ui/PageShell.tsx` — outer page container with
- * canonical horizontal gutter + vertical rhythm (M04 Phase 2 UI).
- *
- * Every top-level page composes from PageShell so spacing matches
- * across the workspace + project surfaces. The two variants reflect
- * the IA split:
- *
- *   - `variant="workspace"` — used by /, /init, /sync, /settings/*.
- *     Owns its own outer container (max-w-[1200px] + py-8 + px-8).
- *   - `variant="project"` — used by every /projects/[slug]/* route.
- *     Lives INSIDE the project layout's existing container (which
- *     already supplies the outer chrome via ProjectSubNav + project
- *     header bar), so it only contributes vertical rhythm.
- *
- * Why a single component for both: the outer max-width + horizontal
- * gutter live ONE place. Tweaking the page width touches one file.
- */
-
 import type { ReactNode } from 'react';
+
+/**
+ * `apps/web/components/ui/PageShell.tsx` — page content wrapper.
+ *
+ * Workspace pages (`/`, `/init`, `/sync`, `/settings/workspace`) own
+ * their own outer container because the root layout doesn't render
+ * the project topbar for them. Project pages live inside the
+ * `/projects/[slug]/layout.tsx` <main> already so the project variant
+ * just provides vertical rhythm.
+ */
 
 export interface PageShellProps {
   readonly children: ReactNode;
@@ -30,7 +21,7 @@ export function PageShell({ children, variant = 'project' }: PageShellProps) {
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex max-w-[1200px] flex-col gap-(--space-section) px-(--space-page-x) py-(--space-section) outline-none"
+        className="mx-auto flex w-full max-w-[1280px] flex-col gap-(--space-section) px-(--space-page-x) py-(--space-page-y) outline-none"
       >
         {children}
       </main>

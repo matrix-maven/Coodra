@@ -82,7 +82,7 @@ export default async function ContextPacksListPage({ params }: { params: Promise
                     <TD mono>
                       <Link
                         href={detailHref as never}
-                        className="text-(--color-brand) transition-colors duration-200 hover:text-(--color-brand-hover) hover:underline"
+                        className="text-brand transition-colors duration-200 hover:text-brand-hover hover:underline"
                       >
                         {p.title}
                       </Link>
@@ -96,7 +96,7 @@ export default async function ContextPacksListPage({ params }: { params: Promise
                     <TD mono muted>
                       <Link
                         href={`${baseHref}/runs/${encodeURIComponent(p.runId)}` as never}
-                        className="hover:text-(--color-brand)"
+                        className="hover:text-brand"
                       >
                         {p.runId.slice(0, 8)}…
                       </Link>

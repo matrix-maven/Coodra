@@ -63,13 +63,13 @@ export function RunLiveClient({ runId, projectSlug, initialSnapshot, initialLast
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
         <div className="flex items-baseline gap-4">
-          <h1 className="font-mono text-3xl font-medium text-(--color-text-primary)">{snapshot.run.id}</h1>
+          <h1 className="font-mono text-3xl font-medium text-text-primary">{snapshot.run.id}</h1>
           <RunStatusChip status={snapshot.run.status} />
-          <span className="ml-auto inline-flex items-center gap-2 border border-(--color-status-info)/30 bg-(--color-status-info)/10 px-2 py-1 font-display text-xs font-bold uppercase tracking-wider text-(--color-status-info)">
+          <span className="ml-auto inline-flex items-center gap-2 border border-status-info/30 bg-status-info/10 px-2 py-1 text-xs font-medium text-status-info">
             <span className="streaming-pulse">●</span> Streaming
           </span>
         </div>
-        <div className="flex items-center gap-4 text-xs text-(--color-text-secondary)">
+        <div className="flex items-center gap-4 text-xs text-text-secondary">
           <span>
             Started <RelativeTime date={startedAt} mode="compact" />
           </span>
@@ -80,9 +80,9 @@ export function RunLiveClient({ runId, projectSlug, initialSnapshot, initialLast
               Ended <RelativeTime date={endedAt} mode="compact" /> ({compactDuration(startedMs, endedMs)})
             </span>
           )}
-          <span className="ml-auto font-mono text-(--color-text-tertiary)">
+          <span className="ml-auto font-mono text-text-tertiary">
             {error !== undefined ? (
-              <span className="text-(--color-status-error)">
+              <span className="text-status-error">
                 Reconnecting{nextAttemptInMs !== undefined ? ` in ${Math.round(nextAttemptInMs / 1000)}s` : ''}…
               </span>
             ) : isPaused ? (
@@ -98,7 +98,7 @@ export function RunLiveClient({ runId, projectSlug, initialSnapshot, initialLast
         {snapshot.events.length === 0 ? (
           <Empty hint="No events recorded yet. Watch this space." />
         ) : (
-          <div className="border border-(--color-border-subtle)">
+          <div className="border border-border-subtle">
             {snapshot.events.map((evt) => (
               <RunEventRow
                 key={evt.id}
@@ -136,8 +136,8 @@ export function RunLiveClient({ runId, projectSlug, initialSnapshot, initialLast
         {snapshot.policyDecisions.length === 0 ? (
           <Empty hint="No policy decisions yet." />
         ) : (
-          <table className="w-full border border-(--color-border-subtle)">
-            <thead className="bg-(--color-bg-elevated)">
+          <table className="w-full border border-border-subtle">
+            <thead className="bg-bg-elevated">
               <tr>
                 <Th>Time</Th>
                 <Th>Decision</Th>
@@ -184,7 +184,7 @@ export function RunLiveClient({ runId, projectSlug, initialSnapshot, initialLast
 function Section({ title, children }: { readonly title: string; readonly children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-display text-xl font-bold uppercase tracking-wide text-(--color-text-primary)">{title}</h2>
+      <h2 className="font-display text-xl font-bold uppercase tracking-wide text-text-primary">{title}</h2>
       {children}
     </section>
   );
@@ -192,16 +192,10 @@ function Section({ title, children }: { readonly title: string; readonly childre
 
 function Empty({ hint }: { readonly hint: string }) {
   return (
-    <div className="border border-(--color-border-subtle) bg-(--color-bg-surface) p-6 text-center text-sm text-(--color-text-tertiary)">
-      {hint}
-    </div>
+    <div className="border border-border-subtle bg-bg-surface p-6 text-center text-sm text-text-tertiary">{hint}</div>
   );
 }
 
 function Th({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <th className="px-3 py-2 text-left font-display text-xs font-bold uppercase tracking-wider text-(--color-text-secondary)">
-      {children}
-    </th>
-  );
+  return <th className="px-3 py-2 text-left text-xs font-medium text-text-secondary">{children}</th>;
 }

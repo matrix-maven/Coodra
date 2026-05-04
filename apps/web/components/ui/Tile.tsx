@@ -1,15 +1,14 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { ChevronRightIcon } from './icons';
+
 /**
- * `apps/web/components/ui/Tile.tsx` — KPI tile (M04 Phase 2 UI).
+ * `apps/web/components/ui/Tile.tsx` — KPI tile for dashboards.
  *
- * One canonical implementation of the "label + big number + footer
- * caret" tile. Replaces the 4 hand-rolled variants across project
- * home, doctor tile, sync, and settings overview.
- *
- * Renders as a <Link> when `href` is set (clickable card with hover
- * border) or a plain <div> otherwise.
+ * Refined card with label + large number + optional hint + optional
+ * footer. Clickable variant lifts on hover. Restrained color usage —
+ * tone tints only the headline number, not the chrome.
  */
 
 export type TileTone = 'info' | 'success' | 'warning' | 'error' | 'neutral';
@@ -17,41 +16,39 @@ export type TileTone = 'info' | 'success' | 'warning' | 'error' | 'neutral';
 export interface TileProps {
   readonly label: string;
   readonly value: ReactNode;
-  /** Optional sub-line (caption / context under the number). */
   readonly hint?: ReactNode;
   readonly tone?: TileTone;
   readonly href?: string;
-  /** Extra trailing content (status chip, mini-strip). */
   readonly footer?: ReactNode;
 }
 
 const TONE_TEXT: Record<TileTone, string> = {
-  info: 'text-(--color-status-info)',
-  success: 'text-(--color-status-success)',
-  warning: 'text-(--color-status-warning)',
-  error: 'text-(--color-status-error)',
-  neutral: 'text-(--color-text-primary)',
+  info: 'text-status-info',
+  success: 'text-status-success',
+  warning: 'text-status-warning',
+  error: 'text-status-error',
+  neutral: 'text-text-primary',
 };
 
 export function Tile({ label, value, hint, tone = 'neutral', href, footer }: TileProps) {
   const inner = (
     <>
-      <div className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-text-secondary">{label}</span>
+        {href !== undefined ? (
+          <ChevronRightIcon className="h-4 w-4 text-text-muted transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-text-secondary" />
+        ) : null}
       </div>
-      <div className={`font-display text-5xl font-black leading-none ${TONE_TEXT[tone]}`}>{value}</div>
-      {hint !== undefined ? <p className="text-xs text-(--color-text-tertiary)">{hint}</p> : null}
+      <div className={`font-display text-3xl font-semibold tracking-tight ${TONE_TEXT[tone]}`}>{value}</div>
+      {hint !== undefined ? <p className="text-xs text-text-tertiary">{hint}</p> : null}
       {footer !== undefined ? <div className="mt-auto">{footer}</div> : null}
     </>
   );
   const baseClass =
-    'group flex flex-col gap-2 border border-(--color-border-subtle) bg-(--color-bg-surface) p-6 transition-colors duration-200';
+    'group flex flex-col gap-2 rounded-lg border border-border-default bg-bg-surface p-5 shadow-xs transition-all duration-200';
   if (href !== undefined) {
     return (
-      <Link
-        href={href as never}
-        className={`${baseClass} cursor-pointer hover:border-(--color-brand) hover:bg-(--color-bg-elevated)`}
-      >
+      <Link href={href as never} className={`${baseClass} cursor-pointer hover:border-border-strong hover:shadow-md`}>
         {inner}
       </Link>
     );

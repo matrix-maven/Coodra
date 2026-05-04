@@ -122,7 +122,7 @@ export default async function ProjectSettingsPage({
                   <TD mono>
                     <a
                       href={`/projects/${encodeURIComponent(project.slug)}/runs/${encodeURIComponent(run.id)}`}
-                      className="text-(--color-text-code) hover:text-(--color-brand-hover)"
+                      className="text-text-code hover:text-brand-hover"
                     >
                       {run.id}
                     </a>
@@ -147,7 +147,7 @@ export default async function ProjectSettingsPage({
       <Section title="Export">
         <Card size="md">
           <div className="flex flex-col gap-3">
-            <p className="text-sm text-(--color-text-secondary)">
+            <p className="text-sm text-text-secondary">
               Download every per-project audit row as JSONL — one object per line, tagged by{' '}
               <span className="font-mono">type</span> (project / run / run_event / decision / policy_decision /
               context_pack).
@@ -169,7 +169,7 @@ export default async function ProjectSettingsPage({
           <Card size="md">
             <form action={renameProjectAction} className="flex flex-col gap-4">
               <input type="hidden" name="identifier" value={project.id} />
-              <p className="text-sm text-(--color-text-primary)">
+              <p className="text-sm text-text-primary">
                 Change the project's slug. The URL becomes <span className="font-mono">/projects/&lt;new-slug&gt;</span>
                 . Runs / events / context packs stay attached. Other devices that have the project opened will get a 404
                 until they refresh.
@@ -218,11 +218,11 @@ export default async function ProjectSettingsPage({
           <Card size="md">
             <form action={resetProjectAction} className="flex flex-col gap-4">
               <input type="hidden" name="identifier" value={project.id} />
-              <p className="text-sm text-(--color-text-primary)">
+              <p className="text-sm text-text-primary">
                 Resetting <span className="font-mono">{project.slug}</span> will delete every per-run audit row for this
                 project: runs, run_events, decisions, policy_decisions, context_packs.
               </p>
-              <ul className="ml-6 list-disc text-xs text-(--color-text-secondary)">
+              <ul className="ml-6 list-disc text-xs text-text-secondary">
                 <li>Total runs to delete: {totalRuns}</li>
                 <li>Cascade order matches the CLI's `contextos project reset` (FK-aware)</li>
                 <li>Default: keeps policies + policy_rules + project-scoped kill_switches</li>
@@ -254,7 +254,7 @@ export default async function ProjectSettingsPage({
           <Card size="md" tone="danger">
             <form action={deleteProjectAction} className="flex flex-col gap-4">
               <input type="hidden" name="identifier" value={project.id} />
-              <p className="text-sm text-(--color-text-primary)">
+              <p className="text-sm text-text-primary">
                 Permanently delete <span className="font-mono">{project.slug}</span> AND every per-run audit row,
                 policy, policy_rule, kill_switch, and context pack scoped to this project. The projects row itself is
                 also dropped — slug becomes available for re-init. There is no undo.
@@ -293,10 +293,8 @@ export default async function ProjectSettingsPage({
 function Field({ label, value }: { readonly label: string; readonly value: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-3">
-      <dt className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-        {label}
-      </dt>
-      <dd className="text-(--color-text-primary)">{value}</dd>
+      <dt className="text-xs font-medium text-text-secondary">{label}</dt>
+      <dd className="text-text-primary">{value}</dd>
     </div>
   );
 }

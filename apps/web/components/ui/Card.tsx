@@ -1,18 +1,11 @@
 import type { ReactNode } from 'react';
 
 /**
- * `apps/web/components/ui/Card.tsx` — surface card with consistent
- * border + padding (M04 Phase 2 UI).
+ * `apps/web/components/ui/Card.tsx` — surface card.
  *
- * Replaces the per-page mix of `border border-(--color-border-subtle)
- * bg-(--color-bg-surface) p-{4,6,8}`. Three sizes only:
- *
- *   - `sm`   → p-4   (compact callouts, sidebars)
- *   - `md`   → p-6   (default — most content cards)
- *   - `lg`   → p-8   (hero sections, large empty states)
- *
- * Optional `tone` switches the border color — used for destructive /
- * error containment (Delete project section, parse-error banners).
+ * Rounded (radius-lg), soft border + xs shadow. Three sizes for
+ * padding density. Tone variants tint the border for danger/warning/
+ * info containment without being loud.
  */
 
 export interface CardProps {
@@ -20,25 +13,28 @@ export interface CardProps {
   readonly size?: 'sm' | 'md' | 'lg';
   readonly tone?: 'default' | 'danger' | 'warning' | 'info';
   readonly className?: string;
+  /** When true the card lifts on hover (used inside lists of clickable cards). */
+  readonly interactive?: boolean;
 }
 
 const SIZE_PADDING: Record<NonNullable<CardProps['size']>, string> = {
   sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  md: 'p-5',
+  lg: 'p-6',
 };
 
 const TONE_BORDER: Record<NonNullable<CardProps['tone']>, string> = {
-  default: 'border-(--color-border-subtle)',
-  danger: 'border-(--color-status-error)/40',
-  warning: 'border-(--color-status-warning)/40',
-  info: 'border-(--color-status-info)/40',
+  default: 'border-border-default',
+  danger: 'border-status-error/30',
+  warning: 'border-status-warning/30',
+  info: 'border-status-info/30',
 };
 
-export function Card({ children, size = 'md', tone = 'default', className }: CardProps) {
+export function Card({ children, size = 'md', tone = 'default', className, interactive = false }: CardProps) {
+  const interactiveClass = interactive ? 'transition-all duration-200 hover:border-border-strong hover:shadow-md' : '';
   return (
     <div
-      className={`border bg-(--color-bg-surface) ${SIZE_PADDING[size]} ${TONE_BORDER[tone]}${
+      className={`rounded-lg border bg-bg-surface shadow-xs ${SIZE_PADDING[size]} ${TONE_BORDER[tone]} ${interactiveClass}${
         className !== undefined ? ` ${className}` : ''
       }`}
     >

@@ -1,9 +1,9 @@
-import { ClerkProvider } from '@clerk/nextjs';
+import { ClerkProvider, OrganizationSwitcher, UserButton } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 
-import { Breadcrumb } from '@/components/Breadcrumb';
-import { HeaderNav } from '@/components/HeaderNav';
+import { Sidebar } from '@/components/Sidebar';
+import { SoloModeBadge } from '@/components/SoloModeBadge';
 import { getActor } from '@/lib/auth';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 import './globals.css';
@@ -11,14 +11,14 @@ import './globals.css';
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
-  weight: ['300', '400', '500', '700', '900'],
+  weight: ['300', '400', '500', '600', '700'],
   display: 'swap',
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
-  weight: ['400', '500', '700'],
+  weight: ['400', '500', '600'],
   display: 'swap',
 });
 
@@ -28,15 +28,13 @@ export const metadata: Metadata = {
 };
 
 /**
- * Root layout. Wraps the entire tree in <ClerkProvider> so Clerk
- * components anywhere in the route tree (sign-in/sign-up,
- * OrganizationProfile, UserButton, etc.) get the auth context. Solo
- * mode benefits from the provider being a no-op when no real session
- * exists; the middleware short-circuit handles the auth-bypass story.
+ * Root layout — full UI redesign.
  *
- * `signInUrl` + `signUpUrl` point at our brand-styled wrappers so
- * Clerk's redirect logic (e.g. when middleware.protect() throws)
- * lands on the right page.
+ * The shell is a 248px persistent sidebar + flexible content area.
+ * The Sidebar component handles workspace nav AND project nav (when
+ * inside /projects/[slug]/*) so we no longer need a separate sub-nav
+ * strip. The project /layout.tsx renders the project context band
+ * + adds <main id="main"> for the skip-link target.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const actor = await getActor();
@@ -50,24 +48,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     >
       <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
         <body>
-          {/*
-           * Skip-to-main link (M04 Phase 2 UI a11y) — visible on
-           * keyboard focus only. Tabbing from the URL bar hits this
-           * first; activating jumps past HeaderNav + project layout's
-           * project bar + ProjectSubNav into the page <main>. The
-           * matching `id="main"` is set by either the workspace
-           * PageShell or the project layout, depending on route.
-           */}
           <a href="#main" className="skip-to-main">
             Skip to main content
           </a>
-          <HeaderNav actor={actor} />
-          <Breadcrumb />
-          {/* M04 Phase 2 S2c: padding moves into per-section layouts.
-              The /projects/[slug] nested layout owns its own
-              <main id="main">. Top-level pages (`/`, /init, /sync,
-              /settings/*) supply theirs via <PageShell variant="workspace">. */}
-          {children}
+
+          <div className="flex min-h-screen">
+            <Sidebar
+              mode={actor.mode}
+              footerSlot={
+                actor.mode === 'solo' ? (
+                  <SoloModeBadge />
+                ) : (
+                  <div className="flex items-center justify-between gap-2">
+                    <OrganizationSwitcher
+                      appearance={clerkAppearance}
+                      hidePersonal
+                      afterCreateOrganizationUrl="/"
+                      afterSelectOrganizationUrl="/"
+                    />
+                    <UserButton appearance={clerkAppearance} userProfileUrl="/settings/account" />
+                  </div>
+                )
+              }
+            />
+            <div className="flex min-w-0 flex-1 flex-col bg-bg-base">{children}</div>
+          </div>
         </body>
       </html>
     </ClerkProvider>

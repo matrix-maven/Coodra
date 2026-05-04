@@ -139,10 +139,8 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
             </Select>
           </FormRow>
 
-          <fieldset className="flex flex-col gap-2 border border-(--color-border-subtle) bg-(--color-bg-elevated) p-4">
-            <legend className="px-2 font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary)">
-              Advanced
-            </legend>
+          <fieldset className="flex flex-col gap-2 border border-border-subtle bg-bg-elevated p-4">
+            <legend className="px-2 text-xs font-medium text-text-secondary">Advanced</legend>
             <label htmlFor="init-noGraphify" className="flex items-start gap-3 text-sm">
               <Checkbox id="init-noGraphify" name="noGraphify" defaultChecked />
               <span>
@@ -152,7 +150,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
             </label>
           </fieldset>
 
-          <div className="flex items-center gap-3 border-t border-(--color-border-subtle) pt-6">
+          <div className="flex items-center gap-3 border-t border-border-subtle pt-6">
             <Button type="submit" variant="primary">
               Provision project
             </Button>
