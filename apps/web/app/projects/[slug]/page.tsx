@@ -3,6 +3,7 @@ import { StatusChip } from '@/components/StatusChip';
 import { ToolBadge } from '@/components/ToolBadge';
 import { compactTimestamp, relativeTime } from '@/lib/format';
 import { resolveProjectFromParams } from '@/lib/project-context';
+import { getDoctorReport } from '@/lib/queries/doctor';
 import { fetchProjectHomeSnapshot } from '@/lib/queries/project-home';
 
 /**
@@ -17,7 +18,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function ProjectHomePage({ params }: { params: Promise<{ slug: string }> }) {
   const project = await resolveProjectFromParams(params);
-  const snapshot = await fetchProjectHomeSnapshot({ projectId: project.id, projectSlug: project.slug });
+  const [snapshot, doctorReport] = await Promise.all([
+    fetchProjectHomeSnapshot({ projectId: project.id, projectSlug: project.slug }),
+    getDoctorReport('essential'),
+  ]);
   const baseHref = `/projects/${encodeURIComponent(project.slug)}`;
 
   return (
@@ -51,7 +55,13 @@ export default async function ProjectHomePage({ params }: { params: Promise<{ sl
           tone={snapshot.activeKillSwitches > 0 ? 'warning' : 'neutral'}
           href={`${baseHref}/kill-switches`}
         />
-        <DoctorTile baseHref={baseHref} />
+        <DoctorTile
+          baseHref={baseHref}
+          ok={doctorReport.summary.ok}
+          warn={doctorReport.summary.warn}
+          fail={doctorReport.summary.fail}
+          total={doctorReport.checks.length}
+        />
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
@@ -171,7 +181,22 @@ function Tile({
   );
 }
 
-function DoctorTile({ baseHref }: { readonly baseHref: string }) {
+function DoctorTile({
+  baseHref,
+  ok,
+  warn,
+  fail,
+  total,
+}: {
+  readonly baseHref: string;
+  readonly ok: number;
+  readonly warn: number;
+  readonly fail: number;
+  readonly total: number;
+}) {
+  // Tone follows worst-status: any red → error, any yellow → warning, else success.
+  const tone: 'error' | 'warning' | 'success' = fail > 0 ? 'error' : warn > 0 ? 'warning' : 'success';
+  const headline = fail > 0 ? `${fail} red` : warn > 0 ? `${warn} yellow` : `${ok}/${total} OK`;
   return (
     <Link
       href={`${baseHref}/doctor` as never}
@@ -180,10 +205,13 @@ function DoctorTile({ baseHref }: { readonly baseHref: string }) {
       <div className="font-display text-xs font-bold uppercase tracking-wider text-(--color-text-secondary)">
         Doctor
       </div>
-      <div className="font-display text-2xl font-black text-(--color-text-tertiary)">—</div>
+      <div className={`font-display text-5xl font-black ${TONE_TEXT[tone]}`}>{headline}</div>
       <p className="text-xs text-(--color-text-tertiary)">
-        Live registry lands in S8. Run <span className="font-mono">contextos doctor --full --json</span> for now.
+        {ok} green · {warn} yellow · {fail} red of {total} essential checks.
       </p>
+      <div className="mt-auto border-t border-(--color-border-subtle) pt-2 text-right font-display text-xs font-bold uppercase tracking-wider text-(--color-text-tertiary) group-hover:text-(--color-brand)">
+        ▸
+      </div>
     </Link>
   );
 }

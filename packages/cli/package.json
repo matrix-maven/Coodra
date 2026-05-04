@@ -26,6 +26,10 @@
     "./lib/auto-marker": {
       "types": "./dist/lib/auto-marker/index.d.ts",
       "import": "./dist/lib/auto-marker/index.js"
+    },
+    "./lib/doctor": {
+      "types": "./dist/lib/doctor/index.d.ts",
+      "import": "./dist/lib/doctor/index.js"
     }
   },
   "bin": {
