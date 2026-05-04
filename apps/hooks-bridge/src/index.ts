@@ -82,6 +82,10 @@ async function main(): Promise<void> {
   const runRecorder = createRunRecorder({
     db: dbClient.handle,
     kick: () => outboxWorker.kick(),
+    // M04 Phase 2 S1 (F3 root-cause fix): mode passed so the
+    // recorder's defensive implicit session_open uses the right
+    // value. Falls back to 'solo' if env.CONTEXTOS_MODE is undefined.
+    mode: env.CONTEXTOS_MODE ?? 'solo',
   });
   outboxWorker.start();
   bootLogger.info({ event: 'outbox_worker_started' }, 'OutboxWorker started; pending_jobs draining');

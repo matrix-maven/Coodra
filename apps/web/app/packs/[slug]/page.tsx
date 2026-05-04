@@ -12,7 +12,12 @@ import { getPack } from '@/lib/queries/packs';
  * markdown→HTML renderer lands in S11 alongside the per-event
  * response shaping cleanup; for now we use a code-block render
  * (always-correct fallback that preserves layout).
+ *
+ * M04 Phase 2 S1 (F1, OQ-9 lock): force-dynamic so file edits to
+ * spec.md/implementation.md/techstack.md show up on the next visit
+ * without a rebuild.
  */
+export const dynamic = 'force-dynamic';
 
 export default async function PackDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug: rawSlug } = await params;

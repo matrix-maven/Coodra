@@ -6,7 +6,7 @@ import type {
   SessionClosePayloadV1,
   SessionOpenPayloadV1,
 } from '@coodra/contextos-cli/lib/outbox';
-import { type DbHandle, GLOBAL_PROJECT_ID, scheduleAuditWriteWithSync } from '@coodra/contextos-db';
+import { type DbHandle, GLOBAL_PROJECT_ID, insertRun, scheduleAuditWriteWithSync } from '@coodra/contextos-db';
 import { buildPolicyDecisionIdempotencyKey } from '@coodra/contextos-policy';
 import { createLogger, generateRunKey } from '@coodra/contextos-shared';
 import type { HookEvent } from '@coodra/contextos-shared/hooks';
@@ -90,6 +90,16 @@ export interface CreateRunRecorderDeps {
    * on the next tick (or on a manual `worker.tick()`).
    */
   readonly kick?: () => void;
+  /**
+   * M04 Phase 2 S1 (F3 root-cause fix). Mode used for the implicit
+   * `session_open` payload that fires on the FIRST audit-write for
+   * a (projectId, sessionId) tuple — closes the SessionStart-missed
+   * orphan path. Defaults to `'solo'` if omitted (matches the
+   * conservative bridge default elsewhere). The runs row is opened
+   * with this mode value; if a real SessionStart later fires with a
+   * different mode, ON CONFLICT DO NOTHING keeps the first value.
+   */
+  readonly mode?: 'solo' | 'team';
 }
 
 export interface RunRecorder {
@@ -137,6 +147,67 @@ export interface RunRecorder {
 
 export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
   const kick = deps.kick;
+  const mode = deps.mode ?? 'solo';
+
+  /**
+   * M04 Phase 2 S1 (F3 root-cause fix). In-memory set of
+   * (projectId | __global__) + sessionId tuples we've already opened
+   * a synthetic session_open for in this bridge process. First touch
+   * fires session_open; subsequent calls skip. Reset on bridge
+   * restart — that's OK because the destination INSERT uses
+   * ON CONFLICT (projectId, sessionId) DO NOTHING, so a re-fire
+   * after restart is a no-op at the runs table.
+   *
+   * Closes the case where PreToolUse / PostToolUse / UserPromptSubmit
+   * fire without a preceding SessionStart (audit-style traffic from
+   * the bridge-direct test path, agents that skipped SessionStart, or
+   * just events that arrived before SessionStart due to ordering).
+   * Pre-fix: every such event landed with `run_id=NULL` because the
+   * dispatcher's `lookupRunId` couldn't find a runs row.
+   */
+  const sessionsOpened = new Set<string>();
+
+  function ensureSessionOpenInflight(event: HookEvent, projectId: string | undefined): void {
+    const effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID;
+    const key = `${effectiveProjectId}|${event.sessionId}`;
+    if (sessionsOpened.has(key)) return;
+    sessionsOpened.add(key);
+    const rowId = generateRunKey({ projectId: effectiveProjectId, sessionId: event.sessionId });
+    // M04 Phase 2 S1 (F3 root-cause fix). Direct insertRun (NOT via
+    // the durable queue) so the runs row exists synchronously
+    // before the subsequent run_event / policy_decision enqueue.
+    // Going through the queue produced a race: both rows landed in
+    // pending_jobs in the same microsecond, the worker tick picked
+    // them up in the same batch, and the dispatcher's lookupRunId
+    // for the run_event sometimes ran before the session_open
+    // dispatch had inserted the runs row. ON CONFLICT (project_id,
+    // session_id) DO NOTHING makes the direct insert idempotent
+    // against any later explicit recordSessionStart.
+    //
+    // The audit trail is the runs row itself + the run_events
+    // rows that follow; we do NOT also enqueue a session_open
+    // queue payload (that would be wasted work — the dispatcher's
+    // INSERT would no-op against the row this function just put
+    // in place).
+    void insertRun(deps.db, {
+      id: rowId,
+      projectId: effectiveProjectId,
+      sessionId: event.sessionId,
+      agentType: event.agentType,
+      mode,
+    }).catch((err) => {
+      recorderLogger.warn(
+        {
+          event: 'implicit_session_open_insert_failed',
+          sessionId: event.sessionId,
+          projectId: effectiveProjectId,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'implicit session_open direct insertRun threw; swallowing — run_event may end up with NULL run_id',
+      );
+      sessionsOpened.delete(key);
+    });
+  }
 
   /**
    * Hash the (sessionId, turnId, phase) triple as the row id.
@@ -204,9 +275,14 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
 
   return {
     recordPostToolUse(event, projectId) {
+      // M04 Phase 2 S1 (F3 root-cause fix): defensive session_open
+      // before the first event for this (projectId, sessionId).
+      // Idempotent at the destination + memoized in-process.
+      ensureSessionOpenInflight(event, projectId);
       enqueueRunEvent({ event, phase: 'post', logEvent: 'run_event_enqueue_failed', projectId });
     },
     recordUserPromptSubmit(event, projectId) {
+      ensureSessionOpenInflight(event, projectId);
       enqueueRunEvent({
         event,
         phase: 'user_prompt',
@@ -221,6 +297,12 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       // row still lands. This preserves the audit trail for agents
       // operating in unregistered cwds.
       const effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID;
+      // M04 Phase 2 S1 (F3 root-cause fix): mark this session as
+      // "opened" so subsequent recordPostToolUse / recordPolicyDecision
+      // / recordUserPromptSubmit calls skip the defensive implicit
+      // session_open. The explicit recordSessionStart payload below
+      // is the authoritative one.
+      sessionsOpened.add(`${effectiveProjectId}|${event.sessionId}`);
       // Module 04a finding #9 (2026-04-28): use the canonical
       // `run:{projectId}:{sessionId}:{uuid}` shape so bridge-auto-created
       // runs match the format MCP `get_run_id` produces. Pre-fix the
@@ -294,6 +376,9 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
     },
 
     recordPolicyDecision({ event, projectId, decision, reason, matchedRuleId }) {
+      // M04 Phase 2 S1 (F3 root-cause fix): defensive session_open
+      // before the first audit row for this (projectId, sessionId).
+      ensureSessionOpenInflight(event, projectId);
       // F7 closure (2026-04-27): no projectId resolved → __global__ FK fallback.
       const effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID;
       const resolution: RunIdResolution = {

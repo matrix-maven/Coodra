@@ -6,7 +6,12 @@ import { listPacks } from '@/lib/queries/packs';
 /**
  * `/packs` — server-rendered list of feature packs in the current
  * project. Reads `<cwd>/docs/feature-packs/<slug>/` directly (no DB).
+ *
+ * M04 Phase 2 S1 (F1, OQ-9 lock): force-dynamic so newly-scaffolded
+ * packs appear without a build. Without this, Next.js bakes the file-
+ * system listing at build time and stale results persist forever.
  */
+export const dynamic = 'force-dynamic';
 
 export default async function PacksListPage() {
   const packs = listPacks();

@@ -81,7 +81,12 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
       return { permissionDecision: 'allow', permissionDecisionReason: 'event_phase_mismatch' };
     }
 
-    const { slug, projectId } = await deps.projectSlugResolver.resolve(event.cwd, deps.db);
+    // M04 Phase 2 S1 (F3 root-cause fix): resolveAndEnsure auto-creates
+    // the projects row when no SessionStart preceded this PreToolUse.
+    // Policy evaluation against a brand-new project sees no rules (same
+    // as the prior __global__ fallback), so the decision shape is
+    // unchanged; the audit row now lands with a real projectId FK.
+    const { slug, projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
 
     // Module 08b S2 (2026-05-03): kill-switch short-circuit. Consults
     // `kill_switches` BEFORE the policy chain. On match, the handler

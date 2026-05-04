@@ -72,8 +72,11 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     await writeFile(join(packDir, 'implementation.md'), '# impl body line', 'utf8');
     await writeFile(join(packDir, 'techstack.md'), '# tech body line', 'utf8');
 
+    // M04 Phase 2 S1 (F3): handler now calls resolveAndEnsure on the
+    // audit path. Mock both to keep the test intent unchanged.
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug, projectId: 'proj_x' }),
+      resolveAndEnsure: vi.fn().mockResolvedValue({ slug, projectId: 'proj_x' }),
       invalidate: vi.fn(),
     };
     const handler = createSessionStartHandler({
@@ -96,6 +99,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
   it('returns allow without additionalContext when feature-pack files are missing', async () => {
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
+      resolveAndEnsure: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
       invalidate: vi.fn(),
     };
     const handler = createSessionStartHandler({
@@ -114,6 +118,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
   it('returns allow without additionalContext when projectSlug is unresolved', async () => {
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: undefined, projectId: undefined }),
+      resolveAndEnsure: vi.fn().mockResolvedValue({ slug: undefined, projectId: undefined }),
       invalidate: vi.fn(),
     };
     const handler = createSessionStartHandler({
@@ -132,6 +137,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
   it('non-session_start event → defensive allow + reason event_phase_mismatch (no audit)', async () => {
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: 'x', projectId: 'proj_z' }),
+      resolveAndEnsure: vi.fn().mockResolvedValue({ slug: 'x', projectId: 'proj_z' }),
       invalidate: vi.fn(),
     };
     const handler = createSessionStartHandler({

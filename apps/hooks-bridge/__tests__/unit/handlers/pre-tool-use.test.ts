@@ -28,6 +28,11 @@ function makeEvent(overrides: Partial<HookEvent> = {}): HookEvent {
 
 const slugResolverNoProject = {
   resolve: vi.fn(async () => ({ slug: undefined, projectId: undefined })),
+  // M04 Phase 2 S1 (F3): handlers now call resolveAndEnsure on the
+  // audit path. The stub returns the same shape — no auto-ensure
+  // happens here because the slug is undefined and the cwd derive
+  // path returns undefined for unit tests that don't pass a cwd.
+  resolveAndEnsure: vi.fn(async () => ({ slug: undefined, projectId: undefined })),
   invalidate: vi.fn(),
 };
 

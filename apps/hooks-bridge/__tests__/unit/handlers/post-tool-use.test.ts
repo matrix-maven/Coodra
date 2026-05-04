@@ -27,8 +27,11 @@ const stubRecorder: RunRecorder = {
   recordSessionEnd: vi.fn(),
 };
 
+// M04 Phase 2 S1 (F3): handler now calls resolveAndEnsure on the audit
+// path. The stub returns the same shape for both methods.
 const stubResolver: ProjectSlugResolver = {
   resolve: vi.fn().mockResolvedValue({ slug: 'verify', projectId: 'proj_test' }),
+  resolveAndEnsure: vi.fn().mockResolvedValue({ slug: 'verify', projectId: 'proj_test' }),
   invalidate: vi.fn(),
 };
 
@@ -62,9 +65,14 @@ describe('createPostToolUseHandler', () => {
     expect(stubRecorder.recordPostToolUse).not.toHaveBeenCalled();
   });
 
-  it('passes projectId=undefined when resolver returns no project (F7-related fallback path)', async () => {
+  it('passes projectId=undefined when resolver returns no project (F7-related fallback path; M04 P2 S1: now via resolveAndEnsure)', async () => {
     vi.mocked(stubRecorder.recordPostToolUse).mockClear();
-    vi.mocked(stubResolver.resolve).mockResolvedValueOnce({ slug: undefined, projectId: undefined });
+    // M04 Phase 2 S1 (F3): handler reads from resolveAndEnsure now;
+    // override that mock instead. The fallback semantic is preserved:
+    // when ensure returns undefined (reserved basename, derive failed),
+    // the recorder still writes through __global__ (via the run-recorder
+    // internal `effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID`).
+    vi.mocked(stubResolver.resolveAndEnsure).mockResolvedValueOnce({ slug: undefined, projectId: undefined });
     const handler = createPostToolUseHandler({
       runRecorder: stubRecorder,
       projectSlugResolver: stubResolver,

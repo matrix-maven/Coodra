@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { StatusChip } from '@/components/StatusChip';
 import { ToolBadge } from '@/components/ToolBadge';
 import { compactTimestamp, relativeTime } from '@/lib/format';
 import { fetchDashboardSnapshot, fetchDoctorSummary } from '@/lib/queries/dashboard';
@@ -12,7 +13,17 @@ import { fetchDashboardSnapshot, fetchDoctorSummary } from '@/lib/queries/dashbo
  * tiles in a future client component; for now we rely on browser-side
  * full-page revisits (the data is cheap to compute and doesn't
  * justify the polling client surface yet — defer to S9 follow-up).
+ *
+ * M04 Phase 2 S1 (F1, OQ-9 lock): `dynamic = 'force-dynamic'` so
+ * tiles + the latest-events table reflect live DB state on every
+ * request. Without this, Next.js 15 prerenders the page at build time
+ * and bakes in stale counts (audit 2026-05-04 finding F1: dashboard
+ * showed `Active runs: 3 / Denials: 546` against an empty post-purge
+ * DB). Cost: ~4 fresh DB queries per dashboard hit; acceptable at
+ * 1-10 dev scale per the OQ-9 cost note. Revisit with `revalidate: 5`
+ * if /sync queue depth or DB CPU climbs in production.
  */
+export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
   const [snapshot, doctor] = await Promise.all([fetchDashboardSnapshot(), fetchDoctorSummary()]);
@@ -87,7 +98,11 @@ export default async function DashboardPage() {
                         {evt.runId.length > 30 ? `${evt.runId.slice(0, 30)}…` : evt.runId}
                       </Link>
                     ) : (
-                      <span className="font-mono text-xs text-(--color-text-tertiary)">—</span>
+                      // M04 Phase 2 S1 (F4): label orphan rows. After F3 +
+                      // 0008 backfill, run_id is never NULL in practice;
+                      // this branch is the defensive fallback if a future
+                      // bridge regression slips a NULL through.
+                      <StatusChip status="neutral">untracked</StatusChip>
                     )}
                   </td>
                   <td className="px-3 py-2 font-mono text-xs text-(--color-text-tertiary)">{evt.toolUseId}</td>

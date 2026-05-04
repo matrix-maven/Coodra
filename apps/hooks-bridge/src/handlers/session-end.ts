@@ -71,7 +71,10 @@ export function createSessionEndHandler(deps: CreateSessionEndHandlerDeps): Sess
       );
       return { permissionDecision: 'allow', permissionDecisionReason: 'event_phase_mismatch' };
     }
-    const { projectId } = await deps.projectSlugResolver.resolve(event.cwd, deps.db);
+    // M04 Phase 2 S1 (F3 root-cause fix): resolveAndEnsure so the
+    // session_close UPDATE has a runs row to target (defensive — if
+    // SessionStart was somehow missed, this still closes the loop).
+    const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordSessionEnd({ event, projectId });
     sessionEndLogger.info(
       {

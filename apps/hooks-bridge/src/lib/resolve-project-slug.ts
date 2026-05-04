@@ -1,15 +1,15 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 /**
  * `apps/hooks-bridge/src/lib/resolve-project-slug` — two-stage resolver:
- *   1. cwd → slug  (read `<cwd>/.contextos.json`)
- *   2. slug → projects.id  (DB lookup)
+ *   1. cwd → slug  (read `<cwd>/.contextos.json`, or derive from basename)
+ *   2. slug → projects.id  (DB lookup; M04 Phase 2 S1 adds optional auto-ensure)
  *
  * Both stages are cached (60s) per-key. The policy evaluator filters
  * rules by `policies.project_id`, which is a foreign key into
@@ -18,10 +18,23 @@ import { z } from 'zod';
  * bridge pre-tool handler uses this resolver to bridge the gap.
  *
  * On any failure (file missing, schema mismatch, DB error, project
- * unregistered): returns undefined. The policy evaluator falls back
- * to the `__global__` cache slot, which loads the unfiltered union
- * of every project's rules. This is a soft-fail by design — the
- * policy still runs, just at a coarser scope.
+ * unregistered): `resolve()` returns undefined. The policy evaluator
+ * falls back to the `__global__` cache slot, which loads the
+ * unfiltered union of every project's rules. This is a soft-fail by
+ * design — the policy still runs, just at a coarser scope.
+ *
+ * **M04 Phase 2 S1 (F3 root cause, 2026-05-04, OQ-2 lock).** Added
+ * `resolveAndEnsure(cwd, db)`. Audit handlers (`recordPolicyDecision`,
+ * `recordPostToolUse`, etc.) call this variant — it auto-creates a
+ * `projects` row when none exists. Before the fix, every event from
+ * an un-registered cwd landed with `run_id=NULL` and decisions
+ * attributed to `__global__`; the 2026-05-04 audit found 1,405 of
+ * 1,407 historical events orphaned this way. The runtime fix here
+ * + the 0009 backfill migration close that loop.
+ *
+ * `resolve()` (read-only) stays the public surface for policy
+ * evaluation — auto-ensuring during a hot-path read is a side effect
+ * we want to keep out of the policy decision flow.
  */
 
 const projectSlugLogger = createLogger('hooks-bridge.resolve-project-slug');
@@ -60,12 +73,26 @@ export interface ProjectResolution {
 
 export interface ProjectSlugResolver {
   /**
-   * Returns `{ slug, projectId }` for the cwd. Both fields are
-   * undefined when no `.contextos.json` is present; only `projectId`
-   * is undefined when the slug is set but not yet registered as a
-   * `projects` row.
+   * Read-only resolve. Returns `{ slug, projectId }` for the cwd.
+   * Both fields are undefined when no `.contextos.json` is present;
+   * only `projectId` is undefined when the slug is set but not yet
+   * registered as a `projects` row. Used by the policy-evaluator
+   * hot path (no side effects).
    */
   resolve(cwd: string | undefined, db: DbHandle): Promise<ProjectResolution>;
+  /**
+   * M04 Phase 2 S1 (F3 root-cause fix). Resolve, then auto-create
+   * the `projects` row when missing — using the slug from
+   * `.contextos.json` if present, else deriving a slug from
+   * `basename(cwd)`. Returns the resolved `{ slug, projectId }`;
+   * if cwd cannot yield a usable slug (reserved name, empty,
+   * sanitization fails) BOTH fields are undefined and the caller
+   * falls back to `__global__` per the F7 invariant.
+   *
+   * Used by audit handlers (run-recorder, policy-decision recorder)
+   * so events always land with a real `projects` FK + `runs.run_id`.
+   */
+  resolveAndEnsure(cwd: string | undefined, db: DbHandle): Promise<ProjectResolution>;
   /** Test helper — drops both caches. */
   invalidate(): void;
 }
@@ -138,9 +165,95 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
       const projectId = await resolveProjectId(slug, db);
       return { slug, projectId };
     },
+    async resolveAndEnsure(cwd, db) {
+      if (cwd === undefined || cwd.length === 0) {
+        return { slug: undefined, projectId: undefined };
+      }
+      // First try the read-only path — fast happy path when project exists.
+      const sidecarSlug = await resolveSlug(cwd);
+      let slug = sidecarSlug;
+      if (slug !== undefined) {
+        const existing = await resolveProjectId(slug, db);
+        if (existing !== undefined) return { slug, projectId: existing };
+      }
+      // Need to create. If no sidecar slug, derive from cwd basename.
+      if (slug === undefined) {
+        const derived = deriveSlugFromCwd(cwd);
+        if (derived === undefined) {
+          // Reserved / unusable basename → fall back to __global__ via undefined.
+          projectSlugLogger.debug(
+            { event: 'project_slug_derive_failed', cwd },
+            'cwd basename could not yield a usable slug; falling back to __global__',
+          );
+          return { slug: undefined, projectId: undefined };
+        }
+        slug = derived;
+      }
+      // Auto-create. ensureProject is idempotent at the unique-slug index, so
+      // a concurrent insert from another handler is benign.
+      try {
+        const result = await ensureProject(db, { slug });
+        // Cache the brand-new id so the next read is instant.
+        idCache.set(slug, { projectId: result.id, loadedAt: now() });
+        // If the slug was derived (no sidecar), also cache the cwd→slug
+        // mapping so subsequent events from the same cwd skip the disk
+        // read + re-derivation.
+        if (sidecarSlug === undefined) {
+          slugCache.set(cwd, { slug, loadedAt: now() });
+        }
+        if (result.created) {
+          projectSlugLogger.info(
+            {
+              event: 'project_auto_ensured',
+              cwd,
+              slug,
+              projectId: result.id,
+              source: sidecarSlug !== undefined ? 'sidecar' : 'basename',
+            },
+            'auto-created projects row from un-registered cwd (M04 Phase 2 S1 F3 fix)',
+          );
+        }
+        return { slug, projectId: result.id };
+      } catch (err) {
+        projectSlugLogger.warn(
+          { event: 'project_auto_ensure_failed', cwd, slug, err: err instanceof Error ? err.message : String(err) },
+          'ensureProject threw; falling back to __global__',
+        );
+        return { slug, projectId: undefined };
+      }
+    },
     invalidate() {
       slugCache.clear();
       idCache.clear();
     },
   };
+}
+
+/**
+ * Derive a project slug from a cwd path's basename. Returns undefined
+ * when the basename can't yield a usable slug (reserved name, empty,
+ * regex-fails-after-sanitization, too long).
+ *
+ * Sanitization: lowercase + collapse non-`[a-z0-9-]` runs to `-` +
+ * trim leading/trailing `-`. Cap at 64 chars to match the CLI's slug
+ * validator (`packages/cli/src/lib/init/run.ts`'s `validateSlug`).
+ *
+ * Reserved-name reject list: filesystem-root-ish basenames where
+ * auto-creating a project would be wrong (e.g. `/Users/abishaikc` →
+ * `abishaikc` is fine; `/tmp` → `tmp` is reserved). The list is
+ * conservative; users hitting one of these can ship a `.contextos.json`
+ * to be explicit.
+ */
+const RESERVED_BASENAMES = new Set(['', '/', 'root', 'tmp', 'var', 'home', 'users', 'private', 'opt', 'etc']);
+
+function deriveSlugFromCwd(cwd: string): string | undefined {
+  const base = basename(cwd);
+  if (RESERVED_BASENAMES.has(base.toLowerCase())) return undefined;
+  const sanitized = base
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  if (sanitized.length === 0 || sanitized.length > 64) return undefined;
+  if (RESERVED_BASENAMES.has(sanitized)) return undefined;
+  return sanitized;
 }

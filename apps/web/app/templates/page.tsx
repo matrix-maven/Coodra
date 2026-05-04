@@ -7,7 +7,12 @@ import { listTemplates } from '@/lib/queries/templates';
  * Read-only in S7. Install-from-path form is reserved for an S7
  * follow-up (server action requires `installTemplate` extraction
  * from packages/cli — that's M08b S17 internal logic).
+ *
+ * M04 Phase 2 S1 (F1, OQ-9 lock): force-dynamic so newly installed
+ * templates (`contextos template install <path>`) appear without a
+ * rebuild.
  */
+export const dynamic = 'force-dynamic';
 
 export default async function TemplatesPage() {
   const templates = listTemplates();

@@ -43,7 +43,9 @@ export function createUserPromptSubmitHandler(deps: CreateUserPromptSubmitHandle
       );
       return { permissionDecision: 'allow', permissionDecisionReason: 'event_phase_mismatch' };
     }
-    const { projectId } = await deps.projectSlugResolver.resolve(event.cwd, deps.db);
+    // M04 Phase 2 S1 (F3 root-cause fix): resolveAndEnsure so the
+    // user_prompt run_event row lands with a real run_id FK.
+    const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordUserPromptSubmit(event, projectId);
     userPromptLogger.info(
       {

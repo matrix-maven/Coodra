@@ -37,12 +37,16 @@ const { createPostToolUseHandler } = await import('../../../src/handlers/post-to
 
 const stubDb = {} as DbHandle;
 
+// M04 Phase 2 S1 (F3): handlers now call resolveAndEnsure on the audit
+// path. The unit-test stubs return the same shape for both methods.
 const slugResolverProj = {
   resolve: vi.fn(async () => ({ slug: 'p', projectId: 'proj_42' })),
+  resolveAndEnsure: vi.fn(async () => ({ slug: 'p', projectId: 'proj_42' })),
   invalidate: vi.fn(),
 };
 const slugResolverNoProj = {
   resolve: vi.fn(async () => ({ slug: undefined, projectId: undefined })),
+  resolveAndEnsure: vi.fn(async () => ({ slug: undefined, projectId: undefined })),
   invalidate: vi.fn(),
 };
 

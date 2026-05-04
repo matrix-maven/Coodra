@@ -218,9 +218,15 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         .insert(sqliteSchema.projects)
         .values({ id: 'proj_1', slug: 'acme', orgId: 'org_dev_local', name: 'Acme', createdAt: now, updatedAt: now })
         .run();
+      // M04 Phase 2 S1 (F3 backfill, migration 0008): the migration
+      // INSERT OR IGNOREs the `__global__` sentinel project so the
+      // backfill UPDATE has a valid FK target. Post-migration baseline
+      // has 1 row (`__global__`); after the test insert the table holds
+      // 2 rows (`__global__` + `acme`).
       const projects = handle.db.select().from(sqliteSchema.projects).all();
-      expect(projects).toHaveLength(1);
-      expect(projects[0]?.slug).toBe('acme');
+      expect(projects).toHaveLength(2);
+      const slugs = projects.map((p) => p.slug).sort();
+      expect(slugs).toEqual(['__global__', 'acme']);
     } finally {
       handle.close();
     }

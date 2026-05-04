@@ -54,7 +54,11 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
       );
       return { permissionDecision: 'allow', permissionDecisionReason: 'event_phase_mismatch' };
     }
-    const { slug, projectId } = await deps.projectSlugResolver.resolve(event.cwd, deps.db);
+    // M04 Phase 2 S1 (F3 root-cause fix): resolveAndEnsure auto-creates
+    // the projects row when SessionStart fires from an un-registered
+    // cwd. Subsequent PreToolUse / PostToolUse events from the same
+    // cwd will then find the row already present (60s cache hit).
+    const { slug, projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordSessionStart({ event, projectId, mode: deps.mode });
 
     // Slice 8 (2026-05-03 audit §14.3): fire-and-forget orphan cleanup.

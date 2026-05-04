@@ -1308,3 +1308,61 @@ Resolution: build the id as `re_` + sha256(sessionId + '|' + toolUseId + '|' + p
 **Alternatives considered:** Ship the fix-up PR anyway with a no-op `.strict()`/seed/seedFeaturePack delta + the response-shape refactor (rejected — pollutes the audit trail with a PR titled for blockers that aren't real blockers; future readers would conclude wrong things about the project state on 2026-05-04). Ship just the response-shape refactor as a hot-fix PR (rejected — not user-impacting per the docs; reasonable to bundle with M04 closeout for one coherent commit on the "M04 made the bridge fully spec-compliant" arc).
 
 **Reference:** `docs/feature-packs/04-web-app/spec.md` §12 (audit-not-needed) + `implementation.md` §"Pre-M04 fix-ups PR — RETIRED" + S11 (carries the two cleanups). `context_memory/blockers.md` entries at lines 98 / 127 / 150 carry ✅ markers with Phase 3 Fix citations. Supersedes the 2026-05-03 OQ-6 lock.
+
+---
+
+## 2026-05-04 — M04 Phase 2 OQ locks (1a, 2a-with-bridge-fix, 3b, 4a, 5c-with-CTA, 6a, 7-RECONCILED, 8b, 9a)
+
+**Decision:** lock the 9 Phase 2 OQs from `docs/feature-packs/04-web-app-phase-2/spec.md §13`. User signed off in one chat turn; 6 concurs + 3 pushbacks.
+
+**Locks:**
+- **OQ-1 (a)** Project selector = dropdown in HeaderNav.
+- **OQ-2 (a) PUSHBACK** Backfill picks (a) over drop, AND `ensureProject(cwd)` in `apps/hooks-bridge/src/lib/run-recorder.ts` is a non-negotiable AC, not optional. Added as AC #25.
+- **OQ-3 (b)** FP editor = section-aware, auto-marker-preserving.
+- **OQ-4 (a)** `/init` wizard = mirror exact `contextos init`.
+- **OQ-5 (c) ADDITION** react-flow subgraph + symbol search; AND empty-state CTA mandatory when `~/.contextos/graphify/<slug>/graph.json` is absent — install command + ADR-010 Slice 11 reference. Added as AC #26.
+- **OQ-6 (a)** `/logs/<service>` = SSE.
+- **OQ-7 RECONCILED** User pushback was based on incorrect CLI behavior ("only flips `is_active=false`"). Spot-check `packages/cli/src/commands/pack.ts:415-422` showed CLI does BOTH `rm(dir, recursive)` AND `deactivatePackRow()`. Provisional lock = match real CLI (hard-delete + soft-flip). Re-lock checkpoint before S5 (pack mutations) with the corrected facts.
+- **OQ-8 (b)** `/sync` = per-table breakdown + dead-letter retry.
+- **OQ-9 (a)** F1 fix = `dynamic = 'force-dynamic'`. User cost note: ~4 fresh DB queries per dashboard hit acceptable at 1-10 dev scale; revisit with `revalidate: 5` if /sync queue depth or DB CPU climbs (out-of-scope for Phase 2).
+
+**Slice plan deltas (user-driven):**
+- Merge old S2 + S3 (selector + rescope) into new S2 — selector chrome without rescoped queries does nothing visible; rescoped queries without a selector breaks every page. Two stage-commits within the slice.
+- Split old S5 into new S4 (read-only markdown viewer) + new S5 (pack mutations + OQ-7 re-lock checkpoint). Different review weight.
+- S1 absorbs the F3 backfill migration alongside the runtime fix.
+
+**Spot checks before S1 approval:**
+- `.passthrough()` confirmed at `packages/shared/src/hooks/payloads/claude-code.ts:57`.
+- Phase 3 Fix A commit hash `19ccc1f` confirmed real: `feat(shared): .passthrough() payload schemas + SessionEnd + turn_end phase (Phase 3 Fix A)`, authored 2026-05-02 17:18 IST. Diff includes `.strict() → .passthrough()` and `SessionEnd` enum addition.
+
+**Rationale:** the user wanted a concrete close on the 9 OQs before any S1 code. The two pushbacks (OQ-2 bridge fix, OQ-5 empty-state CTA) tighten the spec without changing scope. The OQ-7 reconciliation is the only place where user-supplied facts diverged from reality; surfaced and provisionally locked to real CLI behavior with a re-lock checkpoint before pack-mutation code lands.
+
+**Reference:** `docs/feature-packs/04-web-app-phase-2/spec.md` §13 + §14, `implementation.md` §S1 + §S2 + §S5.
+
+---
+
+## 2026-05-04 — M04 Phase 2 S1 shipped (F1 + F2 + F3 root-cause + F3 backfill + F4)
+
+**Decision:** S1 lands as one commit on `feat/04-web-app`. Five sub-fixes: F1 force-dynamic, F2 sentinel filter, F3 root-cause `resolveAndEnsure` + recorder defensive `ensureSessionOpenInflight`, F3 backfill migration 0008, F4 dashboard "untracked" chip.
+
+**Implementation notes — F3 root-cause fix had two parts:**
+1. **Project layer**: new `resolveAndEnsure(cwd, db)` method on `ProjectSlugResolver` that auto-creates the projects row when `.contextos.json` slug exists but row doesn't, OR when no sidecar exists (derives slug from `basename(cwd)` with sanitization + reserved-name reject list). All 5 audit handlers (`pre-tool-use`, `post-tool-use`, `session-start`, `session-end`, `user-prompt-submit`) call `resolveAndEnsure` instead of `resolve`. `resolve()` (read-only) preserved for the policy-evaluator hot path.
+2. **Run layer**: in-memory `sessionsOpened` Set in `run-recorder.ts` plus `ensureSessionOpenInflight(event, projectId)` helper. Called by `recordPostToolUse`, `recordPolicyDecision`, `recordUserPromptSubmit` BEFORE the audit enqueue. Calls **direct `insertRun(...)`** (not via the durable queue) so the runs row exists synchronously by the time the worker dispatches the queued audit row. The queue path was attempted first and produced a race — both rows landed in pending_jobs simultaneously and the dispatcher's `lookupRunId` ran before session_open had been processed. Direct insert + ON CONFLICT DO NOTHING gives both correctness AND idempotency against the explicit `recordSessionStart` path.
+
+**Backfill migration 0008**: applies once at next bridge boot. Inserts the `__global__` sentinel project (idempotent), inserts a synthetic `run:__global__:orphan-backfill-0008` run, then `UPDATE run_events SET run_id = '<that-run>' WHERE run_id IS NULL`. Verified live: 99 historical NULL rows → 0 post-migration. Mirror migration ships for postgres (no-op on the cloud project — currently 0 rows).
+
+**Test deltas:**
+- `apps/web/__tests__/unit/app/static-prerender-guards.test.ts` — 4 cases asserting `dynamic === 'force-dynamic'` on each route.
+- `apps/web/__tests__/unit/lib/queries/projects.test.ts` — 4 cases for the F2 sentinel filter + sentinel-still-resolvable-by-deep-link.
+- `apps/hooks-bridge/__tests__/unit/lib/resolve-project-slug-ensure.test.ts` — 7 cases locking `resolveAndEnsure` contract (existing row, sidecar without row, basename derive, reserved basename, empty cwd, cache, sanitization, read-only path stays read-only).
+- Adjusted 4 existing handler unit-tests to add `resolveAndEnsure` to the mock object (interface contract preserved).
+- Adjusted `packages/db/__tests__/unit/client.test.ts` to expect the post-0008 baseline row count (`__global__` is now seeded by migration).
+
+**Live verification:**
+- After 0008 ran on the live `~/.contextos/data.db`: `SELECT COUNT(*) FROM run_events WHERE run_id IS NULL` → 0 (was 99).
+- After bridge restart: drove a PreToolUse + PostToolUse pair from a brand-new cwd `/tmp/cxos-final-XXXX` (no `.contextos.json`, no project row, no SessionStart). Result: project auto-created, runs row auto-created, all events linked. `SELECT COUNT(*) FROM run_events WHERE run_id IS NULL` did NOT grow.
+- After web rebuild: `prerender-manifest.json` shows static routes as `[/_not-found, /settings/account, /settings/team]` (was `[..., /, /packs, /templates]`). Dashboard tile values match SQLite live state (Active runs: 4, Denials: 2, Active pauses: 0). `/projects` HTML contains all 6 real projects but does NOT contain `__global__` or `Global Policy Rules`.
+
+**Test counts (workspace-wide, post-S1):** web 35/35, hooks-bridge 54/54, db 54/54, mcp-server 261/261, cli 188/188 — 592/592 pass.
+
+**Reference:** commit `feat(web,bridge,db): M04 Phase 2 S1` on `feat/04-web-app`. Spec ACs #25 (`ensureProject` in bridge) + #26 (`/graph` empty-state CTA — defers to S9) recorded; AC #25 verified live this slice.
