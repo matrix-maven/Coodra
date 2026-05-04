@@ -400,3 +400,84 @@ function toContextPackRow(r: unknown): ContextPackRow {
     createdAt: row.createdAt,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Context-pack list / detail helpers (M04 Phase 2 S7 + S9)
+// ---------------------------------------------------------------------------
+
+export interface ListContextPacksFilter {
+  readonly projectId: string;
+  readonly limit?: number;
+}
+
+/**
+ * Lists context packs for a project, newest first. Excerpt-only — the
+ * full body is read on demand via `getContextPackById`. Default limit
+ * 50, max 1000.
+ */
+export async function listContextPacksForProject(
+  db: DbHandle,
+  filter: ListContextPacksFilter,
+): Promise<ContextPackRow[]> {
+  const limit = Math.min(Math.max(1, filter.limit ?? 50), 1000);
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.contextPacks;
+    const rows = await db.db
+      .select()
+      .from(t)
+      .where(eq(t.projectId, filter.projectId))
+      .orderBy(desc(t.createdAt))
+      .limit(limit);
+    return rows.map(toContextPackRow);
+  }
+  const t = postgresSchema.contextPacks;
+  const rows = await db.db
+    .select()
+    .from(t)
+    .where(eq(t.projectId, filter.projectId))
+    .orderBy(desc(t.createdAt))
+    .limit(limit);
+  return rows.map(toContextPackRow);
+}
+
+export interface ContextPackDetailRow extends ContextPackRow {
+  /** Full body (not just excerpt). */
+  readonly content: string;
+}
+
+interface RawContextPackDetailRow extends RawContextPackRow {
+  content: string;
+}
+
+function toContextPackDetailRow(r: unknown): ContextPackDetailRow {
+  const row = r as RawContextPackDetailRow;
+  return {
+    id: row.id,
+    runId: row.runId,
+    projectId: row.projectId,
+    title: row.title,
+    contentExcerpt: row.contentExcerpt,
+    content: row.content,
+    createdAt: row.createdAt,
+  };
+}
+
+/**
+ * Returns one context pack with full body, or null when no row matches.
+ * Used by /projects/[slug]/context-packs/[id].
+ */
+export async function getContextPackById(db: DbHandle, id: string): Promise<ContextPackDetailRow | null> {
+  if (id.length === 0) return null;
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.contextPacks;
+    const rows = await db.db.select().from(t).where(eq(t.id, id)).limit(1);
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    return row === undefined ? null : toContextPackDetailRow(row);
+  }
+  const t = postgresSchema.contextPacks;
+  const rows = await db.db.select().from(t).where(eq(t.id, id)).limit(1);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return row === undefined ? null : toContextPackDetailRow(row);
+}

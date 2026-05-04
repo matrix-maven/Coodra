@@ -204,6 +204,12 @@ function ActionBar({
       >
         Edit
       </Link>
+      <Link
+        href={`/projects/${encodeURIComponent(projectSlug)}/packs/${encodeURIComponent(packSlug)}/runs` as never}
+        className="border border-(--color-border-default) bg-(--color-bg-base) px-4 py-2 font-display text-xs font-bold uppercase tracking-wider text-(--color-text-primary) hover:border-(--color-brand) hover:text-(--color-brand)"
+      >
+        Activity
+      </Link>
       <RegenerateButton projectSlug={projectSlug} packSlug={packSlug} cwd={cwd} />
       <InstallTemplateButton projectSlug={projectSlug} packSlug={packSlug} cwd={cwd} />
       <DeleteButton projectSlug={projectSlug} packSlug={packSlug} cwd={cwd} />

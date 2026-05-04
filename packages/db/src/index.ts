@@ -75,11 +75,15 @@ export {
 } from './projects.js';
 export {
   type CancelRunResult,
+  type ContextPackDetailRow,
   type ContextPackRow,
   cancelRun,
   type DecisionRow,
+  getContextPackById,
   getRunWithEverything,
+  type ListContextPacksFilter,
   type ListRunsFilter,
+  listContextPacksForProject,
   listRunsForProject,
   type PolicyDecisionRow,
   type RunEventRow,
