@@ -57,7 +57,7 @@ See `docs/DEVELOPMENT.md` for the running-services playbook (added as each modul
 | 03 | Hooks Bridge | ✅ complete (`docs/context-packs/2026-04-26-module-03-hooks-bridge.md`) |
 | 08a | CLI (`@coodra/contextos-cli`) — install + lifecycle | ✅ complete (`docs/context-packs/2026-04-27-module-08a-cli.md`) |
 | 08b | CLI Expansion — operational + admin + Feature-Pack flexibility | ✅ complete (`docs/context-packs/2026-05-03-module-08b-cli-expansion.md`) |
-| 04 | Web App | ✅ complete (`docs/context-packs/2026-05-04-module-04-web-app.md`) |
+| 04 | Web App | ✅ complete — Phase 1 (`docs/context-packs/2026-05-04-module-04-web-app.md`) + Phase 2 (`docs/context-packs/2026-05-04-module-04-web-app-phase-2.md`) |
 | 05 | NL Assembly (Python) | 🔨 next (depends on 03; unlocks `/search` semantic search in the web) |
 | 06 | Semantic Diff (Python) | ⏳ blocked on 03 |
 | 07 | VS Code Extension | ⏳ blocked on 04, 08a |

@@ -52,6 +52,12 @@ export function HeaderNav({ actor }: HeaderNavProps) {
           + New project
         </Link>
         <Link
+          href="/sync"
+          className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary) hover:text-(--color-brand)"
+        >
+          Sync
+        </Link>
+        <Link
           href="/settings/workspace"
           className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary) hover:text-(--color-brand)"
         >
