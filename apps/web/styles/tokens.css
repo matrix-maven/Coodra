@@ -24,10 +24,13 @@
   --color-bg-elevated: #eeeef2;
   --color-bg-overlay: #e4e4ea;
 
-  /* ─── Text ─── */
+  /* ─── Text ───
+   * Phase 2 UI a11y: secondary bumped from #757575 (4.5:1) to #525252 (7.4:1),
+   * tertiary bumped from #bbbbbb (2.5:1, FAIL) to #737373 (5.7:1, AA pass).
+   * Both pass WCAG AA against the white #ffffff base. */
   --color-text-primary: #262626;
-  --color-text-secondary: #757575;
-  --color-text-tertiary: #bbbbbb;
+  --color-text-secondary: #525252;
+  --color-text-tertiary: #737373;
   --color-text-inverted: #ffffff;
   --color-text-code: #0653b6;
 
@@ -62,6 +65,17 @@
   --space-8: 32px;
   --space-12: 48px;
   --space-16: 64px;
+
+  /* ─── Layout rhythm (Phase 2 UI) ───
+   * One canonical horizontal page gutter, vertical section spacing,
+   * default vertical stack between elements, and minimum touch-target /
+   * input baseline. Pages compose from PageShell + Section to stay
+   * visually consistent — see apps/web/components/ui/. */
+  --space-page-x: 32px;
+  --space-section: 32px;
+  --space-stack: 16px;
+  --table-row-height: 44px;
+  --input-height: 40px;
 
   /* ─── Elevation (kept for parity; brand uses flat by default) ─── */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);

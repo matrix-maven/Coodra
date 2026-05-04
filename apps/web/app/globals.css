@@ -76,3 +76,38 @@ body {
 *:focus:not(:focus-visible) {
   outline: none;
 }
+
+/* Skip-to-main link (M04 Phase 2 UI a11y).
+ * Visible only on keyboard focus. Tab from the top of any page lands here
+ * first; activating jumps past the workspace + project navs into <main>. */
+.skip-to-main {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 100;
+  background: var(--color-brand);
+  color: var(--color-text-inverted);
+  padding: 12px 24px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  transition: top 150ms ease;
+}
+.skip-to-main:focus,
+.skip-to-main:focus-visible {
+  top: 0;
+}
+
+/* Honor prefers-reduced-motion across every animated surface (M04 Phase 2 UI a11y). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
