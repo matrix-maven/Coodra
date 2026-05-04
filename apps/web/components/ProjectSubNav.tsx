@@ -31,11 +31,11 @@ const ITEMS: ReadonlyArray<SubNavItem> = [
   { segment: 'runs', label: 'Runs', status: 'live' },
   { segment: 'policies', label: 'Policies', status: 'live' },
   { segment: 'packs', label: 'Packs', status: 'live' },
-  { segment: 'context-packs', label: 'Context packs', status: 'coming' },
+  { segment: 'context-packs', label: 'Context packs', status: 'live' },
   { segment: 'templates', label: 'Templates', status: 'live' },
   { segment: 'kill-switches', label: 'Kill switches', status: 'live' },
   { segment: 'graph', label: 'Graph', status: 'coming' },
-  { segment: 'doctor', label: 'Doctor', status: 'coming' },
+  { segment: 'doctor', label: 'Doctor', status: 'live' },
   { segment: 'logs', label: 'Logs', status: 'coming' },
   { segment: 'settings', label: 'Settings', status: 'live' },
 ];
