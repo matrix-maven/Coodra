@@ -14,6 +14,10 @@
     "./lib/outbox": {
       "types": "./dist/lib/outbox/index.d.ts",
       "import": "./dist/lib/outbox/index.js"
+    },
+    "./lib/init": {
+      "types": "./dist/lib/init/index.d.ts",
+      "import": "./dist/lib/init/index.js"
     }
   },
   "bin": {
