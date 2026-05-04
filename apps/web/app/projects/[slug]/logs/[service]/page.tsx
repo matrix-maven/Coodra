@@ -24,11 +24,7 @@ export const dynamic = 'force-dynamic';
 
 const INITIAL_LINES = 200;
 
-export default async function LogTailPage({
-  params,
-}: {
-  params: Promise<{ slug: string; service: string }>;
-}) {
+export default async function LogTailPage({ params }: { params: Promise<{ slug: string; service: string }> }) {
   const project = await resolveProjectFromParams(params);
   const { service: rawService } = await params;
   const service = decodeURIComponent(rawService);

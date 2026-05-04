@@ -51,6 +51,12 @@ export function HeaderNav({ actor }: HeaderNavProps) {
         >
           + New project
         </Link>
+        <Link
+          href="/settings/workspace"
+          className="font-display text-xs font-bold uppercase tracking-widest text-(--color-text-secondary) hover:text-(--color-brand)"
+        >
+          Settings
+        </Link>
       </div>
 
       <div className="flex items-center gap-4">
