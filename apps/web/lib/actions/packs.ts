@@ -1,9 +1,21 @@
 'use server';
 
+import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { runInit } from '@coodra/contextos-cli/lib/init';
 import { runPackDelete, runPackRegenerate } from '@coodra/contextos-cli/lib/pack';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+
+import {
+  compareMarkerSets,
+  deltaIsEmpty,
+  describeDelta,
+  parseAutoSections,
+  summarizeParseErrors,
+} from '@/lib/feature-pack-markers';
+import { getPack } from '@/lib/queries/packs';
 
 /**
  * `apps/web/lib/actions/packs.ts` — Server Actions for the pack
@@ -196,4 +208,120 @@ function firstZodMessage(err: z.ZodError): string {
   if (issue === undefined) return 'invalid form data';
   const path = issue.path.length > 0 ? `${issue.path.join('.')}: ` : '';
   return `${path}${issue.message}`;
+}
+
+// ---------------------------------------------------------------------------
+// S6 — saveFeaturePackAction
+// ---------------------------------------------------------------------------
+
+const EDITABLE_FILES = ['spec.md', 'implementation.md', 'techstack.md'] as const;
+
+const SAVE_SCHEMA = COMMON_FIELDS.extend({
+  fileName: z.enum(EDITABLE_FILES),
+  // mtimeMs is the file mtime captured when the editor loaded — used as
+  // a cheap optimistic-concurrency check. If anyone else (CLI / sync /
+  // other editor tab) wrote to the file in the meantime, we refuse the
+  // save so the user can re-fetch and re-apply their edit.
+  mtimeMs: z.coerce.number().int().nonnegative(),
+  content: z.string().max(1_000_000, 'content exceeds 1MB'),
+});
+
+export async function saveFeaturePackAction(formData: FormData): Promise<void> {
+  const raw = {
+    projectSlug: String(formData.get('projectSlug') ?? ''),
+    packSlug: String(formData.get('packSlug') ?? ''),
+    cwd: String(formData.get('cwd') ?? ''),
+    fileName: String(formData.get('fileName') ?? ''),
+    mtimeMs: String(formData.get('mtimeMs') ?? '0'),
+    content: String(formData.get('content') ?? ''),
+  };
+  const parsed = SAVE_SCHEMA.safeParse(raw);
+  if (!parsed.success) {
+    redirect(
+      editHref(raw.projectSlug, raw.packSlug, raw.fileName, 'save_validation_failed', firstZodMessage(parsed.error)),
+    );
+  }
+  const { projectSlug, packSlug, cwd, fileName, mtimeMs, content } = parsed.data;
+
+  // Pack lookup. Per S5/S6 we trust the project ownership check on the
+  // editor page; here we re-read the pack so we have the on-disk source
+  // for marker validation.
+  const pack = getPack(packSlug, cwd);
+  if (pack === null) {
+    redirect(
+      editHref(projectSlug, packSlug, fileName, 'pack_not_found', `No pack at docs/feature-packs/${packSlug}/.`),
+    );
+  }
+
+  const filePath = join(pack.dir, fileName);
+
+  // Optimistic concurrency: re-stat. If mtime has shifted, refuse.
+  let onDiskMtime: number;
+  try {
+    onDiskMtime = statSync(filePath).mtimeMs;
+  } catch {
+    redirect(editHref(projectSlug, packSlug, fileName, 'file_missing', `File ${fileName} no longer exists on disk.`));
+  }
+  if (Math.floor(onDiskMtime) !== Math.floor(mtimeMs)) {
+    redirect(
+      editHref(
+        projectSlug,
+        packSlug,
+        fileName,
+        'concurrent_edit',
+        `${fileName} changed on disk since you opened the editor. Reload to pick up the latest version, then re-apply your edit.`,
+      ),
+    );
+  }
+
+  // Marker integrity: re-parse the on-disk file (BEFORE writing) and the
+  // user's edited content. The web editor only allows inner-content
+  // edits — adding / removing / renaming / reordering markers is the
+  // job of `pack regenerate` or template install (S5).
+  const onDisk = readFileOrEmpty(filePath);
+  const before = parseAutoSections(onDisk);
+  const after = parseAutoSections(content);
+
+  if (after.errors.length > 0) {
+    redirect(editHref(projectSlug, packSlug, fileName, 'parse_failed', summarizeParseErrors(after.errors)));
+  }
+  const delta = compareMarkerSets(before, after);
+  if (!deltaIsEmpty(delta)) {
+    redirect(
+      editHref(
+        projectSlug,
+        packSlug,
+        fileName,
+        'markers_tampered',
+        `Auto-marker set must remain unchanged. ${describeDelta(delta)}. Use "Regenerate" or "Install template" to add/remove sections.`,
+      ),
+    );
+  }
+
+  // Write. Use writeFileSync — Server Actions are short-lived, the file
+  // is small, and the surface lives next to other sync filesystem ops
+  // already (queries/packs.ts is sync).
+  try {
+    writeFileSync(filePath, content, 'utf8');
+  } catch (err) {
+    redirect(editHref(projectSlug, packSlug, fileName, 'write_failed', (err as Error).message));
+  }
+
+  redirect(`${packDetailBase(projectSlug, packSlug)}?edited=${encodeURIComponent(fileName)}`);
+}
+
+function editHref(projectSlug: string, packSlug: string, fileName: string, errorCode: string, message: string): string {
+  const search = new URLSearchParams();
+  search.set('file', fileName);
+  search.set('error', errorCode);
+  search.set('errorMessage', message);
+  return `/projects/${encodeURIComponent(projectSlug)}/packs/${encodeURIComponent(packSlug)}/edit?${search.toString()}`;
+}
+
+function readFileOrEmpty(path: string): string {
+  try {
+    return readFileSync(path, 'utf8');
+  } catch {
+    return '';
+  }
 }

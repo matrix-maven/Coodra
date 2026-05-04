@@ -22,6 +22,10 @@
     "./lib/pack": {
       "types": "./dist/lib/pack/index.d.ts",
       "import": "./dist/lib/pack/index.js"
+    },
+    "./lib/auto-marker": {
+      "types": "./dist/lib/auto-marker/index.d.ts",
+      "import": "./dist/lib/auto-marker/index.js"
     }
   },
   "bin": {
