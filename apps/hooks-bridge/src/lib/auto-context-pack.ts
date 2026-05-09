@@ -9,9 +9,16 @@ import { asc, eq } from 'drizzle-orm';
 /**
  * `apps/hooks-bridge/src/lib/auto-context-pack.ts` — bridge-side
  * Context Pack auto-save invoked from the SessionEnd handler
- * (decision dec_83ba10c1, 2026-05-02 — Pattern 20). Mirrors the
- * happy-path INSERT from `apps/mcp-server/src/lib/context-pack.ts`
- * minus the embedding column.
+ * (decision dec_83ba10c1, 2026-05-02 — Pattern 20).
+ *
+ * Module 05 reshape (2026-05-08): the auto-save now writes
+ * `source = 'bridge_auto'`. Agent-explicit `save_context_pack` calls
+ * write `source = 'agent'` and — per the single ADR-007 relaxation —
+ * overwrite a prior bridge_auto row when both fire for the same run.
+ * The result: agent-authored is canonical; this auto-save is the
+ * fallback floor for sessions where the agent skipped the explicit
+ * call. See `docs/feature-packs/05-agent-driven-nl-assembly/spec.md`
+ * §1.2 + §6 for the framing.
  *
  * **Phase 4 Fix H (Slice 3 — 2026-05-03 audit):** the auto-save now
  * ALSO materialises a `~/.contextos/packs/<yyyy-mm-dd>-<runId>.md`
@@ -89,9 +96,9 @@ function computeExcerpt(content: string): string {
 
 /**
  * Render a structured Markdown summary from the run's events +
- * decisions. v1 ships a deterministic digest — no LLM round-trip.
- * Module 05 (NL Assembly) replaces this with a richer summary
- * generator post-launch.
+ * decisions. Deterministic digest — no LLM round-trip. The agent
+ * provides any narrative richness via explicit `save_context_pack`
+ * calls; this digest is the floor when the agent didn't call it.
  */
 export function buildAutoSummary(args: {
   readonly runId: string;
@@ -260,6 +267,10 @@ export async function saveAutoContextPack(input: AutoContextPackInput): Promise<
     title: summary.title,
     content: summary.content,
     contentExcerpt,
+    // M05: bridge auto-saves are explicitly tagged as the fallback floor.
+    // Agent-explicit save_context_pack overrides this row (one ADR-007
+    // relaxation, narrow + documented).
+    source: 'bridge_auto',
   });
 
   // Phase 4 Fix H (Slice 3 — 2026-05-03 audit): materialise to FS so

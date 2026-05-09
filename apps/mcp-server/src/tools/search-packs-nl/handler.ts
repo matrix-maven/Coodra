@@ -1,63 +1,33 @@
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger, EMBEDDING_DIM } from '@coodra/contextos-shared';
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { createLogger } from '@coodra/contextos-shared';
+import { and, desc, eq, or, sql } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { PackResult, SearchPacksNlInput, SearchPacksNlOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__search_packs_nl` (§24.4 + S11 slice).
+ * Handler factory for `contextos__search_packs_nl`.
  *
- * Factory shape because the handler closes over a `DbHandle` for
- * the projects-slug lookup, the context_packs IN-JOIN after semantic
- * KNN, and the LIKE fallback query. Semantic KNN goes through
- * `ctx.sqliteVec.searchSimilarPacks` — the S7c dual-path surface
- * (sqlite-vec vec0 for solo, pgvector `<=>` for team).
+ * Module 05 reshape (2026-05-08): the embedding-supplied semantic-KNN
+ * branch was removed. Search is now LIKE over (title, content_excerpt,
+ * first 2KB of content), ordered by `created_at DESC`. The agent does
+ * relevance ranking by reading candidates via `read_context_pack` and
+ * reasoning over them — see `docs/feature-packs/05-agent-driven-nl-
+ * assembly/spec.md` §4 for the philosophy.
  *
  * Flow:
- *
- *   1. Resolve `projectSlug` → `projects.id`. Missing → structured
- *      `{ ok: false, error: 'project_not_found', howToFix }`.
- *      No auto-create — this is a read tool (contrast S8's
- *      `get_run_id` which bootstraps in solo mode).
- *
- *   2. If `embedding` supplied AND `length === EMBEDDING_DIM`:
- *        - Semantic path. Convert `number[]` → `Float32Array`.
- *        - Call `ctx.sqliteVec.searchSimilarPacks({ embedding, k,
- *          filter: { projectSlug } })` — returns `[{ packId,
- *          distance }]` in distance-ascending order.
- *        - IN-JOIN against `context_packs` to hydrate metadata.
- *        - Preserve the distance-sorted order when mapping back.
- *        - Return `{ ok: true, packs: [...] }` (no notice).
- *
- *   3. If `embedding` supplied but `length !== EMBEDDING_DIM`:
- *        - Return `{ ok: false, error: 'embedding_dim_mismatch',
- *          expected, got, howToFix }` BEFORE calling the store.
- *          Handler-level check rather than Zod-level because the
- *          `invalid_input` envelope the registry produces for Zod
- *          failures is too generic — callers need a structured code.
- *
- *   4. If `embedding` NOT supplied (the M02 common case — no NL
- *      Assembly yet to pre-compute):
- *        - LIKE fallback: `SELECT id, title, content_excerpt,
- *          created_at, run_id FROM context_packs WHERE project_id =
- *          ? AND (LOWER(title) LIKE ? OR LOWER(content_excerpt) LIKE
- *          ?) ORDER BY created_at DESC LIMIT ?`.
- *        - Return `{ ok: true, packs: [...], notice:
- *          'no_embeddings_yet', howToFix: '...' }`.
- *          `score` is `null` per row (no semantic distance to
- *          report; caller agent should not rank by score when
- *          notice is present).
- *
- * Defaults: `limit` defaults to 10 if unspecified.
+ *   1. Resolve `projectSlug` → `projects.id`. Missing → soft-failure.
+ *   2. LIKE-match needle against the wider scope. Wider scope catches
+ *      keyword hits that landed in the first 2KB of pack body but were
+ *      truncated out of `content_excerpt` (which is only 500 chars).
+ *   3. Return up to `limit` rows (default 50), newest first, with
+ *      `source` field so agents can prefer agent-authored narratives.
+ *      No relevance score — `score: null` on every row.
  */
 
 const handlerLogger = createLogger('mcp-server.tool.search_packs_nl');
 
-const DEFAULT_LIMIT = 10 as const;
-
-const NO_EMBEDDINGS_HOWTO =
-  'Module 05 (NL Assembly) will populate summary_embedding on save, enabling semantic search. Until then, this tool falls back to LIKE text search over title + content_excerpt.' as const;
+const DEFAULT_LIMIT = 50 as const;
 
 const PROJECT_NOT_FOUND_HOWTO =
   'Register this project via the Web App or run `contextos init` in the project root before retrying.' as const;
@@ -83,68 +53,7 @@ async function resolveProjectId(db: DbHandle, projectSlug: string): Promise<stri
   return rows[0]?.id ?? null;
 }
 
-/** Hydrate pack metadata for a set of context_pack ids, preserving hit order + attaching distance as score. */
-async function hydrateSemanticHits(
-  db: DbHandle,
-  hits: ReadonlyArray<{ readonly packId: string; readonly distance: number }>,
-): Promise<ReadonlyArray<PackResult>> {
-  if (hits.length === 0) return [];
-  const ids = hits.map((h) => h.packId);
-
-  type Row = {
-    readonly id: string;
-    readonly title: string;
-    readonly contentExcerpt: string;
-    readonly createdAt: Date;
-    readonly runId: string | null;
-  };
-
-  let rows: Row[];
-  if (db.kind === 'sqlite') {
-    rows = (await db.db
-      .select({
-        id: sqliteSchema.contextPacks.id,
-        title: sqliteSchema.contextPacks.title,
-        contentExcerpt: sqliteSchema.contextPacks.contentExcerpt,
-        createdAt: sqliteSchema.contextPacks.createdAt,
-        runId: sqliteSchema.contextPacks.runId,
-      })
-      .from(sqliteSchema.contextPacks)
-      .where(inArray(sqliteSchema.contextPacks.id, ids as string[]))) as Row[];
-  } else {
-    rows = (await db.db
-      .select({
-        id: postgresSchema.contextPacks.id,
-        title: postgresSchema.contextPacks.title,
-        contentExcerpt: postgresSchema.contextPacks.contentExcerpt,
-        createdAt: postgresSchema.contextPacks.createdAt,
-        runId: postgresSchema.contextPacks.runId,
-      })
-      .from(postgresSchema.contextPacks)
-      .where(inArray(postgresSchema.contextPacks.id, ids as string[]))) as Row[];
-  }
-
-  const rowById = new Map<string, Row>();
-  for (const r of rows) rowById.set(r.id, r);
-
-  const packs: PackResult[] = [];
-  for (const hit of hits) {
-    const row = rowById.get(hit.packId);
-    if (!row) continue; // vec0 row without a context_packs row — shouldn't happen but fail-open
-    if (row.runId === null) continue; // context_packs.run_id is technically notNull but defensive
-    packs.push({
-      id: row.id,
-      title: row.title,
-      excerpt: row.contentExcerpt,
-      score: hit.distance,
-      savedAt: row.createdAt.toISOString(),
-      runId: row.runId,
-    });
-  }
-  return packs;
-}
-
-async function likeFallbackSearch(
+async function likeSearch(
   db: DbHandle,
   projectId: string,
   query: string,
@@ -158,6 +67,7 @@ async function likeFallbackSearch(
     readonly contentExcerpt: string;
     readonly createdAt: Date;
     readonly runId: string | null;
+    readonly source: string;
   };
 
   let rows: Row[];
@@ -170,12 +80,19 @@ async function likeFallbackSearch(
         contentExcerpt: cp.contentExcerpt,
         createdAt: cp.createdAt,
         runId: cp.runId,
+        source: cp.source,
       })
       .from(cp)
       .where(
         and(
           eq(cp.projectId, projectId),
-          or(sql`LOWER(${cp.title}) LIKE ${needle}`, sql`LOWER(${cp.contentExcerpt}) LIKE ${needle}`),
+          or(
+            sql`LOWER(${cp.title}) LIKE ${needle}`,
+            sql`LOWER(${cp.contentExcerpt}) LIKE ${needle}`,
+            // Wider scope (M05): first 2KB of full content. SQLite's substr
+            // is 1-indexed; 1..2000 covers the first 2KB.
+            sql`LOWER(SUBSTR(${cp.content}, 1, 2000)) LIKE ${needle}`,
+          ),
         ),
       )
       .orderBy(desc(cp.createdAt))
@@ -189,12 +106,17 @@ async function likeFallbackSearch(
         contentExcerpt: cp.contentExcerpt,
         createdAt: cp.createdAt,
         runId: cp.runId,
+        source: cp.source,
       })
       .from(cp)
       .where(
         and(
           eq(cp.projectId, projectId),
-          or(sql`LOWER(${cp.title}) LIKE ${needle}`, sql`LOWER(${cp.contentExcerpt}) LIKE ${needle}`),
+          or(
+            sql`LOWER(${cp.title}) LIKE ${needle}`,
+            sql`LOWER(${cp.contentExcerpt}) LIKE ${needle}`,
+            sql`LOWER(SUBSTRING(${cp.content}, 1, 2000)) LIKE ${needle}`,
+          ),
         ),
       )
       .orderBy(desc(cp.createdAt))
@@ -204,6 +126,9 @@ async function likeFallbackSearch(
   const packs: PackResult[] = [];
   for (const row of rows) {
     if (row.runId === null) continue;
+    // Defensive — schema enforces 'agent'|'bridge_auto' but legacy rows
+    // before 0009 default to 'agent' so this should never miss.
+    const source = row.source === 'bridge_auto' ? 'bridge_auto' : 'agent';
     packs.push({
       id: row.id,
       title: row.title,
@@ -211,6 +136,7 @@ async function likeFallbackSearch(
       score: null,
       savedAt: row.createdAt.toISOString(),
       runId: row.runId,
+      source,
     });
   }
   return packs;
@@ -242,49 +168,10 @@ export function createSearchPacksNlHandler(deps: SearchPacksNlHandlerDeps) {
     }
 
     const limit = input.limit ?? DEFAULT_LIMIT;
-
-    // Embedding-supplied branch.
-    if (input.embedding !== undefined) {
-      if (input.embedding.length !== EMBEDDING_DIM) {
-        handlerLogger.info(
-          {
-            event: 'search_packs_nl_dim_mismatch',
-            projectSlug: input.projectSlug,
-            expected: EMBEDDING_DIM,
-            got: input.embedding.length,
-            sessionId: ctx.sessionId,
-          },
-          'search_packs_nl: embedding length mismatch — returning soft-failure',
-        );
-        return {
-          ok: false,
-          error: 'embedding_dim_mismatch',
-          expected: EMBEDDING_DIM,
-          got: input.embedding.length,
-          howToFix: `Supply an exactly ${EMBEDDING_DIM}-dimensional Float32 embedding. Module 02 does not compute embeddings; Module 05 NL Assembly will be the default producer.`,
-        };
-      }
-
-      const embedding = Float32Array.from(input.embedding);
-      const hits = await ctx.sqliteVec.searchSimilarPacks({
-        embedding,
-        k: limit,
-        filter: { projectSlug: input.projectSlug },
-      });
-      const packs = await hydrateSemanticHits(deps.db, hits);
-      return {
-        ok: true,
-        packs: packs as PackResult[],
-      };
-    }
-
-    // LIKE fallback — no embedding supplied.
-    const packs = await likeFallbackSearch(deps.db, projectId, input.query, limit);
+    const packs = await likeSearch(deps.db, projectId, input.query, limit);
     return {
       ok: true,
       packs: packs as PackResult[],
-      notice: 'no_embeddings_yet',
-      howToFix: NO_EMBEDDINGS_HOWTO,
     };
   };
 }

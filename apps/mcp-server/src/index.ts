@@ -26,7 +26,6 @@ import { createMcpLogger } from './lib/logger.js';
 import { createMcpDispatchHandler } from './lib/outbox-dispatch.js';
 import { createPolicyClient } from './lib/policy.js';
 import { createRunRecorder } from './lib/run-recorder.js';
-import { createSqliteVecClient } from './lib/sqlite-vec.js';
 import { registerAllTools } from './tools/index.js';
 import { type HttpTransportHandle, startHttpTransport } from './transports/http.js';
 import { startStdioTransport } from './transports/stdio.js';
@@ -138,7 +137,9 @@ async function main(): Promise<void> {
   const runRecorder = createRunRecorder({ db: dbHandle, kick: () => outboxWorker.kick() });
   outboxWorker.start();
   bootLogger.info({ event: 'outbox_worker_started' }, 'OutboxWorker started; pending_jobs draining');
-  const sqliteVec = createSqliteVecClient({ db: dbHandle });
+  // Module 05 reshape (2026-05-08): no sqliteVec wiring — agent-driven NL
+  // assembly replaces the embedding pipeline. See
+  // docs/feature-packs/05-agent-driven-nl-assembly/spec.md.
   const graphify = createGraphifyClient({
     db: dbHandle,
     ...(env.CONTEXTOS_GRAPHIFY_ROOT ? { graphifyRoot: env.CONTEXTOS_GRAPHIFY_ROOT } : {}),
@@ -152,7 +153,6 @@ async function main(): Promise<void> {
     featurePack,
     contextPack,
     runRecorder,
-    sqliteVec,
     graphify,
   });
 

@@ -2,12 +2,17 @@ import type { DbHandle } from '@coodra/contextos-db';
 
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
+import { createGetFeatureToolRegistration } from './get-feature/manifest.js';
+import { createGetFeatureFileToolRegistration } from './get-feature-file/manifest.js';
 import { getFeaturePackToolRegistration } from './get-feature-pack/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
+import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
+import { createListFeaturesToolRegistration } from './list-features/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
 import { createQueryCodebaseGraphToolRegistration } from './query-codebase-graph/manifest.js';
 import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
 import { createQueryRunHistoryToolRegistration } from './query-run-history/manifest.js';
+import { createReadContextPackToolRegistration } from './read-context-pack/manifest.js';
 import { createRecordDecisionToolRegistration } from './record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from './save-context-pack/manifest.js';
 import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.js';
@@ -51,4 +56,17 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // the gap that record_decision wrote rows nothing in the 9-tool surface
   // could read back. See manifest.ts docblock.
   registry.register(createQueryDecisionsToolRegistration({ db: deps.db }));
+  // Module 05 (2026-05-08 reshape): the two new agent-driven retrieval
+  // tools that replace the abandoned embedding pipeline. See
+  // docs/feature-packs/05-agent-driven-nl-assembly/spec.md §5.1, §5.2.
+  registry.register(createListContextPacksToolRegistration({ db: deps.db }));
+  registry.register(createReadContextPackToolRegistration({ db: deps.db }));
+  // Skill-style features (2026-05-08): the three retrieval tools that
+  // back the docs/features/<slug>/ knowledge-units layer. See
+  // packages/shared/src/features/types.ts for the format spec, and
+  // apps/hooks-bridge/src/lib/features-index-loader.ts for the
+  // SessionStart injection that surfaces the index list to agents.
+  registry.register(createListFeaturesToolRegistration({ db: deps.db }));
+  registry.register(createGetFeatureToolRegistration({ db: deps.db }));
+  registry.register(createGetFeatureFileToolRegistration({ db: deps.db }));
 }

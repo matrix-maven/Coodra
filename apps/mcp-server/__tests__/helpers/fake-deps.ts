@@ -11,7 +11,6 @@ import type {
   Identity,
   PolicyClient,
   RunRecorder,
-  SqliteVecClient,
 } from '../../src/framework/tool-context.js';
 import { createPolicyClientFromCheck } from '../../src/lib/policy.js';
 
@@ -44,7 +43,6 @@ export interface MakeFakeDepsOptions {
   readonly featurePack?: FeaturePackStore;
   readonly contextPack?: ContextPackStore;
   readonly runRecorder?: RunRecorder;
-  readonly sqliteVec?: SqliteVecClient;
   readonly graphify?: GraphifyClient;
 }
 
@@ -103,7 +101,6 @@ export function makeFakeDeps(overrides: MakeFakeDepsOptions = {}): ContextDeps {
     featurePack: overrides.featurePack ?? notImpl<FeaturePackStore>('featurePack'),
     contextPack: overrides.contextPack ?? notImpl<ContextPackStore>('contextPack'),
     runRecorder: overrides.runRecorder ?? notImpl<RunRecorder>('runRecorder'),
-    sqliteVec: overrides.sqliteVec ?? notImpl<SqliteVecClient>('sqliteVec'),
     graphify: overrides.graphify ?? notImpl<GraphifyClient>('graphify'),
   }) satisfies ContextDeps;
 }

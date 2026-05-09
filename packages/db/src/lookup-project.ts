@@ -21,6 +21,8 @@ export interface ProjectLookupResult {
   readonly slug: string;
   readonly orgId: string;
   readonly name: string;
+  /** Absolute filesystem path of the project root, or null if never recorded. */
+  readonly cwd: string | null;
 }
 
 export async function lookupProjectBySlug(db: DbHandle, slug: string): Promise<ProjectLookupResult | null> {
@@ -31,6 +33,7 @@ export async function lookupProjectBySlug(db: DbHandle, slug: string): Promise<P
         slug: sqliteSchema.projects.slug,
         orgId: sqliteSchema.projects.orgId,
         name: sqliteSchema.projects.name,
+        cwd: sqliteSchema.projects.cwd,
       })
       .from(sqliteSchema.projects)
       .where(eq(sqliteSchema.projects.slug, slug))
@@ -43,6 +46,7 @@ export async function lookupProjectBySlug(db: DbHandle, slug: string): Promise<P
       slug: postgresSchema.projects.slug,
       orgId: postgresSchema.projects.orgId,
       name: postgresSchema.projects.name,
+      cwd: postgresSchema.projects.cwd,
     })
     .from(postgresSchema.projects)
     .where(eq(postgresSchema.projects.slug, slug))

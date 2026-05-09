@@ -47,8 +47,10 @@ function assertArgs(args: Parameters<RunRecorder['record']>[0]): void {
   if (typeof args.toolName !== 'string' || args.toolName.length === 0) {
     throw new ValidationError('run-recorder.record: toolName is required');
   }
-  if (args.phase !== 'pre' && args.phase !== 'post') {
-    throw new ValidationError(`run-recorder.record: phase must be 'pre' | 'post', got '${String(args.phase)}'`);
+  if (args.phase !== 'pre' && args.phase !== 'post' && args.phase !== 'mcp_call') {
+    throw new ValidationError(
+      `run-recorder.record: phase must be 'pre' | 'post' | 'mcp_call', got '${String(args.phase)}'`,
+    );
   }
   if (typeof args.sessionId !== 'string' || args.sessionId.length === 0) {
     throw new ValidationError('run-recorder.record: sessionId is required');

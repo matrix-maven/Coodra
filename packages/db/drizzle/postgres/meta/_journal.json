@@ -64,6 +64,20 @@
       "when": 1777881958000,
       "tag": "0008_run_events_orphan_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778224000000,
+      "tag": "0009_m05_agent_driven",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778310400000,
+      "tag": "0010_projects_cwd",
+      "breakpoints": true
     }
   ]
 }

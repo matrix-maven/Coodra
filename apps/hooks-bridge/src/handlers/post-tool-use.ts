@@ -1,10 +1,34 @@
-import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId } from '@coodra/contextos-db';
+import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId, sqliteSchema } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
 import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import { and, eq } from 'drizzle-orm';
 
 import type { HookDispatchResult } from '../app.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
 import type { RunRecorder } from '../lib/run-recorder.js';
+import { markSaveContextPackCalled, recordPostToolUseAndCheckReminder } from '../lib/session-state.js';
+
+/**
+ * Module 05 §6.D — mid-session reminder threshold.
+ *
+ * After this many PostToolUse events for one run without a
+ * `save_context_pack` call, the bridge injects a one-shot
+ * `<system-reminder>` via the response's `additionalContext`. Tuned
+ * empirically: 15 is a "long" session in current ContextOS usage,
+ * short enough sessions (<15 tools) get no nag.
+ *
+ * Future: per-project override via `.contextos.json:sessionStart.midSessionReminderAfter`.
+ */
+const M05_MID_SESSION_REMINDER_THRESHOLD = 15;
+
+const M05_MID_SESSION_REMINDER = [
+  '<system-reminder>',
+  "You've made a number of tool calls in this session without calling save_context_pack.",
+  'When you wrap up this work, call it with a narrative recap of what was built — that',
+  'is the canonical record the next session reads. Otherwise the bridge will write only',
+  'a structured event digest as a fallback.',
+  '</system-reminder>',
+].join('\n');
 
 /**
  * `apps/hooks-bridge/src/handlers/post-tool-use` — schedules the audit
@@ -60,6 +84,54 @@ export function createPostToolUseHandler(deps: CreatePostToolUseHandlerDeps): Po
         'lookupRunId threw; logging without runId',
       );
     }
+    // M05 §6.D — mid-session reminder. If we have a runId AND the
+    // PostToolUse counter has crossed the threshold AND the agent has
+    // not already saved a context pack, inject a one-shot reminder
+    // via additionalContext. Idempotent per run (the counter sets a
+    // flag after the first fire).
+    //
+    // Cross-process flag sync: MCP and bridge are separate processes,
+    // so we can't share an in-memory map. When the in-memory counter
+    // crosses the threshold we do a single DB lookup against
+    // `context_packs(run_id)` — if an agent-authored row already
+    // exists, mark the counter as compliant and skip the reminder.
+    // The DB hit happens at most once per run.
+    let reminderInjected = false;
+    if (runId !== null) {
+      const wouldFire = recordPostToolUseAndCheckReminder(runId, M05_MID_SESSION_REMINDER_THRESHOLD);
+      if (wouldFire) {
+        try {
+          if (deps.db.kind === 'sqlite') {
+            const cp = sqliteSchema.contextPacks;
+            const existing = (await deps.db.db
+              .select({ id: cp.id, source: cp.source })
+              .from(cp)
+              .where(and(eq(cp.runId, runId), eq(cp.source, 'agent')))
+              .limit(1)) as Array<{ id: string; source: string }>;
+            if (existing[0] !== undefined) {
+              // Agent already saved — never nag.
+              markSaveContextPackCalled(runId);
+            } else {
+              reminderInjected = true;
+            }
+          } else {
+            reminderInjected = true;
+          }
+        } catch (err) {
+          postToolLogger.warn(
+            {
+              event: 'post_tool_use_save_pack_lookup_failed',
+              sessionId: event.sessionId,
+              runId,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            'm05 reminder lookup threw; firing reminder anyway (fail-safe-loud)',
+          );
+          reminderInjected = true;
+        }
+      }
+    }
+
     postToolLogger.info(
       {
         event: 'post_tool_use_recorded',
@@ -69,9 +141,13 @@ export function createPostToolUseHandler(deps: CreatePostToolUseHandlerDeps): Po
         turnId: event.turnId,
         ...(projectId !== undefined ? { projectId } : {}),
         runId: runId ?? 'unresolved',
+        ...(reminderInjected ? { m05ReminderFired: true } : {}),
       },
       'post-tool-use audit scheduled',
     );
+    if (reminderInjected) {
+      return { permissionDecision: 'allow', additionalContext: M05_MID_SESSION_REMINDER };
+    }
     return { permissionDecision: 'allow' };
   };
 }

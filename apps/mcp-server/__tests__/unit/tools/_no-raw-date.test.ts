@@ -65,9 +65,23 @@ function walk(dir: string, out: string[] = []): string[] {
  * comments are scanned deliberately so that a docblock cannot
  * quietly contain a banned substring even as prose — rephrase the
  * comment instead of suppressing the guard.
+ *
+ * **2026-05-08 refinement.** Pre-fix the `new Date(` regex was too
+ * broad: it flagged BOTH `new Date()` (zero-arg = wall clock) AND
+ * `new Date(isoString)` (one-arg = parse). Parsing an ISO cursor /
+ * header into a Date is NOT a wall-clock read — it is a coercion,
+ * and Drizzle's `mode:'timestamp'` columns require a Date object on
+ * the WHERE clause. Forbidding parse here would force pagination
+ * code into a string-comparison fallback that loses timezone safety.
+ * The refined regex matches only `new Date()` with empty arg list.
+ *
+ * `Date.now(...)` and `Date.parse(...)` remain fully banned —
+ * `Date.now()` always reads the wall clock, and `Date.parse()` with
+ * no arg is undefined behaviour. Their few legitimate uses go through
+ * `ctx.now()`.
  */
 const BANNED_CLOCKS: ReadonlyArray<{ label: string; re: RegExp }> = [
-  { label: 'new Date(', re: /\bnew\s+Date\s*\(/ },
+  { label: 'new Date()', re: /\bnew\s+Date\s*\(\s*\)/ },
   { label: 'Date.now(', re: /\bDate\s*\.\s*now\s*\(/ },
   { label: 'Date.parse(', re: /\bDate\s*\.\s*parse\s*\(/ },
 ];
@@ -109,7 +123,7 @@ describe('src/tools/** — no raw wall-clock reads (clock discipline)', () => {
     // loosens it, this test locks the intent. Each sample below is
     // an idiomatic banned call; the regex for that label MUST match.
     const samples: Record<string, string> = {
-      'new Date(': 'const x = new Date();',
+      'new Date()': 'const x = new Date();',
       'Date.now(': 'const t = Date.now();',
       'Date.parse(': 'const p = Date.parse("2024-01-01");',
     };
@@ -118,11 +132,30 @@ describe('src/tools/** — no raw wall-clock reads (clock discipline)', () => {
       expect(sample, `no sample defined for banned construct "${label}"`).toBeDefined();
       expect(re.test(sample as string), `regex for "${label}" should match sample: ${sample}`).toBe(true);
     }
-    // Negative: `Date.UTC(` is pure computation and must NOT be
-    // flagged by any of the three banned regexes.
-    const legal = 'const u = Date.UTC(2024, 0, 1);';
-    for (const { label, re } of BANNED_CLOCKS) {
-      expect(re.test(legal), `regex for "${label}" wrongly flagged Date.UTC(`).toBe(false);
+    // Negative: pure-computation Date statics + parse-via-`new Date(arg)`
+    // must NOT be flagged. The 2026-05-08 refinement is specifically
+    // that the `new Date(` regex should be parse-vs-clock-aware: a
+    // string / number argument is a coercion that depends on the
+    // input value, not the wall clock.
+    const legals = [
+      'const u = Date.UTC(2024, 0, 1);',
+      'const c = new Date(cursor.lastCreatedAt);',
+      'const fromIso = new Date("2024-01-01T00:00:00Z");',
+      'const fromMs = new Date(1704067200000);',
+      'const c = new Date( cursor.lastCreatedAt );',
+    ];
+    for (const legal of legals) {
+      for (const { label, re } of BANNED_CLOCKS) {
+        expect(re.test(legal), `regex for "${label}" wrongly flagged: ${legal}`).toBe(false);
+      }
+    }
+    // Positive: zero-arg `new Date()` (with optional whitespace) is
+    // still banned — that's the wall-clock pattern.
+    const stillBanned = ['new Date()', 'new Date(  )', 'new\tDate( )'];
+    for (const banned of stillBanned) {
+      const re = BANNED_CLOCKS.find((b) => b.label === 'new Date()')?.re;
+      expect(re).toBeDefined();
+      expect(re!.test(banned), `regex for "new Date()" should still match: ${banned}`).toBe(true);
     }
   });
 });

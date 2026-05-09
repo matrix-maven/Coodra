@@ -42,10 +42,11 @@ export function createRecordDecisionToolRegistration(
     name: 'record_decision',
     title: 'ContextOS: record_decision',
     description:
-      'Call this IMMEDIATELY after choosing a library, designing an API shape, selecting an implementation approach over an alternative, or deciding NOT to implement something. ' +
-      'Persists a permanent decision entry with description, rationale, and alternatives considered. Future sessions will see these decisions and must not contradict them silently. ' +
-      'Do not batch decisions — log each one as it is made. Idempotent on (runId, description): retry with identical description returns the first decisionId with created:false. ' +
-      'Returns { ok: true, decisionId, createdAt, created } on success, or { ok: false, error: "run_not_found", howToFix } if the runId is not registered.',
+      'Call this the moment you make a design or implementation decision — picking a library over alternatives, designing an API shape, deciding NOT to do something. ' +
+      'Future sessions consult this table and SessionStart auto-injects the most recent decisions; silent contradictions are the failure mode this tool prevents. ' +
+      'Pass `context` (what triggered the decision), `impact` (modules affected), `confidence` (high|medium|low), and `reversible` (can it be undone cheaply) when known. ' +
+      'Idempotent on (runId, description) — the same description re-recorded returns the original decisionId with created:false; new metadata on the retry is discarded. ' +
+      'Returns { ok: true, decisionId, createdAt, created } on success. Soft-failure: run_not_found.',
     inputSchema: recordDecisionInputSchema,
     outputSchema: recordDecisionOutputSchema,
     idempotencyKey: recordDecisionIdempotencyKey,

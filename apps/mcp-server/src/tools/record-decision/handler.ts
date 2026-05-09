@@ -112,6 +112,12 @@ async function insertIgnoreOnConflict(
     readonly description: string;
     readonly rationale: string;
     readonly alternatives: string | null;
+    // M05 fields — all nullable, so legacy callers without these
+    // continue to work and old rows display gracefully.
+    readonly context: string | null;
+    readonly impact: string | null;
+    readonly confidence: 'high' | 'medium' | 'low' | null;
+    readonly reversible: boolean | null;
   },
 ): Promise<InsertResult> {
   if (db.kind === 'sqlite') {
@@ -124,6 +130,10 @@ async function insertIgnoreOnConflict(
         description: row.description,
         rationale: row.rationale,
         alternatives: row.alternatives,
+        context: row.context,
+        impact: row.impact,
+        confidence: row.confidence,
+        reversible: row.reversible,
       })
       .onConflictDoNothing({ target: sqliteSchema.decisions.idempotencyKey })
       .returning({
@@ -145,6 +155,10 @@ async function insertIgnoreOnConflict(
       description: row.description,
       rationale: row.rationale,
       alternatives: row.alternatives,
+      context: row.context,
+      impact: row.impact,
+      confidence: row.confidence,
+      reversible: row.reversible,
     })
     .onConflictDoNothing({ target: postgresSchema.decisions.idempotencyKey })
     .returning({
@@ -186,6 +200,10 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
     const idempotencyKey = computeIdempotencyKey(input.runId, input.description);
     const alternativesJson =
       input.alternatives !== undefined && input.alternatives.length > 0 ? JSON.stringify(input.alternatives) : null;
+    // M05 — additive metadata. JSON-encoded array for impact (parity
+    // with alternatives convention). Confidence stored as text per
+    // schema enum; reversible stored as boolean (NULL when omitted).
+    const impactJson = input.impact !== undefined && input.impact.length > 0 ? JSON.stringify(input.impact) : null;
 
     const { inserted, id, createdAt } = await insertIgnoreOnConflict(deps.db, {
       id: `dec_${randomUUID()}`,
@@ -194,6 +212,10 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
       description: input.description,
       rationale: input.rationale,
       alternatives: alternativesJson,
+      context: input.context ?? null,
+      impact: impactJson,
+      confidence: input.confidence ?? null,
+      reversible: input.reversible ?? null,
     });
 
     if (!inserted) {

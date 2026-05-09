@@ -33,11 +33,11 @@ export function createSaveContextPackToolRegistration(
     name: 'save_context_pack',
     title: 'ContextOS: save_context_pack',
     description:
-      'Call this when a feature, bug fix, or refactor is complete — not per small edit, once per completed task. ' +
-      "Persists a markdown summary of what was built, decisions made, files modified, test results, and open TODOs to the project's context archive. " +
-      'This is the ONLY mechanism by which the next session (possibly a different agent) can know what was done. ' +
-      'Skipping this leaves the run as dead weight in the history table. Returns { contextPackId, savedAt, contentExcerpt } on success, or ' +
-      '{ ok: false, error: "run_not_found", howToFix } if the runId is not registered. Append-only: same runId + different content returns the original row.',
+      'Call this at session end before signaling exit. Write a narrative recap synthesizing what was built, what was decided, what is still open. ' +
+      'This is the canonical record the next session reads. The bridge auto-saves a structured event digest as a fallback for crashed sessions — your call overrides it and is preferred. ' +
+      'Include `meta` with decisionIds, affectedFiles, testStatus, openTodos when applicable so the next session has structured handles into the narrative. ' +
+      'Returns { contextPackId, savedAt, contentExcerpt, source, status } on success — `status` is "created" | "idempotent_hit" | "upgraded_from_bridge_auto". ' +
+      'Soft-failure: run_not_found.',
     inputSchema: saveContextPackInputSchema,
     outputSchema: saveContextPackOutputSchema,
     idempotencyKey: saveContextPackIdempotencyKey,

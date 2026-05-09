@@ -420,3 +420,25 @@ export async function setPolicyActive(
 }
 
 void isNull; // kept for future "active-only" filter variants
+
+/**
+ * Delete a single policy_rules row by id. Returns `true` if a row was
+ * deleted, `false` if no row matched. Idempotent — re-deleting an
+ * already-deleted rule returns `false` without error.
+ *
+ * Why this exists: pre-cleanup the only way to disable a rule was to
+ * deactivate the parent policy, which silenced ALL its rules at once.
+ * The web app needs per-rule delete for fine-grained CRUD.
+ */
+export async function deletePolicyRule(db: DbHandle, ruleId: string): Promise<boolean> {
+  if (typeof ruleId !== 'string' || ruleId.length === 0) return false;
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.policyRules;
+    const result = await db.db.delete(t).where(eq(t.id, ruleId));
+    const changes = (result as { changes?: number } | undefined)?.changes ?? 0;
+    return changes > 0;
+  }
+  const t = postgresSchema.policyRules;
+  const result = await db.db.delete(t).where(eq(t.id, ruleId)).returning({ id: t.id });
+  return result.length > 0;
+}

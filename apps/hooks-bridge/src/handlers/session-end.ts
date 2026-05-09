@@ -1,11 +1,13 @@
-import { type DbHandle, lookupRunId } from '@coodra/contextos-db';
+import { type DbHandle, lookupRunId, sqliteSchema } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
 import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import { and, eq, ne, sql } from 'drizzle-orm';
 
 import type { HookDispatchResult } from '../app.js';
 import { saveAutoContextPack } from '../lib/auto-context-pack.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
 import type { RunRecorder } from '../lib/run-recorder.js';
+import { clearSessionState } from '../lib/session-state.js';
 
 /**
  * `apps/hooks-bridge/src/handlers/session-end` — closes the `runs`
@@ -132,6 +134,33 @@ async function scheduleAutoContextPackSave(args: {
     );
     return;
   }
+  // M05 §6.D — drop the per-run mid-session counter. Idempotent on
+  // unknown runId. Done before the auto-save so the counter can't
+  // outlive the run even if the auto-save throws.
+  clearSessionState(runId);
+  // 2026-05-08 fix: mark the run completed BEFORE attempting the
+  // auto-pack save. Pre-fix, runs.status was only flipped to 'completed'
+  // by `save_context_pack` MCP (handler.ts → markRunCompleted). When the
+  // agent never called the MCP tool, the run sat as in_progress until
+  // the 30-min stale-runs sweeper cancelled it as 'cancelled' — wrong
+  // terminal status for a healthy SessionEnd. The status flip is the
+  // bridge's responsibility on every SessionEnd that resolves to a real
+  // runId, regardless of whether the agent or the bridge writes the
+  // pack. Idempotent: WHERE status='in_progress' so a re-played
+  // SessionEnd does nothing on the second pass.
+  try {
+    await markRunCompletedOnSessionEnd(args.db, runId);
+  } catch (err) {
+    sessionEndLogger.warn(
+      {
+        event: 'session_end_run_status_flip_failed',
+        sessionId: args.sessionId,
+        runId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'failed to flip runs.status to completed; the auto-pack save will still run, sweeper catches the row eventually',
+    );
+  }
   try {
     await saveAutoContextPack({ runId, projectId: args.projectId, db: args.db });
   } catch (err) {
@@ -145,4 +174,24 @@ async function scheduleAutoContextPackSave(args: {
       'auto-save Context Pack failed; session is closed regardless',
     );
   }
+}
+
+/**
+ * Mark the run completed on SessionEnd. Idempotent — only flips rows
+ * that are still `in_progress`, so a re-played SessionEnd is a no-op.
+ *
+ * v1 supports SQLite only (matching the rest of the bridge). The
+ * `endedAt` column is `integer mode:'timestamp'` so we use raw
+ * `unixepoch()` to align with the DEFAULT clause used elsewhere
+ * (avoids JS-Date round-trip drift).
+ */
+async function markRunCompletedOnSessionEnd(db: DbHandle, runId: string): Promise<void> {
+  if (db.kind !== 'sqlite') {
+    return;
+  }
+  const t = sqliteSchema.runs;
+  await db.db
+    .update(t)
+    .set({ status: 'completed', endedAt: sql`(unixepoch())` })
+    .where(and(eq(t.id, runId), ne(t.status, 'completed')));
 }

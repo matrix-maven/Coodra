@@ -1,23 +1,20 @@
-import { EMBEDDING_DIM } from '@coodra/contextos-shared';
 import { z } from 'zod';
 
 /**
- * Input schema for `contextos__search_packs_nl` (§24.4).
+ * Input + output schemas for `contextos__search_packs_nl`.
  *
- * §24.4 lists `{ projectSlug, query, limit? }`. This slice amends
- * §24.4 in-commit to add an optional `embedding: number[]` — Module
- * 02 does NOT compute embeddings (no NL Assembly yet; Module 05
- * owns that). Callers who can supply a pre-computed embedding get
- * the semantic path via `ctx.sqliteVec.searchSimilarPacks`; callers
- * who cannot get the LIKE fallback over `title` + `content_excerpt`
- * with a `notice: 'no_embeddings_yet'` + `howToFix` advisory.
+ * Module 05 reshape (2026-05-08): the embedding-supplied semantic-KNN
+ * path was removed alongside the abandoned Python NL Assembly service.
+ * Search is now keyword-only (LIKE over title + content_excerpt + first
+ * 2KB of content) ordered by recency. Agents apply their own relevance
+ * ranking after reading candidates with `read_context_pack` — see
+ * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.3.
  *
- * Dim validation is deliberately NOT at the Zod level — a length
- * mismatch returns a structured `embedding_dim_mismatch` soft-failure
- * (not the generic `invalid_input` envelope the registry produces
- * for Zod-rejected input). The handler performs the length check
- * and returns the canonical soft-failure shape per
- * `essentialsforclaude/09-common-patterns.md §9.1.2`.
+ * The wire shape is intentionally narrower than pre-M05:
+ *   - `embedding: number[]` — REMOVED
+ *   - `notice: 'no_embeddings_yet'` — REMOVED
+ *   - `embedding_dim_mismatch` soft-failure branch — REMOVED
+ *   - default limit raised from 10 to 50 (recency feed, not top-K)
  */
 
 const MAX_QUERY_LEN = 4096 as const;
@@ -34,12 +31,8 @@ export const searchPacksNlInputSchema = z
       .string()
       .min(1, 'query is required')
       .max(MAX_QUERY_LEN, `query must be at most ${MAX_QUERY_LEN} characters`)
-      .describe('Natural-language query string. Used for the LIKE text fallback when no embedding is provided.'),
-    embedding: z
-      .array(z.number())
-      .optional()
       .describe(
-        `Pre-computed ${EMBEDDING_DIM}-dim embedding. Module 05 NL Assembly becomes the default caller that supplies this; M02 callers without an embedder get the LIKE fallback.`,
+        'Keyword(s) to LIKE-match against title + content_excerpt + first 2KB of content. Single token or short phrase works best; for semantic exploration call list_context_packs and reason over titles instead.',
       ),
     limit: z
       .number()
@@ -47,7 +40,7 @@ export const searchPacksNlInputSchema = z
       .positive()
       .max(MAX_LIMIT)
       .optional()
-      .describe(`Max results (default 10, capped at ${MAX_LIMIT}).`),
+      .describe(`Max results (default 50, capped at ${MAX_LIMIT}). Ordered by created_at DESC.`),
   })
   .strict()
   .describe('Input for contextos__search_packs_nl.');
@@ -57,26 +50,19 @@ const packResultSchema = z
     id: z.string().min(1),
     title: z.string(),
     excerpt: z.string(),
-    /** Cosine distance from the query embedding; `null` on LIKE fallback rows. Lower = more relevant. */
+    /** Always null post-M05 — search is keyword-only, no relevance score is computed. Agent ranks. */
     score: z.number().nullable(),
     savedAt: z.string().datetime(),
     runId: z.string().min(1),
+    /** Provenance — 'agent' rows are canonical narratives; 'bridge_auto' rows are structured digests. */
+    source: z.enum(['agent', 'bridge_auto']),
   })
   .strict();
 
-/**
- * Success branch — optional `notice` + `howToFix` on the LIKE
- * fallback path. The soft-failure convention (§9.1.2) mandates
- * `howToFix` for every `ok: false` branch; success-side advisory
- * notices are strictly additive and agent-callers branch on
- * `notice` presence to surface remediation to users.
- */
 const successBranch = z
   .object({
     ok: z.literal(true),
     packs: z.array(packResultSchema),
-    notice: z.literal('no_embeddings_yet').optional(),
-    howToFix: z.string().min(1).optional(),
   })
   .strict();
 
@@ -88,17 +74,7 @@ const projectNotFoundBranch = z
   })
   .strict();
 
-const embeddingDimMismatchBranch = z
-  .object({
-    ok: z.literal(false),
-    error: z.literal('embedding_dim_mismatch'),
-    expected: z.literal(EMBEDDING_DIM),
-    got: z.number().int(),
-    howToFix: z.string().min(1),
-  })
-  .strict();
-
-export const searchPacksNlOutputSchema = z.union([successBranch, projectNotFoundBranch, embeddingDimMismatchBranch]);
+export const searchPacksNlOutputSchema = z.union([successBranch, projectNotFoundBranch]);
 
 export type SearchPacksNlInput = z.infer<typeof searchPacksNlInputSchema>;
 export type SearchPacksNlOutput = z.infer<typeof searchPacksNlOutputSchema>;

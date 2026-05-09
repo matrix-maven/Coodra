@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
 import { createLogger } from '@coodra/contextos-shared';
@@ -102,21 +102,48 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
   const now = options.now ?? (() => Date.now());
   const slugCache = new Map<string, SlugCacheEntry>();
   const idCache = new Map<string, IdCacheEntry>();
+  // Process-lifetime memo of slugs we've already attempted to backfill `cwd`
+  // on. The hot path (every audit write hits resolveAndEnsure) would
+  // otherwise fire one extra `ensureProject` roundtrip per request — this
+  // set caps the cost at one extra UPDATE per slug per process. The DB-side
+  // backfill is also idempotent (only writes when projects.cwd IS NULL), so
+  // re-attempting is safe but pointless.
+  const backfilledSlugs = new Set<string>();
 
   async function resolveSlug(cwd: string): Promise<string | undefined> {
     const cached = slugCache.get(cwd);
     if (cached && now() - cached.loadedAt < cacheTtlMs) return cached.slug;
+    // Walk up from the literal cwd looking for the closest `.contextos.json`.
+    // This is the project-root analogue of how Git finds `.git/`. Without
+    // walk-up, an agent started in `~/Coodra/apps/web-v2` would derive a
+    // `web-v2` slug and create a stub project, even though `~/Coodra` is
+    // the real registered root with slug `contextos`. Cap depth at 12 to
+    // bound disk I/O if the cwd is far below the project root.
     let slug: string | undefined;
-    try {
-      const raw = await readFile(join(cwd, '.contextos.json'), 'utf8');
-      const parsed = ContextosJsonSchema.parse(JSON.parse(raw));
-      slug = parsed.projectSlug;
-    } catch (err) {
+    let cursor = cwd;
+    for (let i = 0; i < 12; i++) {
+      try {
+        const raw = await readFile(join(cursor, '.contextos.json'), 'utf8');
+        const parsed = ContextosJsonSchema.parse(JSON.parse(raw));
+        slug = parsed.projectSlug;
+        if (slug !== undefined) break;
+      } catch {
+        // Not at this level — keep walking up.
+      }
+      const parent = dirname(cursor);
+      if (parent === cursor) break; // hit filesystem root
+      cursor = parent;
+    }
+    if (slug === undefined) {
       projectSlugLogger.debug(
-        { event: 'project_slug_unavailable', cwd, err: err instanceof Error ? err.message : String(err) },
-        '.contextos.json not readable; using __global__ policy cache',
+        { event: 'project_slug_unavailable', cwd },
+        '.contextos.json not found between cwd and filesystem root; using __global__ policy cache',
       );
-      slug = undefined;
+    } else if (cursor !== cwd) {
+      projectSlugLogger.debug(
+        { event: 'project_slug_resolved_from_ancestor', cwd, ancestor: cursor, slug },
+        'resolved project slug from ancestor `.contextos.json`',
+      );
     }
     slugCache.set(cwd, { slug, loadedAt: now() });
     return slug;
@@ -174,7 +201,31 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
       let slug = sidecarSlug;
       if (slug !== undefined) {
         const existing = await resolveProjectId(slug, db);
-        if (existing !== undefined) return { slug, projectId: existing };
+        if (existing !== undefined) {
+          // Project row exists. Try to backfill `projects.cwd` once per
+          // process lifetime — covers projects created before the column
+          // existed (legacy rows) AND projects auto-ensured by basename
+          // before the bridge knew the cwd. ensureProject is idempotent
+          // (the SQL update fires only when the column is null), so this
+          // is a one-time UPDATE per slug.
+          if (!backfilledSlugs.has(slug)) {
+            backfilledSlugs.add(slug);
+            try {
+              await ensureProject(db, { slug, cwd });
+            } catch (err) {
+              projectSlugLogger.debug(
+                {
+                  event: 'project_cwd_backfill_failed',
+                  slug,
+                  cwd,
+                  err: err instanceof Error ? err.message : String(err),
+                },
+                'cwd backfill on existing row threw; continuing with cached projectId',
+              );
+            }
+          }
+          return { slug, projectId: existing };
+        }
       }
       // Need to create. If no sidecar slug, derive from cwd basename.
       if (slug === undefined) {
@@ -190,9 +241,14 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
         slug = derived;
       }
       // Auto-create. ensureProject is idempotent at the unique-slug index, so
-      // a concurrent insert from another handler is benign.
+      // a concurrent insert from another handler is benign. Pass `cwd` so the
+      // projects row records the absolute filesystem path of the project root
+      // (the directory containing `.contextos.json`) — the web app's per-project
+      // pack uploader reads this to write into the right folder.
+      // ensureProject backfills only when the existing row's cwd is null, so
+      // a stale cwd from a renamed/moved project never overwrites the original.
       try {
-        const result = await ensureProject(db, { slug });
+        const result = await ensureProject(db, { slug, cwd });
         // Cache the brand-new id so the next read is instant.
         idCache.set(slug, { projectId: result.id, loadedAt: now() });
         // If the slug was derived (no sidecar), also cache the cwd→slug

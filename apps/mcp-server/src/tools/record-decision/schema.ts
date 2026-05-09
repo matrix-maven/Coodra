@@ -27,6 +27,10 @@ const MAX_RATIONALE = 8192 as const;
 const MAX_ALTERNATIVES = 10 as const;
 const MAX_ALTERNATIVE_LEN = 512 as const;
 
+const MAX_CONTEXT = 4096 as const;
+const MAX_IMPACT_ITEMS = 30 as const;
+const MAX_IMPACT_LEN = 512 as const;
+
 export const recordDecisionInputSchema = z
   .object({
     runId: z.string().min(1, 'runId is required').max(256),
@@ -42,6 +46,14 @@ export const recordDecisionInputSchema = z
       .array(z.string().min(1).max(MAX_ALTERNATIVE_LEN))
       .max(MAX_ALTERNATIVES, `alternatives must be at most ${MAX_ALTERNATIVES} items`)
       .optional(),
+    /** M05 — what triggered this decision (user request, error, design review). */
+    context: z.string().min(1).max(MAX_CONTEXT).optional(),
+    /** M05 — affected modules / API surfaces / files. JSON-encoded by handler. */
+    impact: z.array(z.string().min(1).max(MAX_IMPACT_LEN)).max(MAX_IMPACT_ITEMS).optional(),
+    /** M05 — how certain this decision is. Maps directly to decisions.confidence column. */
+    confidence: z.enum(['high', 'medium', 'low']).optional(),
+    /** M05 — can this be undone without major cost. Stored as boolean (NULL = unknown). */
+    reversible: z.boolean().optional(),
   })
   .strict()
   .describe('Input for contextos__record_decision.');

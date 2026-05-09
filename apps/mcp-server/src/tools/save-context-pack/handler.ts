@@ -105,6 +105,9 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       };
     }
 
+    // Module 05: explicit MCP-tool calls always carry source='agent'.
+    // The bridge's auto-pack path (auto-context-pack.ts) bypasses this
+    // tool and writes directly via the store with source='bridge_auto'.
     const written = (await ctx.contextPack.write(
       {
         runId: input.runId,
@@ -113,7 +116,10 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         content: input.content,
         ...(input.featurePackId !== undefined ? { featurePackId: input.featurePackId } : {}),
       },
-      null,
+      {
+        source: 'agent',
+        ...(input.meta !== undefined ? { meta: input.meta } : {}),
+      },
     )) as ContextPackWriteResult;
 
     // Mark the run completed — idempotent no-op if already completed.
@@ -128,6 +134,8 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       contextPackId: written.id,
       savedAt: written.createdAt.toISOString(),
       contentExcerpt: written.contentExcerpt,
+      source: written.source,
+      status: written.status,
     };
   };
 }

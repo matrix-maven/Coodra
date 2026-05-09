@@ -29,6 +29,12 @@ export interface ProjectListRow {
   readonly slug: string;
   readonly orgId: string;
   readonly name: string;
+  /**
+   * Absolute filesystem path of the project root (added 0010_projects_cwd).
+   * Null on pre-2026-05-08 rows where the bridge / CLI never recorded the
+   * project's cwd. Web app callers fall back to `process.cwd()` in that case.
+   */
+  readonly cwd: string | null;
   readonly createdAt: Date;
   readonly runCount: number;
   readonly lastRunAt: Date | null;
@@ -84,6 +90,7 @@ export async function listProjects(db: DbHandle): Promise<ProjectListRow[]> {
         slug: p.slug,
         orgId: p.orgId,
         name: p.name,
+        cwd: p.cwd,
         createdAt: p.createdAt,
         runCount: stat?.n ?? 0,
         lastRunAt: stat?.maxStarted ?? null,
@@ -107,6 +114,7 @@ export async function listProjects(db: DbHandle): Promise<ProjectListRow[]> {
       slug: p.slug,
       orgId: p.orgId,
       name: p.name,
+      cwd: p.cwd,
       createdAt: p.createdAt,
       runCount: stat?.n ?? 0,
       lastRunAt: stat?.maxStarted ?? null,
@@ -154,6 +162,7 @@ export async function getProjectByIdentifier(db: DbHandle, identifier: string): 
       slug: p.slug,
       orgId: p.orgId,
       name: p.name,
+      cwd: p.cwd,
       createdAt: p.createdAt,
       runCount: stat?.n ?? 0,
       lastRunAt: stat?.maxStarted ?? null,
@@ -200,6 +209,7 @@ export async function getProjectByIdentifier(db: DbHandle, identifier: string): 
     slug: p.slug,
     orgId: p.orgId,
     name: p.name,
+    cwd: p.cwd,
     createdAt: p.createdAt,
     runCount: stat?.n ?? 0,
     lastRunAt: stat?.maxStarted ?? null,
@@ -489,18 +499,22 @@ export async function readProjectExport(db: DbHandle, projectId: string): Promis
     const proj = await db.db.select().from(s.projects).where(eq(s.projects.id, projectId)).limit(1);
     const project = proj[0];
     if (project === undefined) return [];
-    const runs = await db.db.select().from(s.runs).where(eq(s.runs.projectId, projectId)).orderBy(asc(s.runs.startedAt));
+    const runs = await db.db
+      .select()
+      .from(s.runs)
+      .where(eq(s.runs.projectId, projectId))
+      .orderBy(asc(s.runs.startedAt));
     const runIds = runs.map((r) => r.id);
     let runEvents: unknown[] = [];
     let decisions: unknown[] = [];
     if (runIds.length > 0) {
       const ph = runIds.map(() => '?').join(',');
-      runEvents = (
-        db.raw.prepare(`SELECT * FROM run_events WHERE run_id IN (${ph}) ORDER BY created_at ASC`).all(...runIds) as unknown[]
-      );
-      decisions = (
-        db.raw.prepare(`SELECT * FROM decisions WHERE run_id IN (${ph}) ORDER BY created_at ASC`).all(...runIds) as unknown[]
-      );
+      runEvents = db.raw
+        .prepare(`SELECT * FROM run_events WHERE run_id IN (${ph}) ORDER BY created_at ASC`)
+        .all(...runIds) as unknown[];
+      decisions = db.raw
+        .prepare(`SELECT * FROM decisions WHERE run_id IN (${ph}) ORDER BY created_at ASC`)
+        .all(...runIds) as unknown[];
     }
     const policyDecisions = await db.db
       .select()

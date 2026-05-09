@@ -37,6 +37,13 @@ export const projects = sqliteTable('projects', {
   slug: text('slug').notNull().unique(),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
+  // Absolute filesystem path of the project root (where .contextos.json lives).
+  // Recorded by the bridge on first SessionStart from a registered cwd, and by
+  // the CLI's `init` command. Nullable for back-compat — pre-2026-05-08 rows
+  // have no recorded cwd; consumers must fall back to process.cwd() in that
+  // case. Used by the web app's pack uploader to write into the project's own
+  // `<cwd>/docs/feature-packs/<slug>/` instead of the web-v2 server's cwd.
+  cwd: text('cwd'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
@@ -94,7 +101,22 @@ export const contextPacks = sqliteTable(
     title: text('title').notNull(),
     content: text('content').notNull(),
     contentExcerpt: text('content_excerpt').notNull().default(''),
+    // Module 05 (2026-05-08 reshape): kept here through 0009 migration so
+    // the dialect schemas stay aligned; 0010_drop_embeddings.sql removes
+    // it. New code does not write this column. Will be NULL on every row
+    // post-reshape until the column is dropped.
     summaryEmbedding: text('summary_embedding'),
+    // Module 05 — provenance of the pack. 'agent' = explicit MCP call;
+    // 'bridge_auto' = bridge's Pattern-20 auto-save fallback. The two
+    // collide on the unique (run_id) index — the tool's handler upgrades
+    // 'bridge_auto' rows to 'agent' when an explicit call lands second
+    // (single ADR-007 relaxation, narrow + documented).
+    source: text('source').notNull().default('agent'),
+    // Module 05 — agent-curated metadata. JSON-encoded text on both
+    // dialects for parity. Shape (validated at the tool boundary, not the
+    // schema): { decisionIds?, affectedFiles?, testStatus?, openTodos? }.
+    // NULL when the caller didn't supply any.
+    meta: text('meta'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
   (t) => [
@@ -224,6 +246,19 @@ export const decisions = sqliteTable(
     // Stored as text on both dialects for parity — the handler does
     // JSON.parse/stringify, so Postgres gains nothing from JSONB here.
     alternatives: text('alternatives'),
+    // Module 05 (2026-05-08 reshape) — structured intent fields. All
+    // optional; NULL on legacy rows written before M05 landed. The
+    // idempotency key (sha256 of description) does NOT include these
+    // — same description re-recorded with different metadata collapses
+    // to the first row. Update semantics are out of M05's scope.
+    // What triggered this decision (user request, error, design review).
+    context: text('context'),
+    // JSON-encoded string[] of affected modules / API surfaces / files.
+    impact: text('impact'),
+    // 'high' | 'medium' | 'low' | NULL (legacy rows have NULL = unknown).
+    confidence: text('confidence'),
+    // Boolean stored as integer per better-sqlite3 convention; NULL = unknown.
+    reversible: integer('reversible', { mode: 'boolean' }),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
   (t) => [index('decisions_run_created_idx').on(t.runId, t.createdAt)],

@@ -22,6 +22,7 @@ import { createKillSwitchEvaluator } from './lib/kill-switch-evaluator.js';
 import { createBridgeDispatchHandler } from './lib/outbox-dispatch.js';
 import { createProjectSlugResolver } from './lib/resolve-project-slug.js';
 import { createRunRecorder } from './lib/run-recorder.js';
+import { startStaleRunsSweeper } from './lib/stale-runs-sweeper.js';
 
 /**
  * `apps/hooks-bridge/src/index.ts` — boot entry.
@@ -89,6 +90,13 @@ async function main(): Promise<void> {
   });
   outboxWorker.start();
   bootLogger.info({ event: 'outbox_worker_started' }, 'OutboxWorker started; pending_jobs draining');
+
+  // Auto-cancel runs stuck in `in_progress` past the threshold.
+  // Catches the failure modes that SessionStart's per-project sweep
+  // misses: laptop sleep, process crash, dev exits without /exit,
+  // direct-MCP smoke tests with no Stop hook. See
+  // `lib/stale-runs-sweeper.ts` for the full design.
+  const staleRunsSweeper = startStaleRunsSweeper({ db: dbClient.handle });
   // Module 08b S2 (2026-05-03): kill-switch evaluator wired BEFORE the
   // policy chain in pre-tool-use. 5s in-process cache so pause/resume
   // feels instantaneous to the operator (the policy client's own 60s
@@ -152,6 +160,7 @@ async function main(): Promise<void> {
     // durable for the next process to drain.
     await outboxWorker.stop();
     bootLogger.info({ event: 'outbox_worker_stopped' }, 'OutboxWorker stopped');
+    await staleRunsSweeper.stop();
     await dbClient.close();
     bootLogger.info({ event: 'shutdown_complete' }, 'shutdown complete');
     process.exit(0);

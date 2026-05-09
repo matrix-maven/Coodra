@@ -166,30 +166,42 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
    * dispatcher's `lookupRunId` couldn't find a runs row.
    */
   const sessionsOpened = new Set<string>();
+  /**
+   * Per-session inflight insertRun promises. The dispatcher's lookupRunId
+   * runs against the persisted DB; if the runs row insert hasn't landed
+   * yet (Drizzle's INSERT is async), the lookup misses and the event
+   * lands with `run_id = NULL`.
+   *
+   * Storing the promise here lets `enqueueRunEvent` await it before
+   * scheduling the audit write, closing the race. Cleared on insert
+   * settle (success or failure) so memory can't grow unbounded across a
+   * long-lived bridge process.
+   */
+  const sessionInflightInserts = new Map<string, Promise<unknown>>();
 
-  function ensureSessionOpenInflight(event: HookEvent, projectId: string | undefined): void {
+  function ensureSessionOpenInflight(event: HookEvent, projectId: string | undefined): Promise<void> {
     const effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID;
     const key = `${effectiveProjectId}|${event.sessionId}`;
-    if (sessionsOpened.has(key)) return;
+    if (sessionsOpened.has(key)) {
+      // Either the insert already completed OR another call is in flight.
+      // Return the inflight promise if present, else a resolved promise.
+      const inflight = sessionInflightInserts.get(key);
+      return inflight !== undefined ? inflight.then(() => undefined).catch(() => undefined) : Promise.resolve();
+    }
     sessionsOpened.add(key);
     const rowId = generateRunKey({ projectId: effectiveProjectId, sessionId: event.sessionId });
-    // M04 Phase 2 S1 (F3 root-cause fix). Direct insertRun (NOT via
-    // the durable queue) so the runs row exists synchronously
-    // before the subsequent run_event / policy_decision enqueue.
-    // Going through the queue produced a race: both rows landed in
-    // pending_jobs in the same microsecond, the worker tick picked
-    // them up in the same batch, and the dispatcher's lookupRunId
-    // for the run_event sometimes ran before the session_open
-    // dispatch had inserted the runs row. ON CONFLICT (project_id,
-    // session_id) DO NOTHING makes the direct insert idempotent
-    // against any later explicit recordSessionStart.
+    // M04 Phase 2 S1 (F3 root-cause fix) + M05/post-cleanup race-close
+    // (2026-05-08). Direct insertRun (NOT via the durable queue) so the
+    // runs row lands synchronously before the next run_event lookup.
+    // ON CONFLICT (project_id, session_id) DO NOTHING makes the direct
+    // insert idempotent against any later explicit recordSessionStart.
     //
-    // The audit trail is the runs row itself + the run_events
-    // rows that follow; we do NOT also enqueue a session_open
-    // queue payload (that would be wasted work — the dispatcher's
-    // INSERT would no-op against the row this function just put
-    // in place).
-    void insertRun(deps.db, {
+    // Pre-cleanup the inflight promise was discarded (`void insertRun(...)`)
+    // so a fast-arriving PostToolUse could schedule its audit write
+    // before the runs row landed → the dispatcher's lookupRunId returned
+    // null → run_event landed with `run_id = NULL`. Storing the promise
+    // here lets enqueueRunEvent await it.
+    const insertPromise = insertRun(deps.db, {
       id: rowId,
       projectId: effectiveProjectId,
       sessionId: event.sessionId,
@@ -207,6 +219,14 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       );
       sessionsOpened.delete(key);
     });
+    sessionInflightInserts.set(key, insertPromise);
+    void insertPromise.finally(() => {
+      // Drop the entry so the map doesn't grow without bound. Future
+      // calls for this same (project, session) will see `sessionsOpened`
+      // already true and short-circuit.
+      sessionInflightInserts.delete(key);
+    });
+    return insertPromise.then(() => undefined).catch(() => undefined);
   }
 
   /**
@@ -250,10 +270,25 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       toolInput: clampToolInput(args.event.toolInput),
       outcome: null,
     };
-    void scheduleAuditWriteWithSync(deps.db, {
-      audit: { queue: 'run_event', payload },
-      sync: { table: 'run_events', lookup: { kind: 'id', value: rowId } },
-    })
+    // Race-close (2026-05-08): wait for any inflight implicit
+    // session_open insert for this (projectId, sessionId) before the
+    // audit write goes onto the queue. Otherwise the outbox dispatch
+    // can fire its lookupRunId before the runs row exists, and the
+    // event lands with run_id=NULL. The wait is at most a few ms in
+    // the slow case (insertRun is a single-row UPSERT against local
+    // SQLite); in the fast case the inflight map is empty and the
+    // wait is a resolved-promise no-op.
+    const inflightKey = `${effectiveProjectId}|${args.event.sessionId}`;
+    const inflight = sessionInflightInserts.get(inflightKey);
+    const wait = inflight !== undefined ? inflight.then(() => undefined).catch(() => undefined) : Promise.resolve();
+
+    void wait
+      .then(() =>
+        scheduleAuditWriteWithSync(deps.db, {
+          audit: { queue: 'run_event', payload },
+          sync: { table: 'run_events', lookup: { kind: 'id', value: rowId } },
+        }),
+      )
       .then(() => {
         kick?.();
       })

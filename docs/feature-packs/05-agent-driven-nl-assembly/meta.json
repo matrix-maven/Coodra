@@ -1,0 +1,41 @@
+{
+  "slug": "05-agent-driven-nl-assembly",
+  "parentSlug": null,
+  "sourceFiles": [
+    "apps/mcp-server/src/tools/save-context-pack/**",
+    "apps/mcp-server/src/tools/record-decision/**",
+    "apps/mcp-server/src/tools/search-packs-nl/**",
+    "apps/mcp-server/src/tools/query-codebase-graph/**",
+    "apps/mcp-server/src/tools/list-context-packs/**",
+    "apps/mcp-server/src/tools/read-context-pack/**",
+    "apps/hooks-bridge/src/lib/auto-context-pack.ts",
+    "apps/hooks-bridge/src/lib/recent-decisions.ts",
+    "apps/hooks-bridge/src/lib/session-state.ts",
+    "apps/hooks-bridge/src/handlers/session-start.ts",
+    "apps/hooks-bridge/src/handlers/post-tool-use.ts",
+    "apps/web-v2/lib/queries/dashboard.ts",
+    "apps/web-v2/app/page.tsx",
+    "packages/db/src/schema/sqlite.ts",
+    "packages/db/src/schema/postgres.ts",
+    "packages/db/drizzle/sqlite/0010_m05_agent_driven.sql",
+    "packages/db/drizzle/sqlite/0011_drop_embeddings.sql",
+    "packages/db/drizzle/postgres/0010_m05_agent_driven.sql",
+    "packages/db/drizzle/postgres/0011_drop_embeddings.sql",
+    "packages/db/migrations.lock.json",
+    "packages/cli/src/lib/init/contextos-json.ts",
+    "essentialsforclaude/05-agent-trigger-contract.md",
+    "essentialsforclaude/11-adrs.md",
+    "system-architecture.md"
+  ],
+  "isActive": true,
+  "kind": "module-spec",
+  "module": "05",
+  "title": "Agent-Driven NL Assembly",
+  "summary": "Reshape M05 from a planned Python FastAPI embeddings + LLM enrichment service into an agent-driven intelligence layer. The agent's own model provides all semantic reasoning; the system provides storage, structured recording tools (record_decision, save_context_pack with metadata fields), full-text search (LIKE-based, recency-ordered), and two new read tools (list_context_packs, read_context_pack). The bridge auto-saves a structured digest as a fallback floor; agent-authored Context Packs are canonical. Five compliance mechanisms (manifest reframes, trigger contract, SessionStart contract reminder, mid-session reminder, dashboard coverage stat) target ~80% canonical coverage. SessionStart auto-injects recent decisions to close the cross-developer awareness gap. Removes sqlite-vec, pgvector, summary_embedding column, EMBEDDING_DIM constant, and all M05-as-service references.",
+  "supersedes": [
+    "Original M05 plan (Python FastAPI + sentence-transformers + Ollama/Gemini enrichment service)"
+  ],
+  "supersededBy": null,
+  "createdAt": "2026-05-08",
+  "lastReviewedAt": "2026-05-08"
+}

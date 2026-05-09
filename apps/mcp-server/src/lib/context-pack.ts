@@ -3,12 +3,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { EMBEDDING_DIM, type Logger, ValidationError } from '@coodra/contextos-shared';
+import { type Logger, ValidationError } from '@coodra/contextos-shared';
 import {
   contextPackFilename as sharedContextPackFilename,
   defaultContextPacksRoot as sharedDefaultContextPacksRoot,
 } from '@coodra/contextos-shared/context-pack-paths';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import type { ContextPackStore } from '../framework/tool-context.js';
@@ -18,32 +18,29 @@ import { createMcpLogger } from './logger.js';
  * `apps/mcp-server/src/lib/context-pack.ts` — DB-first Context-Pack
  * store wired into `ToolContext.contextPack`.
  *
- * Write flow (user directive Q4: DB-first, FS reconcilable):
+ * Module 05 reshape (2026-05-08): the embedding-supplied path was
+ * removed entirely. The store no longer accepts a `Float32Array`
+ * second argument — it accepts an `options` object with `source`
+ * ('agent' | 'bridge_auto') and optional `meta` (JSON-encodable
+ * agent-curated metadata). See
+ * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.4 for
+ * the source semantics — including the single ADR-007 relaxation
+ * that lets an agent-explicit save overwrite a bridge_auto row.
+ *
+ * Write flow:
  *   1. Validate the `pack` payload with a module-local Zod schema.
  *   2. Compute `content_excerpt` = first 500 Unicode CODE POINTS of
- *      `content` with trailing whitespace trimmed (Q-02-3). Emoji
- *      and CJK at position 499 survive — covered by the unit test
- *      in `__tests__/unit/lib/context-pack-excerpt.test.ts`.
- *   3. Idempotency check: if a `context_packs` row already exists
- *      for `runId`, return that row's `{ id, createdAt,
- *      contentExcerpt }` without a second insert (§24.4).
- *   4. Insert the row. If an embedding was supplied, write the
- *      dialect-specific vector storage (vec0 virtual table for
- *      sqlite, `summary_embedding` vector column for postgres).
- *   5. Write the on-disk markdown file
- *      `docs/context-packs/YYYY-MM-DD-<runId-first-8>.md` as a
- *      materialised view (Q-02-4; fs is reconcilable from DB).
- *      A filesystem failure AFTER a successful DB insert logs at
- *      WARN and returns success — the row is durable and a future
- *      reconcile pass can replay the file.
- *
- * Embedding-dim assertion: non-null embeddings MUST be exactly
- * `@coodra/contextos-shared::EMBEDDING_DIM = 384`. A mismatch throws
- * `ValidationError` before any DB write.
- *
- * The store NEVER computes an embedding. Module 04 (NL Assembly)
- * owns embedding generation; Module 02 accepts whatever the caller
- * supplies, `Float32Array | null`.
+ *      `content` with trailing whitespace trimmed. Emoji + CJK at
+ *      position 499 survive.
+ *   3. Idempotency check by `runId`:
+ *        - No existing row → INSERT with the supplied `source`.
+ *        - Existing row with `source='bridge_auto'` AND incoming call
+ *          has `source='agent'` → UPDATE content + flip source. This
+ *          is the M05 single ADR-007 relaxation.
+ *        - Otherwise → no-op, return the existing row.
+ *   4. Materialise the on-disk markdown file under
+ *      `docs/context-packs/YYYY-MM-DD-<runId-first-8>.md`. Failure is
+ *      non-fatal — DB is source of truth.
  */
 
 const contextPackLogger = createMcpLogger('lib-context-pack');
@@ -63,13 +60,35 @@ const packSchema = z.object({
 });
 export type ContextPackInput = z.infer<typeof packSchema>;
 
+/**
+ * Optional metadata the agent supplies on `save_context_pack`. Stored as
+ * JSON-encoded text in `context_packs.meta`. Validated at the tool
+ * boundary (see save-context-pack/schema.ts) — this layer trusts the
+ * shape and only does a minimal sanity check.
+ */
+export interface ContextPackMeta {
+  readonly decisionIds?: ReadonlyArray<string>;
+  readonly affectedFiles?: ReadonlyArray<string>;
+  readonly testStatus?: 'pass' | 'fail' | 'skip' | 'unknown';
+  readonly openTodos?: ReadonlyArray<string>;
+}
+
+export type ContextPackSource = 'agent' | 'bridge_auto';
+
+export interface ContextPackWriteOptions {
+  readonly source: ContextPackSource;
+  readonly meta?: ContextPackMeta;
+}
+
 export interface ContextPackWriteResult {
   readonly id: string;
   readonly runId: string;
   readonly createdAt: Date;
   readonly contentExcerpt: string;
-  readonly embeddingStored: boolean;
   readonly filePath: string | null;
+  readonly source: ContextPackSource;
+  /** 'created' | 'idempotent_hit' | 'upgraded_from_bridge_auto'. Lets callers tell apart. */
+  readonly status: 'created' | 'idempotent_hit' | 'upgraded_from_bridge_auto';
 }
 
 // ---------------------------------------------------------------------------
@@ -91,29 +110,8 @@ export function computeContentExcerpt(content: string, max: number = EXCERPT_MAX
   return sliced.join('').replace(/\s+$/u, '');
 }
 
-// Phase 4 Fix H (Slice 3 — 2026-05-03 audit): the path helpers moved
-// to `@coodra/contextos-shared/context-pack-paths` so the bridge's
-// auto-pack save (apps/hooks-bridge/src/lib/auto-context-pack.ts) can
-// share them without an app→app dependency. Re-exported below so
-// existing call sites (and tests under `__tests__/unit/lib/context-pack-filename.test.ts`)
-// keep their import paths unchanged.
 export const defaultContextPacksRoot = sharedDefaultContextPacksRoot;
 export const contextPackFilename = sharedContextPackFilename;
-
-/** Embedding → SQLite-vec JSON-text form (per sqlite-vec 0.1.9 gotcha in the reference). */
-function embeddingToSqliteVecText(embedding: Float32Array): string {
-  const parts: string[] = new Array(embedding.length);
-  for (let i = 0; i < embedding.length; i += 1) {
-    parts[i] = String(embedding[i]);
-  }
-  return `[${parts.join(',')}]`;
-}
-
-function assertEmbeddingDim(embedding: Float32Array): void {
-  if (embedding.length !== EMBEDDING_DIM) {
-    throw new ValidationError(`context-pack.write: embedding length must be ${EMBEDDING_DIM}, got ${embedding.length}`);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // DB helpers
@@ -136,7 +134,7 @@ async function selectByRunId(db: DbHandle, runId: string) {
   return rows[0] ?? null;
 }
 
-async function insertRowAndEmbedding(
+async function insertRow(
   db: DbHandle,
   row: {
     readonly id: string;
@@ -145,9 +143,10 @@ async function insertRowAndEmbedding(
     readonly title: string;
     readonly content: string;
     readonly contentExcerpt: string;
+    readonly source: ContextPackSource;
+    readonly metaJson: string | null;
   },
-  embedding: Float32Array | null,
-): Promise<{ readonly createdAt: Date; readonly embeddingStored: boolean }> {
+): Promise<{ readonly createdAt: Date }> {
   if (db.kind === 'sqlite') {
     const baseRow = {
       id: row.id,
@@ -156,49 +155,65 @@ async function insertRowAndEmbedding(
       title: row.title,
       content: row.content,
       contentExcerpt: row.contentExcerpt,
-      summaryEmbedding: null as string | null,
+      source: row.source,
+      meta: row.metaJson,
     };
     const inserted = await db.db
       .insert(sqliteSchema.contextPacks)
       .values(baseRow)
       .returning({ id: sqliteSchema.contextPacks.id, createdAt: sqliteSchema.contextPacks.createdAt });
-    const createdAt = inserted[0]?.createdAt ?? new Date();
-    if (embedding !== null) {
-      assertEmbeddingDim(embedding);
-      const vecText = embeddingToSqliteVecText(embedding);
-      // vec0 virtual table `context_packs_vec` is hand-written in
-      // migration 0001 (sha256-locked). Insert via raw SQL because
-      // Drizzle has no schema definition for virtual tables.
-      db.raw.prepare('INSERT INTO context_packs_vec (context_pack_id, embedding) VALUES (?, ?)').run(row.id, vecText);
-      return { createdAt, embeddingStored: true };
-    }
-    return { createdAt, embeddingStored: false };
+    return { createdAt: inserted[0]?.createdAt ?? new Date() };
   }
-  // Postgres: `summary_embedding` is the vector column on the main
-  // context_packs table (see packages/db/src/schema/postgres.ts).
-  // Drizzle's pg-core doesn't own a vector type, so we go through
-  // `sql` with a template literal cast.
-  const values: Record<string, unknown> = {
+  const values = {
     id: row.id,
     runId: row.runId,
     projectId: row.projectId,
     title: row.title,
     content: row.content,
     contentExcerpt: row.contentExcerpt,
+    source: row.source,
+    meta: row.metaJson,
   };
-  let embeddingStored = false;
-  if (embedding !== null) {
-    assertEmbeddingDim(embedding);
-    const literal = `[${Array.from(embedding).join(',')}]`;
-    values.summaryEmbedding = sql`${literal}::vector(${EMBEDDING_DIM})`;
-    embeddingStored = true;
-  }
   const inserted = await db.db
     .insert(postgresSchema.contextPacks)
     .values(values as typeof postgresSchema.contextPacks.$inferInsert)
     .returning({ id: postgresSchema.contextPacks.id, createdAt: postgresSchema.contextPacks.createdAt });
-  const createdAt = inserted[0]?.createdAt ?? new Date();
-  return { createdAt, embeddingStored };
+  return { createdAt: inserted[0]?.createdAt ?? new Date() };
+}
+
+async function upgradeBridgeAutoToAgent(
+  db: DbHandle,
+  rowId: string,
+  payload: {
+    readonly title: string;
+    readonly content: string;
+    readonly contentExcerpt: string;
+    readonly metaJson: string | null;
+  },
+): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .update(sqliteSchema.contextPacks)
+      .set({
+        title: payload.title,
+        content: payload.content,
+        contentExcerpt: payload.contentExcerpt,
+        source: 'agent',
+        meta: payload.metaJson,
+      })
+      .where(eq(sqliteSchema.contextPacks.id, rowId));
+    return;
+  }
+  await db.db
+    .update(postgresSchema.contextPacks)
+    .set({
+      title: payload.title,
+      content: payload.content,
+      contentExcerpt: payload.contentExcerpt,
+      source: 'agent',
+      meta: payload.metaJson,
+    })
+    .where(eq(postgresSchema.contextPacks.id, rowId));
 }
 
 // ---------------------------------------------------------------------------
@@ -223,12 +238,12 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
   const contextPacksRoot = deps.contextPacksRoot ?? defaultContextPacksRoot();
 
   log.info(
-    { event: 'context_pack_store_wired', contextPacksRoot },
-    'createContextPackStore: DB-first store wired (FS is reconcilable).',
+    { event: 'context_pack_store_wired', contextPacksRoot, mode: 'agent_driven_m05' },
+    'createContextPackStore: DB-first store wired (FS is reconcilable, no embedding pipeline).',
   );
 
   return {
-    async write(pack, embedding) {
+    async write(pack, options) {
       const parsed = packSchema.safeParse(pack);
       if (!parsed.success) {
         throw new ValidationError(
@@ -236,44 +251,92 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
         );
       }
       const input = parsed.data;
-      if (embedding !== null) {
-        assertEmbeddingDim(embedding);
-      }
+      const writeOptions: ContextPackWriteOptions = options ?? { source: 'agent' };
+      const incomingSource: ContextPackSource = writeOptions.source ?? 'agent';
+      const metaJson =
+        writeOptions.meta !== undefined && writeOptions.meta !== null ? JSON.stringify(writeOptions.meta) : null;
+      const contentExcerpt = computeContentExcerpt(input.content);
 
-      // Idempotency per runId (§24.4). Not a race-free guarantee —
-      // the unique index on context_packs(run_id) is the enforcing
-      // layer; this shortcut just avoids a second insert on retry.
+      // Idempotency per runId. The unique index on context_packs(run_id)
+      // is the enforcing layer; this shortcut handles both no-op and the
+      // single ADR-007 relaxation (bridge_auto -> agent upgrade).
       const existing = await selectByRunId(deps.db, input.runId);
       if (existing) {
+        if (existing.source === 'bridge_auto' && incomingSource === 'agent') {
+          // M05 narrow upgrade-in-place. Replace content with the agent's
+          // canonical narrative and flip the source flag.
+          await upgradeBridgeAutoToAgent(deps.db, existing.id, {
+            title: input.title,
+            content: input.content,
+            contentExcerpt,
+            metaJson,
+          });
+          log.info(
+            { event: 'context_pack_upgraded_from_bridge_auto', runId: input.runId, id: existing.id },
+            'context-pack.write: upgraded bridge_auto row to agent-authored',
+          );
+          // Re-write the FS materialisation too — non-fatal if it fails.
+          let filePath: string | null = null;
+          try {
+            await mkdir(contextPacksRoot, { recursive: true });
+            const filename = contextPackFilename(input.runId, existing.createdAt);
+            const fullPath = resolve(contextPacksRoot, filename);
+            await writeFile(fullPath, input.content, 'utf8');
+            filePath = fullPath;
+          } catch (err) {
+            log.warn(
+              {
+                event: 'context_pack_fs_upgrade_write_failed',
+                runId: input.runId,
+                err: err instanceof Error ? err.message : String(err),
+              },
+              'context-pack.write: upgrade DB succeeded but FS write failed — row is durable, FS reconcilable',
+            );
+          }
+          return {
+            id: existing.id,
+            runId: existing.runId,
+            createdAt: existing.createdAt,
+            contentExcerpt,
+            filePath,
+            source: 'agent',
+            status: 'upgraded_from_bridge_auto',
+          };
+        }
+        // Same-source re-call OR agent->bridge_auto downgrade attempt.
+        // Both are no-ops. Return existing row's shape unchanged.
         log.info(
-          { event: 'context_pack_idempotent_hit', runId: input.runId, id: existing.id },
+          {
+            event: 'context_pack_idempotent_hit',
+            runId: input.runId,
+            id: existing.id,
+            existingSource: existing.source,
+            incomingSource,
+          },
           'context-pack.write: row already exists for runId — returning existing shape',
         );
-        const result: ContextPackWriteResult = {
+        return {
           id: existing.id,
           runId: existing.runId,
           createdAt: existing.createdAt,
           contentExcerpt: existing.contentExcerpt,
-          embeddingStored: existing.summaryEmbedding !== null,
           filePath: null,
+          source: existing.source === 'bridge_auto' ? 'bridge_auto' : 'agent',
+          status: 'idempotent_hit',
         };
-        return result;
       }
 
       const id = `cp_${randomUUID()}`;
-      const contentExcerpt = computeContentExcerpt(input.content);
-      const { createdAt, embeddingStored } = await insertRowAndEmbedding(
-        deps.db,
-        {
-          id,
-          runId: input.runId,
-          projectId: input.projectId,
-          title: input.title,
-          content: input.content,
-          contentExcerpt,
-        },
-        embedding,
-      );
+      const { createdAt } = await insertRow(deps.db, {
+        id,
+        runId: input.runId,
+        projectId: input.projectId,
+        title: input.title,
+        content: input.content,
+        contentExcerpt,
+        source: incomingSource,
+        metaJson,
+      });
 
       // Materialise FS view. Failure is non-fatal — DB is source of truth.
       let filePath: string | null = null;
@@ -295,15 +358,15 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
         );
       }
 
-      const result: ContextPackWriteResult = {
+      return {
         id,
         runId: input.runId,
         createdAt,
         contentExcerpt,
-        embeddingStored,
         filePath,
+        source: incomingSource,
+        status: 'created',
       };
-      return result;
     },
 
     async read(runId) {

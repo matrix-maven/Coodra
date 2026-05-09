@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, notInArray, notLike } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
@@ -67,6 +67,14 @@ export interface DecisionRow {
   readonly description: string;
   readonly rationale: string;
   readonly alternatives: string | null;
+  /** M05 — what triggered this decision (user request, error, design review). */
+  readonly context: string | null;
+  /** M05 — JSON-encoded array of affected modules / API surfaces / files. */
+  readonly impact: string | null;
+  /** M05 — 'high' | 'medium' | 'low' | NULL. */
+  readonly confidence: string | null;
+  /** M05 — boolean stored nullable so legacy rows have no answer. */
+  readonly reversible: boolean | null;
   readonly createdAt: Date;
 }
 
@@ -76,6 +84,10 @@ export interface ContextPackRow {
   readonly projectId: string;
   readonly title: string;
   readonly contentExcerpt: string;
+  /** M05 — 'agent' (canonical) | 'bridge_auto' (fallback floor). */
+  readonly source: string;
+  /** M05 — JSON-encoded agent-curated metadata. */
+  readonly meta: string | null;
   readonly createdAt: Date;
 }
 
@@ -91,11 +103,30 @@ export interface ListRunsFilter {
   readonly projectId?: string;
   readonly status?: string;
   readonly limit?: number;
+  /**
+   * Status values to exclude. When set together with `status` the
+   * `status` equality wins. Used by the web app's default `/runs`
+   * listing to hide `abandoned` (typically dev-test artifacts the
+   * operator did not produce intentionally).
+   */
+  readonly excludeStatuses?: ReadonlyArray<string>;
+  /**
+   * Substring pattern to exclude from `session_id` (LIKE `%pattern%`).
+   * Used to hide synthetic / probe sessions (e.g. doctor probes,
+   * orphan-backfill sentinels) from the default listing without
+   * deleting their rows.
+   */
+  readonly excludeSessionIdPattern?: string;
 }
 
 /**
  * Returns the most-recent runs (by started_at DESC), optionally
  * filtered by projectId and/or status. Default limit 20; max 1000.
+ *
+ * `excludeStatuses` and `excludeSessionIdPattern` are additive
+ * negative filters — when set, rows matching them are dropped from
+ * the result. Used by the web app to keep the default `/runs` view
+ * clean while preserving the underlying audit data.
  */
 export async function listRunsForProject(db: DbHandle, filter: ListRunsFilter = {}): Promise<RunRow[]> {
   const limit = Math.min(Math.max(1, filter.limit ?? 20), 1000);
@@ -105,6 +136,12 @@ export async function listRunsForProject(db: DbHandle, filter: ListRunsFilter = 
     const conditions = [];
     if (filter.projectId !== undefined) conditions.push(eq(t.projectId, filter.projectId));
     if (filter.status !== undefined) conditions.push(eq(t.status, filter.status));
+    if (filter.excludeStatuses !== undefined && filter.excludeStatuses.length > 0) {
+      conditions.push(notInArray(t.status, filter.excludeStatuses as string[]));
+    }
+    if (filter.excludeSessionIdPattern !== undefined && filter.excludeSessionIdPattern.length > 0) {
+      conditions.push(notLike(t.sessionId, `%${filter.excludeSessionIdPattern}%`));
+    }
     const rows =
       conditions.length === 0
         ? await db.db.select().from(t).orderBy(desc(t.startedAt)).limit(limit)
@@ -121,6 +158,12 @@ export async function listRunsForProject(db: DbHandle, filter: ListRunsFilter = 
   const conditions = [];
   if (filter.projectId !== undefined) conditions.push(eq(t.projectId, filter.projectId));
   if (filter.status !== undefined) conditions.push(eq(t.status, filter.status));
+  if (filter.excludeStatuses !== undefined && filter.excludeStatuses.length > 0) {
+    conditions.push(notInArray(t.status, filter.excludeStatuses as string[]));
+  }
+  if (filter.excludeSessionIdPattern !== undefined && filter.excludeSessionIdPattern.length > 0) {
+    conditions.push(notLike(t.sessionId, `%${filter.excludeSessionIdPattern}%`));
+  }
   const rows =
     conditions.length === 0
       ? await db.db.select().from(t).orderBy(desc(t.startedAt)).limit(limit)
@@ -316,6 +359,10 @@ interface RawDecisionRow {
   description: string;
   rationale: string;
   alternatives: string | null;
+  context: string | null;
+  impact: string | null;
+  confidence: string | null;
+  reversible: boolean | null;
   createdAt: Date;
 }
 
@@ -325,6 +372,8 @@ interface RawContextPackRow {
   projectId: string;
   title: string;
   contentExcerpt: string;
+  source: string;
+  meta: string | null;
   createdAt: Date;
 }
 
@@ -385,6 +434,10 @@ function toDecisionRow(r: unknown): DecisionRow {
     description: row.description,
     rationale: row.rationale,
     alternatives: row.alternatives,
+    context: row.context ?? null,
+    impact: row.impact ?? null,
+    confidence: row.confidence ?? null,
+    reversible: row.reversible ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -397,6 +450,8 @@ function toContextPackRow(r: unknown): ContextPackRow {
     projectId: row.projectId,
     title: row.title,
     contentExcerpt: row.contentExcerpt,
+    source: row.source ?? 'agent',
+    meta: row.meta ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -458,8 +513,218 @@ function toContextPackDetailRow(r: unknown): ContextPackDetailRow {
     title: row.title,
     contentExcerpt: row.contentExcerpt,
     content: row.content,
+    source: row.source ?? 'agent',
+    meta: row.meta ?? null,
     createdAt: row.createdAt,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Workspace-level listers (M05 follow-up — workspace decisions + packs UI)
+// ---------------------------------------------------------------------------
+
+/**
+ * `decisions` row joined to its run's `project_id` so the web app can
+ * group / filter by project without a second query. The decision's
+ * runId can be NULL (decisions outlive their runs via ON DELETE SET
+ * NULL — ADR-007 spirit), so the projectId comes from the join only
+ * when runId is set.
+ */
+export interface DecisionWithProject extends DecisionRow {
+  readonly projectId: string | null;
+  readonly projectSlug: string | null;
+}
+
+export interface ListDecisionsFilter {
+  readonly projectId?: string;
+  readonly limit?: number;
+}
+
+export async function listAllDecisions(db: DbHandle, filter: ListDecisionsFilter = {}): Promise<DecisionWithProject[]> {
+  const limit = Math.min(Math.max(1, filter.limit ?? 100), 1000);
+
+  if (db.kind === 'sqlite') {
+    const d = sqliteSchema.decisions;
+    const r = sqliteSchema.runs;
+    const p = sqliteSchema.projects;
+    const baseQuery = db.db
+      .select({
+        id: d.id,
+        idempotencyKey: d.idempotencyKey,
+        runId: d.runId,
+        description: d.description,
+        rationale: d.rationale,
+        alternatives: d.alternatives,
+        context: d.context,
+        impact: d.impact,
+        confidence: d.confidence,
+        reversible: d.reversible,
+        createdAt: d.createdAt,
+        projectId: r.projectId,
+        projectSlug: p.slug,
+      })
+      .from(d)
+      .leftJoin(r, eq(r.id, d.runId))
+      .leftJoin(p, eq(p.id, r.projectId));
+    const rows =
+      filter.projectId !== undefined
+        ? await baseQuery.where(eq(r.projectId, filter.projectId)).orderBy(desc(d.createdAt)).limit(limit)
+        : await baseQuery.orderBy(desc(d.createdAt)).limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      idempotencyKey: row.idempotencyKey,
+      runId: row.runId,
+      description: row.description,
+      rationale: row.rationale,
+      alternatives: row.alternatives,
+      context: row.context,
+      impact: row.impact,
+      confidence: row.confidence,
+      reversible: row.reversible,
+      createdAt: row.createdAt,
+      projectId: row.projectId,
+      projectSlug: row.projectSlug,
+    }));
+  }
+  const d = postgresSchema.decisions;
+  const r = postgresSchema.runs;
+  const p = postgresSchema.projects;
+  const baseQuery = db.db
+    .select({
+      id: d.id,
+      idempotencyKey: d.idempotencyKey,
+      runId: d.runId,
+      description: d.description,
+      rationale: d.rationale,
+      alternatives: d.alternatives,
+      context: d.context,
+      impact: d.impact,
+      confidence: d.confidence,
+      reversible: d.reversible,
+      createdAt: d.createdAt,
+      projectId: r.projectId,
+      projectSlug: p.slug,
+    })
+    .from(d)
+    .leftJoin(r, eq(r.id, d.runId))
+    .leftJoin(p, eq(p.id, r.projectId));
+  const rows =
+    filter.projectId !== undefined
+      ? await baseQuery.where(eq(r.projectId, filter.projectId)).orderBy(desc(d.createdAt)).limit(limit)
+      : await baseQuery.orderBy(desc(d.createdAt)).limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    idempotencyKey: row.idempotencyKey,
+    runId: row.runId,
+    description: row.description,
+    rationale: row.rationale,
+    alternatives: row.alternatives,
+    context: row.context,
+    impact: row.impact,
+    confidence: row.confidence,
+    reversible: row.reversible,
+    createdAt: row.createdAt,
+    projectId: row.projectId,
+    projectSlug: row.projectSlug,
+  }));
+}
+
+/**
+ * Workspace-level Context Pack listing — across all projects, joined to
+ * the project slug for the UI's project chip. Mirrors `listAllDecisions`.
+ */
+export interface ContextPackWithProject extends ContextPackRow {
+  readonly projectSlug: string | null;
+}
+
+export interface ListAllContextPacksFilter {
+  readonly projectId?: string;
+  readonly source?: 'agent' | 'bridge_auto';
+  readonly limit?: number;
+}
+
+export async function listAllContextPacks(
+  db: DbHandle,
+  filter: ListAllContextPacksFilter = {},
+): Promise<ContextPackWithProject[]> {
+  const limit = Math.min(Math.max(1, filter.limit ?? 100), 1000);
+
+  if (db.kind === 'sqlite') {
+    const cp = sqliteSchema.contextPacks;
+    const p = sqliteSchema.projects;
+    const conditions = [];
+    if (filter.projectId !== undefined) conditions.push(eq(cp.projectId, filter.projectId));
+    if (filter.source !== undefined) conditions.push(eq(cp.source, filter.source));
+    const baseQuery = db.db
+      .select({
+        id: cp.id,
+        runId: cp.runId,
+        projectId: cp.projectId,
+        title: cp.title,
+        contentExcerpt: cp.contentExcerpt,
+        source: cp.source,
+        meta: cp.meta,
+        createdAt: cp.createdAt,
+        projectSlug: p.slug,
+      })
+      .from(cp)
+      .leftJoin(p, eq(p.id, cp.projectId));
+    const rows =
+      conditions.length === 0
+        ? await baseQuery.orderBy(desc(cp.createdAt)).limit(limit)
+        : await baseQuery
+            .where(and(...conditions))
+            .orderBy(desc(cp.createdAt))
+            .limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      runId: row.runId,
+      projectId: row.projectId,
+      title: row.title,
+      contentExcerpt: row.contentExcerpt,
+      source: row.source ?? 'agent',
+      meta: row.meta ?? null,
+      createdAt: row.createdAt,
+      projectSlug: row.projectSlug,
+    }));
+  }
+  const cp = postgresSchema.contextPacks;
+  const p = postgresSchema.projects;
+  const conditions = [];
+  if (filter.projectId !== undefined) conditions.push(eq(cp.projectId, filter.projectId));
+  if (filter.source !== undefined) conditions.push(eq(cp.source, filter.source));
+  const baseQuery = db.db
+    .select({
+      id: cp.id,
+      runId: cp.runId,
+      projectId: cp.projectId,
+      title: cp.title,
+      contentExcerpt: cp.contentExcerpt,
+      source: cp.source,
+      meta: cp.meta,
+      createdAt: cp.createdAt,
+      projectSlug: p.slug,
+    })
+    .from(cp)
+    .leftJoin(p, eq(p.id, cp.projectId));
+  const rows =
+    conditions.length === 0
+      ? await baseQuery.orderBy(desc(cp.createdAt)).limit(limit)
+      : await baseQuery
+          .where(and(...conditions))
+          .orderBy(desc(cp.createdAt))
+          .limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    runId: row.runId,
+    projectId: row.projectId,
+    title: row.title,
+    contentExcerpt: row.contentExcerpt,
+    source: row.source ?? 'agent',
+    meta: row.meta ?? null,
+    createdAt: row.createdAt,
+    projectSlug: row.projectSlug,
+  }));
 }
 
 /**

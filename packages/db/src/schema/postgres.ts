@@ -26,6 +26,9 @@ export const projects = pgTable('projects', {
   slug: text('slug').notNull().unique(),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
+  // Absolute filesystem path of the project root. See `./sqlite.ts` for the
+  // full rationale (parity column for the per-project pack uploader).
+  cwd: text('cwd'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 });
@@ -83,7 +86,13 @@ export const contextPacks = pgTable(
     title: text('title').notNull(),
     content: text('content').notNull(),
     contentExcerpt: text('content_excerpt').notNull().default(''),
+    // Module 05 (2026-05-08 reshape): kept through 0009; dropped in 0010.
     summaryEmbedding: vector('summary_embedding', { dimensions: 384 }),
+    // Module 05 — see sqlite.ts contextPacks comment.
+    source: text('source').notNull().default('agent'),
+    // Module 05 — JSON-encoded agent-curated metadata. Use `text` (not
+    // `jsonb`) for parity with SQLite. Handler does JSON.parse/stringify.
+    meta: text('meta'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
@@ -209,6 +218,14 @@ export const decisions = pgTable(
     // Stored as text on both dialects for parity — the handler does
     // JSON.parse/stringify, so Postgres gains nothing from JSONB here.
     alternatives: text('alternatives'),
+    // Module 05 (2026-05-08 reshape) — structured intent fields. See
+    // sqlite.ts decisions comment. NULL on legacy rows; idempotency key
+    // unchanged (sha256 of description), so re-recording with new metadata
+    // collapses to the original row.
+    context: text('context'),
+    impact: text('impact'),
+    confidence: text('confidence'),
+    reversible: boolean('reversible'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [index('decisions_run_created_idx').on(t.runId, t.createdAt)],

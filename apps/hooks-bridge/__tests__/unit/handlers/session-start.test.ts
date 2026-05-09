@@ -96,7 +96,16 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
-  it('returns allow without additionalContext when feature-pack files are missing', async () => {
+  it('returns allow + contract-only additionalContext when feature-pack files are missing (M05 contract block always renders)', async () => {
+    // M05 reshape (2026-05-08): the SessionStart handler ALWAYS pushes
+    // the session-contract block onto `additionalContext` so every
+    // Claude Code session is reminded of `record_decision` /
+    // `save_context_pack` discipline regardless of whether a feature
+    // pack / features index / recent decisions block is available.
+    // Pre-M05 this test asserted `additionalContext === undefined`;
+    // that expectation was stale — the contract block is intentional.
+    // The test now verifies the contract surfaces AND the optional
+    // pack-body block does NOT (since feature-pack files are missing).
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
       resolveAndEnsure: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
@@ -111,11 +120,23 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     const result = await handler(makeEvent({ cwd }));
 
     expect(result.permissionDecision).toBe('allow');
-    expect(result.additionalContext).toBeUndefined();
+    expect(typeof result.additionalContext).toBe('string');
+    // Contract block is present.
+    expect(result.additionalContext ?? '').toContain('Session contract');
+    expect(result.additionalContext ?? '').toContain('save_context_pack');
+    // Pack body is absent — there were no feature-pack files on disk.
+    expect(result.additionalContext ?? '').not.toContain('# spec body');
+    expect(result.additionalContext ?? '').not.toContain('# impl body');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
-  it('returns allow without additionalContext when projectSlug is unresolved', async () => {
+  it('returns allow + contract-only additionalContext when projectSlug is unresolved', async () => {
+    // Same M05 invariant: the contract block always renders, even when
+    // the cwd has no `.contextos.json` and the resolver returns
+    // undefined for both slug and projectId. The pack + features-index
+    // + recent-decisions blocks are skipped (they all require a slug
+    // to fetch their data) but the contract is the static
+    // priming-reminder and is unaffected.
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: undefined, projectId: undefined }),
       resolveAndEnsure: vi.fn().mockResolvedValue({ slug: undefined, projectId: undefined }),
@@ -130,7 +151,11 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     const result = await handler(makeEvent({ cwd }));
 
     expect(result.permissionDecision).toBe('allow');
-    expect(result.additionalContext).toBeUndefined();
+    expect(typeof result.additionalContext).toBe('string');
+    expect(result.additionalContext ?? '').toContain('Session contract');
+    // Pack + features blocks not present.
+    expect(result.additionalContext ?? '').not.toContain('Available features');
+    expect(result.additionalContext ?? '').not.toContain('# spec body');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
