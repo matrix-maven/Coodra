@@ -3,24 +3,24 @@ import type { ReactNode } from 'react';
 import { AlertTriangleIcon, CheckIcon, InfoIcon, XIcon } from './icons';
 
 /**
- * `apps/web/components/ui/Banner.tsx` — inline alert.
+ * `apps/web/components/ui/Banner.tsx` — editorial inline alert.
  *
- * Soft tinted bg + matching icon + sentence-case body. Replaces the
- * old border-l-4 strip with a more refined rounded card.
+ * Square 1px border on bg-surface, leading dot in tone color, body in
+ * sentence case. Optional `code` prefix renders a mono chip.
  */
 
 export type BannerKind = 'success' | 'info' | 'warning' | 'error';
 
-const KIND_BG: Record<BannerKind, string> = {
-  success: 'bg-status-success-soft border-status-success/30',
-  info: 'bg-status-info-soft border-status-info/30',
-  warning: 'bg-status-warning-soft border-status-warning/30',
-  error: 'bg-status-error-soft border-status-error/30',
+const KIND_BORDER: Record<BannerKind, string> = {
+  success: 'border-status-success/40',
+  info: 'border-accent/40',
+  warning: 'border-status-warning/40',
+  error: 'border-status-error/40',
 };
 
 const KIND_TEXT: Record<BannerKind, string> = {
   success: 'text-status-success',
-  info: 'text-status-info',
+  info: 'text-accent',
   warning: 'text-status-warning',
   error: 'text-status-error',
 };
@@ -43,12 +43,16 @@ export function Banner({ kind, children, code }: BannerProps) {
   return (
     <div
       role={kind === 'error' ? 'alert' : 'status'}
-      className={`flex items-start gap-3 rounded-md border px-4 py-3 text-sm ${KIND_BG[kind]}`}
+      className={`flex items-start gap-3 border bg-bg-surface px-4 py-3 text-[13px] ${KIND_BORDER[kind]}`}
     >
       <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${KIND_TEXT[kind]}`} />
       <div className="flex flex-wrap items-baseline gap-2 text-text-primary">
         {code !== undefined ? (
-          <span className={`rounded bg-bg-surface px-1.5 py-0.5 font-mono text-xs ${KIND_TEXT[kind]}`}>{code}</span>
+          <span
+            className={`border border-rule-strong px-1.5 py-0.5 font-mono text-[10px] tracking-[0.05em] ${KIND_TEXT[kind]}`}
+          >
+            {code}
+          </span>
         ) : null}
         <span>{children}</span>
       </div>

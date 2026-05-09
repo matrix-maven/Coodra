@@ -1,6 +1,7 @@
 import { OrganizationProfile } from '@clerk/nextjs';
 import { notFound } from 'next/navigation';
 
+import { PageHeader, PageShell } from '@/components/ui';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 
 /**
@@ -11,12 +12,17 @@ import { clerkAppearance } from '@/lib/clerk-appearance';
 export default function TeamSettingsPage() {
   if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-8 py-12">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-4xl font-black uppercase tracking-wide">Team settings</h1>
-        <p className="text-sm text-text-secondary">Manage members, invitations, roles, and org-level configuration.</p>
-      </header>
+    <PageShell variant="workspace">
+      <PageHeader
+        eyebrow="/05 · SYSTEM · TEAM"
+        title={
+          <>
+            <em>Team</em> settings.
+          </>
+        }
+        subtitle="Manage members, invitations, roles, and org-level configuration. Embedded Clerk surface for the team mode workspace."
+      />
       <OrganizationProfile appearance={clerkAppearance} />
-    </div>
+    </PageShell>
   );
 }

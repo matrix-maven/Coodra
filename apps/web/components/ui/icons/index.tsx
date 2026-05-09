@@ -250,3 +250,90 @@ export const ExternalLinkIcon = (p: IconProps) =>
     </>,
     p,
   );
+
+export const FolderIcon = (p: IconProps) =>
+  svg(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />, p);
+
+export const HashIcon = (p: IconProps) =>
+  svg(
+    <>
+      <line x1="4" y1="9" x2="20" y2="9" />
+      <line x1="4" y1="15" x2="20" y2="15" />
+      <line x1="10" y1="3" x2="8" y2="21" />
+      <line x1="16" y1="3" x2="14" y2="21" />
+    </>,
+    p,
+  );
+
+export const TerminalIcon = (p: IconProps) =>
+  svg(
+    <>
+      <polyline points="4 17 10 11 4 5" />
+      <line x1="12" y1="19" x2="20" y2="19" />
+    </>,
+    p,
+  );
+
+export const DocumentIcon = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="9" y1="13" x2="15" y2="13" />
+      <line x1="9" y1="17" x2="13" y2="17" />
+    </>,
+    p,
+  );
+
+export const RocketIcon = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+    </>,
+    p,
+  );
+
+export const CopyIcon = (p: IconProps) =>
+  svg(
+    <>
+      <rect x="9" y="9" width="13" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>,
+    p,
+  );
+
+export const ChevronLeftIcon = (p: IconProps) => svg(<polyline points="15 18 9 12 15 6" />, p);
+
+export const HelpCircleIcon = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </>,
+    p,
+  );
+
+export const SparkleIcon = (p: IconProps) =>
+  svg(
+    <>
+      <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
+      <path d="M19 13.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+    </>,
+    p,
+  );
+
+export const ClockIcon = (p: IconProps) =>
+  svg(
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
+    </>,
+    p,
+  );
+
+export const PlayIcon = (p: IconProps) =>
+  svg(<polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none" />, p);

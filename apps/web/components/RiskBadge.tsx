@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 
 /**
- * `apps/web/components/RiskBadge.tsx` — risk-level pill.
+ * `apps/web/components/RiskBadge.tsx` — editorial risk-level pill.
  *
- * Same dimensions as StatusChip, uses the brand risk palette
- * (low/medium/high → success/warning/error tones).
+ * Mono uppercase, square 1px border. Tones map to the brand kit:
+ * low → phosphor, medium → amber, high → crimson.
  */
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 
 const RISK_CLASSES: Record<RiskLevel, string> = {
-  low: 'bg-status-success-soft text-status-success ring-1 ring-status-success/20',
-  medium: 'bg-status-warning-soft text-status-warning ring-1 ring-status-warning/20',
-  high: 'bg-status-error-soft text-status-error ring-1 ring-status-error/20',
+  low: 'text-accent border-accent',
+  medium: 'text-status-warning border-status-warning',
+  high: 'text-status-error border-status-error',
 };
 
 export interface RiskBadgeProps {
@@ -25,8 +25,9 @@ export function RiskBadge({ level, children }: RiskBadgeProps) {
     <span
       data-testid="risk-badge"
       data-level={level}
-      className={`inline-flex h-5 items-center rounded-full px-2 text-[11px] font-medium ${RISK_CLASSES[level]}`}
+      className={`inline-flex h-5 items-center gap-1.5 border px-2 font-mono text-[9px] font-medium uppercase tracking-[0.18em] ${RISK_CLASSES[level]}`}
     >
+      <span aria-hidden="true" className="h-1 w-1 rounded-full bg-current" />
       {children}
     </span>
   );

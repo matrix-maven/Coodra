@@ -3,29 +3,32 @@ import type { ReactNode } from 'react';
 /**
  * `apps/web/components/ui/PageShell.tsx` — page content wrapper.
  *
- * Workspace pages (`/`, `/init`, `/sync`, `/settings/workspace`) own
- * their own outer container because the root layout doesn't render
- * the project topbar for them. Project pages live inside the
- * `/projects/[slug]/layout.tsx` <main> already so the project variant
- * just provides vertical rhythm.
+ * Workspace pages own their outer container; project pages live
+ * inside the project layout. Both share the section rhythm and
+ * generous bottom padding so content doesn't crowd the viewport
+ * floor.
  */
 
 export interface PageShellProps {
   readonly children: ReactNode;
   readonly variant?: 'workspace' | 'project';
+  /** When true, content stretches edge-to-edge (used by full-bleed log/graph views). */
+  readonly fullBleed?: boolean;
 }
 
-export function PageShell({ children, variant = 'project' }: PageShellProps) {
+export function PageShell({ children, variant = 'project', fullBleed = false }: PageShellProps) {
   if (variant === 'workspace') {
     return (
       <main
         id="main"
         tabIndex={-1}
-        className="mx-auto flex w-full max-w-[1280px] flex-col gap-(--space-section) px-(--space-page-x) py-(--space-page-y) outline-none"
+        className={`mx-auto flex w-full ${
+          fullBleed ? '' : 'max-w-(--content-max)'
+        } flex-col gap-(--space-section) px-(--space-page-x) py-(--space-page-y) pb-20 outline-none`}
       >
         {children}
       </main>
     );
   }
-  return <div className="flex flex-col gap-(--space-section)">{children}</div>;
+  return <div className="flex flex-col gap-(--space-section) pb-12">{children}</div>;
 }

@@ -6,26 +6,20 @@ import {
   PageHeader,
   PageShell,
   Section,
-  StatusDot,
   Table,
   TBody,
   TD,
   TH,
   THead,
-  Tile,
   TR,
 } from '@/components/ui';
 import { retryQueueAction, retrySingleJobAction } from '@/lib/actions/sync';
 import { fetchSyncSnapshot } from '@/lib/queries/sync';
 
 /**
- * `/sync` — durable-outbox + sync-daemon admin (M04 Phase 2 S15,
- * restyled in Phase 2 UI).
+ * `/sync` — editorial sync queue (mirrors brand-kit Sync, screen 12).
  *
- * Reads the local `pending_jobs` table grouped by (queue, status).
- * Three KPI tiles + per-queue table + recent-dead table. All composed
- * from shared primitives so spacing + typography match every other
- * surface.
+ * Hero + 3-cell stat row + per-queue table + recent-dead table.
  */
 
 export const dynamic = 'force-dynamic';
@@ -44,100 +38,151 @@ export default async function SyncPage({ searchParams }: { searchParams: Promise
   const totalPending = snapshot.queues.reduce((sum, q) => sum + q.pending, 0);
   const totalPicked = snapshot.queues.reduce((sum, q) => sum + q.picked, 0);
   const totalDead = snapshot.queues.reduce((sum, q) => sum + q.dead, 0);
+  const totalDrained = snapshot.queues.reduce(
+    (sum, q) => sum + ((q as unknown as { completed?: number }).completed ?? 0),
+    0,
+  );
 
   return (
     <PageShell variant="workspace">
       <PageHeader
-        eyebrow="Workspace"
-        title="Sync"
+        eyebrow="/05 · SYSTEM · SYNC"
+        title={
+          <>
+            Local rows, <em>cloud</em> tables.
+          </>
+        }
         subtitle={
           <>
-            Durable-outbox + sync-daemon view. Mode: <span className="font-mono">{snapshot.mode}</span> · last fetched{' '}
-            <span className="font-mono">{snapshot.fetchedAt}</span>.
+            Every audit row written locally also enqueues a sync_to_cloud job. The daemon drains it. Lease, retry,
+            dead-letter — same shape as the policy outbox. Mode:{' '}
+            <span className="font-mono text-accent">{snapshot.mode}</span>.
+          </>
+        }
+        meta={
+          <>
+            <strong className="font-medium text-text-primary">queue depth · {totalPending + totalPicked}</strong>
+            <br />
+            last fetched · {snapshot.fetchedAt}
+            <br />
+            cloud · {snapshot.mode === 'team' ? 'connected' : 'idle'}
+          </>
+        }
+        actions={
+          <>
+            <LinkButton href="/sync" variant="ghost">
+              Force drain
+            </LinkButton>
+            <LinkButton href="/settings/workspace" variant="primary">
+              Configure cloud
+            </LinkButton>
           </>
         }
       />
 
       <Banners {...sp} />
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Tile
-          label="Pending"
-          value={totalPending}
-          tone={totalPending > 0 ? 'info' : 'success'}
-          hint="Awaiting dispatcher"
-        />
-        <Tile
+      <div className="mb-14 grid grid-cols-3 border-y border-rule">
+        <StatCell label="Pending" value={totalPending} hint="awaiting dispatcher" emphasis={totalPending > 0} divider />
+        <StatCell
           label="In flight"
           value={totalPicked}
-          tone={totalPicked > 0 ? 'warning' : 'success'}
-          hint="Picked, not yet acknowledged"
+          hint={`${totalDrained || '—'} drained · 24h`}
+          tone={totalPicked > 0 ? 'success' : 'neutral'}
+          divider
         />
-        <Tile
+        <StatCell
           label="Dead-letter"
           value={totalDead}
-          tone={totalDead > 0 ? 'error' : 'success'}
-          hint="Exhausted retries"
+          hint={totalDead === 0 ? 'no failures' : 'exhausted retries'}
+          tone={totalDead > 0 ? 'error' : 'neutral'}
         />
-      </section>
+      </div>
 
-      <Section title="Per-queue depth" count={snapshot.queues.length}>
-        {snapshot.queues.length === 0 ? (
+      <div className="mb-12">
+        <Section
+          title={
+            <>
+              Per-queue <em>depth</em>
+            </>
+          }
+          count={`${snapshot.queues.length} · queues`}
+        >
+          {snapshot.queues.length === 0 ? (
+            <EmptyState
+              title={
+                <>
+                  Outbox <em>empty</em>
+                </>
+              }
+              body="The pending_jobs table has no rows. Either nothing has been enqueued, or the daemon has drained everything."
+            />
+          ) : (
+            <Table>
+              <THead>
+                <TR hoverable={false}>
+                  <TH>Queue</TH>
+                  <TH align="right">Pending</TH>
+                  <TH align="right">Picked</TH>
+                  <TH align="right">Dead</TH>
+                  <TH align="right">Action</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {snapshot.queues.map((q) => (
+                  <TR key={q.queue}>
+                    <TD mono>{q.queue}</TD>
+                    <TD align="right" mono>
+                      {q.pending}
+                    </TD>
+                    <TD align="right" mono>
+                      {q.picked}
+                    </TD>
+                    <TD align="right" mono>
+                      {q.dead}
+                    </TD>
+                    <TD align="right">
+                      {q.dead > 0 ? (
+                        <form action={retryQueueAction} className="inline-flex">
+                          <input type="hidden" name="queue" value={q.queue} />
+                          <Button type="submit" size="sm" variant="ghost">
+                            Retry {q.dead}
+                          </Button>
+                        </form>
+                      ) : (
+                        <span className="text-text-tertiary">—</span>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          )}
+        </Section>
+      </div>
+
+      <Section
+        title={
+          <>
+            Recent <em>dead jobs</em>
+          </>
+        }
+        count={`${snapshot.recentDead.length} · last 24h`}
+      >
+        {snapshot.recentDead.length === 0 ? (
           <EmptyState
-            title="Outbox empty"
-            body="The pending_jobs table has no rows. Either nothing has been enqueued, or the daemon has drained everything."
+            title={
+              <>
+                No <em>dead-letter</em> jobs
+              </>
+            }
+            body="Every queued job has either dispatched or is still pending."
           />
         ) : (
           <Table>
             <THead>
               <TR hoverable={false}>
-                <TH>Queue</TH>
-                <TH align="right">Pending</TH>
-                <TH align="right">Picked</TH>
-                <TH align="right">Dead</TH>
-                <TH align="right">Action</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {snapshot.queues.map((q) => (
-                <TR key={q.queue}>
-                  <TD mono>{q.queue}</TD>
-                  <TD align="right" mono>
-                    {q.pending}
-                  </TD>
-                  <TD align="right" mono>
-                    {q.picked}
-                  </TD>
-                  <TD align="right" mono>
-                    {q.dead}
-                  </TD>
-                  <TD align="right">
-                    {q.dead > 0 ? (
-                      <form action={retryQueueAction} className="inline-flex">
-                        <input type="hidden" name="queue" value={q.queue} />
-                        <Button type="submit" size="sm" variant="ghost">
-                          Retry {q.dead} dead
-                        </Button>
-                      </form>
-                    ) : (
-                      <span className="text-text-tertiary">—</span>
-                    )}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        )}
-      </Section>
-
-      <Section title="Recent dead jobs" count={snapshot.recentDead.length}>
-        {snapshot.recentDead.length === 0 ? (
-          <EmptyState title="No dead-letter jobs" body="Every queued job has either dispatched or is still pending." />
-        ) : (
-          <Table>
-            <THead>
-              <TR hoverable={false}>
-                <TH>ID</TH>
+                <TH>Job</TH>
                 <TH>Queue</TH>
                 <TH align="right">Attempts</TH>
                 <TH>Failed</TH>
@@ -156,7 +201,7 @@ export default async function SyncPage({ searchParams }: { searchParams: Promise
                     {j.attempts}
                   </TD>
                   <TD mono muted>
-                    {j.failedAt !== null ? j.failedAt.toISOString() : '—'}
+                    {j.failedAt !== null ? j.failedAt.toISOString().slice(11, 19) : '—'}
                   </TD>
                   <TD truncate>{j.lastError !== null ? truncate(j.lastError, 120) : '—'}</TD>
                   <TD align="right">
@@ -173,25 +218,42 @@ export default async function SyncPage({ searchParams }: { searchParams: Promise
           </Table>
         )}
       </Section>
-
-      <p className="flex items-center gap-2 text-xs text-text-tertiary">
-        <StatusDot tone={totalDead > 0 ? 'error' : 'success'} size="sm" />
-        <span>
-          See{' '}
-          <LinkButton href="/projects/coodra-dev/logs/sync-daemon" variant="ghost" size="sm">
-            sync-daemon logs
-          </LinkButton>{' '}
-          for the daemon's view of these queues.
-        </span>
-      </p>
     </PageShell>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  hint,
+  emphasis,
+  tone,
+  divider,
+}: {
+  readonly label: string;
+  readonly value: number | string;
+  readonly hint: string;
+  readonly emphasis?: boolean;
+  readonly tone?: 'neutral' | 'success' | 'error';
+  readonly divider?: boolean;
+}) {
+  const dividerCls = divider === true ? 'border-r border-rule' : '';
+  const hintCls = tone === 'error' ? 'text-status-error' : tone === 'success' ? 'text-accent' : 'text-text-tertiary';
+  return (
+    <div className={`px-7 py-8 ${dividerCls}`}>
+      <div className="eyebrow mb-5 text-text-tertiary">{label}</div>
+      <div className="num-display text-[64px] leading-[0.95] text-text-primary">
+        {emphasis ? <em>{value}</em> : value}
+      </div>
+      <div className={`mt-3 font-mono text-[10px] tracking-[0.08em] ${hintCls}`}>{hint}</div>
+    </div>
   );
 }
 
 function Banners(sp: SearchParams) {
   if (sp.retried === undefined && sp.retriedQueue === undefined && sp.error === undefined) return null;
   return (
-    <div className="flex flex-col gap-2">
+    <div className="mb-8 flex flex-col gap-2">
       {sp.retried !== undefined ? (
         <Banner kind="success">
           Retried <span className="font-mono">{sp.retried}</span> job{sp.retried === '1' ? '' : 's'}.

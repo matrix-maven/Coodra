@@ -1,15 +1,14 @@
+import Link from 'next/link';
+
 import { ProjectsSwitcher } from '@/components/ProjectsSwitcher';
+import { Topbar } from '@/components/ui';
 import { resolveProjectFromParams } from '@/lib/project-context';
 import { fetchPickerSnapshot } from '@/lib/queries/picker';
 
 /**
  * `apps/web/app/projects/[slug]/layout.tsx` — nested layout for every
- * `/projects/[slug]/*` route (full UI redesign).
- *
- * Renders a slim top bar with the project name + a project switcher,
- * then a <main id="main"> for the skip-to-main target. The Sidebar
- * (mounted by the root layout) handles all navigation — no more
- * sub-nav strip here.
+ * `/projects/[slug]/*` route. Editorial Topbar (crumbs · search slot ·
+ * actions) + a generous main content shell with editorial padding.
  */
 
 export const dynamic = 'force-dynamic';
@@ -27,18 +26,26 @@ export default async function ProjectLayout({
 
   return (
     <>
-      <header className="sticky top-0 z-10 flex h-(--topbar-height) items-center justify-between border-b border-border-subtle bg-bg-surface px-(--space-page-x)">
-        <div className="flex items-baseline gap-3">
-          <span className="text-xs font-medium text-text-tertiary">Project</span>
-          <span className="font-mono text-sm font-medium text-text-primary">{project.slug}</span>
-        </div>
-        <ProjectsSwitcher currentSlug={project.slug} options={switcherOptions} />
-      </header>
-      <main
-        id="main"
-        tabIndex={-1}
-        className="mx-auto w-full max-w-[1280px] px-(--space-page-x) py-(--space-page-y) outline-none"
-      >
+      <Topbar
+        crumbs={[{ label: 'contextos', href: '/' }, { label: project.slug }]}
+        actions={
+          <>
+            <ProjectsSwitcher currentSlug={project.slug} options={switcherOptions} />
+            <Link
+              href={`/projects/${encodeURIComponent(project.slug)}/settings` as never}
+              aria-label="Project settings"
+              className="flex h-8 w-8 items-center justify-center border border-rule-strong text-text-tertiary transition-colors hover:border-text-primary hover:text-text-primary"
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="h-4 w-4">
+                <circle cx="12" cy="5" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="12" cy="19" r="1.6" />
+              </svg>
+            </Link>
+          </>
+        }
+      />
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-(--content-max) px-12 pt-14 pb-20 outline-none">
         {children}
       </main>
     </>

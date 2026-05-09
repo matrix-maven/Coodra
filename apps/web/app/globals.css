@@ -2,40 +2,64 @@
 @import '../styles/tokens.css';
 
 /*
- * Tailwind v4 @theme block consumes the CSS custom properties from
- * tokens.css. Utilities like `bg-brand`, `text-text-primary`,
- * `border-border-default`, `shadow-md` generate from these tokens.
+ * apps/web/app/globals.css — ContextOS editorial dark theme.
  *
- * The full redesign drops the prior brutalist mandate (zero radius,
- * forced uppercase, flat surfaces) in favor of a refined Linear/
- * Vercel-inspired developer-dashboard aesthetic.
+ * Tailwind v4 @theme block consumes the CSS custom properties from
+ * tokens.css. Utility classes (`bg-bg-base`, `text-text-primary`,
+ * `border-border-default`, `font-mono`, `font-display`, …) generate
+ * from these tokens — so swapping the palette in tokens.css cascades
+ * across every page.
  */
+
 @theme {
   --color-brand: var(--color-brand);
   --color-brand-hover: var(--color-brand-hover);
+  --color-brand-active: var(--color-brand-active);
   --color-brand-soft: var(--color-brand-soft);
+  --color-brand-softer: var(--color-brand-softer);
   --color-brand-fg: var(--color-brand-fg);
+  --color-accent: var(--color-accent);
+  --color-accent-soft: var(--color-accent-soft);
+  --color-accent-glow: var(--color-accent-glow);
+  --color-accent-violet-soft: var(--color-accent-violet-soft);
+  --color-accent-violet: var(--color-accent-violet);
+  --color-accent-sky-soft: var(--color-accent-sky-soft);
+  --color-accent-sky: var(--color-accent-sky);
+  --color-accent-rose-soft: var(--color-accent-rose-soft);
+  --color-accent-rose: var(--color-accent-rose);
+  --color-accent-amber-soft: var(--color-accent-amber-soft);
+  --color-accent-amber: var(--color-accent-amber);
   --color-bg-base: var(--color-bg-base);
   --color-bg-surface: var(--color-bg-surface);
   --color-bg-elevated: var(--color-bg-elevated);
+  --color-bg-sunken: var(--color-bg-sunken);
   --color-bg-sidebar: var(--color-bg-sidebar);
+  --color-bg-hover: var(--color-bg-hover);
   --color-text-primary: var(--color-text-primary);
   --color-text-secondary: var(--color-text-secondary);
   --color-text-tertiary: var(--color-text-tertiary);
   --color-text-muted: var(--color-text-muted);
+  --color-text-inverted: var(--color-text-inverted);
   --color-text-code: var(--color-text-code);
   --color-status-success: var(--color-status-success);
   --color-status-success-soft: var(--color-status-success-soft);
+  --color-status-success-ring: var(--color-status-success-ring);
   --color-status-warning: var(--color-status-warning);
   --color-status-warning-soft: var(--color-status-warning-soft);
+  --color-status-warning-ring: var(--color-status-warning-ring);
   --color-status-error: var(--color-status-error);
   --color-status-error-soft: var(--color-status-error-soft);
+  --color-status-error-ring: var(--color-status-error-ring);
   --color-status-info: var(--color-status-info);
   --color-status-info-soft: var(--color-status-info-soft);
+  --color-status-info-ring: var(--color-status-info-ring);
   --color-status-neutral: var(--color-status-neutral);
+  --color-status-neutral-soft: var(--color-status-neutral-soft);
   --color-border-subtle: var(--color-border-subtle);
   --color-border-default: var(--color-border-default);
   --color-border-strong: var(--color-border-strong);
+  --color-rule: var(--color-rule);
+  --color-rule-strong: var(--color-rule-strong);
 
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
@@ -43,14 +67,26 @@
 
   --spacing: 4px;
 
-  /* Refined radius scale */
+  --text-2xs: var(--text-2xs);
+  --text-xs: var(--text-xs);
+  --text-sm: var(--text-sm);
+  --text-base: var(--text-base);
+  --text-md: var(--text-md);
+  --text-lg: var(--text-lg);
+  --text-xl: var(--text-xl);
+  --text-2xl: var(--text-2xl);
+  --text-3xl: var(--text-3xl);
+  --text-4xl: var(--text-4xl);
+  --text-5xl: var(--text-5xl);
+  --text-6xl: var(--text-6xl);
+
   --radius-xs: var(--radius-xs);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
 
-  /* Soft shadow scale */
   --shadow-xs: var(--shadow-xs);
   --shadow-sm: var(--shadow-sm);
   --shadow-md: var(--shadow-md);
@@ -71,6 +107,7 @@ html {
   font-size: 16px;
   text-size-adjust: 100%;
   -webkit-text-size-adjust: 100%;
+  background: var(--color-bg-base);
 }
 
 body {
@@ -81,26 +118,37 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01';
+  letter-spacing: -0.005em;
+  min-height: 100vh;
 }
 
-/* Refined focus ring — soft, brand-tinted, AA-compliant */
+a {
+  color: inherit;
+  text-decoration: inherit;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Focus ring · phosphor on dark */
 *:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
-  border-radius: var(--radius-sm);
 }
 *:focus:not(:focus-visible) {
   outline: none;
 }
 
-/* Selection */
+/* Selection · subtle phosphor */
 ::selection {
-  background: rgba(37, 99, 235, 0.18);
+  background: rgba(125, 216, 125, 0.24);
   color: var(--color-text-primary);
 }
 
-/* Scrollbar — subtle, modern */
+/* Scrollbar · blends into the dark plane */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -109,15 +157,15 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-default);
+  background: var(--color-border-strong);
   border-radius: var(--radius-pill);
   border: 2px solid var(--color-bg-base);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  background: var(--color-text-muted);
 }
 
-/* Skip-to-main link — visible only on keyboard focus */
+/* Skip-to-main link · visible only on keyboard focus */
 .skip-to-main {
   position: absolute;
   top: -100px;
@@ -126,11 +174,11 @@ body {
   background: var(--color-brand);
   color: var(--color-brand-fg);
   padding: 10px 16px;
-  border-radius: var(--radius-md);
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
   font-weight: 600;
-  font-size: var(--text-sm);
-  box-shadow: var(--shadow-md);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
   transition: top var(--motion-base) var(--ease-out);
 }
 .skip-to-main:focus,
@@ -150,8 +198,257 @@ body {
   }
 }
 
-/* Default link styling for inline links inside prose */
-a {
-  color: inherit;
-  text-decoration: inherit;
+/* ─── Editorial utilities ─── */
+
+/* Eyebrow · mono uppercase, wide track, dim ink */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Eyebrow · phosphor variant for /num markers */
+.eyebrow-accent {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+/* Tabular nums for any numeric data */
+.nums,
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-mono-data);
+}
+
+/* Display heading · Cormorant Garamond, italic for emphasis */
+.heading-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-tighter);
+  line-height: 0.95;
+}
+.heading-display em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+
+/* Editorial hero number · serif weight 400 with italic emphasis */
+.num-display {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tighter);
+  font-weight: 400;
+  line-height: 0.95;
+}
+.num-display em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+
+/* Brand surface · hero band */
+.surface-hero {
+  background: linear-gradient(180deg, var(--color-bg-base) 0%, var(--color-bg-surface) 100%);
+}
+
+/* Brand mark gradient */
+.brand-gradient {
+  background: linear-gradient(135deg, var(--color-brand-grad-from) 0%, var(--color-brand-grad-to) 100%);
+}
+
+/* Keyboard chip */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-strong);
+  letter-spacing: 0;
+}
+
+/* Subtle divider · dotted */
+.divider-dotted {
+  background-image: radial-gradient(circle, var(--color-border-strong) 1px, transparent 1px);
+  background-size: 6px 6px;
+  background-repeat: repeat-x;
+  background-position: center;
+  height: 1px;
+}
+
+/* Status pill · mono uppercase, dot + label */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: var(--tracking-eyebrow-tight);
+  text-transform: uppercase;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+.pill-success {
+  color: var(--color-status-success);
+  border-color: var(--color-status-success);
+}
+.pill-warning {
+  color: var(--color-status-warning);
+  border-color: var(--color-status-warning);
+}
+.pill-error {
+  color: var(--color-status-error);
+  border-color: var(--color-status-error);
+}
+.pill-info {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.pill-neutral {
+  color: var(--color-text-tertiary);
+  border-color: var(--color-border-strong);
+}
+
+/* Pill dot · current-color, shadowed for OK */
+.pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.pill-success .pill-dot {
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Subtle ambient grain · paper feel — kept restrained on dark */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Hover-lift card · used on interactive cards */
+.lift {
+  transition:
+    border-color var(--motion-base) var(--ease-out),
+    background-color var(--motion-base) var(--ease-out);
+}
+.lift:hover {
+  border-color: var(--color-accent);
+}
+
+/* Animated entry · used sparingly */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-in-up {
+  animation: fade-in-up var(--motion-base) var(--ease-out) both;
+}
+
+/* Blinking cursor for live tail */
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.cursor-blink {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--color-accent);
+  vertical-align: -2px;
+  margin-left: 4px;
+  animation: cursor-blink 1s steps(2) infinite;
+}
+
+/* Code block syntax highlighting */
+.code-block {
+  background: var(--color-bg-base);
+  border: 1px solid var(--color-rule);
+  padding: 18px 22px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--color-text-primary);
+  white-space: pre;
+  overflow-x: auto;
+}
+.code-block .ck {
+  color: var(--color-accent);
+}
+.code-block .cm {
+  color: var(--color-text-muted);
+}
+.code-block .cw {
+  color: var(--color-status-error);
+}
+.code-block .cs {
+  color: var(--color-status-warning);
+}
+
+/* Editorial dot · run / event status indicator */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  display: inline-block;
+  flex-shrink: 0;
+}
+.dot--ok {
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent-glow);
+}
+.dot--white {
+  background: var(--color-text-primary);
+}
+.dot--warn {
+  background: var(--color-status-error);
+}
+.dot--mute {
+  background: var(--color-text-muted);
+}
+
+/* Sectional /num · mono uppercase phosphor + body label */
+.num-marker {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+.num-marker strong {
+  color: var(--color-text-primary);
+  font-weight: 500;
+  margin-left: 4px;
 }

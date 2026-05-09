@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react';
 
 /**
- * `apps/web/components/ui/DataTable.tsx` — refined table primitive.
+ * `apps/web/components/ui/DataTable.tsx` — editorial table primitive.
  *
- * Rounded outer container (radius-lg), soft border, subtle header
- * background, hover row tint. Cells use consistent padding + an
- * align toggle. `mono` renders the cell in JetBrains Mono (slugs);
- * `muted` drops to text-tertiary; `truncate` adds ellipsis.
+ * Header row uses mono uppercase eyebrow tracking. Cells respect the
+ * editorial 18px row padding. Hover lifts the row to a faint phosphor
+ * tint. Outer container is square 1px border on bg-surface.
  */
 
 export interface TableProps {
@@ -16,20 +15,20 @@ export interface TableProps {
 
 export function Table({ children, className }: TableProps) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border-default bg-bg-surface shadow-xs">
+    <div className="border border-rule bg-bg-surface">
       <div className="overflow-x-auto">
-        <table className={`w-full text-sm${className !== undefined ? ` ${className}` : ''}`}>{children}</table>
+        <table className={`w-full text-[13px]${className !== undefined ? ` ${className}` : ''}`}>{children}</table>
       </div>
     </div>
   );
 }
 
 export function THead({ children }: { readonly children: ReactNode }) {
-  return <thead className="bg-bg-elevated">{children}</thead>;
+  return <thead>{children}</thead>;
 }
 
 export function TBody({ children }: { readonly children: ReactNode }) {
-  return <tbody className="divide-y divide-border-subtle">{children}</tbody>;
+  return <tbody>{children}</tbody>;
 }
 
 export interface TRProps {
@@ -38,8 +37,8 @@ export interface TRProps {
 }
 
 export function TR({ children, hoverable = true }: TRProps) {
-  const hoverClass = hoverable ? 'hover:bg-bg-elevated transition-colors duration-150' : '';
-  return <tr className={`align-top ${hoverClass}`}>{children}</tr>;
+  const hoverClass = hoverable ? 'hover:bg-[rgba(125,216,125,0.03)] transition-colors duration-150 cursor-pointer' : '';
+  return <tr className={`align-middle ${hoverClass}`}>{children}</tr>;
 }
 
 export type CellAlign = 'left' | 'right' | 'center';
@@ -61,7 +60,7 @@ export function TH({ children, align = 'left', width }: THProps) {
     <th
       scope="col"
       style={width !== undefined ? { width } : undefined}
-      className={`px-4 py-2.5 ${ALIGN_CLASS[align]} text-xs font-medium text-text-tertiary`}
+      className={`border-b border-rule px-4 py-3.5 font-mono ${ALIGN_CLASS[align]} text-[9px] font-medium uppercase tracking-[0.2em] text-text-muted`}
     >
       {children}
     </th>
@@ -78,9 +77,9 @@ export interface TDProps {
 
 export function TD({ children, align = 'left', mono, muted, truncate }: TDProps) {
   const classes = [
-    'px-4 py-3',
+    'border-b border-rule px-4 py-[18px]',
     ALIGN_CLASS[align],
-    mono === true ? 'font-mono text-xs' : 'text-sm',
+    mono === true ? 'font-mono text-[11px] tabular-nums tracking-[0.04em]' : 'text-[13px]',
     muted === true ? 'text-text-tertiary' : 'text-text-primary',
     truncate === true ? 'max-w-xs truncate' : '',
   ]

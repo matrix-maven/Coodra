@@ -1,6 +1,8 @@
 /**
- * Tool-name badge per `docs/feature-packs/04-web-app/wireframes/03-component-inventory.md`.
- * Used wherever a tool name (Write, Edit, Bash, MultiEdit, etc.) appears in a list.
+ * `apps/web/components/ToolBadge.tsx` — editorial tool-name chip.
+ *
+ * Mono lowercase (matches brand kit `.event__tool` style). Used in
+ * run rows, audit tables, and the live tail.
  */
 
 export interface ToolBadgeProps {
@@ -12,7 +14,7 @@ export function ToolBadge({ name }: ToolBadgeProps) {
     <span
       data-testid="tool-badge"
       data-tool={name}
-      className="inline-flex h-5 items-center border border-border-subtle bg-bg-elevated px-2 font-mono text-[11px] font-medium text-text-primary"
+      className="inline-flex h-5 items-center border border-rule-strong bg-bg-elevated px-2 font-mono text-[10px] tracking-[0.04em] text-text-primary"
     >
       {name}
     </span>

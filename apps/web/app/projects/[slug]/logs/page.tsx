@@ -18,12 +18,28 @@ export default async function LogsIndexPage({ params }: { params: Promise<{ slug
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Project · logs"
-        title="Logs"
-        subtitle="Workspace-grain log files (one per ContextOS service). Tailed live via Server-Sent Events."
+        eyebrow="/05 · SYSTEM · LOGS"
+        title={
+          <>
+            Tail the <em>daemons</em>.
+          </>
+        }
+        subtitle={
+          <>
+            Workspace-grain log files (one per ContextOS service). Tailed live via Server-Sent Events. Pick a service to
+            open the live tail surface.
+          </>
+        }
       />
 
-      <Section title="Services">
+      <Section
+        title={
+          <>
+            Service <em>logs</em>
+          </>
+        }
+        count={`${rows.length} services`}
+      >
         <Table>
           <THead>
             <TR hoverable={false}>

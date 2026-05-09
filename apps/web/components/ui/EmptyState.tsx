@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react';
 
 /**
- * `apps/web/components/ui/EmptyState.tsx` — empty-state card.
+ * `apps/web/components/ui/EmptyState.tsx` — editorial empty-state card.
  *
- * Centered icon + sentence-case title + body + optional CTA. Soft
- * dashed border to communicate empty-but-actionable.
+ * Centered serif title with phosphor italic emphasis, mono body,
+ * optional CTA. Square dashed border on bg-surface — empty but
+ * actionable.
  */
 
 export interface EmptyStateProps {
-  readonly title: string;
+  readonly title: ReactNode;
   readonly body?: ReactNode;
   readonly icon?: ReactNode;
   readonly action?: ReactNode;
@@ -16,18 +17,20 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState({ title, body, icon, action, size = 'md' }: EmptyStateProps) {
-  const padding = size === 'lg' ? 'py-16 px-8' : 'py-12 px-6';
+  const padding = size === 'lg' ? 'py-16 px-10' : 'py-12 px-8';
   return (
     <div
-      className={`flex flex-col items-center gap-3 rounded-lg border border-dashed border-border-default bg-bg-surface text-center ${padding}`}
+      className={`flex flex-col items-center gap-4 border border-dashed border-rule-strong bg-bg-surface text-center ${padding}`}
     >
       {icon !== undefined ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-elevated text-text-tertiary">
+        <div className="flex h-10 w-10 items-center justify-center border border-rule-strong text-text-tertiary">
           {icon}
         </div>
       ) : null}
-      <h3 className="font-display text-base font-semibold tracking-tight text-text-primary">{title}</h3>
-      {body !== undefined ? <p className="max-w-prose text-sm text-text-secondary">{body}</p> : null}
+      <h3 className="heading-display text-[28px] text-text-primary">
+        {typeof title === 'string' ? <span>{title}</span> : title}
+      </h3>
+      {body !== undefined ? <p className="max-w-prose text-[13px] leading-[1.6] text-text-tertiary">{body}</p> : null}
       {action !== undefined ? <div className="mt-2">{action}</div> : null}
     </div>
   );

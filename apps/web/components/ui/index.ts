@@ -19,6 +19,7 @@ export {
   type LinkButtonProps,
 } from './Button';
 export { Card, type CardProps } from './Card';
+export { CodeBlock, type CodeBlockProps } from './CodeBlock';
 export {
   type CellAlign,
   Table,
@@ -33,7 +34,9 @@ export {
   type TRProps,
 } from './DataTable';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { type EventDot, EventRow, type EventRowProps, type EventVerdict } from './EventRow';
 export { FormRow, type FormRowProps } from './FormRow';
+export { IconField, type IconFieldProps, type IconFieldTone } from './IconField';
 export {
   Checkbox,
   type CheckboxProps,
@@ -52,29 +55,44 @@ export {
   BoxIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   CircleIcon,
+  ClockIcon,
   CommandIcon,
+  CopyIcon,
   DatabaseIcon,
+  DocumentIcon,
   DownloadIcon,
   ExternalLinkIcon,
+  FolderIcon,
   GaugeIcon,
   GraphIcon,
+  HashIcon,
+  HelpCircleIcon,
   InfoIcon,
   LayersIcon,
   LayoutIcon,
   PauseIcon,
+  PlayIcon,
   PlusIcon,
   RefreshIcon,
+  RocketIcon,
   ScrollIcon,
   SearchIcon,
   SettingsIcon,
   ShieldIcon,
+  SparkleIcon,
+  TerminalIcon,
   TrashIcon,
   XIcon,
 } from './icons';
+export { KsModeButton, type KsModeButtonProps } from './KsModeButton';
 export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { PageShell, type PageShellProps } from './PageShell';
+export { PolicyRow, type PolicyRowProps, type PolicyVerdictTone } from './PolicyRow';
 export { Section, type SectionProps } from './Section';
+export { StatPill, type StatPillProps, type StatPillTone } from './StatPill';
 export { StatusDot, type StatusDotProps, type StatusTone } from './StatusDot';
 export { Tile, type TileProps, type TileTone } from './Tile';
+export { Topbar, type TopbarProps } from './Topbar';

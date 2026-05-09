@@ -1,26 +1,28 @@
 import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 
 /**
- * `apps/web/components/ui/Input.tsx` — refined form controls.
+ * `apps/web/components/ui/Input.tsx` — editorial form controls.
  *
- * Rounded (radius-md), soft border, subtle hover, brand-tinted focus.
- * `mono` toggles JetBrains Mono for slug/path inputs. `invalid`
- * switches the border to status-error.
+ * Square 1px border on the bg-base plane (so they read as inset
+ * machine surfaces against bg-surface cards). Mono input by default
+ * — these capture paths, slugs, JQL — flip to sans only via `sans`.
+ * `invalid` switches the border to crimson.
  */
 
 const BASE =
-  'block w-full rounded-md border bg-bg-surface px-3 text-sm text-text-primary transition-colors duration-150 placeholder:text-text-muted focus-visible:outline-none';
+  'block w-full border bg-bg-base px-3.5 text-text-primary transition-colors duration-150 placeholder:text-text-muted focus-visible:outline-none';
 const HEIGHT = 'h-(--input-height)';
-const BORDER_DEFAULT =
-  'border-border-default hover:border-border-strong focus:border-brand focus:shadow-[0_0_0_3px_rgba(37,99,235,0.18)]';
-const BORDER_INVALID = 'border-status-error focus:border-status-error focus:shadow-[0_0_0_3px_rgba(239,68,68,0.18)]';
+const BORDER_DEFAULT = 'border-rule-strong hover:border-text-tertiary focus:border-accent';
+const BORDER_INVALID = 'border-status-error focus:border-status-error';
+const TYPE_MONO = 'font-mono text-[12px] tracking-[0.04em]';
+const TYPE_SANS = 'font-sans text-[13px]';
 
-function inputClass(invalid: boolean | undefined, mono: boolean | undefined, extra?: string): string {
+function inputClass(invalid: boolean | undefined, sans: boolean | undefined, extra?: string): string {
   return [
     BASE,
     HEIGHT,
     invalid === true ? BORDER_INVALID : BORDER_DEFAULT,
-    mono === true ? 'font-mono' : '',
+    sans === true ? TYPE_SANS : TYPE_MONO,
     extra ?? '',
   ]
     .filter(Boolean)
@@ -29,29 +31,36 @@ function inputClass(invalid: boolean | undefined, mono: boolean | undefined, ext
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> {
   readonly invalid?: boolean;
+  /** When true, render as `sans` (Inter Tight) instead of mono. */
+  readonly sans?: boolean;
+  /** @deprecated mono is the default — use `sans` to flip. */
   readonly mono?: boolean;
   readonly className?: string;
 }
 
-export function Input({ invalid, mono, className, ...rest }: InputProps) {
-  return <input {...rest} className={inputClass(invalid, mono, className)} />;
+export function Input({ invalid, sans, mono, className, ...rest }: InputProps) {
+  // Honour legacy `mono={true}` calls — they retain the default mono path.
+  const useSans = sans === true && mono !== true;
+  return <input {...rest} className={inputClass(invalid, useSans, className)} />;
 }
 
 export interface TextareaProps extends Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> {
   readonly invalid?: boolean;
+  readonly sans?: boolean;
   readonly mono?: boolean;
   readonly className?: string;
 }
 
-export function Textarea({ invalid, mono, className, ...rest }: TextareaProps) {
+export function Textarea({ invalid, sans, mono, className, ...rest }: TextareaProps) {
+  const useSans = sans === true && mono !== true;
   return (
     <textarea
       {...rest}
       className={[
         BASE,
-        'min-h-32 resize-y py-3 leading-6',
+        'min-h-32 resize-y py-3 leading-[1.5]',
         invalid === true ? BORDER_INVALID : BORDER_DEFAULT,
-        mono === true ? 'font-mono' : '',
+        useSans ? TYPE_SANS : TYPE_MONO,
         className ?? '',
       ]
         .filter(Boolean)
@@ -62,14 +71,16 @@ export function Textarea({ invalid, mono, className, ...rest }: TextareaProps) {
 
 export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'className' | 'children'> {
   readonly invalid?: boolean;
+  readonly sans?: boolean;
   readonly mono?: boolean;
   readonly className?: string;
   readonly children: ReactNode;
 }
 
-export function Select({ invalid, mono, className, children, ...rest }: SelectProps) {
+export function Select({ invalid, sans, mono, className, children, ...rest }: SelectProps) {
+  const useSans = sans === true && mono !== true;
   return (
-    <select {...rest} className={`${inputClass(invalid, mono, className)} appearance-none pr-8`}>
+    <select {...rest} className={`${inputClass(invalid, useSans, className)} appearance-none pr-8`}>
       {children}
     </select>
   );
@@ -84,7 +95,7 @@ export function Checkbox({ className, ...rest }: CheckboxProps) {
     <input
       {...rest}
       type="checkbox"
-      className={`h-4 w-4 cursor-pointer rounded border-border-default accent-brand${
+      className={`h-4 w-4 cursor-pointer border border-rule-strong bg-bg-base accent-accent${
         className !== undefined ? ` ${className}` : ''
       }`}
     />

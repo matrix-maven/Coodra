@@ -1,40 +1,53 @@
 import { ClerkProvider, OrganizationSwitcher, UserButton } from '@clerk/nextjs';
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Cormorant_Garamond, Inter_Tight, JetBrains_Mono } from 'next/font/google';
 
 import { Sidebar } from '@/components/Sidebar';
-import { SoloModeBadge } from '@/components/SoloModeBadge';
 import { getActor } from '@/lib/auth';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 import './globals.css';
 
-const inter = Inter({
+/*
+ * Three voices · brand kit
+ *  - Cormorant Garamond — display, italic for emphasis
+ *  - Inter Tight — body, UI, navigation
+ *  - JetBrains Mono — paths · IDs · timestamps · eyebrows · code
+ */
+
+const interTight = Inter_Tight({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-inter-tight',
   weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
+  variable: '--font-cormorant',
+  weight: ['400', '500', '600'],
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains-mono',
-  weight: ['400', '500', '600'],
+  weight: ['300', '400', '500', '600'],
   display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: 'ContextOS',
-  description: 'Admin + audit-trail UI for ContextOS — Module 04 Web App.',
+  description: 'Editorial audit surface for ContextOS — local-first, MCP-native, MIT.',
 };
 
 /**
- * Root layout — full UI redesign.
+ * Root layout · editorial dark shell.
  *
- * The shell is a 248px persistent sidebar + flexible content area.
- * The Sidebar component handles workspace nav AND project nav (when
- * inside /projects/[slug]/*) so we no longer need a separate sub-nav
- * strip. The project /layout.tsx renders the project context band
- * + adds <main id="main"> for the skip-link target.
+ * 248px persistent left sidebar (workspace + project nav, mode badge,
+ * project pill, user avatar). The Sidebar component handles workspace
+ * nav AND project nav (when inside /projects/[slug]/*). Project layout
+ * adds the topbar + main landmark.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const actor = await getActor();
@@ -46,19 +59,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       signInFallbackRedirectUrl="/"
       signUpFallbackRedirectUrl="/"
     >
-      <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-        <body>
+      <html
+        lang="en"
+        className={`${interTight.variable} ${cormorant.variable} ${jetbrainsMono.variable}`}
+        suppressHydrationWarning
+      >
+        <body suppressHydrationWarning className="bg-bg-base text-text-primary">
           <a href="#main" className="skip-to-main">
             Skip to main content
           </a>
 
-          <div className="flex min-h-screen">
+          <div className="grid min-h-screen grid-cols-[var(--sidebar-width)_1fr]">
             <Sidebar
               mode={actor.mode}
               footerSlot={
-                actor.mode === 'solo' ? (
-                  <SoloModeBadge />
-                ) : (
+                actor.mode === 'team' ? (
                   <div className="flex items-center justify-between gap-2">
                     <OrganizationSwitcher
                       appearance={clerkAppearance}
@@ -68,10 +83,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     />
                     <UserButton appearance={clerkAppearance} userProfileUrl="/settings/account" />
                   </div>
-                )
+                ) : undefined
               }
             />
-            <div className="flex min-w-0 flex-1 flex-col bg-bg-base">{children}</div>
+            <div className="flex min-w-0 flex-col bg-bg-base">{children}</div>
           </div>
         </body>
       </html>

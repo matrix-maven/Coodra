@@ -1,26 +1,15 @@
 import Link from 'next/link';
 
-import { StatusChip } from '@/components/StatusChip';
-import {
-  AlertTriangleIcon,
-  Banner,
-  EmptyState,
-  PageHeader,
-  PageShell,
-  Section,
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from '@/components/ui';
+import { AlertTriangleIcon, Banner, EmptyState, LinkButton, PageHeader, PageShell, StatPill } from '@/components/ui';
 import { resolveProjectFromParams } from '@/lib/project-context';
 import { listPacks } from '@/lib/queries/packs';
 
 /**
- * `/projects/[slug]/packs` — Feature packs scoped to the URL-bound
- * project (M04 Phase 2 S2a IA migration, restyled in Phase 2 UI).
+ * `/projects/[slug]/packs` — editorial feature pack grid (mirrors
+ * brand-kit Feature Packs, screen 08).
+ *
+ * 3-column card grid; each card has eyebrow / serif italic title /
+ * mono excerpt / sync footer.
  */
 
 export const dynamic = 'force-dynamic';
@@ -40,92 +29,113 @@ export default async function PacksListPage({
   const sp = await searchParams;
   const allPacks = listPacks();
   const packs = allPacks.filter((p) => p.slug === project.slug || p.parentSlug === project.slug);
+  const baseHref = `/projects/${encodeURIComponent(project.slug)}/packs`;
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Project · packs"
-        title="Feature packs"
-        subtitle={
+        eyebrow="/04 · KNOWLEDGE · FEATURE PACKS"
+        title={
           <>
-            Packs owned by <span className="font-mono">{project.slug}</span> (slug or parent matches).
+            Three voices: <em>spec</em>, plan, stack.
+          </>
+        }
+        subtitle="A feature pack is the durable record of a module: the why, the how, the dependency graph. Auto-injected on SessionStart. Edit on disk; we sync the metadata."
+        meta={
+          <>
+            <strong className="font-medium text-text-primary">
+              {packs.length} pack{packs.length === 1 ? '' : 's'}
+            </strong>
+            <br />
+            scope · {project.slug}
+            <br />
+            docs/feature-packs/
+          </>
+        }
+        actions={
+          <>
+            <LinkButton href={baseHref} variant="ghost">
+              Pack scan
+            </LinkButton>
+            <LinkButton href={baseHref} variant="primary">
+              New pack
+            </LinkButton>
           </>
         }
       />
 
       {sp.deleted !== undefined ? (
-        <Banner kind="success">
-          Pack <span className="font-mono">{sp.deleted}</span> deleted (dir removed + is_active=false).
-        </Banner>
+        <div className="mb-8">
+          <Banner kind="success">
+            Pack <span className="font-mono">{sp.deleted}</span> deleted (dir removed + is_active=false).
+          </Banner>
+        </div>
       ) : null}
 
       {packs.length === 0 ? (
         <EmptyState
-          title="No feature packs"
+          title={
+            <>
+              No <em>packs</em>
+            </>
+          }
           body={
             <>
-              Run <span className="font-mono">contextos pack new &lt;slug&gt;</span> in{' '}
-              <span className="font-mono">{project.slug}</span> to scaffold one.
+              Run <span className="font-mono text-accent">contextos pack new &lt;slug&gt;</span> in{' '}
+              <span className="font-mono text-accent">{project.slug}</span> to scaffold one.
             </>
           }
         />
       ) : (
-        <Section title="All packs" count={packs.length}>
-          <Table>
-            <THead>
-              <TR hoverable={false}>
-                <TH>Slug</TH>
-                <TH>Parent</TH>
-                <TH>Active</TH>
-                <TH>Files</TH>
-                <TH align="right">Open</TH>
-              </TR>
-            </THead>
-            <TBody>
-              {packs.map((p) => (
-                <TR key={p.slug}>
-                  <TD mono>{p.slug}</TD>
-                  <TD mono muted>
-                    {p.parentSlug ?? '—'}
-                  </TD>
-                  <TD>
-                    <StatusChip status={p.isActive ? 'success' : 'neutral'}>
-                      {p.isActive ? 'active' : 'inactive'}
-                    </StatusChip>
-                  </TD>
-                  <TD mono>
-                    <span className="inline-flex items-center gap-2">
-                      {p.fileCount}/4
-                      {p.fileCount < 4 ? (
-                        <AlertTriangleIcon
-                          className="h-3 w-3 text-status-warning"
-                          aria-label={`Missing: ${[
-                            !p.hasMeta && 'meta.json',
-                            !p.hasSpec && 'spec.md',
-                            !p.hasImplementation && 'implementation.md',
-                            !p.hasTechstack && 'techstack.md',
-                          ]
-                            .filter(Boolean)
-                            .join(', ')}`}
-                        />
-                      ) : null}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {packs.map((p, idx) => (
+            <Link
+              key={p.slug}
+              href={`${baseHref}/${encodeURIComponent(p.slug)}` as never}
+              className="group flex cursor-pointer flex-col border border-rule bg-bg-surface p-7 transition-colors hover:border-accent"
+            >
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
+                / {String(idx + 1).padStart(2, '0')} · {p.slug.toUpperCase()}
+              </div>
+              <h3 className="heading-display mt-3.5 mb-3 text-[28px] leading-[1.05] text-text-primary">
+                {p.parentSlug !== null ? (
+                  <>
+                    Inherits from{' '}
+                    <em>
+                      <span>{p.parentSlug}</span>
+                    </em>
+                  </>
+                ) : (
+                  <>
+                    A <em>module</em> in {project.slug}
+                  </>
+                )}
+              </h3>
+              <p className="mb-6 text-[13px] leading-[1.6] text-text-tertiary">
+                {p.fileCount}/4 spec files on disk
+                {p.parentSlug !== null ? `, parent ${p.parentSlug}` : ''}. Active flag in DB,{' '}
+                {p.isActive ? 'currently advertised to agents' : 'currently dormant'}.
+              </p>
+              <div className="flex items-center gap-4 border-t border-rule pt-4 font-mono text-[10px] uppercase tracking-[0.06em] text-text-muted">
+                <span className={p.hasSpec ? 'text-text-tertiary' : 'opacity-40'}>spec.md</span>
+                <span className={p.hasImplementation ? 'text-text-tertiary' : 'opacity-40'}>impl.md</span>
+                <span className={p.hasTechstack ? 'text-text-tertiary' : 'opacity-40'}>stack.md</span>
+                <span className="ml-auto flex items-center gap-2">
+                  {p.fileCount < 4 ? (
+                    <span className="flex items-center gap-1.5 text-status-warning">
+                      <AlertTriangleIcon className="h-3 w-3" />
+                      INCOMPLETE
                     </span>
-                  </TD>
-                  <TD align="right">
-                    <Link
-                      href={
-                        `/projects/${encodeURIComponent(project.slug)}/packs/${encodeURIComponent(p.slug)}` as never
-                      }
-                      className="text-xs font-medium text-brand transition-colors duration-200 hover:text-brand-hover"
-                    >
-                      View
-                    </Link>
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </Section>
+                  ) : (
+                    <StatPill tone={p.isActive ? 'ok' : 'neutral'} dot>
+                      {p.isActive ? 'SYNCED' : 'INACTIVE'}
+                    </StatPill>
+                  )}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
     </PageShell>
   );

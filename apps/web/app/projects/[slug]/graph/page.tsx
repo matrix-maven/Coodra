@@ -56,13 +56,47 @@ export default async function GraphPage({
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Project · graph"
-        title="Codebase graph"
+        eyebrow="/02 · AUDIT · GRAPH"
+        title={
+          <>
+            Files the <em>agent</em> read.
+          </>
+        }
         subtitle={
           <>
-            Read-only view of <span className="font-mono">graph.json</span> for{' '}
-            <span className="font-mono">{project.slug}</span> (ADR-010).
+            A graph of files touched, the order they were touched, and the runs that touched them. Read-only view of{' '}
+            <span className="font-mono text-accent">graph.json</span> for{' '}
+            <span className="font-mono text-accent">{project.slug}</span> (ADR-010).
           </>
+        }
+        meta={
+          result.status === 'ok' ? (
+            <>
+              <strong className="font-medium text-text-primary">{result.nodes.length} nodes</strong>
+              <br />
+              {result.edgeCount} edges
+              <br />
+              indexed · {result.mtime.toISOString().slice(0, 10)}
+            </>
+          ) : (
+            <>
+              <strong className="font-medium text-text-primary">no index</strong>
+              <br />
+              graphify CLI required
+            </>
+          )
+        }
+        actions={
+          result.status === 'ok' ? (
+            <>
+              <LinkButton href={`${baseHref}/graph`} variant="ghost">
+                Reset view
+              </LinkButton>
+              <LinkButton href={`${baseHref}/graph`} variant="primary">
+                Export
+              </LinkButton>
+            </>
+          ) : undefined
         }
       />
 

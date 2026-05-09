@@ -71,12 +71,17 @@ export default async function DoctorPage({
     <PageShell>
       <Breadcrumbs trail={trail} />
       <PageHeader
-        eyebrow="Project · health"
-        title="Doctor"
+        eyebrow="/05 · SYSTEM · DOCTOR"
+        title={
+          <>
+            <em>Doctor</em>, in good repair.
+          </>
+        }
         subtitle={
           <>
-            Workspace-grain probes — scope <span className="font-mono">{scope}</span> ({report.checks.length} checks).
-            Last run <span className="font-mono">{new Date().toISOString()}</span>.
+            Workspace-grain probes — scope <span className="font-mono text-accent">{scope}</span> (
+            {report.checks.length} checks). Last run{' '}
+            <span className="font-mono text-accent">{new Date().toISOString().slice(11, 19)} UTC</span>.
           </>
         }
         actions={

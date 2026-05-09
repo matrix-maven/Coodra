@@ -3,19 +3,11 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { type ProjectStatusDotKind, StatusDot } from '@/components/StatusDot';
+import type { ProjectStatusDotKind } from '@/components/StatusDot';
 
 /**
- * `apps/web/components/ProjectsSwitcher.tsx` — quick switch between
- * projects from inside a project (M04 Phase 2 S2c).
- *
- * Renders inside `apps/web/app/projects/[slug]/layout.tsx`'s header.
- * Native `<select>` (no JS combo-box library — operator-grade per
- * brand promise). On change, hard-navigates to the new project's
- * home.
- *
- * The list of available projects is passed in as a prop (the layout
- * fetches it once per render — same query the picker uses).
+ * `apps/web/components/ProjectsSwitcher.tsx` — quick project switcher
+ * for the editorial Topbar. Native `<select>` styled square / mono.
  */
 
 export interface ProjectsSwitcherOption {
@@ -31,12 +23,10 @@ export interface ProjectsSwitcherProps {
 export function ProjectsSwitcher({ currentSlug, options }: ProjectsSwitcherProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const current = options.find((o) => o.slug === currentSlug);
 
   return (
     <label htmlFor="project-switcher" className="flex items-center gap-2">
-      {current !== undefined ? <StatusDot kind={current.statusDot} /> : null}
-      <span className="text-xs text-text-tertiary">Switch</span>
+      <span className="eyebrow text-text-muted">Switch</span>
       <select
         id="project-switcher"
         value={currentSlug}
@@ -47,7 +37,7 @@ export function ProjectsSwitcher({ currentSlug, options }: ProjectsSwitcherProps
           router.push(`/projects/${encodeURIComponent(next)}` as never);
         }}
         disabled={pending}
-        className="h-8 rounded-md border border-border-default bg-bg-surface px-3 pr-8 font-mono text-xs text-text-primary transition-colors duration-150 hover:border-border-strong focus-visible:outline-none focus:border-brand"
+        className="h-8 border border-rule-strong bg-bg-base px-3 pr-8 font-mono text-[11px] text-text-primary transition-colors duration-150 hover:border-text-tertiary focus-visible:outline-none focus:border-accent"
       >
         {options.map((opt) => (
           <option key={opt.slug} value={opt.slug}>

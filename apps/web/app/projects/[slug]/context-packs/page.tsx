@@ -41,29 +41,58 @@ export default async function ContextPacksListPage({ params }: { params: Promise
     <PageShell>
       <Breadcrumbs trail={trail} />
       <PageHeader
-        eyebrow="Project · artifacts"
-        title="Context packs"
+        eyebrow="/04 · KNOWLEDGE · CONTEXT PACKS"
+        title={
+          <>
+            What the <em>agent</em> learned.
+          </>
+        }
         subtitle={
           <>
             {packs.length}
             {packs.length === PAGE_LIMIT ? '+' : ''} pack{packs.length === 1 ? '' : 's'} for{' '}
-            <span className="font-mono">{project.slug}</span>, newest first.
+            <span className="font-mono text-accent">{project.slug}</span>, newest first. Auto-fired on Stop /
+            SessionEnd; agents may also save explicitly with{' '}
+            <span className="font-mono text-accent">save_context_pack</span>.
+          </>
+        }
+        meta={
+          <>
+            <strong className="font-medium text-text-primary">
+              {packs.length}
+              {packs.length === PAGE_LIMIT ? '+' : ''} packs
+            </strong>
+            <br />
+            scope · {project.slug}
+            <br />
+            sorted · newest
           </>
         }
       />
 
       {packs.length === 0 ? (
         <EmptyState
-          title="No context packs yet"
+          title={
+            <>
+              No <em>context packs</em> yet
+            </>
+          }
           body={
             <>
-              Context packs land when an agent calls <span className="font-mono">save_context_pack</span> at session end
-              (or when the hooks-bridge auto-fires on Stop / SessionEnd per ADR-012).
+              Context packs land when an agent calls <span className="font-mono text-accent">save_context_pack</span> at
+              session end (or when the hooks-bridge auto-fires on Stop / SessionEnd per ADR-012).
             </>
           }
         />
       ) : (
-        <Section title="All packs" count={`${packs.length}${packs.length === PAGE_LIMIT ? '+' : ''}`}>
+        <Section
+          title={
+            <>
+              All <em>packs</em>
+            </>
+          }
+          count={`${packs.length}${packs.length === PAGE_LIMIT ? '+' : ''}`}
+        >
           <Table>
             <THead>
               <TR hoverable={false}>
@@ -82,7 +111,7 @@ export default async function ContextPacksListPage({ params }: { params: Promise
                     <TD mono>
                       <Link
                         href={detailHref as never}
-                        className="text-brand transition-colors duration-200 hover:text-brand-hover hover:underline"
+                        className="text-text-primary transition-colors duration-200 hover:text-accent hover:underline decoration-rule"
                       >
                         {p.title}
                       </Link>
@@ -96,7 +125,7 @@ export default async function ContextPacksListPage({ params }: { params: Promise
                     <TD mono muted>
                       <Link
                         href={`${baseHref}/runs/${encodeURIComponent(p.runId)}` as never}
-                        className="hover:text-brand"
+                        className="hover:text-accent"
                       >
                         {p.runId.slice(0, 8)}…
                       </Link>

@@ -21,11 +21,11 @@ describe('StatusChip', () => {
     expect(chip.textContent).toBe('label');
   });
 
-  it('uses the correct status color tint (success → success-soft bg + ring)', () => {
+  it('uses the editorial dark palette (success → phosphor accent border + text)', () => {
     const { getByTestId } = render(<StatusChip status="success">ok</StatusChip>);
     const chip = getByTestId('status-chip');
-    expect(chip.className).toContain('bg-status-success-soft');
-    expect(chip.className).toContain('text-status-success');
+    expect(chip.className).toContain('text-accent');
+    expect(chip.className).toContain('border-accent');
   });
 });
 

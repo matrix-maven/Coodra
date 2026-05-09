@@ -2,39 +2,42 @@ import Link from 'next/link';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
- * `apps/web/components/ui/Button.tsx` — refined button system.
+ * `apps/web/components/ui/Button.tsx` — editorial button system.
  *
  * Three components share one shape:
  *   <Button>      native <button>; honors type="submit".
- *   <LinkButton>  same look, renders <Link> (or <a download> when needed).
+ *   <LinkButton>  same look, renders <Link> (or <a download>).
  *   <IconButton>  square icon-only with required aria-label.
  *
  * Variants: primary | secondary | ghost | destructive | outline.
  * Sizes:    sm | md (default).
  *
- * Sentence-case labels (no more uppercase tracking everywhere).
+ * Buttons are mono uppercase, tracked wide, square borders. Primary
+ * uses phosphor (--color-accent) on the dark plane. Secondary is a
+ * 1px ink border on transparent. Ghost is rule-strong on dim ink.
+ * Destructive borrows the crimson border + soft fill.
  */
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'outline';
 export type ButtonSize = 'sm' | 'md';
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand text-white border border-brand hover:bg-brand-hover hover:border-brand-hover shadow-xs',
-  secondary:
-    'bg-bg-surface text-text-primary border border-border-default hover:bg-bg-elevated hover:border-border-strong shadow-xs',
-  ghost: 'bg-transparent text-text-secondary border border-transparent hover:bg-bg-elevated hover:text-text-primary',
-  destructive:
-    'bg-bg-surface text-status-error border border-status-error/30 hover:bg-status-error/10 hover:border-status-error/50',
-  outline: 'bg-transparent text-brand border border-brand/40 hover:bg-brand-soft hover:border-brand',
+  primary:
+    'bg-accent text-bg-base border border-accent hover:bg-text-primary hover:border-text-primary hover:text-bg-base',
+  secondary: 'bg-transparent text-text-primary border border-text-primary hover:bg-text-primary hover:text-bg-base',
+  ghost:
+    'bg-transparent text-text-tertiary border border-rule-strong hover:text-text-primary hover:border-text-primary',
+  destructive: 'bg-transparent text-status-error border border-status-error hover:bg-status-error-soft',
+  outline: 'bg-transparent text-text-primary border border-rule-strong hover:border-text-primary',
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {
-  sm: 'h-(--button-height-sm) px-3 text-xs gap-1.5',
-  md: 'h-(--button-height) px-4 text-sm gap-2',
+  sm: 'h-(--button-height-sm) px-3 text-[9px] tracking-[0.16em] gap-1.5',
+  md: 'h-(--button-height) px-5 text-[10px] tracking-[0.18em] gap-2',
 };
 
 const BASE_CLASS =
-  'inline-flex items-center justify-center rounded-md font-medium transition-all duration-150 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none';
+  'inline-flex items-center justify-center font-mono font-medium uppercase transition-colors duration-200 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none whitespace-nowrap';
 
 function classFor(variant: ButtonVariant, size: ButtonSize, extra?: string): string {
   return `${BASE_CLASS} ${SIZE_CLASS[size]} ${VARIANT_CLASS[variant]}${extra !== undefined ? ` ${extra}` : ''}`;
@@ -129,7 +132,7 @@ export function IconButton({
   type = 'button',
   ...rest
 }: IconButtonProps) {
-  const sizeClass = size === 'sm' ? 'h-7 w-7' : 'h-9 w-9';
+  const sizeClass = size === 'sm' ? 'h-7 w-7' : 'h-(--button-height) w-(--button-height)';
   return (
     <button
       type={type}

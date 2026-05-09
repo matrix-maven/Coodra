@@ -1,23 +1,29 @@
 import { UserProfile } from '@clerk/nextjs';
 import { notFound } from 'next/navigation';
 
+import { PageHeader, PageShell } from '@/components/ui';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 
 /**
- * `/settings/account` — Clerk's <UserProfile /> for personal-account
+ * `/settings/account` — Clerk's <UserProfile /> for personal account
  * settings (name, email, password, MFA, sessions, connected accounts).
- * Solo mode 404s.
+ * Solo mode 404s (no auth surface).
  */
 
 export default function AccountSettingsPage() {
   if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
   return (
-    <div className="mx-auto flex max-w-[1200px] flex-col gap-6 px-8 py-12">
-      <header className="flex flex-col gap-2">
-        <h1 className="font-display text-4xl font-black uppercase tracking-wide">Account</h1>
-        <p className="text-sm text-text-secondary">Personal profile, security, and connected accounts.</p>
-      </header>
+    <PageShell variant="workspace">
+      <PageHeader
+        eyebrow="/05 · SYSTEM · ACCOUNT"
+        title={
+          <>
+            <em>Account</em>.
+          </>
+        }
+        subtitle="Personal profile, security, and connected accounts. Settings sit on top of Clerk in team mode; solo mode skips this entirely."
+      />
       <UserProfile appearance={clerkAppearance} />
-    </div>
+    </PageShell>
   );
 }

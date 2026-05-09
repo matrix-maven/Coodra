@@ -59,19 +59,34 @@ export default async function ProjectSettingsPage({
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Project · settings"
-        title={project.slug}
+        eyebrow={`/05 · SYSTEM · PROJECT · ${project.slug}`}
+        title={
+          <>
+            <em>Settings</em>, with intent.
+          </>
+        }
         subtitle={
           isSentinel ? (
             <>
-              <span className="font-mono">__global__</span> sentinel — F7 invariant. Rename + delete disabled.
+              <span className="font-mono text-accent">__global__</span> sentinel — F7 invariant. Rename + delete
+              disabled.
             </>
           ) : (
             <>
               {totalRuns} run{totalRuns === 1 ? '' : 's'} · created{' '}
-              <span className="font-mono">{project.createdAt.toISOString().slice(0, 10)}</span>
+              <span className="font-mono text-accent">{project.createdAt.toISOString().slice(0, 10)}</span>. Rename,
+              reset, or delete this project.
             </>
           )
+        }
+        meta={
+          <>
+            <strong className="font-medium text-text-primary">{project.slug}</strong>
+            <br />
+            org · {project.orgId}
+            <br />
+            id · {project.id.slice(0, 13)}…
+          </>
         }
       />
 
