@@ -1,0 +1,35 @@
+{
+  "name": "@coodra/contextos-web-v2",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ContextOS Web App v2 — design-system shell rebuild on the editorial dark surface. Same backend wiring as @coodra/contextos-web; new visual language driven by frontend/project/app.html.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3001",
+    "start": "next start --port 3001",
+    "lint": "biome check .",
+    "typecheck": "tsc -p tsconfig.json",
+    "clean": "rm -rf .next .turbo"
+  },
+  "dependencies": {
+    "@coodra/contextos-cli": "workspace:*",
+    "@coodra/contextos-db": "workspace:*",
+    "@coodra/contextos-shared": "workspace:*",
+    "better-sqlite3": "^12.9.0",
+    "drizzle-orm": "^0.45.2",
+    "next": "^15.5.4",
+    "postgres": "^3.4.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^6.0.3"
+  }
+}
