@@ -1,8 +1,8 @@
-# ContextOS — Brand Guide
+# Coodra — Brand Guide
 
 ## 1. Visual Theme & Atmosphere
 
-ContextOS is developer tooling made visual — a design system that communicates precision, engineering discipline, and zero-tolerance confidence. The interface alternates between deep dark hero sections and sharp, information-dense content areas, creating a rhythm reminiscent of a high-precision instrument panel: everything purposeful, nothing decorative.
+Coodra is developer tooling made visual — a design system that communicates precision, engineering discipline, and zero-tolerance confidence. The interface alternates between deep dark hero sections and sharp, information-dense content areas, creating a rhythm reminiscent of a high-precision instrument panel: everything purposeful, nothing decorative.
 
 The design language is built around angular geometry, extreme typographic weight contrast, and a singular precision-blue accent. Every decision serves clarity. Nothing is added without functional reason.
 

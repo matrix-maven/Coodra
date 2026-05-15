@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 
-import { listAllActiveKillSwitches } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches } from '@coodra/db';
 
 import { openLocalDb } from '../../lib/open-local-db.js';
 import type { Check } from '../types.js';
@@ -31,7 +31,7 @@ export const activeKillSwitchesCheck: Check = {
       return {
         status: 'red',
         detail: `cannot open data.db: ${err instanceof Error ? err.message : String(err)}`,
-        remediation: 'Run `contextos doctor` again after `contextos start` to ensure the SQLite store is reachable.',
+        remediation: 'Run `coodra doctor` again after `coodra start` to ensure the SQLite store is reachable.',
       };
     }
     try {
@@ -60,7 +60,7 @@ export const activeKillSwitchesCheck: Check = {
       return {
         status: 'yellow',
         detail: `${active.length} active kill switch(es); oldest paused ${ageMin} min ago`,
-        remediation: `Run \`contextos resume --all\` to clear, or \`contextos pause\` (with no args, to see current state via the duplicate-active warning).`,
+        remediation: `Run \`coodra resume --all\` to clear, or \`coodra pause\` (with no args, to see current state via the duplicate-active warning).`,
       };
     } finally {
       handle.close();

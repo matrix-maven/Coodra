@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveContextosHome } from './contextos-home.js';
+import { resolveCoodraHome } from './coodra-home.js';
 
 /**
  * `packages/cli/src/lib/template-paths` — resolves a template name to
@@ -11,8 +11,8 @@ import { resolveContextosHome } from './contextos-home.js';
  * Resolution order (Module 08b S13):
  *   1. Absolute / relative file-system path (when the user passes
  *      `--template /path/to/dir` or `--template ./local-dir`).
- *   2. User templates: `~/.contextos/templates/<name>/`. Installed via
- *      `contextos template install <path>` (S17). Override bundled
+ *   2. User templates: `~/.coodra/templates/<name>/`. Installed via
+ *      `coodra template install <path>` (S17). Override bundled
  *      templates of the same name when present.
  *   3. Bundled templates: `<cli-dist>/templates/<name>/` — shipped
  *      inside the npm tarball for the seven starters
@@ -47,12 +47,12 @@ function resolveBundledTemplatesDir(): string {
 }
 
 function resolveUserTemplatesDir(env: NodeJS.ProcessEnv = process.env): string {
-  return join(resolveContextosHome({ env }), 'templates');
+  return join(resolveCoodraHome({ env }), 'templates');
 }
 
 export interface ResolveTemplatePathOptions {
-  /** Override the contextos home for tests. */
-  readonly contextosHome?: string;
+  /** Override the coodra home for tests. */
+  readonly coodraHome?: string;
   /** Override the bundled-templates dir for tests. */
   readonly bundledDir?: string;
   /** Working directory for relative paths. Defaults to `process.cwd()`. */
@@ -89,7 +89,7 @@ export function resolveTemplatePath(
 
   // (2) User templates.
   const userDir =
-    options.contextosHome !== undefined ? join(options.contextosHome, 'templates') : resolveUserTemplatesDir();
+    options.coodraHome !== undefined ? join(options.coodraHome, 'templates') : resolveUserTemplatesDir();
   const userCandidate = join(userDir, trimmed);
   if (isTemplateDir(userCandidate)) {
     return { name: trimmed, source: 'user', dir: userCandidate };
@@ -117,7 +117,7 @@ export function listAvailableTemplates(
   const out: { name: string; source: 'bundled' | 'user'; dir: string }[] = [];
 
   const userDir =
-    options.contextosHome !== undefined ? join(options.contextosHome, 'templates') : resolveUserTemplatesDir();
+    options.coodraHome !== undefined ? join(options.coodraHome, 'templates') : resolveUserTemplatesDir();
   if (existsSync(userDir)) {
     const { readdirSync } = require('node:fs') as typeof import('node:fs');
     for (const name of readdirSync(userDir)) {

@@ -2,12 +2,12 @@
 
 > **Status:** in progress (2026-04-22)
 > **Depends on:** Module 01 (Foundation) — merged on `main` at `88aac10`.
-> **Blocks:** Module 03 (Hooks Bridge), Module 04 (Web App), Module 05 (NL Assembly), Module 06 (Semantic Diff), Module 07 (VS Code Extension). Every module from 03 onward calls `contextos__*` tools this module exposes.
+> **Blocks:** Module 03 (Hooks Bridge), Module 04 (Web App), Module 05 (NL Assembly), Module 06 (Semantic Diff), Module 07 (VS Code Extension). Every module from 03 onward calls `coodra__*` tools this module exposes.
 > **Source of truth:** `system-architecture.md` §3.5, §4.3, §7, §16, §19, §24; `essentialsforclaude/05-agent-trigger-contract.md`, `essentialsforclaude/09-common-patterns.md §9.1`; `External api and library reference.md` → Protocols & Transports, Auth & Security, Validation/Schemas/Resilience.
 
 ## 1. What the MCP Server is
 
-The MCP Server is the single agent-facing read/record surface of ContextOS. It is how the IDE-hosted agent (Claude Code, Windsurf, Cursor, Copilot) discovers what tools ContextOS offers and invokes them. Without this server the rest of the architecture is unreachable: hooks fire on events the agent triggers, but the agent only triggers tools it knows exist — which it learns exclusively through `tools/list` on this server (§24.2).
+The MCP Server is the single agent-facing read/record surface of Coodra. It is how the IDE-hosted agent (Claude Code, Windsurf, Cursor, Copilot) discovers what tools Coodra offers and invokes them. Without this server the rest of the architecture is unreachable: hooks fire on events the agent triggers, but the agent only triggers tools it knows exist — which it learns exclusively through `tools/list` on this server (§24.2).
 
 Module 02 ships:
 
@@ -15,7 +15,7 @@ Module 02 ships:
   - **stdio** — for Claude Code, which spawns the server as a subprocess and framed-JSON-RPC over stdin/stdout.
   - **Streamable HTTP** — for Windsurf / Copilot / VS Code, on `http://127.0.0.1:3100/mcp`, per MCP 2025-03-26 transport spec.
 - A **tool-registration framework** that enforces the three-file-per-tool pattern (`handler.ts` + `schema.ts` + `manifest.ts`) from `essentialsforclaude/09-common-patterns.md §9.1`.
-- **Eight core `contextos__*` tools** with manifest descriptions verbatim from `system-architecture.md` §24.4: `get_run_id`, `get_feature_pack`, `save_context_pack`, `search_packs_nl`, `query_run_history`, `record_decision`, `check_policy`, `query_codebase_graph`.
+- **Eight core `coodra__*` tools** with manifest descriptions verbatim from `system-architecture.md` §24.4: `get_run_id`, `get_feature_pack`, `save_context_pack`, `search_packs_nl`, `query_run_history`, `record_decision`, `check_policy`, `query_codebase_graph`.
 - A **Policy Engine** per §16 pattern 4 (fail-open) and §24.4 (`check_policy`). New tables: `policies`, `policy_rules`, `policy_decisions`. Decisions are written append-only via the outbox pattern (§16 pattern 3).
 - A **Feature Pack service** that reads from `docs/feature-packs/<slug>/` on disk and registers metadata + checksum in a new `feature_packs` table. Inheritance resolution per §16 pattern 9.
 - A **Context Pack service** that writes completed-session markdown to `docs/context-packs/YYYY-MM-DD-*.md` AND registers the row in the existing `context_packs` table. Idempotent per `runId` (§4.3).
@@ -25,7 +25,7 @@ Module 02 ships:
 - **Manifest test** — the §24.9 headless-MCP-client integration test that asserts exact tool set, per-tool description length, JSON Schema validity, and that every tool returns either a valid shape or a structured `{ ok: false }` error for a minimal valid input.
 - **Graceful fallbacks** for cross-module dependencies (Step 3 of the directive):
   - `search_packs_nl` → SQL LIKE fallback over `title + content_excerpt` when `summary_embedding IS NULL`. Documented in the manifest description and in the Module 02 Context Pack. When Module 05 ships embeddings, the tool automatically returns semantic results without code change.
-  - `query_codebase_graph` → returns `{ ok: true, nodes: [], edges: [], notice: 'graphify_index_missing', howToFix: 'run `graphify scan` at repo root' }` when `~/.contextos/graphify/<slug>/graph.json` is absent.
+  - `query_codebase_graph` → returns `{ ok: true, nodes: [], edges: [], notice: 'graphify_index_missing', howToFix: 'run `graphify scan` at repo root' }` when `~/.coodra/graphify/<slug>/graph.json` is absent.
 
 ## 2. Acceptance criteria
 
@@ -38,7 +38,7 @@ A commit on `feat/02-mcp-server` is only "complete" when **every** item below ho
 5. `pnpm test:integration` — the four integration tests pass (stdio roundtrip, HTTP roundtrip, manifest-e2e per §24.9, policy-decisions idempotency via testcontainers Postgres).
 6. **Schema-parity test still passes** for the Module 01 five-table core **and** the four new tables (`policies`, `policy_rules`, `policy_decisions`, `feature_packs`). The `DIALECT_TYPE_EXEMPTIONS` allowlist grows by exactly one documented entry: SQLite's `context_packs_vec` virtual table (Postgres materialises the equivalent index directly on `context_packs.summary_embedding` via HNSW).
 7. **Migration hand-edits are protected.** Every hand-appended SQL block inside a migration file is wrapped in `-- @preserve-begin hand-written` / `-- @preserve-end`, its sha256 is recorded in `packages/db/migrations.lock.json`, and a CI step rejects any mismatch.
-8. **`contextos__*` tool count is exactly 8.** `tools/list` returns the eight names verbatim; adding a ninth or dropping one fails `manifest-e2e.test.ts`.
+8. **`coodra__*` tool count is exactly 8.** `tools/list` returns the eight names verbatim; adding a ninth or dropping one fails `manifest-e2e.test.ts`.
 9. **Every tool's description passes the §24.3 shape check:** starts with "Call this" (case-insensitive), word count 40–120 (the upper bound is widened per Q-02-6 and §24.3 is amended in the same commit), `length < 800` chars, mentions the return shape.
 10. **Every tool's `inputSchema` is valid JSON Schema** — Ajv 8 `compile()` does not throw in the manifest-e2e test.
 11. **Policy Engine is fail-open** per §24.4: on any throw, timeout, or open breaker the tool returns `{ permissionDecision: 'allow', reason: 'policy_check_unavailable' }` and a row is still written to `policy_decisions`.
@@ -66,8 +66,8 @@ Explicitly excluded from Module 02 and **not** stubbed (per `essentialsforclaude
 - No VS Code extension. Module 07.
 - No LLM API calls. Those live in NL Assembly.
 - No durable outbox via `pending_jobs`. Policy decisions use async `setImmediate` + `ON CONFLICT DO NOTHING`. Revisit post-Module-03 if DB downtime becomes visible (recorded in `context_memory/decisions-log.md`).
-- No CLI install helper that symlinks the server into `~/.contextos/bin/`. Deferred to Module 07 or a dedicated distribution module.
-- No self-calls of `contextos__*` tools during this build. The server is being constructed; self-calling during construction is a foot-gun. First real call happens when the user reloads their IDE after `feat/02-mcp-server` is merged.
+- No CLI install helper that symlinks the server into `~/.coodra/bin/`. Deferred to Module 07 or a dedicated distribution module.
+- No self-calls of `coodra__*` tools during this build. The server is being constructed; self-calling during construction is a foot-gun. First real call happens when the user reloads their IDE after `feat/02-mcp-server` is merged.
 
 ## 4. Scope of the four new tables (migration `0001`)
 
@@ -127,7 +127,7 @@ Per §7, §16 pattern 4, and §24.4:
 
 - A clean `main` pointing at the squash-merged Module 02 commit.
 - The nine-table schema (5 from Module 01 + 4 from Module 02) with numbered migrations that Module 03 can extend by adding `integrations`, `integration_tokens`, `integration_events`, and `knowledge_edges` in `0002_hooks_bridge.sql`.
-- `@coodra/contextos-mcp-server` binary at `apps/mcp-server/dist/index.js` runnable via `pnpm --filter @coodra/contextos-mcp-server dev` (tsx watch) or `node dist/index.js` (compiled).
-- Eight `contextos__*` tools callable over both transports.
+- `@coodra/mcp-server` binary at `apps/mcp-server/dist/index.js` runnable via `pnpm --filter @coodra/mcp-server dev` (tsx watch) or `node dist/index.js` (compiled).
+- Eight `coodra__*` tools callable over both transports.
 - Two partial-capability fallbacks (`search_packs_nl` LIKE branch, `query_codebase_graph` graphify-missing notice) active today; automatically upgrade when Modules 05 / 17 ship their dependencies.
 - A Module 02 Context Pack describing everything above.

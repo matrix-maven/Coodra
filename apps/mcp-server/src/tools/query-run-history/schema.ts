@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__query_run_history` (§24.4, S12).
+ * Input + output schemas for `coodra__query_run_history` (§24.4, S12).
  *
  * Read-only tool. The §24.4 shape is:
  *   Input:  { projectSlug, status?: 'in_progress' | 'completed' | 'failed', limit? }
@@ -38,7 +38,7 @@ export const queryRunHistoryInputSchema = z
       .default(DEFAULT_LIMIT),
   })
   .strict()
-  .describe('Input for contextos__query_run_history.');
+  .describe('Input for coodra__query_run_history.');
 
 /**
  * Output schema — discriminated union on `ok` per §9.1.2 canonical

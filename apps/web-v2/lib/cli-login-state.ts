@@ -4,7 +4,7 @@ import 'server-only';
  * `apps/web-v2/lib/cli-login-state.ts` — single-use replay protection
  * for the `/auth/cli-login` browser-handoff flow.
  *
- * Each `contextos login` invocation mints a random `state` token and
+ * Each `coodra login` invocation mints a random `state` token and
  * passes it through the URL. The web echoes it back to the loopback
  * URL. The CLI verifies state matches before accepting the token.
  *

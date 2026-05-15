@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync } from 'node:fs';
-import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import Database from 'better-sqlite3';
 import { and, eq, ne, sql } from 'drizzle-orm';
 
@@ -153,7 +153,7 @@ export async function executeMigration(input: ExecuteMigrationInput): Promise<Mi
       //      months later.
       // The trade-off (a few KB of postgres rows per migration vs.
       // operator recovery + audit) clearly favors keeping the map.
-      // A future `contextos team migrate --prune-history` command can
+      // A future `coodra team migrate --prune-history` command can
       // offer scheduled cleanup if a team wants it.
     });
 
@@ -505,7 +505,7 @@ async function verifyParity(input: ExecuteMigrationInput, counts: MigrationCount
 async function rewriteLocalProjectIds(input: ExecuteMigrationInput): Promise<void> {
   const map = input.plan.projectIdMap;
   if (Object.keys(map).length === 0) return;
-  // ContextOS local SQLite runs with `PRAGMA foreign_keys = ON` (see
+  // Coodra local SQLite runs with `PRAGMA foreign_keys = ON` (see
   // packages/db/src/client.ts:91). That means updating `projects.id`
   // first orphans the runs / context_packs / policies / policy_decisions
   // rows whose FKs still point at the old id, and updating children
@@ -545,7 +545,7 @@ async function rewriteLocalProjectIds(input: ExecuteMigrationInput): Promise<voi
  * Snapshot the local SQLite to `snapshotPath` so a failed `team migrate`
  * can restore via `team migrate --rollback`.
  *
- * **Why this can't be a plain `copyFileSync`.** ContextOS runs SQLite
+ * **Why this can't be a plain `copyFileSync`.** Coodra runs SQLite
  * in WAL mode (see `packages/db/src/client.ts:88`), which means recent
  * writes live in `<src>-wal` (and `<src>-shm`) until a checkpoint
  * flushes them into the main file. A naive `copyFileSync(srcPath,

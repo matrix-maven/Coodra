@@ -71,7 +71,7 @@ export default async function PoliciesListPage({ params }: { params: Promise<{ s
           }
           body={
             <>
-              Run <span className="font-mono text-accent">contextos init</span> in{' '}
+              Run <span className="font-mono text-accent">coodra init</span> in{' '}
               <span className="font-mono text-accent">{project.slug}</span> to seed the default policy set.
             </>
           }

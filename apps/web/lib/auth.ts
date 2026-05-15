@@ -18,7 +18,7 @@ export interface Actor {
 const SOLO_ACTOR: Actor = { userId: '__solo__', orgId: '__solo__', mode: 'solo' };
 
 export async function getActor(): Promise<Actor> {
-  const mode = (process.env.CONTEXTOS_MODE ?? 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE ?? 'solo') as 'solo' | 'team';
   if (mode === 'solo') return SOLO_ACTOR;
 
   // Team — defer the Clerk import so solo bundles don't pull it

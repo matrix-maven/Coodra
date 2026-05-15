@@ -4,7 +4,7 @@ import { open } from 'node:fs/promises';
  * `packages/cli/src/lib/sqlite-magic` — header-byte check for the
  * SQLite v3 file format. Used by `db restore` (M08b S6) to refuse
  * sources that aren't SQLite databases BEFORE we touch the live
- * `~/.contextos/data.db`.
+ * `~/.coodra/data.db`.
  *
  * The magic string is `"SQLite format 3"` followed by a NUL byte
  * (16 bytes total). Documented at

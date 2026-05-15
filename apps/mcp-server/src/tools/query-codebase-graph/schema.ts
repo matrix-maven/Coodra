@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__query_codebase_graph`.
+ * Input + output schemas for `coodra__query_codebase_graph`.
  *
  * Module 05 reshape (2026-05-08): the "deferred to Module 05" notice
  * was removed. The agent does its own filtering by reasoning over
@@ -41,7 +41,7 @@ export const queryCodebaseGraphInputSchema = z
       .describe(`Max nodes to return (default ${DEFAULT_MAX_NODES}, hard cap ${HARD_MAX_NODES}).`),
   })
   .strict()
-  .describe('Input for contextos__query_codebase_graph.');
+  .describe('Input for coodra__query_codebase_graph.');
 
 const successBranch = z
   .object({

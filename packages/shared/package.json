@@ -1,8 +1,8 @@
 {
-  "name": "@coodra/contextos-shared",
+  "name": "@coodra/shared",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared primitives for ContextOS: structured logger, typed errors, Zod env parsing, idempotency-key helpers.",
+  "description": "Shared primitives for Coodra: structured logger, typed errors, Zod env parsing, idempotency-key helpers.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

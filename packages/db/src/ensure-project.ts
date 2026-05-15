@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
@@ -10,10 +10,10 @@ import { scheduleDurableWrite } from './schedule-durable-write.js';
  * `packages/db/src/ensure-project` — idempotent project seed for an
  * arbitrary slug. Mirrors `ensureGlobalProject` (the `__global__`
  * sentinel) but for a user-supplied slug, e.g. the one written to
- * `<cwd>/.contextos.json` by `contextos init`.
+ * `<cwd>/.coodra.json` by `coodra init`.
  *
- * Closes integration finding 2026-04-27 (post-08a walk): `contextos
- * init --project-slug X` wrote `.contextos.json` with `slug=X` and
+ * Closes integration finding 2026-04-27 (post-08a walk): `coodra
+ * init --project-slug X` wrote `.coodra.json` with `slug=X` and
  * seeded `__global__`, but never inserted a `projects` row for `X`.
  * Result: bridge resolves cwd → slug → no row → falls back to
  * `__global__` for every audit. Per-project audit chain silently
@@ -149,7 +149,7 @@ export async function ensureProject(db: DbHandle, args: EnsureProjectArgs): Prom
         // SQLite with the projectId we just team-tagged; the cloud
         // never saw them. Without this, the user gets "feature shows
         // locally + in web but not in supabase" exactly as reported.
-        if (process.env.CONTEXTOS_MODE === 'team') {
+        if (process.env.COODRA_MODE === 'team') {
           try {
             await scheduleDurableWrite(db, {
               queue: 'sync_to_cloud',
@@ -239,7 +239,7 @@ export async function ensureProject(db: DbHandle, args: EnsureProjectArgs): Prom
     // job so the row reaches cloud Postgres. Without this, every runs
     // row that FKs to this project hits a violation in cloud and the
     // entire team-mode audit chain silently never lands.
-    if (created && process.env.CONTEXTOS_MODE === 'team') {
+    if (created && process.env.COODRA_MODE === 'team') {
       try {
         await scheduleDurableWrite(db, {
           queue: 'sync_to_cloud',

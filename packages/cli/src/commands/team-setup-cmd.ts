@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/contextos-db';
+import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/db';
 import { sql } from 'drizzle-orm';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { upgradeToTeamConfig, writeTeamHomeEnv } from '../lib/team-config.js';
@@ -12,7 +12,7 @@ import { DEFAULT_TEAM_IO } from './team.js';
 /**
  * `packages/cli/src/commands/team-setup-cmd.ts` — Module 04 Phase 4.
  *
- * `contextos team setup` — admin bootstrap for a brand-new team.
+ * `coodra team setup` — admin bootstrap for a brand-new team.
  *
  * The command an org admin runs ONCE per team after creating their own
  * Supabase (or any Postgres ≥16 with pgvector available) project. It:
@@ -25,14 +25,14 @@ import { DEFAULT_TEAM_IO } from './team.js';
  *   3. Applies all Drizzle migrations (idempotent).
  *   4. Generates a 32-byte local hook secret (or accepts one via
  *      `--secret` for re-runs / re-keying).
- *   5. Writes `~/.contextos/config.json::team` for the admin's own
+ *   5. Writes `~/.coodra/config.json::team` for the admin's own
  *      machine so their bridge + MCP server stamp `created_by_user_id`.
  *   6. Prints a "share with teammates" block with the four credentials
- *      they need for `contextos team join` (user_id, org_id, secret,
+ *      they need for `coodra team join` (user_id, org_id, secret,
  *      database_url). The admin distributes this securely (Bitwarden,
  *      1Password, Slack DM with auto-deletion, etc.).
  *
- * "Bring your own Supabase" — ContextOS does not host or proxy any
+ * "Bring your own Supabase" — Coodra does not host or proxy any
  * cloud DB on the team's behalf. Each team owns their data. The CLI's
  * only opinion is the schema (Drizzle migrations) and the connection
  * string format (a standard Postgres URL).
@@ -68,18 +68,18 @@ function resolveSetupInput(
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedSetupInput | { error: string } {
   const databaseUrl = options.databaseUrl ?? env.DATABASE_URL;
-  const userId = options.userId ?? env.CONTEXTOS_TEAM_USER_ID;
-  const orgId = options.orgId ?? env.CONTEXTOS_TEAM_ORG_ID;
+  const userId = options.userId ?? env.COODRA_TEAM_USER_ID;
+  const orgId = options.orgId ?? env.COODRA_TEAM_ORG_ID;
   if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
     return { error: 'missing database url (use --database-url or DATABASE_URL)' };
   }
   if (typeof userId !== 'string' || userId.length === 0) {
-    return { error: 'missing your Clerk user id (use --user-id or CONTEXTOS_TEAM_USER_ID)' };
+    return { error: 'missing your Clerk user id (use --user-id or COODRA_TEAM_USER_ID)' };
   }
   if (typeof orgId !== 'string' || orgId.length === 0) {
-    return { error: 'missing Clerk org id (use --org-id or CONTEXTOS_TEAM_ORG_ID)' };
+    return { error: 'missing Clerk org id (use --org-id or COODRA_TEAM_ORG_ID)' };
   }
-  const secret = options.secret ?? env.CONTEXTOS_TEAM_HOOK_SECRET ?? randomBytes(32).toString('hex');
+  const secret = options.secret ?? env.COODRA_TEAM_HOOK_SECRET ?? randomBytes(32).toString('hex');
   return {
     databaseUrl,
     userId,
@@ -100,12 +100,12 @@ export async function runTeamSetupCommand(
 ): Promise<never> {
   const resolved = resolveSetupInput(options);
   if ('error' in resolved) {
-    io.writeStderr(`${pc.red('contextos team setup')}: ${resolved.error}\n`);
+    io.writeStderr(`${pc.red('coodra team setup')}: ${resolved.error}\n`);
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
 
   io.writeStdout(
-    pc.cyan(`contextos team setup — bootstrapping team Postgres at ${maskDatabaseUrl(resolved.databaseUrl)}\n`),
+    pc.cyan(`coodra team setup — bootstrapping team Postgres at ${maskDatabaseUrl(resolved.databaseUrl)}\n`),
   );
 
   let cloud: PostgresHandle;
@@ -248,12 +248,12 @@ export async function runTeamSetupCommand(
       localHookSecret: resolved.secret,
       joinedAt: Date.now(),
     });
-    io.writeStdout(pc.green('  ✓ local config promoted to team mode (~/.contextos/config.json)\n'));
+    io.writeStdout(pc.green('  ✓ local config promoted to team mode (~/.coodra/config.json)\n'));
 
-    // Phase G — also write the env vars `contextos start` reads when
+    // Phase G — also write the env vars `coodra start` reads when
     // spawning the sync-daemon + bridge + mcp-server. Without this, the
     // daemons either crash at boot (sync-daemon: missing DATABASE_URL)
-    // or run in solo mode (bridge / mcp-server: CONTEXTOS_MODE defaults
+    // or run in solo mode (bridge / mcp-server: COODRA_MODE defaults
     // to solo). The team-config block in config.json is the CLI's own
     // source of truth; this .env write is the spawn-env source.
     writeTeamHomeEnv({
@@ -261,7 +261,7 @@ export async function runTeamSetupCommand(
       localHookSecret: resolved.secret,
       clerkOrgId: resolved.orgId,
     });
-    io.writeStdout(pc.green('  ✓ ~/.contextos/.env updated (CONTEXTOS_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET)\n'));
+    io.writeStdout(pc.green('  ✓ ~/.coodra/.env updated (COODRA_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET)\n'));
 
     // Step 6: print credentials block.
     if (options.json === true) {
@@ -291,7 +291,7 @@ export async function runTeamSetupCommand(
       io.writeStdout(
         pc.dim(
           'Each teammate runs:\n' +
-            `  ${pc.bold('contextos team join')} \\\n` +
+            `  ${pc.bold('coodra team join')} \\\n` +
             `    --user-id <their-clerk-user-id> \\\n` +
             `    --org-id ${resolved.orgId} \\\n` +
             `    --secret ${resolved.secret} \\\n` +

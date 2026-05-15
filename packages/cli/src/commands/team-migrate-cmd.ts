@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 
-import { createDb, type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { createDb, type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 import { EXIT_USER_ACTION_REQUIRED } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { clearTeamHomeEnv, upgradeToTeamConfig, writeTeamHomeEnv } from '../lib/team-config.js';
 import {
   applyConflictResolutions,
@@ -30,21 +30,21 @@ import { DEFAULT_TEAM_IO } from './team.js';
  * touch the same surface (team-config + team-migrate engine + cloud
  * Postgres handle):
  *
- *   - `contextos team migrate`  → solo→team data move
- *   - `contextos team join`     → full cloud-pull seed for new team-members
- *   - `contextos team leave`    → revert to solo (clears team config + drops
+ *   - `coodra team migrate`  → solo→team data move
+ *   - `coodra team join`     → full cloud-pull seed for new team-members
+ *   - `coodra team leave`    → revert to solo (clears team config + drops
  *                                  team-tagged local rows)
  *
  * Authentication shape (v1 — pre-Clerk-OAuth integration):
  *   - The user obtains their Clerk user_id, org_id, and a local hook
- *     secret via the web onboarding flow at https://app.contextos.dev/
+ *     secret via the web onboarding flow at https://app.coodra.dev/
  *     onboarding/connect (deferred — currently they paste from the
  *     Clerk dashboard).
  *   - These values arrive at the CLI via flags (`--user-id`, `--org-id`,
- *     `--secret`) OR env vars (`CONTEXTOS_TEAM_USER_ID`,
- *     `CONTEXTOS_TEAM_ORG_ID`, `CONTEXTOS_TEAM_HOOK_SECRET`).
+ *     `--secret`) OR env vars (`COODRA_TEAM_USER_ID`,
+ *     `COODRA_TEAM_ORG_ID`, `COODRA_TEAM_HOOK_SECRET`).
  *   - Future M04 follow-on: replace this hand-off with a one-time
- *     `contextos team join <code>` that exchanges a code for the
+ *     `coodra team join <code>` that exchanges a code for the
  *     credentials over an authenticated HTTPS round-trip. For now the
  *     web onboarding renders the flag string and the user pastes.
  */
@@ -93,18 +93,18 @@ function resolveCredentials(
   flags: { userId?: string; orgId?: string; secret?: string; databaseUrl?: string },
   env: NodeJS.ProcessEnv = process.env,
 ): ResolvedCredentials | { error: string } {
-  const userId = flags.userId ?? env.CONTEXTOS_TEAM_USER_ID;
-  const orgId = flags.orgId ?? env.CONTEXTOS_TEAM_ORG_ID;
-  const secret = flags.secret ?? env.CONTEXTOS_TEAM_HOOK_SECRET;
+  const userId = flags.userId ?? env.COODRA_TEAM_USER_ID;
+  const orgId = flags.orgId ?? env.COODRA_TEAM_ORG_ID;
+  const secret = flags.secret ?? env.COODRA_TEAM_HOOK_SECRET;
   const databaseUrl = flags.databaseUrl ?? env.DATABASE_URL;
   if (typeof userId !== 'string' || userId.length === 0) {
-    return { error: 'missing user id (use --user-id or CONTEXTOS_TEAM_USER_ID)' };
+    return { error: 'missing user id (use --user-id or COODRA_TEAM_USER_ID)' };
   }
   if (typeof orgId !== 'string' || orgId.length === 0) {
-    return { error: 'missing org id (use --org-id or CONTEXTOS_TEAM_ORG_ID)' };
+    return { error: 'missing org id (use --org-id or COODRA_TEAM_ORG_ID)' };
   }
   if (typeof secret !== 'string' || secret.length === 0) {
-    return { error: 'missing local hook secret (use --secret or CONTEXTOS_TEAM_HOOK_SECRET)' };
+    return { error: 'missing local hook secret (use --secret or COODRA_TEAM_HOOK_SECRET)' };
   }
   if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
     return { error: 'missing database url (use --database-url or DATABASE_URL)' };
@@ -135,12 +135,12 @@ export async function runTeamMigrateCommand(
 ): Promise<never> {
   const creds = resolveCredentials(options);
   if ('error' in creds) {
-    io.writeStderr(`${pc.red('contextos team migrate')}: ${creds.error}\n`);
+    io.writeStderr(`${pc.red('coodra team migrate')}: ${creds.error}\n`);
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
 
-  const home = resolveContextosHome();
-  const dataDb = resolveContextosDataDb(home);
+  const home = resolveCoodraHome();
+  const dataDb = resolveCoodraDataDb(home);
   const snapshotPath = join(home, `data.db.pre-migrate-${Date.now()}`);
 
   let local: SqliteHandle;
@@ -194,7 +194,7 @@ export async function runTeamMigrateCommand(
 
     await assertNoInFlightAttempt(cloud, creds.orgId, creds.userId);
 
-    io.writeStdout(pc.cyan('contextos team migrate — building plan...\n'));
+    io.writeStdout(pc.cyan('coodra team migrate — building plan...\n'));
     const plan = await buildMigrationPlan({
       local,
       cloud,
@@ -208,7 +208,7 @@ export async function runTeamMigrateCommand(
     io.writeStdout(`${pc.dim('local row counts:')} ${fmtCounts(plan.counts)}\n`);
 
     if (plan.counts.projects === 0) {
-      io.writeStdout(pc.yellow('no local projects to migrate; aborting (run `contextos init` first)\n'));
+      io.writeStdout(pc.yellow('no local projects to migrate; aborting (run `coodra init` first)\n'));
       return io.exit(0);
     }
 
@@ -262,7 +262,7 @@ export async function runTeamMigrateCommand(
     if (result.status === 'completed') {
       io.writeStdout(pc.green(`\n✓ migration complete in ${result.durationMs}ms — ${fmtCounts(result.counts)}\n`));
       // Promote local config to team mode + write spawn-env so a
-      // subsequent `contextos start` launches the sync-daemon + bridge
+      // subsequent `coodra start` launches the sync-daemon + bridge
       // + mcp-server in team mode. Both writes are required:
       // config.json is the CLI's own source of truth; .env is what
       // `loadHomeEnv` feeds into the spawned daemons.
@@ -277,7 +277,7 @@ export async function runTeamMigrateCommand(
         localHookSecret: creds.secret,
         clerkOrgId: creds.orgId,
       });
-      io.writeStdout(pc.green('local config promoted to team mode (~/.contextos/config.json + ~/.contextos/.env)\n'));
+      io.writeStdout(pc.green('local config promoted to team mode (~/.coodra/config.json + ~/.coodra/.env)\n'));
       return io.exit(0);
     }
     io.writeStderr(pc.red(`\n✗ migration failed: ${result.error ?? 'unknown error'}\n`));
@@ -319,14 +319,14 @@ export async function runTeamJoinCommand(
 ): Promise<never> {
   const creds = resolveCredentials(options);
   if ('error' in creds) {
-    io.writeStderr(`${pc.red('contextos team join')}: ${creds.error}\n`);
+    io.writeStderr(`${pc.red('coodra team join')}: ${creds.error}\n`);
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
 
   // Write team config first so subsequent local services see team mode
   // even if the cloud-pull-seed below fails partway. Both config.json
-  // (CLI's source of truth) and ~/.contextos/.env (spawn-env for
-  // daemons) are required — without the .env write `contextos start`
+  // (CLI's source of truth) and ~/.coodra/.env (spawn-env for
+  // daemons) are required — without the .env write `coodra start`
   // would either run in solo mode or crash sync-daemon at boot for
   // missing DATABASE_URL.
   upgradeToTeamConfig({
@@ -341,7 +341,7 @@ export async function runTeamJoinCommand(
     localHookSecret: creds.secret,
     clerkOrgId: creds.orgId,
   });
-  io.writeStdout(pc.green('✓ ~/.contextos/config.json + ~/.contextos/.env upgraded to team mode\n'));
+  io.writeStdout(pc.green('✓ ~/.coodra/config.json + ~/.coodra/.env upgraded to team mode\n'));
 
   // Cloud-pull-seed: connect, run a single tickOnce of the team-rows
   // puller pattern. The persistent puller in the sync-daemon will take
@@ -366,9 +366,9 @@ export async function runTeamJoinCommand(
     // pattern via dynamic import (avoids circular dep on sync-daemon).
     // The actual pull semantics live in apps/sync-daemon/src/lib/team-rows-puller.ts;
     // this command's seeding is opportunistic — the sync-daemon does
-    // the heavy lifting on its first tick after `contextos start`.
+    // the heavy lifting on its first tick after `coodra start`.
     io.writeStdout(
-      pc.dim('(sync-daemon will pull team rows on its next tick; run `contextos start` to launch services)\n'),
+      pc.dim('(sync-daemon will pull team rows on its next tick; run `coodra start` to launch services)\n'),
     );
     return io.exit(0);
   } finally {
@@ -401,7 +401,7 @@ export async function runTeamLeaveCommand(
   const { readTeamConfig, demoteToSoloConfig } = await import('../lib/team-config.js');
   const cfg = readTeamConfig();
   if (cfg.mode === 'solo' || cfg.team === undefined) {
-    io.writeStderr(`${pc.yellow('contextos team leave')}: this machine is already in solo mode — nothing to leave.\n`);
+    io.writeStderr(`${pc.yellow('coodra team leave')}: this machine is already in solo mode — nothing to leave.\n`);
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
   const orgLabel = cfg.team.clerkOrgSlug ?? cfg.team.clerkOrgId;
@@ -410,17 +410,17 @@ export async function runTeamLeaveCommand(
   // interactive paths need the operator to see it. Per Phase C plan,
   // this is the message that prevents accidental data-loss panic
   // (operators often think "leave" means "delete my history").
-  io.writeStdout(`${pc.bold('contextos team leave')} — leaving team ${pc.cyan(orgLabel)}\n\n`);
+  io.writeStdout(`${pc.bold('coodra team leave')} — leaving team ${pc.cyan(orgLabel)}\n\n`);
   io.writeStdout(`${pc.bold('What gets removed (this machine only):')}\n`);
-  io.writeStdout('  • ~/.contextos/config.json team block (mode → solo)\n');
+  io.writeStdout('  • ~/.coodra/config.json team block (mode → solo)\n');
   io.writeStdout(
-    '  • ~/.contextos/.env entries: CONTEXTOS_MODE, DATABASE_URL, LOCAL_HOOK_SECRET, CONTEXTOS_TEAM_ORG_ID\n',
+    '  • ~/.coodra/.env entries: COODRA_MODE, DATABASE_URL, LOCAL_HOOK_SECRET, COODRA_TEAM_ORG_ID\n',
   );
-  io.writeStdout('  • sync-daemon will stop spawning on next `contextos start`\n\n');
+  io.writeStdout('  • sync-daemon will stop spawning on next `coodra start`\n\n');
   io.writeStdout(`${pc.bold('What stays:')}\n`);
   io.writeStdout('  • all local SQLite rows (runs, decisions, context_packs) — historical state intact\n');
   io.writeStdout('  • all cloud rows — other team members continue to see them, your past contributions remain\n');
-  io.writeStdout('  • per-project .contextos.json files (unchanged)\n\n');
+  io.writeStdout('  • per-project .coodra.json files (unchanged)\n\n');
 
   if (options.yes !== true) {
     const reader = options.readConfirm ?? defaultReadConfirm;
@@ -435,23 +435,23 @@ export async function runTeamLeaveCommand(
   }
 
   demoteToSoloConfig();
-  // Also strip the team env keys from ~/.contextos/.env so the next
-  // `contextos start` launches in solo mode. Preserves any user-managed
+  // Also strip the team env keys from ~/.coodra/.env so the next
+  // `coodra start` launches in solo mode. Preserves any user-managed
   // entries the operator put there manually.
   clearTeamHomeEnv();
-  io.writeStdout(`${pc.green('✓')} ~/.contextos/config.json + ~/.contextos/.env demoted to solo mode\n`);
+  io.writeStdout(`${pc.green('✓')} ~/.coodra/config.json + ~/.coodra/.env demoted to solo mode\n`);
   io.writeStdout(
     pc.dim(
       '(local SQLite rows attributed to the team org are not deleted in v1 — they remain as historical state. ' +
-        'A future contextos clean-team-data command will offer scrubbing.)\n',
+        'A future coodra clean-team-data command will offer scrubbing.)\n',
     ),
   );
   io.writeStdout(`\n${pc.bold('Next steps:')}\n`);
   io.writeStdout(
-    `  1. ${pc.cyan('`contextos stop && contextos start`')} — daemons still in memory carry the old team credentials; restart so they pick up solo-mode env.\n`,
+    `  1. ${pc.cyan('`coodra stop && coodra start`')} — daemons still in memory carry the old team credentials; restart so they pick up solo-mode env.\n`,
   );
   io.writeStdout(
-    `  2. ${pc.cyan('`contextos doctor --fix`')} — strip any stale CONTEXTOS_MODE lines from registered project .env files.\n`,
+    `  2. ${pc.cyan('`coodra doctor --fix`')} — strip any stale COODRA_MODE lines from registered project .env files.\n`,
   );
   return io.exit(0);
 }

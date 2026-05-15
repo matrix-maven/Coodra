@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LogoutIO } from '../../../src/commands/logout.js';
 
 /**
- * Phase G slice G.4 — `contextos logout` command tests.
+ * Phase G slice G.4 — `coodra logout` command tests.
  *
  * Strategy:
  *   - Real filesystem (temp home dir).
@@ -21,8 +21,8 @@ const mockDeleteToken = vi.hoisted(() => vi.fn());
 const mockReadVerifiedToken = vi.hoisted(() => vi.fn());
 const mockHasStoredToken = vi.hoisted(() => vi.fn());
 
-vi.mock('@coodra/contextos-shared/auth', async () => {
-  const actual = await vi.importActual<typeof import('@coodra/contextos-shared/auth')>('@coodra/contextos-shared/auth');
+vi.mock('@coodra/shared/auth', async () => {
+  const actual = await vi.importActual<typeof import('@coodra/shared/auth')>('@coodra/shared/auth');
   return {
     ...actual,
     deleteToken: mockDeleteToken,
@@ -75,10 +75,10 @@ function writeTeamEnv(home: string): void {
     join(home, '.env'),
     [
       '# Some user comment',
-      'CONTEXTOS_MODE=team',
+      'COODRA_MODE=team',
       'DATABASE_URL=postgres://x/y',
       'LOCAL_HOOK_SECRET=' + 'f'.repeat(64),
-      'CONTEXTOS_TEAM_ORG_ID=org_xyz',
+      'COODRA_TEAM_ORG_ID=org_xyz',
       'CLERK_SECRET_KEY=sk_test_real', // not stripped; user-managed
       '',
     ].join('\n'),
@@ -171,10 +171,10 @@ describe('runLogoutCommand — happy path (full team state)', () => {
     const { io } = makeIO();
     await expect(runLogoutCommand({ home }, io)).rejects.toThrow(/__exit__:0/);
     const after = readFileSync(join(home, '.env'), 'utf8');
-    expect(after).not.toMatch(/^CONTEXTOS_MODE=/m);
+    expect(after).not.toMatch(/^COODRA_MODE=/m);
     expect(after).not.toMatch(/^DATABASE_URL=/m);
     expect(after).not.toMatch(/^LOCAL_HOOK_SECRET=/m);
-    expect(after).not.toMatch(/^CONTEXTOS_TEAM_ORG_ID=/m);
+    expect(after).not.toMatch(/^COODRA_TEAM_ORG_ID=/m);
     // Preserved: comment + user-managed CLERK_SECRET_KEY
     expect(after).toMatch(/# Some user comment/);
     expect(after).toMatch(/CLERK_SECRET_KEY=sk_test_real/);

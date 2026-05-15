@@ -1,6 +1,6 @@
 -- Phase F.2 — feature_packs cloud sync (2026-05-11).
 --
--- Closes the "knowledge artifacts are git-distributed, not ContextOS-
+-- Closes the "knowledge artifacts are git-distributed, not Coodra-
 -- distributed" gap surfaced in Phase E's demo audit. Pre-Phase-F a pack
 -- written via /packs/new on admin's machine lived only on admin's
 -- filesystem; teammates never saw it without a git push/pull cycle.

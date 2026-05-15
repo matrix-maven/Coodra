@@ -55,7 +55,7 @@ export const manifest = {
 } as const;
 ```
 
-The tool's `manifest.ts` description MUST follow the five-part recipe in `system-architecture.md` §24.3. A `manifest.test.ts` file asserts: starts with imperative trigger phrase, 40–80 words, mentions return shape. Use `assertManifestDescriptionValid` from `@coodra/contextos-shared/test-utils` — do NOT hand-roll per-tool description assertions.
+The tool's `manifest.ts` description MUST follow the five-part recipe in `system-architecture.md` §24.3. A `manifest.test.ts` file asserts: starts with imperative trigger phrase, 40–80 words, mentions return shape. Use `assertManifestDescriptionValid` from `@coodra/shared/test-utils` — do NOT hand-roll per-tool description assertions.
 
 ### 9.1.1 Factory-pattern tools vs static-const tools (landed S8)
 
@@ -63,7 +63,7 @@ Pick the right shape when you write a new tool:
 
 - **Static const** when the handler is pure (no process-level config). Example: `ping`. Export `export const xxxToolRegistration: ToolRegistration<...> = { ... }`. The barrel `apps/mcp-server/src/tools/index.ts` imports and registers it directly.
 
-- **Factory `createXxxToolRegistration(deps)`** when the handler needs a `DbHandle`, `CONTEXTOS_MODE`, a clock override, or any other boot-time config. The factory closes over `deps` and returns a `ToolRegistration`. The barrel calls the factory in `registerAllTools(registry, { db, mode })`.
+- **Factory `createXxxToolRegistration(deps)`** when the handler needs a `DbHandle`, `COODRA_MODE`, a clock override, or any other boot-time config. The factory closes over `deps` and returns a `ToolRegistration`. The barrel calls the factory in `registerAllTools(registry, { db, mode })`.
 
     ```typescript
     // manifest.ts
@@ -90,7 +90,7 @@ Pick the right shape when you write a new tool:
     }
     ```
 
-**Why not import `env` directly in the handler?** Because `env` is parsed once at module load — `vi.stubEnv('CONTEXTOS_MODE', 'team')` in a test fires after the module already captured the value, so the stub has no effect. Factory injection makes `mode` a parameter tests set per-call.
+**Why not import `env` directly in the handler?** Because `env` is parsed once at module load — `vi.stubEnv('COODRA_MODE', 'team')` in a test fires after the module already captured the value, so the stub has no effect. Factory injection makes `mode` a parameter tests set per-call.
 
 **How the barrel handles the split** (`apps/mcp-server/src/tools/index.ts`):
 

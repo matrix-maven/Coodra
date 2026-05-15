@@ -102,10 +102,10 @@ Files:
 ## Tests
 
 Total tests after Module 06:
-- `@coodra/contextos-shared`: 166 (+12 for run-diff helpers)
-- `@coodra/contextos-db`: 57 (no new tests; parity + client tests updated)
-- `@coodra/contextos-hooks-bridge`: 78 (+4 capture-base-sha, +6 run-diff-runner, +4 auto-pack diff section)
-- `@coodra/contextos-mcp-server`: 256 (+8 query-run-diff)
+- `@coodra/shared`: 166 (+12 for run-diff helpers)
+- `@coodra/db`: 57 (no new tests; parity + client tests updated)
+- `@coodra/hooks-bridge`: 78 (+4 capture-base-sha, +6 run-diff-runner, +4 auto-pack diff section)
+- `@coodra/mcp-server`: 256 (+8 query-run-diff)
 
 Run via:
 ```

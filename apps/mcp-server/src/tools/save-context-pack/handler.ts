@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
@@ -7,7 +7,7 @@ import type { ContextPackWriteResult } from '../../lib/context-pack.js';
 import type { SaveContextPackInput, SaveContextPackOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__save_context_pack` (§24.4).
+ * Handler factory for `coodra__save_context_pack` (§24.4).
  *
  * Factory shape (not bare static) because the handler closes over a
  * `DbHandle` for the `runs` SELECT + UPDATE. `ctx.contextPack` is

@@ -27,7 +27,7 @@ export default async function ProjectLayout({
   return (
     <>
       <Topbar
-        crumbs={[{ label: 'contextos', href: '/' }, { label: project.slug }]}
+        crumbs={[{ label: 'coodra', href: '/' }, { label: project.slug }]}
         actions={
           <>
             <ProjectsSwitcher currentSlug={project.slug} options={switcherOptions} />

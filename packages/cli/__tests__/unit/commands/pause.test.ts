@@ -2,15 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, type DbHandle, ensureProject, insertKillSwitch, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, type DbHandle, ensureProject, insertKillSwitch, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { type PauseIO, type PauseOptions, runPauseCommand } from '../../../src/commands/pause.js';
 import { EXIT_KILL_SWITCH_REFUSAL, EXIT_OK, EXIT_USER_RECOVERABLE } from '../../../src/exit-codes.js';
-import { resolveContextosDataDb } from '../../../src/lib/contextos-home.js';
+import { resolveCoodraDataDb } from '../../../src/lib/coodra-home.js';
 
 /**
- * Module 08b S3 — `contextos pause` unit tests (6 fixtures).
+ * Module 08b S3 — `coodra pause` unit tests (6 fixtures).
  *
  * Tests open a real SQLite handle in a tmpdir so the validation +
  * insert path is exercised end-to-end without any mocks per
@@ -39,7 +39,7 @@ function makeIo(homePath: string): IoCapture {
       exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: homePath,
+    coodraHome: homePath,
   };
   return new Proxy(
     { io, stdout, stderr, exitCode },
@@ -70,9 +70,9 @@ let projectId: string;
 
 beforeEach(async () => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-pause-test-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   mkdirSync(homePath, { recursive: true });
-  const opened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+  const opened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
   if (opened.kind !== 'sqlite') throw new Error('expected sqlite');
   handle = opened;
   migrateSqlite(handle.db);
@@ -95,7 +95,7 @@ describe('runPauseCommand', () => {
     expect(cap.stdout.join('')).toMatch(/id: ks_/);
 
     // Verify the row landed.
-    const reopened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+    const reopened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
     if (reopened.kind !== 'sqlite') throw new Error('expected sqlite');
     const rows = reopened.raw.prepare('SELECT scope, target, mode FROM kill_switches').all() as Array<{
       scope: string;
@@ -137,7 +137,7 @@ describe('runPauseCommand', () => {
 
   it('Fixture 6 — duplicate active switch at same (scope, target) → exit 5 with existing id', async () => {
     // Pre-seed an active global switch directly.
-    const reopened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+    const reopened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
     if (reopened.kind !== 'sqlite') throw new Error('expected sqlite');
     const existing = await insertKillSwitch(reopened, { scope: 'global', target: null, reason: 'pre-existing' });
     reopened.close();

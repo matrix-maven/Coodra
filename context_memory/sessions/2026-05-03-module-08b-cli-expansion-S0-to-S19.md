@@ -2,9 +2,9 @@
 
 ## Goal
 
-Build Module 08b (CLI Expansion) end-to-end on `feat/08b-cli-expansion`. 19 slices S0 → S19 per `docs/feature-packs/08b-cli-expansion/implementation.md`, one commit per slice. Strengthen `@coodra/contextos-cli` from "install + lifecycle" (the M08a scope) into a complete operational + admin surface that ships three orthogonal concerns together: (1) operational essentials (logs/migrate/backup/restore/upgrade/uninstall + pause/resume kill switches via the new `kill_switches` table); (2) admin surfaces (`policy/project/run/export`); (3) Feature Pack flexibility (7 bundled templates + `init --template/--mode` + `pack {new,list,show,regenerate,delete}` + `<!-- @auto -->` marker contract).
+Build Module 08b (CLI Expansion) end-to-end on `feat/08b-cli-expansion`. 19 slices S0 → S19 per `docs/feature-packs/08b-cli-expansion/implementation.md`, one commit per slice. Strengthen `@coodra/cli` from "install + lifecycle" (the M08a scope) into a complete operational + admin surface that ships three orthogonal concerns together: (1) operational essentials (logs/migrate/backup/restore/upgrade/uninstall + pause/resume kill switches via the new `kill_switches` table); (2) admin surfaces (`policy/project/run/export`); (3) Feature Pack flexibility (7 bundled templates + `init --template/--mode` + `pack {new,list,show,regenerate,delete}` + `<!-- @auto -->` marker contract).
 
-The single load-bearing AC: `contextos pause` writes a row that the hooks-bridge consults BEFORE the existing policy evaluator on every PreToolUse — hard mode denies, soft mode allows + audits. Local-only in M08b (cross-developer sync is M04's surface).
+The single load-bearing AC: `coodra pause` writes a row that the hooks-bridge consults BEFORE the existing policy evaluator on every PreToolUse — hard mode denies, soft mode allows + audits. Local-only in M08b (cross-developer sync is M04's surface).
 
 ## Context loaded
 
@@ -23,7 +23,7 @@ The single load-bearing AC: `contextos pause` writes a row that the hooks-bridge
 
 Verified post-Phase-4 baseline before starting:
 - `apps/hooks-bridge/src/handlers/pre-tool-use.ts` — Phase 4 Fix F matcher landed; `Write|Edit|MultiEdit|NotebookEdit|Bash` per-event regex via `claude-settings-merge.ts`.
-- `apps/hooks-bridge/src/handlers/session-end.ts` — Pattern 20 auto-Context-Pack save fires fire-and-forget; Phase 4 Fix H materializes to `~/.contextos/packs/<runId>.md`.
+- `apps/hooks-bridge/src/handlers/session-end.ts` — Pattern 20 auto-Context-Pack save fires fire-and-forget; Phase 4 Fix H materializes to `~/.coodra/packs/<runId>.md`.
 - `apps/mcp-server/src/tools/index.ts` — 10 tools registered (ping, get_run_id, get_feature_pack, save_context_pack, search_packs_nl, record_decision, query_run_history, check_policy, query_codebase_graph, query_decisions); Fix I's `query_decisions` is the cross-session decisions read-path the audit flagged.
 
 ## Decisions locked at S0 sign-off (2026-05-03)
@@ -52,7 +52,7 @@ Each is mirrored in `decisions-log.md` and referenced from the matching `### OQ-
 5. Extend `__tests__/e2e/full-session.test.ts` with a kill-switch-deny path; verify the audit row lands.
 6. Translate decision in `apps/hooks-bridge/src/lib/translate-decision.ts` so the deny surfaces clearly to Claude Code's permission prompt.
 
-S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helpers shipped on `feat/08b-cli-expansion`. Schema-parity test now covers `decisions` + `kill_switches` (decisions was a pre-M08b gap closed in passing). 9 integration fixtures green; 54/54 unit tests green; biome lint clean; typecheck clean (pre-existing `schedule-audit-write-with-sync.test.ts(66,23)` `JSON.parse(sync?.payload)` type error fixed in passing — was blocking `pnpm --filter @coodra/contextos-db typecheck` on `main`).
+S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helpers shipped on `feat/08b-cli-expansion`. Schema-parity test now covers `decisions` + `kill_switches` (decisions was a pre-M08b gap closed in passing). 9 integration fixtures green; 54/54 unit tests green; biome lint clean; typecheck clean (pre-existing `schedule-audit-write-with-sync.test.ts(66,23)` `JSON.parse(sync?.payload)` type error fixed in passing — was blocking `pnpm --filter @coodra/db typecheck` on `main`).
 
 ## Log (append-only per PostToolUse)
 
@@ -65,7 +65,7 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] wrote fresh `current-session.md` for M08b
 - [HH:mm] S0 committed (`ee8ac9c`): kickoff spec + locked OQ answers
 - [HH:mm] S1 — added `killSwitches` table to `packages/db/src/schema/{sqlite,postgres}.ts` (polymorphic `(scope, target)` shape per OQ-2)
-- [HH:mm] S1 — generated migrations `0007_thick_nightmare.sql` (sqlite) and `0007_bitter_miek.sql` (postgres) via `pnpm --filter @coodra/contextos-db db:generate`; no hand-written preserve blocks needed (clean delta)
+- [HH:mm] S1 — generated migrations `0007_thick_nightmare.sql` (sqlite) and `0007_bitter_miek.sql` (postgres) via `pnpm --filter @coodra/db db:generate`; no hand-written preserve blocks needed (clean delta)
 - [HH:mm] S1 — wrote `packages/db/src/kill-switches.ts` (5 helpers: `listActiveKillSwitches`, `insertKillSwitch`, `softResumeKillSwitch`, `softResumeAllKillSwitches`, `findKillSwitchMatchingEvent`); re-exports from `packages/db/src/index.ts`
 - [HH:mm] S1 — schema-parity test extended to include `kill_switches` AND `decisions` (decisions was a pre-M08b parity-test gap; closed in passing). Heading flipped from "nine-table schema" to "eleven-table schema"
 - [HH:mm] S1 — `client.test.ts` table count expectation updated 11→12
@@ -92,7 +92,7 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S3 — typecheck clean, lint clean, 156/156 CLI unit + 1/1 S3 integration roundtrip green
 - [HH:mm] S3 committed (`7b1e2c9`): pause/resume CLI commands
 - [HH:mm] S4 — wrote `packages/cli/src/lib/log-reader.ts` (chunked reverse-seek `readLastNLines` + forward `readLinesSince` with JSON time-field filter; non-JSON lines kept verbatim)
-- [HH:mm] S4 — wrote `packages/cli/src/commands/logs.ts` (validates service ∈ {mcp-server, hooks-bridge, sync-daemon}, exits 1 on unknown service, exits 2 with `contextos start` remediation on missing log file, --since parses ISO OR duration, --follow uses fs.watch)
+- [HH:mm] S4 — wrote `packages/cli/src/commands/logs.ts` (validates service ∈ {mcp-server, hooks-bridge, sync-daemon}, exits 1 on unknown service, exits 2 with `coodra start` remediation on missing log file, --since parses ISO OR duration, --follow uses fs.watch)
 - [HH:mm] S4 — wired `logs <service>` into program.ts (now 11 top-level commands)
 - [HH:mm] S4 — wrote 7 log-reader unit fixtures, 7 logs-command unit fixtures, 1 integration roundtrip (100-line file → last 10 via --lines 10)
 - [HH:mm] S4 — refreshed help-output snapshot to include `logs` entry; lint clean, 170/170 CLI unit + 1/1 S4 integration green
@@ -118,20 +118,20 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S7 — wrote 6 unit fixtures (5 spec + 1 bonus for downgrade scenario)
 - [HH:mm] S7 — refreshed help-output snapshot, lint clean, 176/176 CLI unit green
 - [HH:mm] S7 committed (`b33665f`): upgrade command (npm view + semver + restart hooks injectable)
-- [HH:mm] S8 — added `removeMcpJson` to `lib/init/mcp-merge.ts` (idempotent contextos-key removal preserving other servers)
-- [HH:mm] S8 — added `removeClaudeSettings` to `lib/init/claude-settings-merge.ts` (drops URL-prefix-owned + legacy `__contextos__` matcher entries; empty per-event arrays removed; backup of original on first divergent write)
-- [HH:mm] S8 — wrote `packages/cli/src/commands/uninstall.ts` (best-effort 3-step pipeline: claude-settings → mcp-json → optional purge of ~/.contextos/; always prints `npm uninstall -g @coodra/contextos-cli` for user)
+- [HH:mm] S8 — added `removeMcpJson` to `lib/init/mcp-merge.ts` (idempotent coodra-key removal preserving other servers)
+- [HH:mm] S8 — added `removeClaudeSettings` to `lib/init/claude-settings-merge.ts` (drops URL-prefix-owned + legacy `__coodra__` matcher entries; empty per-event arrays removed; backup of original on first divergent write)
+- [HH:mm] S8 — wrote `packages/cli/src/commands/uninstall.ts` (best-effort 3-step pipeline: claude-settings → mcp-json → optional purge of ~/.coodra/; always prints `npm uninstall -g @coodra/cli` for user)
 - [HH:mm] S8 — wired into program.ts (14 top-level commands now)
-- [HH:mm] S8 — wrote 5 integration fixtures (claude-settings URL-owned removal preserving user entries, mcp-json contextos removal preserving other servers, default-safe data preservation, --purge wipe, idempotent re-run)
+- [HH:mm] S8 — wrote 5 integration fixtures (claude-settings URL-owned removal preserving user entries, mcp-json coodra removal preserving other servers, default-safe data preservation, --purge wipe, idempotent re-run)
 - [HH:mm] S8 — refreshed help-output snapshot, lint clean, 176/176 CLI unit + 5/5 S8 integration green
 - [HH:mm] S8 committed (`7fbed49`): uninstall command
-- [HH:mm] S1-S8 functional verification end-to-end: built CLI, sandboxed CONTEXTOS_HOME, exercised every command + bridge integration. All green. Found one design gap in S8 (no env override for ~/.claude/settings.json path → real-machine verification destructive). Restored ~/.claude/settings.json from auto-backup.
+- [HH:mm] S1-S8 functional verification end-to-end: built CLI, sandboxed COODRA_HOME, exercised every command + bridge integration. All green. Found one design gap in S8 (no env override for ~/.claude/settings.json path → real-machine verification destructive). Restored ~/.claude/settings.json from auto-backup.
 - [HH:mm] S8.5 follow-up — added `CLAUDE_SETTINGS_PATH` env var honored by `defaultClaudeSettingsPath()`. Verified sandbox redirect works; real ~/.claude/settings.json untouched. Committed (`f815a30`).
 - [HH:mm] S9 — wrote `packages/db/src/policies.ts` (5 helpers: `listPolicies`, `getPolicy`, `addPolicyRule` (auto-creates `__default__` if absent, default priority `max+10` or 100), `setPolicyActive` (idempotent), `DEFAULT_POLICY_NAME` const)
 - [HH:mm] S9 — re-exported from packages/db/src/index.ts
 - [HH:mm] S9 — wrote `packages/cli/src/commands/policy.ts` (5 subcommands: list, show, add, enable, disable; uses lookupProjectBySlug for slug→projectId resolution; human + JSON output; cache-staleness note for the 60s policy-client TTL)
 - [HH:mm] S9 — wired policy parent + 5 subcommands into program.ts (15 top-level commands now)
-- [HH:mm] S9 — functest end-to-end (full sandbox CONTEXTOS_HOME): list empty, add 2 rules to auto-created __default__ at priority 100/110, show by name, show unknown → exit 1, disable + verify `is_active=0`, disable idempotent re-run, enable + verify `is_active=1`, 3 error paths (invalid decision, unknown project slug, empty reason). All correct.
+- [HH:mm] S9 — functest end-to-end (full sandbox COODRA_HOME): list empty, add 2 rules to auto-created __default__ at priority 100/110, show by name, show unknown → exit 1, disable + verify `is_active=0`, disable idempotent re-run, enable + verify `is_active=1`, 3 error paths (invalid decision, unknown project slug, empty reason). All correct.
 - [HH:mm] S9 — refreshed program test (15 commands, policy subcommands [add, disable, enable, list, show]) + help-output snapshot, lint clean, 176/176 CLI unit pass
 - [HH:mm] S9 committed (`ab12658`): policy admin commands
 - [HH:mm] S10 — wrote `packages/db/src/projects.ts` (3 helpers: `listProjects` with run-count + last-run via join; `getProjectByIdentifier` with recent runs + status histogram; `resetProject` with FK-aware cascade ordering — policy_decisions → run_events/decisions → context_packs → runs → optional kill_switches/policies/policy_rules)
@@ -162,8 +162,8 @@ S1 closeout (this commit): `kill_switches` table + migration `0007_*` + 5 helper
 - [HH:mm] S18 — biome --write reformatted `runs-admin.ts`/`policies.ts`/`projects.ts` (pre-existing chained-method line-width fixes); 188/188 unit pass, 49/55 integration pass (6 skipped pre-existing), `--full` returns 35 checks
 - [HH:mm] S19 — wrote `docs/context-packs/2026-05-03-module-08b-cli-expansion.md` (full closeout per template.md: 19-commit history, 8 OQ locks + mid-flight design calls, AC-1…AC-16 disposition with honest gap on AC-6 e2e flagged for M07, file inventory grouped by package, test inventory, S18 functional smoke, handoff entry pointing at M04 spec)
 - [HH:mm] S19 — flipped README module-status table: 08a → ✅ (already complete; row was stale showing "🔨 next"), added 08b → ✅ row, 04 → 🔨 next (with non-blocking note re: M08b admin surfaces shaping its contract)
-- [HH:mm] S18 + S19 verified: lint/typecheck clean, 188/188 unit, 49/55 integration (6 pre-existing skipped), `--full` doctor returns 35 checks, `pause`/`resume` cycle validated end-to-end on a sandbox CONTEXTOS_HOME
-- [HH:mm] M08b post-S19 functional verification (user-requested) — full end-to-end exercise of every M08b command against an isolated CONTEXTOS_HOME + sandbox CWD, with daemons spawned manually because launchd-based `start` is hard-coded to ~/.contextos paths.
+- [HH:mm] S18 + S19 verified: lint/typecheck clean, 188/188 unit, 49/55 integration (6 pre-existing skipped), `--full` doctor returns 35 checks, `pause`/`resume` cycle validated end-to-end on a sandbox COODRA_HOME
+- [HH:mm] M08b post-S19 functional verification (user-requested) — full end-to-end exercise of every M08b command against an isolated COODRA_HOME + sandbox CWD, with daemons spawned manually because launchd-based `start` is hard-coded to ~/.coodra paths.
 - [HH:mm] verification gap fixed: `init.ts:227` was hard-coding `join(userHome, '.claude', 'settings.json')` instead of calling `defaultClaudeSettingsPath(userHome)` from S8.5. CLAUDE_SETTINGS_PATH was being honored only by uninstall, not init — so any sandbox/CI-style init still wrote to the operator's real ~/.claude/settings.json. Fixed and committed.
-- [HH:mm] Verification results: pause/resume + bridge enforcement (deny + soft-allow + audit row) ✓; logs (--lines, --since, service whitelist) ✓; db migrate (refuses with daemons; --with-daemons-running idempotent) ✓; db backup (VACUUM INTO + --include-logs tarball) ✓; db restore (refuses with daemons; magic-bytes guard; auto-snapshot of current) ✓; upgrade (correctly fails with structured error against unpublished 0.1.0) ✓; policy {list, show, add(--project flag), enable/disable on policy not rule} ✓; project {list, show, reset --force} ✓; run {list, show with full timeline, cancel + already-terminal exit} ✓; export {markdown default no audit, markdown --include-audit, json all-keys, html 2.4K, slack mrkdwn} ✓; template {list (7 bundled), install with full file set + valid schema} ✓; pack {new, list, show, regenerate, delete soft-flips is_active} ✓; init --mode auto + --template python-fastapi ✓; uninstall (default-safe preserves data + claude-settings auto-backup; --purge removes ~/.contextos) ✓.
+- [HH:mm] Verification results: pause/resume + bridge enforcement (deny + soft-allow + audit row) ✓; logs (--lines, --since, service whitelist) ✓; db migrate (refuses with daemons; --with-daemons-running idempotent) ✓; db backup (VACUUM INTO + --include-logs tarball) ✓; db restore (refuses with daemons; magic-bytes guard; auto-snapshot of current) ✓; upgrade (correctly fails with structured error against unpublished 0.1.0) ✓; policy {list, show, add(--project flag), enable/disable on policy not rule} ✓; project {list, show, reset --force} ✓; run {list, show with full timeline, cancel + already-terminal exit} ✓; export {markdown default no audit, markdown --include-audit, json all-keys, html 2.4K, slack mrkdwn} ✓; template {list (7 bundled), install with full file set + valid schema} ✓; pack {new, list, show, regenerate, delete soft-flips is_active} ✓; init --mode auto + --template python-fastapi ✓; uninstall (default-safe preserves data + claude-settings auto-backup; --purge removes ~/.coodra) ✓.
 - [HH:mm] Idempotency-key dedup discovery: soft-pause Bash audit row didn't land on second curl with same sessionId because `policy_decisions.idempotency_key` is `${sessionId}-${turnId}-${toolName}-${eventType}` and dedup blocked the duplicate. Re-firing from a fresh sessionId produced the audit row as expected. Not a bug — correct ADR-007 idempotency behavior.

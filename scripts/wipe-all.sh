@@ -1,5 +1,5 @@
 #!/bin/bash
-# Full wipe of the local ContextOS DB — fresh-slate reset.
+# Full wipe of the local Coodra DB — fresh-slate reset.
 #
 # Preserves:
 #   - schema (table definitions + indexes)
@@ -10,13 +10,13 @@
 # context_pack, policy/policy_rule/policy_decision, kill_switch,
 # feature_pack row, pending_jobs row.
 #
-# Filesystem materialisations under ~/.contextos/packs/ and
+# Filesystem materialisations under ~/.coodra/packs/ and
 # <repo>/docs/feature-packs/ are NOT touched — those are user content.
 # If you want to wipe them too, do it manually after this script runs.
 
 set -euo pipefail
 
-DB="${1:-$HOME/.contextos/data.db}"
+DB="${1:-$HOME/.coodra/data.db}"
 
 if [[ ! -f "$DB" ]]; then
   echo "ERROR: db not found at $DB"
@@ -24,7 +24,7 @@ if [[ ! -f "$DB" ]]; then
 fi
 
 echo "========================================"
-echo "ContextOS FULL WIPE"
+echo "Coodra FULL WIPE"
 echo "DB: $DB"
 echo "========================================"
 

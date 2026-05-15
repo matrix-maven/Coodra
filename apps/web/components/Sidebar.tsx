@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 /**
  * `apps/web/components/Sidebar.tsx` — editorial left navigation.
  *
- * 248px sticky sidebar. Brand mark + ContextOS wordmark + mode badge
+ * 248px sticky sidebar. Brand mark + Coodra wordmark + mode badge
  * at the top. Project pill (when inside a project). Grouped nav with
  * mono uppercase group labels — Workspace · Audit · Govern · Knowledge ·
  * System — phosphor active border, faint hover. User avatar at the bottom.
@@ -125,9 +125,9 @@ export function Sidebar({ mode, footerSlot }: SidebarProps) {
     <aside className="sticky top-0 z-20 flex h-screen w-(--sidebar-width) shrink-0 flex-col border-r border-rule bg-bg-sidebar">
       {/* Brand · mark + word + mode chip */}
       <div className="flex items-center gap-3 border-b border-rule px-6 py-7">
-        <Link href="/" aria-label="ContextOS home" className="flex items-center gap-3">
+        <Link href="/" aria-label="Coodra home" className="flex items-center gap-3">
           <BrandMark />
-          <span className="font-sans text-[16px] font-semibold tracking-tight text-text-primary">ContextOS</span>
+          <span className="font-sans text-[16px] font-semibold tracking-tight text-text-primary">Coodra</span>
         </Link>
         <span
           className="ml-auto border border-accent px-1.5 py-[3px] font-mono text-[9px] font-medium uppercase tracking-[0.18em] text-accent"

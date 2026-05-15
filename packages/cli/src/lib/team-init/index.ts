@@ -6,7 +6,7 @@
  * (`apps/web-v2/lib/actions/team-init.ts`).
  *
  * Centralising the export surface here keeps the cross-package import
- * paths short (`@coodra/contextos-cli/lib/team-init`) and gives a
+ * paths short (`@coodra/cli/lib/team-init`) and gives a
  * single place to audit what web-v2 reaches into the CLI package for.
  */
 

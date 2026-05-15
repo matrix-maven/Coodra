@@ -101,11 +101,11 @@ Runs   Policies   Projects   Packs   Templates   Kill switches
 
 | Surface | Solo | Team |
 |---|---|---|
-| Header — project switcher | Read-only "verify-m08b" badge (project from `.contextos.json`) | `<OrganizationSwitcher/>` Clerk component, multiple orgs |
+| Header — project switcher | Read-only "verify-m08b" badge (project from `.coodra.json`) | `<OrganizationSwitcher/>` Clerk component, multiple orgs |
 | Header — right edge | "Solo mode" `<StatusChip>` | Org switcher + UserButton |
 | `/auth/*` routes | 404 (no sign-in screen) | Clerk-hosted sign-in / sign-up |
 | `/settings/team` route | 404 | `<OrganizationProfile/>` Clerk component |
-| Dashboard home — `Doctor` tile | Shells `contextos doctor --json` (cached 60s) | "Per-developer doctor; no cloud rollup" caption (per spec §11 dashboard mechanics) |
+| Dashboard home — `Doctor` tile | Shells `coodra doctor --json` (cached 60s) | "Per-developer doctor; no cloud rollup" caption (per spec §11 dashboard mechanics) |
 | Kill-switches form | Writes to local SQLite; banner: "Solo mode — pause is local only" | Writes to cloud Postgres; banner: "Pauses propagate to all developers within ~10s" |
 | Run list, run detail, policies, projects, packs, templates | All render with the same shape; queries scope to the local project | Queries scope to the org's projects via Clerk `auth().orgId` + Postgres RLS |
 
@@ -147,7 +147,7 @@ Three patterns, picked per surface:
 
 1. **Server-rendered routes** (run list, policy list, etc.) — Next.js's loading.tsx renders a `<TableSkeleton rows={10}/>` or `<TileGridSkeleton tiles={5}/>` matching the eventual shape. No spinners. The brand says "spinners are admission of failure"; we use shimmer skeletons that match the rendered geometry.
 2. **Polling refreshes** (live view, dashboard, kill-switches) — no full-page state during refresh. Tile values briefly fade via 120ms motion (`--motion-quick`). If the underlying state is unchanged (304), no animation.
-3. **Server action mutations** (add policy rule, pause kill-switch) — the submit button enters its `pending` state (Inter 700, `--color-text-secondary`, label changes to "PAUSING…"); on success the form unmounts and a 320ms slide-up `<Toast>` reports "Paused global; resume with `contextos resume --id ks_…`". Toasts auto-dismiss after 8 seconds; click to dismiss earlier.
+3. **Server action mutations** (add policy rule, pause kill-switch) — the submit button enters its `pending` state (Inter 700, `--color-text-secondary`, label changes to "PAUSING…"); on success the form unmounts and a 320ms slide-up `<Toast>` reports "Paused global; resume with `coodra resume --id ks_…`". Toasts auto-dismiss after 8 seconds; click to dismiss earlier.
 
 ## Mobile breakpoints
 

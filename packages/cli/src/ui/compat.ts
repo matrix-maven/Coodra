@@ -3,7 +3,7 @@
  * `picocolors` the CLI's one-shot commands used before the terminal
  * design-system migration.
  *
- * Every method maps the old ANSI-16 colour onto the ContextOS design
+ * Every method maps the old ANSI-16 colour onto the Coodra design
  * palette, so a command file adopts the design system with a one-line
  * import swap and zero call-site churn:
  *

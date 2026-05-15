@@ -12,7 +12,7 @@ user-applied cloud migrations (0015, 0016, 0017).
 
 Phase F closes the storage-gap bug surfaced in Phase E's demo audit: pre-Phase-F,
 knowledge artifacts (features + feature packs) were git-distributed, not
-ContextOS-distributed. An admin who authored a pack via `/packs/new` wrote to
+Coodra-distributed. An admin who authored a pack via `/packs/new` wrote to
 their own laptop's filesystem; teammates saw nothing until git push/pull. Phase
 F adds cloud-Postgres-mediated distribution so writes from any teammate land on
 every teammate's local SQLite + filesystem within ~10s of the sync-daemon's
@@ -81,7 +81,7 @@ next pull tick.
   in `packages/shared/src/auth/roles.ts`. Mirrors `assertCanEdit` semantics with
   knowledge-tailored rationale: admin always; member if owner (default
   `allowOwner: true`); viewer never. Re-exported via
-  `@coodra/contextos-shared/auth`.
+  `@coodra/shared/auth`.
 - **10 new unit tests** in `packages/shared/__tests__/unit/auth/roles.test.ts`
   covering admin / member / viewer / null-owner / allowOwner-false matrix.
 - **MCP `get_feature_pack` filter on status='draft'** in
@@ -156,11 +156,11 @@ next pull tick.
 - ✅ **Schema parity** holds — 14-table matrix verified for column names,
   notNull flags, dataType categories.
 - ✅ **Local SQLite migrations applied** automatically when daemons restart
-  via `contextos start` — verified 0014 + 0015 columns in `features` +
+  via `coodra start` — verified 0014 + 0015 columns in `features` +
   `feature_packs` tables.
 - ✅ **CLI flow end-to-end**: `feature add` in a team-mode project writes
   filesystem + local DB row + enqueues `sync_to_cloud` job. Verified via
-  inspection of `~/.contextos/data.db` + `pending_jobs`.
+  inspection of `~/.coodra/data.db` + `pending_jobs`.
 - ✅ **MCP `list_features` + `get_feature`** return the new feature with
   parsed frontmatter, full body, and `hasWarnings=true` for the placeholder
   description.
@@ -216,7 +216,7 @@ After applying:
    admin flips a published pack to draft, the spec/impl/techstack/meta files
    stay on disk. The MCP-side status filter hides them from the agent, but
    they're still visible to git/IDE. Future: delete on demote or move to a
-   `.contextos-drafts/` shadow tree.
+   `.coodra-drafts/` shadow tree.
 
 3. **`web-v2/uploadPackAction` doesn't accept a status field yet.** The web
    upload always writes published. F.3.b's `togglePackStatusAction` is the

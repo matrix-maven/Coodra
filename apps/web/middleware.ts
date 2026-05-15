@@ -4,13 +4,13 @@ import { type NextRequest, NextResponse } from 'next/server';
 /**
  * `apps/web/middleware.ts` — auth + mode-aware routing per spec §9 + OQ-3 lock.
  *
- * Solo mode (`CONTEXTOS_MODE=solo`):
+ * Solo mode (`COODRA_MODE=solo`):
  *   - Clerk middleware is short-circuited entirely.
  *   - `/auth/*` and `/settings/team` routes return 404 (rewritten to /not-found).
  *   - Every other route renders without sign-in as the synthetic
  *     `__solo__` user (resolved in `lib/auth.ts::getActor()`).
  *
- * Team mode (`CONTEXTOS_MODE=team`):
+ * Team mode (`COODRA_MODE=team`):
  *   - Wraps everything in `clerkMiddleware()` for JWT validation.
  *   - Public routes: `/api/healthz`, `/auth/sign-in`, `/auth/sign-up`.
  *   - Unauthenticated → 302 to `/auth/sign-in`.
@@ -22,7 +22,7 @@ import { type NextRequest, NextResponse } from 'next/server';
 const isSoloOnly404 = createRouteMatcher(['/auth(.*)', '/settings/team(.*)']);
 const isPublic = createRouteMatcher(['/api/healthz', '/auth(.*)']);
 
-const isSolo = (process.env.CONTEXTOS_MODE ?? 'solo') === 'solo';
+const isSolo = (process.env.COODRA_MODE ?? 'solo') === 'solo';
 
 export default isSolo
   ? soloMiddleware

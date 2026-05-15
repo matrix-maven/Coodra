@@ -39,7 +39,7 @@ export default async function PacksPage({
               <span style={{ color: 'var(--ink-mute)', fontSize: 13 }}>
                 Need atomic skill recipes that load on demand when a user prompt matches a trigger? Those are{' '}
                 <strong>features</strong>, not feature packs — manage them via the CLI's{' '}
-                <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>contextos feature</code> commands.
+                <code style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>coodra feature</code> commands.
               </span>
             </p>
           </div>

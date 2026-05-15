@@ -232,7 +232,7 @@ describe('banner', () => {
 describe('prompt + status one-liners', () => {
   it('renders the prompt as an axis node + role + separator', () => {
     expect(plain(promptLine())).toBe(`·──●  you ${glyph.promptSep} `);
-    expect(plain(promptLine({ command: 'contextos status' }))).toBe(`·──●  you ${glyph.promptSep} contextos status`);
+    expect(plain(promptLine({ command: 'coodra status' }))).toBe(`·──●  you ${glyph.promptSep} coodra status`);
   });
 
   it('renders error / warn / ok one-liners with the right glyphs', () => {

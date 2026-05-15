@@ -1,4 +1,4 @@
-import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/contextos-db';
+import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/db';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -7,7 +7,7 @@ import { sql } from 'drizzle-orm';
  * for the admin onboarding wizard.
  *
  * The single async function `bootstrapPostgres` runs the same three-step
- * sequence that `contextos team setup` does today, but returns a
+ * sequence that `coodra team setup` does today, but returns a
  * structured discriminated-union result instead of throwing — so both
  * the CLI wizard and the web server action can branch on the error
  * code without parsing stack traces.
@@ -121,7 +121,7 @@ export async function bootstrapPostgres(input: PostgresBootstrapInput): Promise<
   // table; report the count of available migration files instead.
   //
   // `migratePostgres` defaults to the migrations folder bundled inside
-  // `@coodra/contextos-db` — same default that `team setup` uses, so
+  // `@coodra/db` — same default that `team setup` uses, so
   // the wizard and the legacy command share a single migrations source.
   try {
     await migratePostgres(handle.db);

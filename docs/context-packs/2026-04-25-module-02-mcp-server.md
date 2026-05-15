@@ -12,7 +12,7 @@
 
 ## Outcome
 
-Module 02 ships the ContextOS MCP server as a working production-grade product. Nine tools, two transports, a three-layer auth chain, an idempotent + cache-first policy engine with circuit breaker, append-only audit writes, graceful shutdown drain, and a 559-test suite (358 unit + 177 integration + 24 e2e) running green in CI on every push. A live Claude Code → contextos round-trip was demonstrated end-to-end through the production-shaped `.mcp.json` profile after the verification-fix batch landed (see "Live closeout demo" below).
+Module 02 ships the Coodra MCP server as a working production-grade product. Nine tools, two transports, a three-layer auth chain, an idempotent + cache-first policy engine with circuit breaker, append-only audit writes, graceful shutdown drain, and a 559-test suite (358 unit + 177 integration + 24 e2e) running green in CI on every push. A live Claude Code → coodra round-trip was demonstrated end-to-end through the production-shaped `.mcp.json` profile after the verification-fix batch landed (see "Live closeout demo" below).
 
 ## Scope boundary
 
@@ -36,9 +36,9 @@ Module 02 ships the ContextOS MCP server as a working production-grade product. 
 
 ### Explicitly deferred (named below for the next module to pick up)
 
-- **Finding #3 deeper question.** §8.3's minimum-viable fix shipped (`CONTEXTOS_DB_OVERRIDE_MODE` env knob). The deeper architectural question — `system-architecture.md §1` claims "local services always write to local SQLite", but `packages/db/src/client.ts::createDb` routes `team → Postgres` unconditionally — is **deferred to a separate planning round**. A future architecture decision is needed: should `createDb` always return SQLite for local services with Postgres confined to a sync layer? That changes the Module 03 sync-daemon shape and is out of scope for Module 02 closeout.
+- **Finding #3 deeper question.** §8.3's minimum-viable fix shipped (`COODRA_DB_OVERRIDE_MODE` env knob). The deeper architectural question — `system-architecture.md §1` claims "local services always write to local SQLite", but `packages/db/src/client.ts::createDb` routes `team → Postgres` unconditionally — is **deferred to a separate planning round**. A future architecture decision is needed: should `createDb` always return SQLite for local services with Postgres confined to a sync layer? That changes the Module 03 sync-daemon shape and is out of scope for Module 02 closeout.
 
-- **Finding #5 first-run UX.** §8.5's env-knob fix shipped (`CONTEXTOS_CONTEXT_PACKS_ROOT` + `CONTEXTOS_GRAPHIFY_ROOT`). The richer first-run experience — a `contextos init` CLI that bootstraps `~/.contextos/`, materialises a starter `.env`, and runs the auto-migrate before the IDE first connects — is **deferred to Module 08a** per `essentialsforclaude/08-implementation-order.md` §8.1.
+- **Finding #5 first-run UX.** §8.5's env-knob fix shipped (`COODRA_CONTEXT_PACKS_ROOT` + `COODRA_GRAPHIFY_ROOT`). The richer first-run experience — a `coodra init` CLI that bootstraps `~/.coodra/`, materialises a starter `.env`, and runs the auto-migrate before the IDE first connects — is **deferred to Module 08a** per `essentialsforclaude/08-implementation-order.md` §8.1.
 
 - **Finding #6 follow-up.** §8.6's schema-layer fix shipped at the registry boundary. The runtime `assertRunKeySegment` helper in `packages/shared/src/idempotency.ts` is retained as a defensive second line. The deeper question — should EVERY run-key-segment-bearing field across the codebase carry the same Zod schema validation, including future tool inputs? — is open as a design-level note, not a blocking fix.
 
@@ -87,7 +87,7 @@ Module 02 ships the ContextOS MCP server as a working production-grade product. 
 
 ## Tests
 
-- **358 unit tests** across `@coodra/contextos-shared` (75) + `@coodra/contextos-db` (42) + `@coodra/contextos-mcp-server` (241) — manifest contracts, schema boundaries, factory construction, idempotency-key shapes, registry behaviour, lib factories.
+- **358 unit tests** across `@coodra/shared` (75) + `@coodra/db` (42) + `@coodra/mcp-server` (241) — manifest contracts, schema boundaries, factory construction, idempotency-key shapes, registry behaviour, lib factories.
 - **177 integration tests** in `apps/mcp-server/__tests__/integration/` — real sqlite + Hono in-process + subprocess boot. Covers each tool against a real DB, the auth chain, transport round-trips, and the post-fix boot/migration behaviour.
 - **24 e2e tests** at the repo root in `__tests__/e2e/` (5 scenarios) — manifest e2e via SDK Client, http-roundtrip with three auth modes, policy-decisions idempotency under 10× concurrent calls (testcontainers Postgres), full single-session walk through all 9 tools with DB+FS assertions, stdio subprocess spawn.
 - **Manifest e2e via §6.6 synthetic agent test** — validates the exact 9-tool set, ≤800-char descriptions, Ajv 2020-12 JSON Schema round-trip, minimal-valid-input round-trip per tool.
@@ -101,11 +101,11 @@ Module 02 ships the ContextOS MCP server as a working production-grade product. 
 
 ### Live end-to-end verification report (2026-04-25)
 
-`docs/verification/2026-04-25-module-01-02-verification.md` — built the binary from clean, booted it, walked every tool against non-trivial inputs, inspected DB tables + FS materialisation, triggered each soft-failure, proved the graceful-shutdown audit drain, and tested the live Claude Code → contextos route. Six findings surfaced and were closed in the verification fix batch.
+`docs/verification/2026-04-25-module-01-02-verification.md` — built the binary from clean, booted it, walked every tool against non-trivial inputs, inspected DB tables + FS materialisation, triggered each soft-failure, proved the graceful-shutdown audit drain, and tested the live Claude Code → coodra route. Six findings surfaced and were closed in the verification fix batch.
 
 ### Live closeout demo (post-restart, 2026-04-25)
 
-After the user restarted Claude Code (production-shaped `.mcp.json` profile pointing at `apps/mcp-server/dist/index.js`), the IDE spawned a fresh subprocess against the post-fix dist. **All 9 tools were exercised live through `mcp__contextos__*` calls in this Claude Code session**:
+After the user restarted Claude Code (production-shaped `.mcp.json` profile pointing at `apps/mcp-server/dist/index.js`), the IDE spawned a fresh subprocess against the post-fix dist. **All 9 tools were exercised live through `mcp__coodra__*` calls in this Claude Code session**:
 
 - `ping` — round-trip succeeded; `sessionId: stdio-174c17ad-…` (hyphen separator confirms post-S17 fix in production binary).
 - `get_run_id { projectSlug: "coodra" }` → minted `run:proj_bd336220-…:stdio-174c17ad-…:b98eff0b-…`; auto-created the `coodra` project; auto-migrate at boot ran cleanly (no `no such table: projects`).
@@ -126,26 +126,26 @@ The live demo serves as evidence that the agent-discovery contract works at the 
 Carried forward from the verification report:
 
 1. **§8.3 deeper architectural question** — see "Scope boundary > Explicitly deferred" above. Separate planning round needed before Module 03's sync daemon design.
-2. **§8.5 first-run UX** — the env knobs are functional; the richer `contextos init` CLI lands with Module 08a.
+2. **§8.5 first-run UX** — the env knobs are functional; the richer `coodra init` CLI lands with Module 08a.
 3. **§8.6 design-level note** — schema validation now at the registry boundary; the broader question of universal run-key-segment validation remains a stylistic decision, not a fix.
 4. **`pending-user-actions.md`** — Clerk live token verification, real GitHub App registration, real Atlassian OAuth client, all marketing/distribution items remain user-side ops.
 
 ## What should be built next
 
-**Module 03 — Hooks Bridge.** Per `essentialsforclaude/08-implementation-order.md §8.1`. The Hooks Bridge consumes the MCP tool surface from Module 02 — it dispatches `PreToolUse` / `PostToolUse` events to the running ContextOS server (the consumer for the `RunRecorder` wiring noted in §8.7), enforces the policy-deny path returned by `check_policy`, and threads JIRA / GitHub integration data into runs. Spec lives at `docs/feature-packs/03-hooks-bridge/`.
+**Module 03 — Hooks Bridge.** Per `essentialsforclaude/08-implementation-order.md §8.1`. The Hooks Bridge consumes the MCP tool surface from Module 02 — it dispatches `PreToolUse` / `PostToolUse` events to the running Coodra server (the consumer for the `RunRecorder` wiring noted in §8.7), enforces the policy-deny path returned by `check_policy`, and threads JIRA / GitHub integration data into runs. Spec lives at `docs/feature-packs/03-hooks-bridge/`.
 
 Resolve the Finding #3 architectural question before locking the Module 03 sync-daemon shape — the answer changes whether the Hooks Bridge writes through to Postgres directly (current `createDb` semantics) or always to local SQLite with a separate sync layer (the §1 docstring claim).
 
 ## Commits landed across the session (newest first)
 
 ```
-fca5488 ci(repo): build @coodra/contextos-mcp-server in the integration job
+fca5488 ci(repo): build @coodra/mcp-server in the integration job
 811fcc8 docs(repo): document subprocess staleness + ship .mcp.dev.json live-reload profile (closes verification §8.2)
 9f730ae fix(mcp-server): sanitize Windows-reserved chars in context-pack filenames (closes verification §8.6)
 315c41d fix(shared,mcp-server): move sessionId no-colon validation to schema layer (closes verification §8.6)
 187c844 fix(mcp-server): boot config improvements — auto-migrate + DB-mode override + env-overridable roots (closes §8.1, §8.3, §8.5)
 c83564f docs(verification): Module 01 + 02 end-to-end verification report (2026-04-25)
-4fa47f0 ci(repo): build @coodra/contextos-db in the e2e job before running tests
+4fa47f0 ci(repo): build @coodra/db in the e2e job before running tests
 4965d45 feat(repo): S17 — e2e test suite (5 scenarios, 24 tests, testcontainers + subprocess) + sessionId colon bug fix
 dcb8071 ci(repo): allow Clerk + LOCAL_HOOK_SECRET + MCP server env vars through turbo's test:integration sandbox
 8981d6c ci(repo): set CLERK_SECRET_KEY=sk_test_replace_me on integration job
@@ -166,7 +166,7 @@ c610fb1 chore(essentialsforclaude): document factory-pattern + discriminated-uni
 dfaefe9 chore(repo): exclude .claude and context_memory from biome scope
 2b12516 feat(mcp-server): S7a — freeze ToolContext + lib factories + clock-discipline guard
 8a473bb feat(shared): assertManifestDescriptionValid + §24.3 amendment
-53edc2a feat(mcp-server): scaffold @coodra/contextos-mcp-server — stdio transport, tool framework, ping
+53edc2a feat(mcp-server): scaffold @coodra/mcp-server — stdio transport, tool framework, ping
 7e94633 feat(db): sqlite-vec extension, pgvector HNSW index, migration lock
 533934b feat(db): policies, policy_rules, policy_decisions, feature_packs tables
 ```

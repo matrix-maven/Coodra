@@ -15,7 +15,7 @@ Phase 2 finishes M04 with **four overlapping classes of work**:
 3. **Action-layer parity with the CLI.** Phase 1 was 80% read-only; only kill-switches, policy add-rule, policy active-toggle, and project reset had write surfaces. Phase 2 closes the gap so every CLI verb has a web equivalent — including `init`, `start/stop/status`, `pack new/regen/delete`, `template install`, `export`, and the doctor + logs surfaces that previously only existed in the terminal.
 4. **Data-quality bugs (S1 already shipped).** F1 (force-dynamic), F2 (`__global__` sentinel filter), F3 root-cause + 0008 backfill (run-recorder `ensureProject` + `ensureSessionOpenInflight`), F4 (Untracked chip) — all landed in commit `4832369` on this branch.
 
-**Why now.** M08b shipped the CLI vocabulary (20 commands) and Phase 1 shipped the data-display shell of that vocabulary in HTML. Phase 2 makes the web equal-power with the CLI, organized around how operators actually think about ContextOS (per-project), and pretty enough that the Stage demo isn't embarrassing.
+**Why now.** M08b shipped the CLI vocabulary (20 commands) and Phase 1 shipped the data-display shell of that vocabulary in HTML. Phase 2 makes the web equal-power with the CLI, organized around how operators actually think about Coodra (per-project), and pretty enough that the Stage demo isn't embarrassing.
 
 **What Phase 2 is NOT.**
 - Not a marketing site / public docs portal.
@@ -37,7 +37,7 @@ A commit on `feat/04-web-app` is "complete (Phase 1 + Phase 2)" when **every** i
 6. `pnpm test:e2e` — extended to: load `/`, click into a project, switch via the project switcher, return to `/`, create a new project via `/init`, assert it appears in the picker.
 7. **Schema delta:** **NONE.** Phase 2 reads + writes the existing 11-table schema. The orphan-event backfill (S1) is the only data migration (`0008_run_events_orphan_backfill.sql`).
 8. **Backwards compatibility:** every CLI command (M08a + M08b — 20 commands) keeps its surface verbatim. The web's URL changes are clean-break (no redirect from old `/runs` to `/projects/[slug]/runs`) — acceptable because M04 hasn't shipped publicly.
-9. **Mode parity:** every Phase 2 route renders correctly in BOTH `CONTEXTOS_MODE=solo` and `CONTEXTOS_MODE=team`. `/sync` is the only team-only top-level route. `/settings/team` already team-only from Phase 1.
+9. **Mode parity:** every Phase 2 route renders correctly in BOTH `COODRA_MODE=solo` and `COODRA_MODE=team`. `/sync` is the only team-only top-level route. `/settings/team` already team-only from Phase 1.
 10. **Brand fidelity (Phase 2 visual contract):**
     - **Spacing scale**: 8px base; section padding `--space-6` (24px), tile gap `--space-8` (32px), row padding `--space-4` (16px), card padding `--space-6` (24px). New `--space-12` (48px) and `--space-16` (64px) for hero whitespace.
     - **Typography rhythm**: H1 56/64 font-display font-black uppercase, H2 32/40 font-display font-bold uppercase, H3 20/28 font-display font-bold uppercase, body 14/22 font-sans, mono 13/20 font-mono.
@@ -54,10 +54,10 @@ A commit on `feat/04-web-app` is "complete (Phase 1 + Phase 2)" when **every** i
 17. **Project sub-nav:** the secondary navigation row (Runs · Policies · Packs · Context Packs · Templates · Kill switches · Graph · Doctor · Logs · Settings) appears on every `/projects/[slug]/*` route, with the active section underlined.
 18. **Context Packs surface** (NEW vs Phase 1): `/projects/[slug]/context-packs` lists every CP for the project; `/projects/[slug]/context-packs/[id]` renders the full markdown body via the S4 markdown renderer. (Currently CPs are only visible inside `/runs/[id]` as a tab.)
 19. **Project Settings surface** (NEW vs Phase 1): `/projects/[slug]/settings` shows project metadata and admin actions: rename (slug regex-validated), archive (sets is_active=false), reset (deletes runs + events; S1's existing `resetProject()`), delete (cascades), export (JSON + JSONL of runs/events/decisions/CPs).
-20. **`/init` wizard** (per Phase 1's planned S3): web parity with `contextos init --project-slug X --no-graphify --ide claude`. On submit, redirects to `/projects/[newSlug]` (not back to `/`).
+20. **`/init` wizard** (per Phase 1's planned S3): web parity with `coodra init --project-slug X --no-graphify --ide claude`. On submit, redirects to `/projects/[newSlug]` (not back to `/`).
 21. **Action-layer parity table** (§16) is fully implemented: every CLI verb in M08a/M08b has a web equivalent in this Phase 2.
 22. **Service control surface** (NEW vs Phase 1): `/settings/workspace` exposes `start`/`stop`/`status` for the bridge + mcp-server + sync-daemon; calls into the same library entry the CLI uses.
-23. **Template install action** (NEW vs Phase 1): `/projects/[slug]/templates` has an "Install from path" button → server action wraps `contextos template install <path>`.
+23. **Template install action** (NEW vs Phase 1): `/projects/[slug]/templates` has an "Install from path" button → server action wraps `coodra template install <path>`.
 24. **Export action** (NEW vs Phase 1): `/projects/[slug]/settings/export` button generates a downloadable archive (JSONL of runs/events/CPs/decisions for the project).
 25. **AC #25 (S1 already shipped):** `apps/hooks-bridge/src/lib/run-recorder.ts::ensureSessionOpenInflight` + `resolveAndEnsure(cwd)` — verified live; new orphan ingress impossible.
 26. **AC #26 (S10):** `/projects/[slug]/graph` empty-state CTA copy contains the install command + ADR-010 Slice 11 anchor reference.
@@ -139,7 +139,7 @@ A commit on `feat/04-web-app` is "complete (Phase 1 + Phase 2)" when **every** i
 
 ## 6. Project context — URL-based, not cookie-based
 
-The pre-pivot Phase 2 spec used a cookie (`contextos_selected_project`) to remember the active project across navigation. The IA pivot drops the cookie entirely — the URL itself carries the project slug via `[slug]` segment. Benefits:
+The pre-pivot Phase 2 spec used a cookie (`coodra_selected_project`) to remember the active project across navigation. The IA pivot drops the cookie entirely — the URL itself carries the project slug via `[slug]` segment. Benefits:
 
 - **Deep-linkable.** Sharing `/projects/coodra-dev/runs/run:xyz` works; cookie-based scoping required the recipient to also have set the cookie.
 - **No cross-tab leakage.** Two browser tabs can sit on different projects; a cookie would tie them together.
@@ -267,7 +267,7 @@ Already shipped commit `4832369`.
 ### OQ-3 — FP editor — **locked (b) section-aware**
 S6 implements.
 
-### OQ-4 — `/init` wizard — **locked (a) mirror exact `contextos init`**
+### OQ-4 — `/init` wizard — **locked (a) mirror exact `coodra init`**
 S3 implements.
 
 ### OQ-5 — `/graph` — **locked (c) react-flow + symbol search; AND mandatory empty-state CTA**
@@ -291,31 +291,31 @@ Every CLI verb in M08a + M08b → a web equivalent. Status as of S1:
 
 | CLI command | Web equivalent | Slice |
 |---|---|---|
-| `contextos init` | `/init` | S3 |
-| `contextos start` | `/settings/workspace` → "Start services" button | **S12** |
-| `contextos stop` | `/settings/workspace` → "Stop services" button | **S12** |
-| `contextos status` | `/settings/workspace` → live service status panel | **S12** |
-| `contextos doctor` | `/projects/[slug]/doctor` (project-scoped) + `/settings/workspace` (workspace) | S8 |
-| `contextos doctor --full --json` | API endpoint `/api/projects/[slug]/doctor/state?full=true` | S8 |
-| `contextos policy add-rule` | `/projects/[slug]/policies/[name]` form | M04 ✓ |
-| `contextos policy list/show` | `/projects/[slug]/policies` + `/projects/[slug]/policies/[name]` | M04 ✓ |
-| `contextos policy active` | `/projects/[slug]/policies/[name]` toggle | M04 ✓ |
-| `contextos project list` | `/` picker | **S2b** |
-| `contextos project show` | `/projects/[slug]` + `/projects/[slug]/settings` | **S2b + S14** |
-| `contextos project reset` | `/projects/[slug]/settings` reset form | M04 ✓ |
-| `contextos run list` | `/projects/[slug]/runs` | M04 (moved in S2a) |
-| `contextos run show` | `/projects/[slug]/runs/[id]` | M04 (moved in S2a) |
-| `contextos pack new` | `/projects/[slug]/packs` "+ New pack" → uses S5 install action | **S5** |
-| `contextos pack list/show` | `/projects/[slug]/packs` + `/projects/[slug]/packs/[slug]` | M04 + S4 |
-| `contextos pack regenerate` | `/projects/[slug]/packs/[slug]` action bar | **S5** |
-| `contextos pack delete` | `/projects/[slug]/packs/[slug]` action bar | **S5** |
-| `contextos template list` | `/projects/[slug]/templates` | M04 (moved in S2a) |
-| `contextos template install` | `/projects/[slug]/templates` "Install from path" form | **S13** |
-| `contextos pause new` | `/projects/[slug]/kill-switches` form | M04 ✓ |
-| `contextos pause list` | `/projects/[slug]/kill-switches` table | M04 ✓ |
-| `contextos pause resume` | `/projects/[slug]/kill-switches` row action | M04 ✓ |
-| `contextos export` | `/projects/[slug]/settings` "Export project" button | **S14** |
-| `contextos logs <service>` | `/projects/[slug]/logs/<service>` | S11 |
+| `coodra init` | `/init` | S3 |
+| `coodra start` | `/settings/workspace` → "Start services" button | **S12** |
+| `coodra stop` | `/settings/workspace` → "Stop services" button | **S12** |
+| `coodra status` | `/settings/workspace` → live service status panel | **S12** |
+| `coodra doctor` | `/projects/[slug]/doctor` (project-scoped) + `/settings/workspace` (workspace) | S8 |
+| `coodra doctor --full --json` | API endpoint `/api/projects/[slug]/doctor/state?full=true` | S8 |
+| `coodra policy add-rule` | `/projects/[slug]/policies/[name]` form | M04 ✓ |
+| `coodra policy list/show` | `/projects/[slug]/policies` + `/projects/[slug]/policies/[name]` | M04 ✓ |
+| `coodra policy active` | `/projects/[slug]/policies/[name]` toggle | M04 ✓ |
+| `coodra project list` | `/` picker | **S2b** |
+| `coodra project show` | `/projects/[slug]` + `/projects/[slug]/settings` | **S2b + S14** |
+| `coodra project reset` | `/projects/[slug]/settings` reset form | M04 ✓ |
+| `coodra run list` | `/projects/[slug]/runs` | M04 (moved in S2a) |
+| `coodra run show` | `/projects/[slug]/runs/[id]` | M04 (moved in S2a) |
+| `coodra pack new` | `/projects/[slug]/packs` "+ New pack" → uses S5 install action | **S5** |
+| `coodra pack list/show` | `/projects/[slug]/packs` + `/projects/[slug]/packs/[slug]` | M04 + S4 |
+| `coodra pack regenerate` | `/projects/[slug]/packs/[slug]` action bar | **S5** |
+| `coodra pack delete` | `/projects/[slug]/packs/[slug]` action bar | **S5** |
+| `coodra template list` | `/projects/[slug]/templates` | M04 (moved in S2a) |
+| `coodra template install` | `/projects/[slug]/templates` "Install from path" form | **S13** |
+| `coodra pause new` | `/projects/[slug]/kill-switches` form | M04 ✓ |
+| `coodra pause list` | `/projects/[slug]/kill-switches` table | M04 ✓ |
+| `coodra pause resume` | `/projects/[slug]/kill-switches` row action | M04 ✓ |
+| `coodra export` | `/projects/[slug]/settings` "Export project" button | **S14** |
+| `coodra logs <service>` | `/projects/[slug]/logs/<service>` | S11 |
 
 20 commands → 20 web surfaces. Net new for Phase 2 to fill the gap: `init` (S3), `start/stop/status` (S12), `template install` (S13), `export` (S14), `pack new/regen/delete` (S5).
 
@@ -352,15 +352,15 @@ The user's original 2026-05-04 brief asked for the `.strict()` Stop hook to be t
 After S15 lands, before squash-merge:
 
 1. `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`. All green.
-2. Stop services. Backup + purge `~/.contextos/data.db`.
-3. `contextos init --project-slug coodra-dev-final --no-graphify --ide claude`; `contextos start`; `contextos doctor` — green.
+2. Stop services. Backup + purge `~/.coodra/data.db`.
+3. `coodra init --project-slug coodra-dev-final --no-graphify --ide claude`; `coodra start`; `coodra doctor` — green.
 4. Boot web in solo mode. Open `/`. Should see ONE project (`coodra-dev-final`) as a card.
 5. Use `/init` wizard to provision a SECOND project (`alpha`); switch via picker; verify `/projects/alpha/runs`, `/projects/alpha/policies`, etc. scope correctly.
 6. Drive synthetic traffic (the same 14-event script from the audit) into the bridge for `coodra-dev-final`; refresh `/projects/coodra-dev-final`; tile values match SQLite.
 7. Edit a feature pack via `/projects/.../packs/coodra-dev-final/edit`; assert auto-managed sections survived round-trip.
 8. Trigger pack delete on a non-essential pack; confirm the disk dir is gone AND `feature_packs.is_active=false`.
-9. Open `/projects/.../logs/hooks-bridge`; in another terminal `echo 'manual line' >> ~/.contextos/logs/hooks-bridge.log`; assert the line appears in <500ms.
-10. Switch to team mode (`CONTEXTOS_MODE=team` env + restart); verify `/sync` renders queue depth (or empty state).
+9. Open `/projects/.../logs/hooks-bridge`; in another terminal `echo 'manual line' >> ~/.coodra/logs/hooks-bridge.log`; assert the line appears in <500ms.
+10. Switch to team mode (`COODRA_MODE=team` env + restart); verify `/sync` renders queue depth (or empty state).
 11. Toggle dark mode in user menu; assert all routes re-render in dark.
 12. Resize browser to 375px; assert tables collapse to cards, HeaderNav becomes hamburger.
 

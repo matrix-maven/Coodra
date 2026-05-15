@@ -9,7 +9,7 @@ export interface ProbePortResult {
 /**
  * Returns:
  *   - green  → port is bindable right now (no service of any kind on it).
- *   - yellow → port is in use; this is fine if it's the contextos daemon
+ *   - yellow → port is in use; this is fine if it's the coodra daemon
  *              (verify with the corresponding /healthz check), otherwise
  *              the user needs to free it.
  */

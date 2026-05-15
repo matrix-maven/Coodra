@@ -19,7 +19,7 @@ const distBin = resolve(cliRoot, 'dist', 'index.js');
  *      - `<cwd>/.mcp.json` — points at the bundled mcp-server
  *      - `<cwd>/.env`     — solo-mode sentinels
  *      - `<HOME>/.claude/settings.json` — five hook entries (post-Fix-G)
- *      - `<CONTEXTOS_HOME>/data.db` — migrations applied
+ *      - `<COODRA_HOME>/data.db` — migrations applied
  *   3. The path in `.mcp.json` is `node <abs-path>` and the abs path
  *      is a real file (the bundled mcp-server).
  *   4. Spawning that mcp-server binary with stdio + a JSON-RPC
@@ -38,7 +38,7 @@ describe('cold install — bundled binary works end-to-end', () => {
     const { existsSync } = await import('node:fs');
     if (!existsSync(distBin)) {
       throw new Error(
-        `dist/index.js missing at ${distBin}. Run \`pnpm --filter @coodra/contextos-cli build\` before integration tests.`,
+        `dist/index.js missing at ${distBin}. Run \`pnpm --filter @coodra/cli build\` before integration tests.`,
       );
     }
     const bundle = resolve(cliRoot, 'dist', 'runtime', 'mcp-server', 'index.js');
@@ -50,11 +50,11 @@ describe('cold install — bundled binary works end-to-end', () => {
   });
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-cold-install-cwd-'));
-    home = await mkdtemp(join(tmpdir(), 'contextos-cold-install-home-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-cold-install-cwd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-cold-install-home-'));
     // Mock $HOME → claudeHome so init's settings.json writer doesn't
     // touch the real ~/.claude on the dev machine.
-    claudeHome = await mkdtemp(join(tmpdir(), 'contextos-cold-install-claude-home-'));
+    claudeHome = await mkdtemp(join(tmpdir(), 'coodra-cold-install-claude-home-'));
     await mkdir(join(claudeHome, '.claude'), { recursive: true });
     // Need a project-root marker so detectProjectRoot resolves to cwd.
     await writeFile(join(cwd, 'package.json'), JSON.stringify({ name: 'cold-install-test' }));
@@ -64,49 +64,49 @@ describe('cold install — bundled binary works end-to-end', () => {
     /* tmp cleaned by OS */
   });
 
-  it('init writes .mcp.json + .env + .contextos.json + ~/.claude/settings.json + data.db, all consistent', async () => {
+  it('init writes .mcp.json + .env + .coodra.json + ~/.claude/settings.json + data.db, all consistent', async () => {
     const result = await execa('node', [distBin, 'init', '--project-slug', 'cold-install'], {
       cwd,
       env: {
         ...process.env,
-        CONTEXTOS_HOME: home,
+        COODRA_HOME: home,
         HOME: claudeHome,
         // Strip parent inherits that could leak into the test.
-        CONTEXTOS_LOG_DESTINATION: undefined,
+        COODRA_LOG_DESTINATION: undefined,
       },
       reject: false,
       timeout: 30_000,
     });
     expect(result.exitCode, `init exited non-zero. stderr=${String(result.stderr)}`).toBe(0);
 
-    // 1) data.db + ~/.contextos/{logs,pids} exist and migrations applied.
+    // 1) data.db + ~/.coodra/{logs,pids} exist and migrations applied.
     expect((await stat(join(home, 'data.db'))).isFile()).toBe(true);
     expect((await stat(join(home, 'logs'))).isDirectory()).toBe(true);
     expect((await stat(join(home, 'pids'))).isDirectory()).toBe(true);
 
-    // 2) .contextos.json points at the slug.
-    const contextosJson = JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8'));
-    expect(contextosJson.projectSlug).toBe('cold-install');
+    // 2) .coodra.json points at the slug.
+    const coodraJson = JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8'));
+    expect(coodraJson.projectSlug).toBe('cold-install');
 
     // 3) .mcp.json shape: command=node, args[0] absolute and a real file.
     const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.contextos;
+    const entry = mcpJson.mcpServers.coodra;
     expect(entry.command).toBe('node');
     expect(Array.isArray(entry.args)).toBe(true);
     const binPath = entry.args[0] as string;
     expect(binPath.startsWith('/')).toBe(true);
     expect((await stat(binPath)).isFile()).toBe(true);
     // env carries the migrations override + log destination.
-    expect(entry.env.CONTEXTOS_LOG_DESTINATION).toBe('stderr');
-    expect(typeof entry.env.CONTEXTOS_MIGRATIONS_DIR).toBe('string');
+    expect(entry.env.COODRA_LOG_DESTINATION).toBe('stderr');
+    expect(typeof entry.env.COODRA_MIGRATIONS_DIR).toBe('string');
 
-    // 4) .env solo-mode sentinels. CONTEXTOS_MODE intentionally NOT
+    // 4) .env solo-mode sentinels. COODRA_MODE intentionally NOT
     // in project .env per Phase 4 H5 — mode is per-machine and lives
-    // in ~/.contextos/.env (written by `team setup` / `team join`).
+    // in ~/.coodra/.env (written by `team setup` / `team join`).
     // The bridge / mcp-server boot path defaults to 'solo' when
-    // CONTEXTOS_MODE is absent, so the project .env doesn't need it.
+    // COODRA_MODE is absent, so the project .env doesn't need it.
     const envBody = await readFile(join(cwd, '.env'), 'utf8');
-    expect(envBody).not.toContain('CONTEXTOS_MODE=');
+    expect(envBody).not.toContain('COODRA_MODE=');
     expect(envBody).toContain('CLERK_SECRET_KEY=sk_test_replace_me');
     expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
 
@@ -124,7 +124,7 @@ describe('cold install — bundled binary works end-to-end', () => {
     expect(settings.hooks.SessionEnd).toHaveLength(1);
     const ours = settings.hooks.SessionStart[0];
     // Phase 4 Fix F (2026-05-02): non-tool events omit `matcher` entirely.
-    // Pre-Fix-F asserted `'__contextos__'` here, but the literal sentinel
+    // Pre-Fix-F asserted `'__coodra__'` here, but the literal sentinel
     // never matched any tool. Fix F switched ownership detection to URL.
     expect(ours.matcher).toBeUndefined();
     expect(ours.hooks[0].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/hooks\/claude-code$/);
@@ -149,13 +149,13 @@ describe('cold install — bundled binary works end-to-end', () => {
     // First, run init to lay down everything.
     await execa('node', [distBin, 'init', '--project-slug', 'cold-install-spawn'], {
       cwd,
-      env: { ...process.env, CONTEXTOS_HOME: home, HOME: claudeHome, CONTEXTOS_LOG_DESTINATION: undefined },
+      env: { ...process.env, COODRA_HOME: home, HOME: claudeHome, COODRA_LOG_DESTINATION: undefined },
       reject: false,
       timeout: 30_000,
     });
 
     const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.contextos;
+    const entry = mcpJson.mcpServers.coodra;
     const binPath = entry.args[0] as string;
 
     // Spawn the bundled mcp-server with stdio + send `initialize` and `tools/list`.
@@ -177,8 +177,8 @@ describe('cold install — bundled binary works end-to-end', () => {
       input: stdin,
       env: {
         ...entry.env,
-        CONTEXTOS_HOME: home,
-        CONTEXTOS_MODE: 'solo',
+        COODRA_HOME: home,
+        COODRA_MODE: 'solo',
         CLERK_SECRET_KEY: 'sk_test_replace_me',
       },
       timeout: 10_000,
@@ -187,7 +187,7 @@ describe('cold install — bundled binary works end-to-end', () => {
     const out = String(child.stdout);
     expect(out).toContain('"jsonrpc":"2.0"');
     expect(out).toContain('"id":1');
-    // tools/list response includes the 9 ContextOS tools.
+    // tools/list response includes the 9 Coodra tools.
     expect(out).toContain('"name":"get_feature_pack"');
     expect(out).toContain('"name":"check_policy"');
     expect(out).toContain('"name":"save_context_pack"');
@@ -202,13 +202,13 @@ describe('cold install — bundled binary works end-to-end', () => {
     // four; this test exercises the MCP roundtrip end-to-end.
     await execa('node', [distBin, 'init', '--project-slug', 'cold-install-fpack'], {
       cwd,
-      env: { ...process.env, CONTEXTOS_HOME: home, HOME: claudeHome, CONTEXTOS_LOG_DESTINATION: undefined },
+      env: { ...process.env, COODRA_HOME: home, HOME: claudeHome, COODRA_LOG_DESTINATION: undefined },
       reject: false,
       timeout: 30_000,
     });
 
     const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.contextos;
+    const entry = mcpJson.mcpServers.coodra;
     const binPath = entry.args[0] as string;
 
     const initializeMsg = JSON.stringify({
@@ -234,8 +234,8 @@ describe('cold install — bundled binary works end-to-end', () => {
       cwd,
       env: {
         ...entry.env,
-        CONTEXTOS_HOME: home,
-        CONTEXTOS_MODE: 'solo',
+        COODRA_HOME: home,
+        COODRA_MODE: 'solo',
         CLERK_SECRET_KEY: 'sk_test_replace_me',
       },
       timeout: 10_000,

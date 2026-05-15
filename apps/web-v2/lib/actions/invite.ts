@@ -24,7 +24,7 @@ import { insertInvite } from '@/lib/queries/invites';
  * Flow:
  *   1. Guard: refuse in `local-solo` (no org). Admin-role required.
  *   2. Validate form fields (email + role + expiresInDays).
- *   3. Check `CONTEXTOS_INVITE_HMAC_SECRET` is configured (caveat E):
+ *   3. Check `COODRA_INVITE_HMAC_SECRET` is configured (caveat E):
  *      surface a remediation redirect, not a crash, if missing.
  *   4. Mint a jti + sign the invite token.
  *   5. **Persist the `team_invites` row FIRST.** This is the durable
@@ -62,7 +62,7 @@ import { insertInvite } from '@/lib/queries/invites';
  */
 function sanitiseInviteError(err: unknown): string {
   if (isMissingTeamInvitesTableError(err)) {
-    return 'team_invites table is missing on the deployment Postgres. Apply Drizzle migration 0014_team_invites (`contextos db migrate`) and reload.';
+    return 'team_invites table is missing on the deployment Postgres. Apply Drizzle migration 0014_team_invites (`coodra db migrate`) and reload.';
   }
   if (err instanceof Error) {
     const flat = err.message.split('\n')[0]?.trim() ?? '';
@@ -158,10 +158,10 @@ export async function mintInviteAction(formData: FormData): Promise<void> {
   // Pre-Phase-H this step called `client.organizations.createOrganizationInvitation`
   // which fires a Clerk-managed email to the invited address. That email
   // carried a DIFFERENT URL (Clerk's redemption flow) from the
-  // ContextOS install URL the admin would also share — Jane ended up
+  // Coodra install URL the admin would also share — Jane ended up
   // with two links and didn't know which to click.
   //
-  // The Phase H rule: the ContextOS install URL is the ONE link Jane
+  // The Phase H rule: the Coodra install URL is the ONE link Jane
   // ever sees. `/api/install/[token]` POST handles Clerk org-membership
   // creation at redemption time via `createOrganizationMembership`. Jane
   // only ever needs a Clerk *user* (sign-up at /auth/sign-up handles

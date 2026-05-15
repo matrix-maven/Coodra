@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ContextOS — Brand Guide</title>
+  <title>Coodra — Brand Guide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -644,7 +644,7 @@
           <div class="type-meta-detail">16px · wt 400 · lh 1.15</div>
         </div>
         <div style="font-family:var(--font-sans);font-size:16px;font-weight:400;line-height:1.15;color:var(--color-text-primary)">
-          ContextOS is developer tooling for agent governance. Solo mode runs fully local on SQLite with zero external dependencies. Team mode adds optional cloud sync with Postgres and Redis.
+          Coodra is developer tooling for agent governance. Solo mode runs fully local on SQLite with zero external dependencies. Team mode adds optional cloud sync with Postgres and Redis.
         </div>
       </div>
 
@@ -807,7 +807,7 @@
             <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-success)"></div>Web App :3000 — Next.js 15</div>
             <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>NL Assembly :3200 — Python / FastAPI</div>
             <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-info)"></div>Semantic Diff :3201 — Python / FastAPI</div>
-            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-warning)"></div>SQLite WAL — ~/.contextos/data.db</div>
+            <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-warning)"></div>SQLite WAL — ~/.coodra/data.db</div>
             <div class="arch-service"><div class="arch-service-dot" style="background:var(--color-status-warning)"></div>sqlite-vec — Cosine KNN</div>
           </div>
         </div>
@@ -887,7 +887,7 @@
 
   <!-- FOOTER -->
   <footer>
-    <div class="footer-logo">ContextOS</div>
+    <div class="footer-logo">Coodra</div>
     <div class="footer-meta">Brand Guide · Design System</div>
     <div class="footer-version">v2.0.0 · 2025</div>
   </footer>
@@ -897,11 +897,11 @@
     function toggleTheme() {
       const html = document.documentElement;
       html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
-      localStorage.setItem('contextos:theme', html.dataset.theme);
+      localStorage.setItem('coodra:theme', html.dataset.theme);
     }
 
     // Restore theme on load
-    const saved = localStorage.getItem('contextos:theme');
+    const saved = localStorage.getItem('coodra:theme');
     if (saved) document.documentElement.dataset.theme = saved;
   </script>
 

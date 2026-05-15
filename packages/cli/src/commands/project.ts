@@ -12,22 +12,22 @@ import {
   type ResetProjectResult,
   resetProject,
   SOLO_ORG_ID,
-} from '@coodra/contextos-db';
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+} from '@coodra/db';
+import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { readTeamConfig, readTeamHomeEnv } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `contextos project {list|show|reset}` — admin surface for the
+ * `coodra project {list|show|reset}` — admin surface for the
  * `projects` table. Module 08b S10.
  *
  * The `__global__` sentinel is a special row used as the
  * audit-fallback FK for events arriving from cwds that have no
- * `.contextos.json`. `project list` shows it (with a `(sentinel)`
+ * `.coodra.json`. `project list` shows it (with a `(sentinel)`
  * tag); `project show __global__` works; `project reset` REFUSES to
  * touch it because losing it would break F7's audit-fallback path.
  */
@@ -49,13 +49,13 @@ export interface ProjectResetOptions {
 
 export interface ProjectPromoteOptions {
   readonly json?: boolean;
-  /** Override `~/.contextos` resolution — tests inject a tmp home. */
+  /** Override `~/.coodra` resolution — tests inject a tmp home. */
   readonly home?: string;
 }
 
 export interface ProjectDemoteOptions {
   readonly json?: boolean;
-  /** Override `~/.contextos` resolution — tests inject a tmp home. */
+  /** Override `~/.coodra` resolution — tests inject a tmp home. */
   readonly home?: string;
 }
 
@@ -63,7 +63,7 @@ export interface ProjectIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_PROJECT_IO: ProjectIO = {
@@ -91,7 +91,7 @@ export async function runProjectListCommand(options: ProjectListOptions, ioOverr
       io.writeStdout(`${commandTitle('Projects', `${filtered.length} registered`, { width: terminalWidth() })}\n`);
       if (filtered.length === 0) {
         io.writeStdout(
-          `${pc.dim('—')} no projects in this contextos store. Run \`contextos init\` in a project root to register one.\n`,
+          `${pc.dim('—')} no projects in this coodra store. Run \`coodra init\` in a project root to register one.\n`,
         );
       } else {
         for (const p of filtered) {
@@ -196,23 +196,23 @@ export async function runProjectResetCommand(
 }
 
 /**
- * `contextos project promote [identifier]` — W5 / beta.5 (2026-05-13).
+ * `coodra project promote [identifier]` — W5 / beta.5 (2026-05-13).
  *
  * Promotes a project from the solo-mode `__solo__` sentinel org to the
  * caller's verified Clerk org. This is the explicit counterpart to the
- * implicit promote that `contextos init` now does — for the common case
- * where someone ran `contextos init` (solo) BEFORE `contextos team init`
- * + `contextos login`, leaving the project stuck local-only: it renders
+ * implicit promote that `coodra init` now does — for the common case
+ * where someone ran `coodra init` (solo) BEFORE `coodra team init`
+ * + `coodra login`, leaving the project stuck local-only: it renders
  * in the web + local SQLite but never reaches cloud Postgres, and every
  * `feature add` reports "team-mode sync skipped — local-only project org".
  *
  * Resolves the target project from `[identifier]` (slug or id) if given,
- * else from `<cwd>/.contextos.json::projectSlug`. Calls `ensureProject`
+ * else from `<cwd>/.coodra.json::projectSlug`. Calls `ensureProject`
  * with the verified org id — the promote branch updates the row AND
  * enqueues sync_to_cloud for the project + every pre-existing feature.
  *
  * Refuses in solo mode (nothing to promote to) and when there's no
- * verified Clerk session (run `contextos login` first).
+ * verified Clerk session (run `coodra login` first).
  */
 export async function runProjectPromoteCommand(
   identifierArg: string | undefined,
@@ -221,7 +221,7 @@ export async function runProjectPromoteCommand(
 ): Promise<void> {
   const io = ioOverride ?? DEFAULT_PROJECT_IO;
   const json = options.json === true;
-  const homePath = options.home ?? io.contextosHome ?? resolveContextosHome();
+  const homePath = options.home ?? io.coodraHome ?? resolveCoodraHome();
 
   // Solo mode → nothing to promote to.
   const teamCfg = readTeamConfig({ homeOverride: homePath });
@@ -230,7 +230,7 @@ export async function runProjectPromoteCommand(
       io,
       json,
       EXIT_USER_ACTION_REQUIRED,
-      'this machine is in solo mode — there is no team org to promote into. Run `contextos team init` + `contextos login` first.',
+      'this machine is in solo mode — there is no team org to promote into. Run `coodra team init` + `coodra login` first.',
     );
   }
 
@@ -241,7 +241,7 @@ export async function runProjectPromoteCommand(
       io,
       json,
       EXIT_USER_ACTION_REQUIRED,
-      'no verified Clerk session (or it expired). Run `contextos login` first, then re-run `contextos project promote`.',
+      'no verified Clerk session (or it expired). Run `coodra login` first, then re-run `coodra project promote`.',
     );
   }
   const targetOrgId = verified.orgId;
@@ -252,8 +252,8 @@ export async function runProjectPromoteCommand(
   // Resolve which project to promote.
   let identifier = identifierArg?.trim();
   if (identifier === undefined || identifier.length === 0) {
-    // Fall back to <cwd>/.contextos.json::projectSlug.
-    const cfgPath = `${process.cwd()}/.contextos.json`;
+    // Fall back to <cwd>/.coodra.json::projectSlug.
+    const cfgPath = `${process.cwd()}/.coodra.json`;
     try {
       const { readFileSync } = await import('node:fs');
       const parsed = JSON.parse(readFileSync(cfgPath, 'utf8')) as { projectSlug?: string };
@@ -261,15 +261,15 @@ export async function runProjectPromoteCommand(
         identifier = parsed.projectSlug;
       }
     } catch {
-      // no .contextos.json in cwd
+      // no .coodra.json in cwd
     }
     if (identifier === undefined || identifier.length === 0) {
       return surfaceError(
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        'no [identifier] given and no .contextos.json in the current directory. ' +
-          'Run from a project root, or pass the slug/id explicitly: `contextos project promote <slug>`.',
+        'no [identifier] given and no .coodra.json in the current directory. ' +
+          'Run from a project root, or pass the slug/id explicitly: `coodra project promote <slug>`.',
       );
     }
   }
@@ -305,8 +305,8 @@ export async function runProjectPromoteCommand(
     }
 
     // ensureProject's promote branch: updates org_id + enqueues sync.
-    // CONTEXTOS_MODE must be 'team' for the enqueue branch to fire.
-    process.env.CONTEXTOS_MODE = 'team';
+    // COODRA_MODE must be 'team' for the enqueue branch to fire.
+    process.env.COODRA_MODE = 'team';
     let result: Awaited<ReturnType<typeof ensureProject>>;
     try {
       result = await ensureProject(handle, { slug: project.slug, orgId: targetOrgId });
@@ -324,7 +324,7 @@ export async function runProjectPromoteCommand(
         `${pc.green('✓')} Promoted project "${project.slug}" to org ${pc.cyan(targetOrgId)} ` +
           `(was ${result.promotedFromOrgId ?? SOLO_ORG_ID}).\n` +
           `  The project + its existing features are queued for cloud sync — ` +
-          `they'll reach Postgres within ~10s. Run \`contextos doctor --full\` to watch the sync queue drain.\n`,
+          `they'll reach Postgres within ~10s. Run \`coodra doctor --full\` to watch the sync queue drain.\n`,
       );
     } else {
       io.writeStdout(`${pc.gray('·')} Project "${project.slug}" — no org change applied.\n`);
@@ -336,7 +336,7 @@ export async function runProjectPromoteCommand(
 }
 
 /**
- * `contextos project demote [identifier]` — W6 / beta.6 (2026-05-14).
+ * `coodra project demote [identifier]` — W6 / beta.6 (2026-05-14).
  *
  * The SAFE inverse of `project promote`: flips a project from a real
  * Clerk org back to the solo (`__solo__`) sentinel so it stops syncing.
@@ -375,7 +375,7 @@ export async function runProjectDemoteCommand(
 ): Promise<void> {
   const io = ioOverride ?? DEFAULT_PROJECT_IO;
   const json = options.json === true;
-  const homePath = options.home ?? io.contextosHome ?? resolveContextosHome();
+  const homePath = options.home ?? io.coodraHome ?? resolveCoodraHome();
 
   const teamCfg = readTeamConfig({ homeOverride: homePath });
   if (teamCfg.mode !== 'team') {
@@ -387,10 +387,10 @@ export async function runProjectDemoteCommand(
     );
   }
 
-  // Resolve which project to demote (arg, else <cwd>/.contextos.json).
+  // Resolve which project to demote (arg, else <cwd>/.coodra.json).
   let identifier = identifierArg?.trim();
   if (identifier === undefined || identifier.length === 0) {
-    const cfgPath = `${process.cwd()}/.contextos.json`;
+    const cfgPath = `${process.cwd()}/.coodra.json`;
     try {
       const { readFileSync } = await import('node:fs');
       const parsed = JSON.parse(readFileSync(cfgPath, 'utf8')) as { projectSlug?: string };
@@ -398,15 +398,15 @@ export async function runProjectDemoteCommand(
         identifier = parsed.projectSlug;
       }
     } catch {
-      // no .contextos.json in cwd
+      // no .coodra.json in cwd
     }
     if (identifier === undefined || identifier.length === 0) {
       return surfaceError(
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        'no [identifier] given and no .contextos.json in the current directory. ' +
-          'Run from a project root, or pass the slug/id explicitly: `contextos project demote <slug>`.',
+        'no [identifier] given and no .coodra.json in the current directory. ' +
+          'Run from a project root, or pass the slug/id explicitly: `coodra project demote <slug>`.',
       );
     }
   }
@@ -438,7 +438,7 @@ export async function runProjectDemoteCommand(
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        '~/.contextos/.env is missing DATABASE_URL — cannot verify cloud sync state. Re-run `contextos team init` to repair.',
+        '~/.coodra/.env is missing DATABASE_URL — cannot verify cloud sync state. Re-run `coodra team init` to repair.',
       );
     }
     let cloudHasRow: boolean;
@@ -462,7 +462,7 @@ export async function runProjectDemoteCommand(
         json,
         EXIT_USER_RECOVERABLE,
         `cannot reach cloud Postgres to verify sync state (${err instanceof Error ? err.message : String(err)}). ` +
-          'Re-run `contextos project demote` when connected — demote refuses to guess.',
+          'Re-run `coodra project demote` when connected — demote refuses to guess.',
       );
     }
 
@@ -473,7 +473,7 @@ export async function runProjectDemoteCommand(
         EXIT_USER_RECOVERABLE,
         `project "${project.slug}" has already synced to the team org — its row (and any runs/features/decisions ` +
           'that reference it) exist in cloud Postgres and are visible to every member. Demoting only the local ' +
-          'copy would split-brain it. To work privately, run `contextos init --solo` in a fresh project directory. ' +
+          'copy would split-brain it. To work privately, run `coodra init --solo` in a fresh project directory. ' +
           'To remove this project from the team entirely, that is an admin delete-from-cloud operation — not this command.',
       );
     }
@@ -509,8 +509,8 @@ export async function runProjectDemoteCommand(
 }
 
 async function openHandle(io: ProjectIO): Promise<Awaited<ReturnType<typeof openLocalDb>>> {
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   return await openLocalDb(dbPath);
 }
 

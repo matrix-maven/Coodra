@@ -10,7 +10,7 @@
  *   1. Ensures cloud Postgres has the canonical schema (runs `cloud-migrate`).
  *   2. Seeds the test project + __global__ on cloud (FK target for runs).
  *   3. Boots bridge (team mode) + sync-daemon as subprocesses against
- *      a tmp CONTEXTOS_HOME. Both share the same local SQLite.
+ *      a tmp COODRA_HOME. Both share the same local SQLite.
  *   4. Fires SessionStart + 5 PreToolUse + 1 PostToolUse + Stop hooks
  *      at the bridge.
  *   5. Polls cloud for the expected rows: 1 runs row (status='completed',
@@ -38,7 +38,7 @@ const BRIDGE_BIN = resolve(ROOT, 'apps/hooks-bridge/dist/index.js');
 const SYNC_BIN = resolve(ROOT, 'apps/sync-daemon/dist/index.js');
 const CLI_BIN = resolve(ROOT, 'packages/cli/dist/index.js');
 
-const HOME_ROOT = '/tmp/contextos-verify-sync-roundtrip';
+const HOME_ROOT = '/tmp/coodra-verify-sync-roundtrip';
 const BRIDGE_PORT = 3221;
 const BRIDGE_URL = `http://127.0.0.1:${BRIDGE_PORT}`;
 const PROJECT_SLUG = 'sync-roundtrip-test';
@@ -59,9 +59,9 @@ function commonEnv(home: string, mode: 'team'): NodeJS.ProcessEnv {
     PATH: process.env.PATH ?? '',
     HOME: process.env.HOME ?? '',
     NODE_ENV: 'production',
-    CONTEXTOS_HOME: home,
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
-    CONTEXTOS_MODE: mode,
+    COODRA_HOME: home,
+    COODRA_LOG_DESTINATION: 'stderr',
+    COODRA_MODE: mode,
     DATABASE_URL: databaseUrl as string,
     LOCAL_HOOK_SECRET: SECRET,
     CLERK_SECRET_KEY: 'sk_test_replace_me',
@@ -80,7 +80,7 @@ function bridgeEnv(home: string): NodeJS.ProcessEnv {
 function syncEnv(home: string): NodeJS.ProcessEnv {
   return {
     ...commonEnv(home, 'team'),
-    CONTEXTOS_SYNC_TICK_MS: '1000',
+    COODRA_SYNC_TICK_MS: '1000',
   };
 }
 
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
     DELETE FROM runs WHERE session_id = '${SESSION_ID}';
   `);
 
-  // (3) Boot bridge + sync-daemon. Both share CONTEXTOS_HOME so they
+  // (3) Boot bridge + sync-daemon. Both share COODRA_HOME so they
   //     write to the same local SQLite.
   console.log('==> Step 3: spawn bridge + sync-daemon');
   const bridge = spawnDaemon('bridge', BRIDGE_BIN, bridgeEnv(HOME_ROOT));
@@ -209,7 +209,7 @@ async function main(): Promise<void> {
   await new Promise((r) => setTimeout(r, 1_500)); // sync-daemon has no /healthz; let it boot.
 
   // Seed local project rows so the bridge can resolve project_id.
-  // (The bridge's projectSlugResolver reads .contextos.json; without
+  // (The bridge's projectSlugResolver reads .coodra.json; without
   // one in cwd the bridge falls back to __global__. For this harness
   // we let it use __global__ — the assertions key on session_id, not
   // project_slug.)

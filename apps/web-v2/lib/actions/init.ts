@@ -1,6 +1,6 @@
 'use server';
 
-import { runInit } from '@coodra/contextos-cli/lib/init';
+import { runInit } from '@coodra/cli/lib/init';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -11,7 +11,7 @@ import { refuseInTeamHosted } from '@/lib/action-guards';
  * wizard (M04 Phase 2 S3).
  *
  * Wraps the library-promoted `runInit()` from
- * `@coodra/contextos-cli/lib/init`. Form-side validation re-uses the
+ * `@coodra/cli/lib/init`. Form-side validation re-uses the
  * same slug regex as the CLI's `sanitizeSlug` so failures are caught
  * before the heavy init pipeline runs.
  *
@@ -49,7 +49,7 @@ const FORM_SCHEMA = z.object({
 
 export async function initProjectAction(formData: FormData): Promise<void> {
   // `init` is inherently a local-laptop operation — it writes
-  // .contextos.json + .mcp.json + scaffolds docs/feature-packs/ on
+  // .coodra.json + .mcp.json + scaffolds docs/feature-packs/ on
   // disk + wires Claude Code hook entries in ~/.claude/settings.json.
   // None of that has meaning on a Vercel server, so we refuse in
   // team-hosted mode. Developers who need init use the CLI.

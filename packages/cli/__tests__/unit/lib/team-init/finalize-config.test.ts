@@ -65,7 +65,7 @@ describe('finalizeConfig', () => {
     expect(cfg.team?.localHookSecret).toBe('c'.repeat(64));
   });
 
-  it('writes ~/.contextos/.env that readTeamHomeEnv can round-trip', () => {
+  it('writes ~/.coodra/.env that readTeamHomeEnv can round-trip', () => {
     finalizeConfig({
       databaseUrl: 'postgres://x:y@h.example/d',
       clerkUserId: 'user_a',

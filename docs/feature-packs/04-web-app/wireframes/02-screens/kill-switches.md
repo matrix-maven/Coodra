@@ -1,6 +1,6 @@
 # `/kill-switches` — Kill-switch admin (S8b)
 
-CLI parity: `contextos pause / resume`. The team-mode write surface that S8a (sync-daemon backend) made bidirectional.
+CLI parity: `coodra pause / resume`. The team-mode write surface that S8a (sync-daemon backend) made bidirectional.
 
 ## Desktop
 
@@ -110,7 +110,7 @@ When the user submits a Pause for a (scope, target) that already has an active s
 
 ## `--no-sync` flag visibility
 
-Switches paused with `contextos pause --no-sync` (per S8a) appear in the Active table with PAUSED BY = `local-only:<host>`. The Resume button still works locally; the team won't see the local switch (it never went to cloud).
+Switches paused with `coodra pause --no-sync` (per S8a) appear in the Active table with PAUSED BY = `local-only:<host>`. The Resume button still works locally; the team won't see the local switch (it never went to cloud).
 
 ## Empty state
 

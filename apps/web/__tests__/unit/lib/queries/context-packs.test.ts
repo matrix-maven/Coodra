@@ -12,7 +12,7 @@ vi.mock('@/lib/db', () => ({
   createWebDb: () => ({ kind: 'sqlite', db: {} }) as never,
 }));
 
-vi.mock('@coodra/contextos-db', () => ({
+vi.mock('@coodra/db', () => ({
   listContextPacksForProject: vi.fn(),
   getContextPackById: vi.fn(),
 }));
@@ -22,7 +22,7 @@ describe('listContextPacks', () => {
   afterEach(() => vi.resetModules());
 
   it('passes projectId + limit through to the db helper', async () => {
-    const { listContextPacksForProject } = await import('@coodra/contextos-db');
+    const { listContextPacksForProject } = await import('@coodra/db');
     const { listContextPacks } = await import('@/lib/queries/context-packs');
     vi.mocked(listContextPacksForProject).mockResolvedValue([
       {
@@ -44,7 +44,7 @@ describe('listContextPacks', () => {
   });
 
   it('returns empty array when project has no CPs yet', async () => {
-    const { listContextPacksForProject } = await import('@coodra/contextos-db');
+    const { listContextPacksForProject } = await import('@coodra/db');
     const { listContextPacks } = await import('@/lib/queries/context-packs');
     vi.mocked(listContextPacksForProject).mockResolvedValue([]);
     const result = await listContextPacks({ projectId: 'fresh-project' });
@@ -57,7 +57,7 @@ describe('getContextPack', () => {
   afterEach(() => vi.resetModules());
 
   it('returns the detail row with full content', async () => {
-    const { getContextPackById } = await import('@coodra/contextos-db');
+    const { getContextPackById } = await import('@coodra/db');
     const { getContextPack } = await import('@/lib/queries/context-packs');
     vi.mocked(getContextPackById).mockResolvedValue({
       id: 'cp-1',
@@ -74,7 +74,7 @@ describe('getContextPack', () => {
   });
 
   it('returns null when row not found', async () => {
-    const { getContextPackById } = await import('@coodra/contextos-db');
+    const { getContextPackById } = await import('@coodra/db');
     const { getContextPack } = await import('@/lib/queries/context-packs');
     vi.mocked(getContextPackById).mockResolvedValue(null);
     const result = await getContextPack('nonexistent');

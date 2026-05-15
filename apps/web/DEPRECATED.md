@@ -1,6 +1,6 @@
 # DEPRECATED — superseded by `apps/web-v2/`
 
-As of 2026-05-09, `apps/web-v2/` is the canonical web app for ContextOS. This directory (`apps/web/`) is retained for reference but receives no new feature work.
+As of 2026-05-09, `apps/web-v2/` is the canonical web app for Coodra. This directory (`apps/web/`) is retained for reference but receives no new feature work.
 
 ## Why
 

@@ -9,9 +9,9 @@ import {
   GLOBAL_PROJECT_ID,
   migrateSqlite,
   sqliteSchema,
-} from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+} from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -28,7 +28,7 @@ import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
  * F7 closure (verification 2026-04-27) — drives a PreToolUse hook from
- * a cwd with NO `.contextos.json` and asserts:
+ * a cwd with NO `.coodra.json` and asserts:
  *
  *   1. The deny rule (attached to project_id='__global__') still
  *      fires — the global rule cache slot loads every project's
@@ -55,13 +55,13 @@ let h: Harness;
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
 
 beforeAll(async () => {
-  // Use a fresh temp dir as cwd — deliberately NO .contextos.json so
+  // Use a fresh temp dir as cwd — deliberately NO .coodra.json so
   // the resolver returns undefined.
   const cwd = mkdtempSync(join(tmpdir(), 'global-audit-test-'));
   const sqlitePath = join(cwd, 'data.db');
@@ -112,7 +112,7 @@ afterAll(() => {
 });
 
 describe('F7 closure — audit-on-unresolved via __global__ sentinel', () => {
-  it('PreToolUse from a cwd without .contextos.json gets denied + audits to __global__', async () => {
+  it('PreToolUse from a cwd without .coodra.json gets denied + audits to __global__', async () => {
     const sessionId = 'sess-f7-deny';
     const res = await h.hono.request('/v1/hooks/claude-code', {
       method: 'POST',
@@ -123,7 +123,7 @@ describe('F7 closure — audit-on-unresolved via __global__ sentinel', () => {
         tool_name: 'Write',
         tool_input: { file_path: '/tmp/forbidden/blocked.ts' },
         tool_use_id: 'tu-f7-1',
-        cwd: h.cwd, // no .contextos.json here
+        cwd: h.cwd, // no .coodra.json here
       }),
     });
     expect(res.status).toBe(200);
@@ -151,7 +151,7 @@ describe('F7 closure — audit-on-unresolved via __global__ sentinel', () => {
     expect(decisions[0]?.matchedRuleId).toBe('rule_global_deny');
   });
 
-  it('SessionStart from a cwd without .contextos.json opens a runs row under __global__', async () => {
+  it('SessionStart from a cwd without .coodra.json opens a runs row under __global__', async () => {
     const sessionId = 'sess-f7-lifecycle';
     const res = await h.hono.request('/v1/hooks/claude-code', {
       method: 'POST',

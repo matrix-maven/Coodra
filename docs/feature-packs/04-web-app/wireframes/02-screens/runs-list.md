@@ -1,6 +1,6 @@
 # `/runs` — Run list (S3)
 
-CLI parity: `contextos run list`. Read-only table of every run on the current project (solo) or every project in the org (team).
+CLI parity: `coodra run list`. Read-only table of every run on the current project (solo) or every project in the org (team).
 
 ## Desktop layout
 

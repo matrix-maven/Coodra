@@ -2,7 +2,7 @@
  * `packages/cli/src/lib/team-migrate/types.ts` — Module 04 Phase 4.
  *
  * Shared types for the team-migration engine. The CLI commands
- * (`contextos team migrate` / `team join` / `team leave`) are thin
+ * (`coodra team migrate` / `team join` / `team leave`) are thin
  * orchestration over `planner.ts` + `executor.ts` + `rollback.ts`.
  */
 

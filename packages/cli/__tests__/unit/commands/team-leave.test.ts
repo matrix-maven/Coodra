@@ -7,7 +7,7 @@ import { runTeamLeaveCommand } from '../../../src/commands/team-migrate-cmd.js';
 import { readTeamConfig, upgradeToTeamConfig, writeTeamHomeEnv } from '../../../src/lib/team-config.js';
 
 /**
- * Phase C (clarity-pass-plan, 2026-05-11) — `contextos team leave` typed-
+ * Phase C (clarity-pass-plan, 2026-05-11) — `coodra team leave` typed-
  * confirmation flow.
  *
  * The leave command was previously a single `--yes` boolean gate. Phase C
@@ -54,13 +54,13 @@ let prevHome: string | undefined;
 beforeEach(() => {
   homeDir = mkdtempSync(join(tmpdir(), 'team-leave-'));
   mkdirSync(homeDir, { recursive: true });
-  prevHome = process.env.CONTEXTOS_HOME;
-  process.env.CONTEXTOS_HOME = homeDir;
+  prevHome = process.env.COODRA_HOME;
+  process.env.COODRA_HOME = homeDir;
 });
 
 afterEach(() => {
-  if (prevHome === undefined) delete process.env.CONTEXTOS_HOME;
-  else process.env.CONTEXTOS_HOME = prevHome;
+  if (prevHome === undefined) delete process.env.COODRA_HOME;
+  else process.env.COODRA_HOME = prevHome;
 });
 
 const NO_SLUG = Symbol('no-slug');
@@ -111,7 +111,7 @@ describe('runTeamLeaveCommand', () => {
     expect(readTeamConfig({ homeOverride: homeDir }).mode).toBe('solo');
     // Home .env stripped of team keys.
     const envBody = readFileSync(join(homeDir, '.env'), 'utf8');
-    expect(envBody).not.toContain('CONTEXTOS_MODE=');
+    expect(envBody).not.toContain('COODRA_MODE=');
     expect(envBody).not.toContain('DATABASE_URL=');
   });
 

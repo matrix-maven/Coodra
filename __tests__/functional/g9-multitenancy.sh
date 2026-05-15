@@ -72,7 +72,7 @@ hdr "Section 3 — SQLite migration: applied + partial unique works"
 # ---------------------------------------------------------------------------
 
 # Build a fresh isolated SQLite DB and apply all migrations.
-TEST_DIR=$(mktemp -d -t "contextos-${SLICE}-db.XXXXXX")
+TEST_DIR=$(mktemp -d -t "coodra-${SLICE}-db.XXXXXX")
 trap 'rm -rf "$TEST_DIR" 2>/dev/null || true' EXIT
 DB_PATH="$TEST_DIR/data.db"
 

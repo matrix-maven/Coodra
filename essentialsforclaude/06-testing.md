@@ -41,7 +41,7 @@ pnpm test:unit -- --coverage
 ```bash
 pnpm test:unit                              # Vitest unit tests (TS)
 pnpm test:integration                       # Integration tests (needs Docker)
-pnpm --filter @coodra/contextos-nl-assembly test   # Python tests (pytest)
+pnpm --filter @coodra/nl-assembly test   # Python tests (pytest)
 pnpm test:e2e                               # E2E — main branch only in CI, runnable locally
 ```
 

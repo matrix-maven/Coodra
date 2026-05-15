@@ -1,6 +1,6 @@
 # Module 08b — CLI Expansion — Tech Stack
 
-> Read `spec.md` and `implementation.md` first. M08b extends `@coodra/contextos-cli` — every dep already pinned in `docs/feature-packs/08a-cli/techstack.md` is reused unchanged. This file lists ONLY the new pins M08b adds, plus the reasons each is justified vs. the alternatives.
+> Read `spec.md` and `implementation.md` first. M08b extends `@coodra/cli` — every dep already pinned in `docs/feature-packs/08a-cli/techstack.md` is reused unchanged. This file lists ONLY the new pins M08b adds, plus the reasons each is justified vs. the alternatives.
 
 > Pinned versions here MUST match `External api and library reference.md`. Any version bump is amendment-B (same-commit doc edit).
 
@@ -36,7 +36,7 @@ These were considered and rejected:
 
 - **`mustache` / `handlebars` / `eta` / `ejs`** — for template rendering (S13). Templates use only `{{slug}}`, `{{date}}`, `{{detectedLanguages}}`, `{{detectedDeps}}` substitutions. Hand-rolled `String.prototype.replace` covers it in ~20 lines and ships zero deps. A real template engine becomes warranted only when conditional logic (`{{#if has-postgres}}...{{/if}}`) lands; defer until the use case appears.
 - **`commander-prompts` / `inquirer` / `prompts`** — for interactive confirmations (S6 restore, S8 uninstall, S10 project reset, S16 pack delete). M08a §11 Decision 3 already locked `prompts` out for `init`. M08b inherits the stance: `--force` flag for destructive ops, no interactive prompts. Keeps `--json` mode + non-TTY pipelines working.
-- **`chokidar`** — for `contextos logs --follow` (S4). Node's built-in `fs.watch` is sufficient for the single-file watch scenario; chokidar's cross-platform fix-ups matter when watching many files in many directories, which logs-tail isn't.
+- **`chokidar`** — for `coodra logs --follow` (S4). Node's built-in `fs.watch` is sufficient for the single-file watch scenario; chokidar's cross-platform fix-ups matter when watching many files in many directories, which logs-tail isn't.
 - **`uuid`** — every M08b slice that mints an id uses Node's built-in `crypto.randomUUID()` (already used by `ensureDefaultPolicy`).
 - **`yaml` / `js-yaml`** — `template.json` is JSON, not YAML. Switching would be a one-time choice; sticking with JSON keeps zero new deps.
 - **`marked` / `markdown-it` / `remark`** — for HTML export (S12 render-html). The renderer wraps the markdown output in a static HTML document with a fenced `<pre>` block + minimal CSS for monospace + line wrap. Not parsing markdown into structured HTML — full markdown→HTML conversion is overkill for the operator-readable export.
@@ -65,7 +65,7 @@ These codes MUST stay stable across versions — shell scripts on user machines 
 
 | Channel | Status in M08b |
 |---|---|
-| `npm` (scope: `@coodra`, package: `@coodra/contextos-cli`) | Same. M08b adds `dist/templates/**` to the published tarball — file-list test from M08a S9 expands to assert templates present. **Not published in M08b.** Publish-flag-day remains a separate ops task. |
+| `npm` (scope: `@coodra`, package: `@coodra/cli`) | Same. M08b adds `dist/templates/**` to the published tarball — file-list test from M08a S9 expands to assert templates present. **Not published in M08b.** Publish-flag-day remains a separate ops task. |
 | Anthropic MCP marketplace | Unchanged from M08a posture. |
 | Homebrew tap / Scoop bucket / `apt` | Not in scope. |
 
@@ -90,11 +90,11 @@ dist/
 
 The runtime resolver `lib/template-paths.ts` (S13) resolves a template name to its on-disk directory in this order:
 
-1. `~/.contextos/templates/<name>/` (user-installed)
+1. `~/.coodra/templates/<name>/` (user-installed)
 2. `<cli-dist>/templates/<name>/` (bundled, npm-installed)
 3. `<workspace-root>/packages/cli/templates/<name>/` (monorepo dev fallback — same pattern as `runtime-paths.ts`)
 
-If none resolve → throw a structured `Error` with `code: 'CONTEXTOS_TEMPLATE_NOT_FOUND'` (extends M08a's resolver-error pattern).
+If none resolve → throw a structured `Error` with `code: 'COODRA_TEMPLATE_NOT_FOUND'` (extends M08a's resolver-error pattern).
 
 ## Auto-marker parser — performance posture
 
@@ -104,11 +104,11 @@ Memory: linear in the file size. The largest expected feature-pack file is ~50 K
 
 ## Gotchas
 
-- **`VACUUM INTO` requires `journal_mode != 'delete'`** — the `@coodra/contextos-db::createDb({ kind: 'local' })` factory already sets `journal_mode = WAL`, so this is satisfied. Tests in S6 run against the same factory to avoid drift.
+- **`VACUUM INTO` requires `journal_mode != 'delete'`** — the `@coodra/db::createDb({ kind: 'local' })` factory already sets `journal_mode = WAL`, so this is satisfied. Tests in S6 run against the same factory to avoid drift.
 - **`npm view --json` returns the full registry document, not just the version.** S7's helper queries with `--json` then parses; if registry returns plain text (older npm), the helper fails fast with a remediation pointing at npm version.
 - **`tar` (node) emits a `'finish'` event before all bytes hit disk on some platforms.** Use the `pipeline()` helper from `node:stream/promises` to await the actual flush.
 - **`fs.watch` (used by `logs --follow`) emits one event per filesystem change on macOS but coalesces on Linux.** S4's reader buffers events and reads-to-EOF on every wake; tests use a synthetic file-write loop to assert no lines are missed.
-- **`semver.gt('1.0.0', '1.0.0-beta.1')` returns `true`** — the released version dominates pre-releases, so a user on `1.0.0-beta.1` sees `1.0.0` as an upgrade. This is the npm-conventional behaviour and is correct for `contextos upgrade`.
+- **`semver.gt('1.0.0', '1.0.0-beta.1')` returns `true`** — the released version dominates pre-releases, so a user on `1.0.0-beta.1` sees `1.0.0` as an upgrade. This is the npm-conventional behaviour and is correct for `coodra upgrade`.
 - **Atomic file writes on Windows: `fs.rename` requires the destination to be on the same volume.** `db restore` writes the temp file next to the destination (same dir as `data.db`), not to `os.tmpdir()`, to keep the rename atomic. Same posture as M08a's `claude-settings-merge.ts`.
-- **`~/.contextos/templates/` symlinks** — `template install` resolves the source path with `fs.realpath` before copying to avoid following a symlink that escapes the user's intended template directory. Pure copy, never `mklink` / `ln -s`.
+- **`~/.coodra/templates/` symlinks** — `template install` resolves the source path with `fs.realpath` before copying to avoid following a symlink that escapes the user's intended template directory. Pure copy, never `mklink` / `ln -s`.
 - **kill-switch cache TTL is 5 seconds, not 60.** Operator pause/resume should feel near-instant. The 60-second policy cache TTL trades freshness for read latency; kill-switch reads are rarer (one switch per minute is "a lot") so a 5s TTL costs ~12 DB queries per minute per bridge, which is negligible.

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { ensureGlobalProject, migrateSqlite } from '@coodra/contextos-db';
+import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runStatusCommand } from '../../src/commands/status.js';
 import { openLocalDb } from '../../src/lib/open-local-db.js';
@@ -42,8 +42,8 @@ describe('runStatusCommand — integration', () => {
   let home: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-status-cwd-'));
-    home = await mkdtemp(join(tmpdir(), 'contextos-status-home-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-status-cwd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-status-home-'));
     await mkdir(join(home, 'logs'), { recursive: true });
     await mkdir(join(home, 'pids'), { recursive: true });
   });
@@ -52,7 +52,7 @@ describe('runStatusCommand — integration', () => {
     /* tmp cleaned by OS */
   });
 
-  it('all-services-down + no .contextos.json → exit 2 (services down)', async () => {
+  it('all-services-down + no .coodra.json → exit 2 (services down)', async () => {
     const { io, captured } = makeIO();
     await expect(
       runStatusCommand({ cwd, home, env: {}, fetchImpl: fakeFetchAllDown as unknown as typeof fetch }, io),
@@ -63,7 +63,7 @@ describe('runStatusCommand — integration', () => {
     expect(stdout).toContain('stopped');
   });
 
-  it('all-services-up + no .contextos.json → exit 1 (project unregistered)', async () => {
+  it('all-services-up + no .coodra.json → exit 1 (project unregistered)', async () => {
     const { io, captured } = makeIO();
     await expect(
       runStatusCommand({ cwd, home, env: {}, fetchImpl: fakeFetchAllUp as unknown as typeof fetch }, io),
@@ -72,13 +72,13 @@ describe('runStatusCommand — integration', () => {
     expect(captured.stdout.join('')).toContain('(unregistered)');
   });
 
-  it('all-services-up + .contextos.json + initialised db → exit 0', async () => {
+  it('all-services-up + .coodra.json + initialised db → exit 0', async () => {
     const dataDb = join(home, 'data.db');
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     migrateSqlite(handle.db);
     await ensureGlobalProject(handle);
     handle.close();
-    await writeFile(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: 'demo' }));
+    await writeFile(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }));
 
     const { io, captured } = makeIO();
     await expect(
@@ -96,7 +96,7 @@ describe('runStatusCommand — integration', () => {
     migrateSqlite(handle.db);
     await ensureGlobalProject(handle);
     handle.close();
-    await writeFile(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: 'demo' }));
+    await writeFile(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }));
 
     const { io, captured } = makeIO();
     await expect(
@@ -106,7 +106,7 @@ describe('runStatusCommand — integration', () => {
     expect(parsed.project).toBeDefined();
     expect(parsed.services).toHaveLength(2);
     expect(parsed.recent).toBeDefined();
-    expect(parsed.contextosHome).toBe(home);
+    expect(parsed.coodraHome).toBe(home);
     expect(parsed.services.map((s: { name: string }) => s.name).sort()).toEqual(['hooks-bridge', 'mcp-server']);
   });
 });

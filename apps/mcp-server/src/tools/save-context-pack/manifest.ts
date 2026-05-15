@@ -5,7 +5,7 @@ import { createSaveContextPackHandler, type SaveContextPackHandlerDeps } from '.
 import { type SaveContextPackInput, saveContextPackInputSchema, saveContextPackOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__save_context_pack` (§24.4).
+ * Registration factory for `coodra__save_context_pack` (§24.4).
  *
  * Factory shape because the handler closes over a `DbHandle` for the
  * `runs` lookup + UPDATE. The context_packs write itself goes through
@@ -31,7 +31,7 @@ export function createSaveContextPackToolRegistration(
 ): ToolRegistration<typeof saveContextPackInputSchema, typeof saveContextPackOutputSchema> {
   return {
     name: 'save_context_pack',
-    title: 'ContextOS: save_context_pack',
+    title: 'Coodra: save_context_pack',
     description:
       'Call this at session end before signaling exit. Write a narrative recap synthesizing what was built, what was decided, what is still open. ' +
       'This is the canonical record the next session reads. The bridge auto-saves a structured event digest as a fallback for crashed sessions — your call overrides it and is preferred. ' +

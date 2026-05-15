@@ -1,6 +1,6 @@
 // Bundle-time stub for `react-devtools-core` — Ink's optional devtools peer.
 //
-// The published `@coodra/contextos-cli` bundle never enables Ink
+// The published `@coodra/cli` bundle never enables Ink
 // devtools. `ink/build/reconciler.js` only `await import('./devtools.js')`
 // — the module that imports `react-devtools-core` — AFTER a runtime
 // `import.meta.resolve('react-devtools-core')` succeeds, and the package

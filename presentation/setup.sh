@@ -10,13 +10,13 @@ PRESENTATION_DIR="/Users/abishaikc/Coodra/presentation"
 FEATURE_PACK_SRC="$PRESENTATION_DIR/taskforge-feature-pack"
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  ContextOS Demo Setup"
+echo "  Coodra Demo Setup"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
 # 1. Stop any running daemons (in case prior demo left them up)
-echo "▸ Stopping any running ContextOS daemons..."
-contextos stop 2>/dev/null || true
+echo "▸ Stopping any running Coodra daemons..."
+coodra stop 2>/dev/null || true
 echo ""
 
 # 2. Wipe prior demo state (the project directory only — DB stays)
@@ -32,10 +32,10 @@ cd "$DEMO_DIR"
 git init --quiet
 echo ""
 
-# 4. Run contextos init
-echo "▸ Running contextos init..."
+# 4. Run coodra init
+echo "▸ Running coodra init..."
 echo "────────────────────────────────────────────────────────────────"
-contextos init
+coodra init
 echo "────────────────────────────────────────────────────────────────"
 echo ""
 
@@ -67,7 +67,7 @@ echo ""
 #
 # To clean up the existing duplicates on a machine that ran setup.sh
 # multiple times pre-Slice-6:
-#   sqlite3 ~/.contextos/data.db \
+#   sqlite3 ~/.coodra/data.db \
 #     "DELETE FROM policy_rules WHERE id NOT IN (
 #        SELECT MIN(id) FROM policy_rules
 #        GROUP BY policy_id, priority, match_event_type, match_tool_name, match_path_glob
@@ -76,16 +76,16 @@ echo ""
 # adventurism cannot reintroduce duplicates.
 
 # 6. Start daemons
-echo "▸ Starting ContextOS daemons..."
+echo "▸ Starting Coodra daemons..."
 echo "────────────────────────────────────────────────────────────────"
-contextos start
+coodra start
 echo "────────────────────────────────────────────────────────────────"
 echo ""
 
 # 7. Run doctor to confirm health
-echo "▸ Running contextos doctor..."
+echo "▸ Running coodra doctor..."
 echo "────────────────────────────────────────────────────────────────"
-contextos doctor
+coodra doctor
 echo "────────────────────────────────────────────────────────────────"
 echo ""
 
@@ -99,13 +99,13 @@ echo "  Feature Pack:        $PACK_DEST"
 echo ""
 echo "  Next steps:"
 echo "    1. Open a SECOND terminal and run:"
-echo "         cd $DEMO_DIR && contextos logs hooks --follow"
+echo "         cd $DEMO_DIR && coodra logs hooks --follow"
 echo ""
 echo "    2. In a THIRD terminal (or your IDE), open Claude Code in:"
 echo "         $DEMO_DIR"
 echo ""
 echo "    3. In Claude Code, run:  /mcp"
-echo "       (you should see 'contextos' connected with all 9 tools)"
+echo "       (you should see 'coodra' connected with all 9 tools)"
 echo ""
 echo "    4. Follow CLAUDE_PROMPTS.md, pasting prompts in order."
 echo ""

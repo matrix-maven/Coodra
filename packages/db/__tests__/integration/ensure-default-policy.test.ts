@@ -47,7 +47,7 @@ afterAll(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('@coodra/contextos-db::ensureDefaultPolicy', () => {
+describe('@coodra/db::ensureDefaultPolicy', () => {
   it('inserts a default Policy row + Phase-4-Fix-F baseline rule set on first call (4 tools × 6 globs + Bash = 25 rules)', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const project = await ensureProject(handle, { slug: 'fresh-policy-project' });
@@ -97,7 +97,7 @@ describe('@coodra/contextos-db::ensureDefaultPolicy', () => {
 
     // Hand-seed the pre-Fix-F shape: __default__ policy + the 9 Phase-3
     // rules at their original priorities. Mimics what existing user
-    // installs have on disk before they re-run `contextos init`.
+    // installs have on disk before they re-run `coodra init`.
     const PRE_FIX_F = [
       { priority: 10, tool: 'Write', glob: '.env', dec: 'deny' as const },
       { priority: 11, tool: 'Write', glob: '**/.env', dec: 'deny' as const },

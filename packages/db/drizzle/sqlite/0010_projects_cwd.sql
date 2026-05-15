@@ -1,7 +1,7 @@
 -- 0010_projects_cwd (2026-05-08)
 --
 -- Adds `projects.cwd` — absolute filesystem path of the project root (the
--- directory containing `.contextos.json`). Recorded by the bridge on first
+-- directory containing `.coodra.json`). Recorded by the bridge on first
 -- SessionStart from a registered cwd, and by the CLI's `init` command.
 --
 -- Why nullable: pre-2026-05-08 projects rows have no recorded cwd, and

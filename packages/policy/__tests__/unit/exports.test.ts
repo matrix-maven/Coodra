@@ -9,7 +9,7 @@ import {
 } from '../../src/index.js';
 
 /**
- * Smoke + pure-logic tests for `@coodra/contextos-policy`. The cache + breaker
+ * Smoke + pure-logic tests for `@coodra/policy`. The cache + breaker
  * + DB-backed evaluator (`createPolicyClient`) is covered by the
  * mcp-server integration test suite (which has the testcontainers-
  * Postgres infra); this file locks the surface that doesn't need a

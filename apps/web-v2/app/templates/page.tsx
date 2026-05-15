@@ -15,7 +15,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const templates = listTemplates();
   // Templates are a CLI concept: each developer's CLI maintains
-  // `~/.contextos/templates/`. The "Install from path" form below
+  // `~/.coodra/templates/`. The "Install from path" form below
   // would write to the SERVER's filesystem on a team-hosted deployment,
   // which is the wrong machine. Hide the affordance in team-hosted and
   // tell the admin to install templates locally on their own laptop.
@@ -42,7 +42,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
               <br />
               packages/cli/templates/
               <br />
-              ~/.contextos/templates/
+              ~/.coodra/templates/
             </div>
           </div>
         </div>
@@ -57,7 +57,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
             </strong>
             Drop one under{' '}
             <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-              ~/.contextos/templates/&lt;name&gt;/
+              ~/.coodra/templates/&lt;name&gt;/
             </span>{' '}
             with a template.json, or install one below.
           </div>
@@ -147,7 +147,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
             </div>
             <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.65 }}>
               Templates live under{' '}
-              <code style={inlineMono}>~/.contextos/templates/</code> on each developer's laptop. To install
+              <code style={inlineMono}>~/.coodra/templates/</code> on each developer's laptop. To install
               a custom template, run on your local terminal:
             </p>
             <pre
@@ -162,7 +162,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                 overflowX: 'auto',
               }}
             >
-              contextos template install /Users/you/path/to/template-dir
+              coodra template install /Users/you/path/to/template-dir
             </pre>
           </div>
         ) : (

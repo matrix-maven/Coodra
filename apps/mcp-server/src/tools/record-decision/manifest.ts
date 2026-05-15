@@ -7,7 +7,7 @@ import { createRecordDecisionHandler, type RecordDecisionHandlerDeps } from './h
 import { type RecordDecisionInput, recordDecisionInputSchema, recordDecisionOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__record_decision` (§24.4, S13).
+ * Registration factory for `coodra__record_decision` (§24.4, S13).
  *
  * Factory-shaped because the handler closes over a `DbHandle` for the
  * `runs` lookup + `decisions` INSERT (see `handler.ts` docblock).
@@ -21,7 +21,7 @@ import { type RecordDecisionInput, recordDecisionInputSchema, recordDecisionOutp
  * Mismatch would hide retries in the log.
  *
  * §24.3 description anatomy (five-part recipe + 40–80 word band) is
- * enforced by `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`
+ * enforced by `@coodra/shared/test-utils::assertManifestDescriptionValid`
  * in the unit suite — do NOT hand-roll per-tool anatomy assertions.
  */
 
@@ -40,7 +40,7 @@ export function createRecordDecisionToolRegistration(
 ): ToolRegistration<typeof recordDecisionInputSchema, typeof recordDecisionOutputSchema> {
   return {
     name: 'record_decision',
-    title: 'ContextOS: record_decision',
+    title: 'Coodra: record_decision',
     description:
       'Call this the moment you make a design or implementation decision — picking a library over alternatives, designing an API shape, deciding NOT to do something. ' +
       'Future sessions consult this table and SessionStart auto-injects the most recent decisions; silent contradictions are the failure mode this tool prevents. ' +

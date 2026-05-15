@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 
@@ -25,7 +25,7 @@ import {
  *      dedupes a retry with the same idempotency key.
  *
  * The test uses the SAME migration path production uses (`migrateSqlite`
- * from `@coodra/contextos-db`) so the schema here is byte-identical to the
+ * from `@coodra/db`) so the schema here is byte-identical to the
  * server's. The sqlite-vec extension is disabled — this test has
  * nothing to do with embeddings.
  */

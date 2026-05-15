@@ -3,7 +3,7 @@
 Every command in this guide was dry-run against the agent's setup. Two bugs
 were found and fixed before writing the guide:
 - `get_feature_pack` was pinned to the daemon's boot cwd; now resolves per-project cwd via `projects.cwd`.
-- `contextos init` didn't write `meta.json::status='published'`; now does, so the bridge draft filter is consistent.
+- `coodra init` didn't write `meta.json::status='published'`; now does, so the bridge draft filter is consistent.
 
 945 unit tests pass; workspace typecheck clean.
 
@@ -18,7 +18,7 @@ from the Coodra repo root:
 
 ```bash
 cd ~/Coodra
-source ~/.contextos/.env
+source ~/.coodra/.env
 psql "$DATABASE_URL" -f packages/db/drizzle/postgres/0015_features.sql
 psql "$DATABASE_URL" -f packages/db/drizzle/postgres/0016_feature_packs_cloud_sync.sql
 psql "$DATABASE_URL" -f packages/db/drizzle/postgres/0017_knowledge_audit.sql
@@ -57,15 +57,15 @@ the `__global__` sentinel which other code expects to exist.
 ```bash
 cd ~/Coodra
 node packages/cli/dist/index.js stop
-rm -f ~/.contextos/data.db
+rm -f ~/.coodra/data.db
 node packages/cli/dist/index.js start
 ```
 
-Output should end with `All ContextOS services running.`. Verify the
+Output should end with `All Coodra services running.`. Verify the
 local DB picked up all 15 migrations:
 
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM __drizzle_migrations;"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM __drizzle_migrations;"
 # expect 15
 ```
 
@@ -90,7 +90,7 @@ Web boots in ~3s.
 ## ACT 1 — Solo mode end-to-end (~10 min)
 
 **Important:** the web app reflects the **machine's mode**
-(`~/.contextos/config.json::mode`), NOT the project's org. To genuinely
+(`~/.coodra/config.json::mode`), NOT the project's org. To genuinely
 test solo UI (no Clerk redirect, no team badge in the sidebar, solo
 projects visible at /projects), the machine itself has to be flipped
 to solo mode. We do that by moving the team config aside, restarting
@@ -103,11 +103,11 @@ daemons, then restoring at the end of Act 1.
 node ~/Coodra/packages/cli/dist/index.js stop
 
 # Move team config aside (reversible — restored at the end of Act 1)
-mv ~/.contextos/config.json ~/.contextos/config.json.team-bak
-mv ~/.contextos/.env        ~/.contextos/.env.team-bak
+mv ~/.coodra/config.json ~/.coodra/config.json.team-bak
+mv ~/.coodra/.env        ~/.coodra/.env.team-bak
 
 # Wipe local DB for a clean solo start
-rm -f ~/.contextos/data.db
+rm -f ~/.coodra/data.db
 
 # Start daemons fresh — they boot in solo mode when no config.json exists
 node ~/Coodra/packages/cli/dist/index.js start
@@ -116,7 +116,7 @@ node ~/Coodra/packages/cli/dist/index.js start
 Verify the flip:
 
 ```bash
-ls ~/.contextos/config.json 2>&1
+ls ~/.coodra/config.json 2>&1
 # expect: "No such file or directory" — daemons treat absence as solo
 
 curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/
@@ -137,12 +137,12 @@ node ~/Coodra/packages/cli/dist/index.js init \
   --ide claude
 ```
 
-The output should end with `ContextOS is ready (project 'solo-app').`.
+The output should end with `Coodra is ready (project 'solo-app').`.
 
 Verify:
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT slug, org_id, cwd FROM projects WHERE slug='solo-app';"
 # expect: solo-app|__solo__|/Users/<you>/demos/solo-app
 ```
@@ -193,14 +193,14 @@ claude
 Inside Claude Code, paste:
 
 ```
-What MCP tools do you have available? Then call contextos__get_feature_pack
+What MCP tools do you have available? Then call coodra__get_feature_pack
 for projectSlug "solo-app" and tell me what the spec.md says.
 ```
 
 The agent will:
 1. Read the additionalContext (the spec/impl/techstack injected at SessionStart)
-2. Call `contextos__get_feature_pack({projectSlug:"solo-app"})` — should return the full pack body
-3. Call `contextos__list_features({projectSlug:"solo-app"})` — should return `greet`
+2. Call `coodra__get_feature_pack({projectSlug:"solo-app"})` — should return the full pack body
+3. Call `coodra__list_features({projectSlug:"solo-app"})` — should return `greet`
 
 Then:
 
@@ -214,8 +214,8 @@ this exchange.
 ```
 
 The agent calls:
-- `contextos__record_decision` — writes a row to `decisions`
-- `contextos__save_context_pack` — writes a row to `context_packs`
+- `coodra__record_decision` — writes a row to `decisions`
+- `coodra__save_context_pack` — writes a row to `context_packs`
 
 Close Claude Code (`/exit` or Ctrl-D).
 
@@ -249,7 +249,7 @@ claude
 Watch the bridge log in another terminal:
 
 ```bash
-tail -f ~/.contextos/logs/hooks-bridge.log | grep -i feature_pack
+tail -f ~/.coodra/logs/hooks-bridge.log | grep -i feature_pack
 ```
 
 You should see `feature_pack_skipped_draft` and NO `feature_pack_injected_via_additional_context`. The agent's `additionalContext` no longer contains spec/impl/techstack.
@@ -257,7 +257,7 @@ You should see `feature_pack_skipped_draft` and NO `feature_pack_injected_via_ad
 Inside Claude Code:
 
 ```
-Call contextos__get_feature_pack for projectSlug "solo-app".
+Call coodra__get_feature_pack for projectSlug "solo-app".
 ```
 
 Expected: returns `{ ok: false, error: "pack_not_found", howToFix: ... }` —
@@ -283,17 +283,17 @@ Close Claude. Web: click `Publish`. Banner: "Pack status flipped → published."
 node ~/Coodra/packages/cli/dist/index.js stop
 
 # Restore the team config you set aside in step 1.1
-mv ~/.contextos/config.json.team-bak ~/.contextos/config.json
-mv ~/.contextos/.env.team-bak        ~/.contextos/.env
+mv ~/.coodra/config.json.team-bak ~/.coodra/config.json
+mv ~/.coodra/.env.team-bak        ~/.coodra/.env
 
 # Wipe the SQLite trio (data.db + WAL + SHM together — leaving stale
 # WAL/SHM files alongside a fresh data.db triggers "disk I/O error")
-rm -f ~/.contextos/data.db ~/.contextos/data.db-shm ~/.contextos/data.db-wal
+rm -f ~/.coodra/data.db ~/.coodra/data.db-shm ~/.coodra/data.db-wal
 
 # Sanity check the .env has Clerk keys (team mode refuses to boot without them)
-grep -E "^CLERK_(SECRET|PUBLISHABLE)_KEY=" ~/.contextos/.env || cat <<'NOTE'
+grep -E "^CLERK_(SECRET|PUBLISHABLE)_KEY=" ~/.coodra/.env || cat <<'NOTE'
   ⚠ .env is missing CLERK keys. Copy them from apps/web-v2/.env.local:
-  grep -E "^CLERK_(SECRET|PUBLISHABLE)_KEY=" ~/Coodra/apps/web-v2/.env.local >> ~/.contextos/.env
+  grep -E "^CLERK_(SECRET|PUBLISHABLE)_KEY=" ~/Coodra/apps/web-v2/.env.local >> ~/.coodra/.env
 NOTE
 
 # Restart daemons in team mode
@@ -303,7 +303,7 @@ node ~/Coodra/packages/cli/dist/index.js start
 Verify:
 
 ```bash
-cat ~/.contextos/config.json | head -3
+cat ~/.coodra/config.json | head -3
 # expect: "mode": "team", ...
 
 curl -s http://localhost:3101/healthz
@@ -312,7 +312,7 @@ curl -s http://localhost:3101/healthz
 # Web app — restart in LOCAL-TEAM mode (NOT team-hosted!) in another terminal.
 # Why local-team: team-hosted is for remote-server deployments and refuses
 # every local-write action (uploadPackAction, regeneratePackAction, etc.)
-# because a deployment server has no ~/.contextos/. On a single dev laptop
+# because a deployment server has no ~/.coodra/. On a single dev laptop
 # you want local-team — Clerk identity comes from config.json, writes are
 # allowed, sync-daemon pushes to cloud.
 pkill -f "next dev --port 3001"; sleep 2
@@ -331,7 +331,7 @@ sleep 5 && curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/
 ### 2.1 — Confirm team mode is active
 
 ```bash
-cat ~/.contextos/config.json | head -8
+cat ~/.coodra/config.json | head -8
 # expect: "mode": "team", with clerkUserId + clerkOrgId
 ```
 
@@ -339,8 +339,8 @@ If you want to test the wizard from scratch:
 
 ```bash
 node ~/Coodra/packages/cli/dist/index.js stop
-rm ~/.contextos/config.json ~/.contextos/.env  # WARNING: this clears team setup
-rm -f ~/.contextos/data.db
+rm ~/.coodra/config.json ~/.coodra/.env  # WARNING: this clears team setup
+rm -f ~/.coodra/data.db
 node ~/Coodra/packages/cli/dist/index.js team init
 # follow the 3-step wizard (Postgres → Clerk → Local)
 ```
@@ -361,12 +361,12 @@ node ~/Coodra/packages/cli/dist/index.js init \
   --ide claude
 ```
 
-(No `CONTEXTOS_MODE=solo` this time — picks up the machine's team mode.)
+(No `COODRA_MODE=solo` this time — picks up the machine's team mode.)
 
 Verify:
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT slug, org_id, cwd FROM projects WHERE slug='team-app';"
 # org_id should be org_<your-clerk-org-id> — NOT __solo__
 ```
@@ -407,7 +407,7 @@ Click **Upload pack**. You're redirected to `/packs/auth-module`.
 Watch the sync push:
 
 ```bash
-tail -f ~/.contextos/logs/sync-daemon.log | grep -E 'sync_feature_packs_pushed|sync_dispatch_threw'
+tail -f ~/.coodra/logs/sync-daemon.log | grep -E 'sync_feature_packs_pushed|sync_dispatch_threw'
 ```
 
 Within ~1s: `sync_feature_packs_pushed` event.
@@ -517,17 +517,17 @@ manual work, and the RBAC gating actually shows up in the UI.
 
 ### 3.1 — Isolate the teammate's state
 
-We simulate a second machine via `CONTEXTOS_HOME` so we don't blow away
+We simulate a second machine via `COODRA_HOME` so we don't blow away
 your admin setup:
 
 ```bash
-export CONTEXTOS_HOME=~/demos/teammate-home
-mkdir -p "$CONTEXTOS_HOME"
-echo "teammate home: $CONTEXTOS_HOME"
+export COODRA_HOME=~/demos/teammate-home
+mkdir -p "$COODRA_HOME"
+echo "teammate home: $COODRA_HOME"
 ```
 
 **Keep this terminal open for all Act 3 steps** — every command in Act 3
-relies on `CONTEXTOS_HOME` being set.
+relies on `COODRA_HOME` being set.
 
 ### 3.2 — Redeem the invite
 
@@ -540,7 +540,7 @@ http://localhost:3001/install/<base64-token>
 You'll be asked to sign in with the invited email. Sign up + verify if
 needed. The page then renders a `curl ... | bash` command. **Copy it.**
 
-Paste into the teammate terminal (the one with `CONTEXTOS_HOME` set):
+Paste into the teammate terminal (the one with `COODRA_HOME` set):
 
 ```bash
 # Example — substitute your actual command
@@ -550,8 +550,8 @@ curl -fsSL "http://localhost:3001/api/install/<token>/cli.sh" | bash
 This will:
 
 1. POST to redeem the token
-2. Write `$CONTEXTOS_HOME/config.json` + `.env` with team settings
-3. Start daemons in team mode (on different ports? — actually same ports, but the launchd plist re-targets `CONTEXTOS_HOME` via env)
+2. Write `$COODRA_HOME/config.json` + `.env` with team settings
+3. Start daemons in team mode (on different ports? — actually same ports, but the launchd plist re-targets `COODRA_HOME` via env)
 
 **IMPORTANT — port conflict:** since the daemons share ports 3100/3101/3001
 with the admin's daemons, only ONE set runs at a time. The install script
@@ -560,16 +560,16 @@ will stop the admin's daemons first.
 Verify:
 
 ```bash
-cat "$CONTEXTOS_HOME/config.json" | head -8
+cat "$COODRA_HOME/config.json" | head -8
 # mode: "team", team.clerkUserId: user_<DIFFERENT from admin>
-sqlite3 "$CONTEXTOS_HOME/data.db" "SELECT COUNT(*) FROM projects;"
+sqlite3 "$COODRA_HOME/data.db" "SELECT COUNT(*) FROM projects;"
 # expect 0+ depending on how puller did
 ```
 
 ### 3.3 — Watch the puller catch up
 
 ```bash
-tail -f "$CONTEXTOS_HOME/logs/sync-daemon.log" | grep team_rows_pulled
+tail -f "$COODRA_HOME/logs/sync-daemon.log" | grep team_rows_pulled
 ```
 
 Within 10s you should see:
@@ -582,12 +582,12 @@ team_rows_pulled projects=1 runs=N decisions=M contextPacks=K
 Then verify the teammate's local SQLite has the admin's data:
 
 ```bash
-sqlite3 "$CONTEXTOS_HOME/data.db" "SELECT slug FROM features;"
+sqlite3 "$COODRA_HOME/data.db" "SELECT slug FROM features;"
 # ship-checklist
-sqlite3 "$CONTEXTOS_HOME/data.db" "SELECT slug, status FROM feature_packs;"
+sqlite3 "$COODRA_HOME/data.db" "SELECT slug, status FROM feature_packs;"
 # auth-module|published
-sqlite3 "$CONTEXTOS_HOME/data.db" "SELECT count(*) AS decisions FROM decisions;"
-sqlite3 "$CONTEXTOS_HOME/data.db" "SELECT count(*) AS context_packs FROM context_packs;"
+sqlite3 "$COODRA_HOME/data.db" "SELECT count(*) AS decisions FROM decisions;"
+sqlite3 "$COODRA_HOME/data.db" "SELECT count(*) AS context_packs FROM context_packs;"
 ```
 
 ### 3.4 — Verify the pack landed on the teammate's disk
@@ -601,13 +601,13 @@ teammate's "machine":
 mkdir -p ~/demos/team-app
 cd ~/demos/team-app
 
-# Register the project under the teammate's CONTEXTOS_HOME
-[ ! -f .contextos.json ] && echo '{"projectSlug":"team-app"}' > .contextos.json
+# Register the project under the teammate's COODRA_HOME
+[ ! -f .coodra.json ] && echo '{"projectSlug":"team-app"}' > .coodra.json
 [ ! -f package.json ]   && echo '{"name":"team-app"}'        > package.json
 
 # The puller writes packs into <projects.cwd>/docs/feature-packs/.
 # Refresh the cwd in the local DB:
-sqlite3 "$CONTEXTOS_HOME/data.db" \
+sqlite3 "$COODRA_HOME/data.db" \
   "UPDATE projects SET cwd='$HOME/demos/team-app' WHERE slug='team-app';"
 ```
 
@@ -648,7 +648,7 @@ Click into `/features`:
 In the teammate terminal:
 
 ```bash
-export CONTEXTOS_HOME=~/demos/teammate-home  # if you opened a new shell
+export COODRA_HOME=~/demos/teammate-home  # if you opened a new shell
 cd ~/demos/team-app
 node ~/Coodra/packages/cli/dist/index.js feature add caching-strategy \
   --description "Use this when the user asks about Redis, BullMQ, or memoization patterns we agreed on." \
@@ -689,10 +689,10 @@ Then summarise the auth-module pack.
 ```
 
 The agent calls:
-- `contextos__query_decisions` → returns admin's pnpm + RSC decisions
-- `contextos__list_features` → returns BOTH ship-checklist (admin) and caching-strategy (you)
-- `contextos__get_feature_pack({projectSlug:"team-app"})` → returns the team-app pack
-- `contextos__get_feature_pack({projectSlug:"auth-module"})` → returns the auth-module pack (synced from cloud, written to disk by puller in 3.4)
+- `coodra__query_decisions` → returns admin's pnpm + RSC decisions
+- `coodra__list_features` → returns BOTH ship-checklist (admin) and caching-strategy (you)
+- `coodra__get_feature_pack({projectSlug:"team-app"})` → returns the team-app pack
+- `coodra__get_feature_pack({projectSlug:"auth-module"})` → returns the auth-module pack (synced from cloud, written to disk by puller in 3.4)
 
 Close Claude.
 
@@ -736,8 +736,8 @@ After testing, restore your admin setup:
 
 ```bash
 # Stop the teammate's daemons
-unset CONTEXTOS_HOME
-node ~/Coodra/packages/cli/dist/index.js stop  # uses default CONTEXTOS_HOME=~/.contextos
+unset COODRA_HOME
+node ~/Coodra/packages/cli/dist/index.js stop  # uses default COODRA_HOME=~/.coodra
 
 # Start admin daemons
 node ~/Coodra/packages/cli/dist/index.js start
@@ -745,7 +745,7 @@ node ~/Coodra/packages/cli/dist/index.js start
 
 ### Act 3 pass criteria
 
-- [ ] Invite redemption wrote $CONTEXTOS_HOME/config.json + started daemons
+- [ ] Invite redemption wrote $COODRA_HOME/config.json + started daemons
 - [ ] Puller pulled admin's data into teammate's local SQLite within 10s
 - [ ] Pack files materialised in teammate's docs/feature-packs/ after cwd registration
 - [ ] Teammate's Claude Code session has admin's decisions + features + pack
@@ -772,7 +772,7 @@ read access — RBAC gates AUTHORING, never CONSUMING.
 
 ## Identity model (the canonical reference)
 
-ContextOS has three modes and three identity-resolution paths. Phase F.6+
+Coodra has three modes and three identity-resolution paths. Phase F.6+
 (2026-05-12) unified them; here's the canonical model:
 
 ```
@@ -783,7 +783,7 @@ team mode (whether web is local-team or team-hosted — same story)
   ├─ Web → identity AND role come from Clerk session cookie.
   │       Sign-in required on every visit. Sign-out actually works.
   ├─ CLI / MCP child / bridge → stamp `created_by_user_id` from
-  │       `~/.contextos/config.json::team.clerkUserId`.
+  │       `~/.coodra/config.json::team.clerkUserId`.
   │       All writes default to role='member' (NEVER admin).
   │       Admin operations (publish/demote, delete others') refuse
   │       and surface "this is an admin-only action — use the web".
@@ -839,7 +839,7 @@ Documented so you know the rough edges:
 ### Sync jobs stuck in `pending` with errors
 
 ```bash
-sqlite3 ~/.contextos/data.db "
+sqlite3 ~/.coodra/data.db "
 SELECT id, queue, status, attempts, substr(last_error, 1, 200)
  FROM pending_jobs WHERE queue='sync_to_cloud'
  ORDER BY created_at DESC LIMIT 5;
@@ -853,7 +853,7 @@ prerequisites.
 
 ```bash
 cd ~/Coodra
-pnpm --filter @coodra/contextos-cli build
+pnpm --filter @coodra/cli build
 node packages/cli/dist/index.js stop
 node packages/cli/dist/index.js start
 ```
@@ -861,12 +861,12 @@ node packages/cli/dist/index.js start
 ### `list_features` returns empty when you expect features
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT slug, cwd FROM projects WHERE slug='<your-slug>';"
 ls <that-cwd>/docs/features/
 ```
 
-If `cwd` is null in the DB, re-run `contextos init` from the project root.
+If `cwd` is null in the DB, re-run `coodra init` from the project root.
 If the directory is missing files, that's the bug — file an issue.
 
 ### `get_feature_pack` returns `pack_not_found`
@@ -876,7 +876,7 @@ This used to be a bug (daemon's boot cwd was the only pack root). Fixed
 happens:
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT slug, cwd FROM projects WHERE slug='<your-slug>';"
 ls <that-cwd>/docs/feature-packs/<your-slug>/
 # expect: spec.md  implementation.md  techstack.md  meta.json
@@ -885,11 +885,11 @@ ls <that-cwd>/docs/feature-packs/<your-slug>/
 ### Web shows "no projects"
 
 ```bash
-cat ~/.contextos/config.json
+cat ~/.coodra/config.json
 # mode must be "team" and the team block must have your real Clerk org id
 ```
 
-If the config is wrong, re-run `contextos team init`.
+If the config is wrong, re-run `coodra team init`.
 
 ### Doctor — runs 35+ health checks
 

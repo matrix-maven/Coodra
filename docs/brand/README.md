@@ -1,6 +1,6 @@
-# ContextOS Brand Sources
+# Coodra Brand Sources
 
-Canonical visual-identity sources for the ContextOS web app (`apps/web`, Module 04) and any future surface that needs to match (M07 VS Code webview, future installer GUIs, marketing-when-it-ships).
+Canonical visual-identity sources for the Coodra web app (`apps/web`, Module 04) and any future surface that needs to match (M07 VS Code webview, future installer GUIs, marketing-when-it-ships).
 
 ## Files in this directory
 

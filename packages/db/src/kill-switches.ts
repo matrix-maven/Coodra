@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { and, asc, eq, gt, inArray, isNull, or } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
@@ -247,7 +247,7 @@ export async function listAllActiveKillSwitches(
 }
 
 /**
- * CLI `contextos pause` writes a row via this helper. Validates the
+ * CLI `coodra pause` writes a row via this helper. Validates the
  * polymorphic shape (target null iff scope='global'), generates the
  * UUID, applies the OQ-1 default mode='hard'.
  *

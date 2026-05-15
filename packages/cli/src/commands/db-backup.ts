@@ -2,16 +2,16 @@ import { mkdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { EXIT_BACKUP_RESTORE_PRECONDITION, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import {
-  resolveContextosConfigJson,
-  resolveContextosDataDb,
-  resolveContextosHome,
-  resolveContextosLogsDir,
-} from '../lib/contextos-home.js';
+  resolveCoodraConfigJson,
+  resolveCoodraDataDb,
+  resolveCoodraHome,
+  resolveCoodraLogsDir,
+} from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos db backup` — copy the live `~/.contextos/data.db` to a
+ * `coodra db backup` — copy the live `~/.coodra/data.db` to a
  * destination path.
  *
  * Per OQ-3 lock (2026-05-03):
@@ -24,7 +24,7 @@ import { pc } from '../ui/index.js';
  *     present). Used for full-environment reproduction (e.g. sending
  *     a frozen snapshot to support).
  *
- * Default destination: `~/.contextos/backups/data.db.bak.<ISO-with-colons-replaced>`
+ * Default destination: `~/.coodra/backups/data.db.bak.<ISO-with-colons-replaced>`
  * (or `.tar.gz` for the tarball variant). The directory is created
  * on demand.
  *
@@ -44,7 +44,7 @@ export interface DbBackupIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   /** Override the source DB path for tests. */
   readonly sourceDbPath?: string;
 }
@@ -77,8 +77,8 @@ export async function runDbBackupCommand(options: DbBackupOptions, ioOverride?: 
   const io = ioOverride ?? DEFAULT_DB_BACKUP_IO;
   const json = options.json === true;
   const includeLogs = options.includeLogs === true;
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const sourceDb = io.sourceDbPath ?? resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const sourceDb = io.sourceDbPath ?? resolveCoodraDataDb(homePath);
 
   // Source must exist — there's nothing to back up otherwise.
   try {
@@ -190,10 +190,10 @@ async function runTarballBackup(args: {
 
   // Build the tarball. Members:
   //   data.db.bak       — the snapshot
-  //   logs/*.log        — every regular file under ~/.contextos/logs/
+  //   logs/*.log        — every regular file under ~/.coodra/logs/
   //   config.json       — present if the file exists, mode-0600 preserved
-  const logsDir = resolveContextosLogsDir(homePath);
-  const configPath = resolveContextosConfigJson(homePath);
+  const logsDir = resolveCoodraLogsDir(homePath);
+  const configPath = resolveCoodraConfigJson(homePath);
 
   const tar = await import('tar');
   let sizeBytes: number;
@@ -225,7 +225,7 @@ async function runTarballBackup(args: {
     // relative paths regardless of the operator's backup-dir choice.
     const { mkdtemp, copyFile, rm } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
-    const stagingRoot = await mkdtemp(join(tmpdir(), 'contextos-backup-staging-'));
+    const stagingRoot = await mkdtemp(join(tmpdir(), 'coodra-backup-staging-'));
     try {
       for (const e of entries) {
         const target = join(stagingRoot, e.archivePath);

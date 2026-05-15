@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__list_features`.
+ * Input + output schemas for `coodra__list_features`.
  *
  * Output is a discriminated union per `09-common-patterns §9.1.2`:
  *
@@ -25,7 +25,7 @@ export const listFeaturesInputSchema = z
       .describe('Project slug (matches `projects.slug` and the on-disk `docs/features/` directory).'),
   })
   .strict()
-  .describe('Input for contextos__list_features.');
+  .describe('Input for coodra__list_features.');
 
 const featureEntrySchema = z
   .object({

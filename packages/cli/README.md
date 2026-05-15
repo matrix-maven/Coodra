@@ -1,31 +1,31 @@
-# @coodra/contextos-cli
+# @coodra/cli
 
-> **Status:** beta. Published to npm under the `beta` dist-tag — install with `npm i -g @coodra/contextos-cli@beta`. The command reference below is partial; run `contextos` (no args) for the full interactive catalog, or `contextos --help`.
+> **Status:** beta. Published to npm under the `beta` dist-tag — install with `npm i -g @coodra/cli@beta`. The command reference below is partial; run `coodra` (no args) for the full interactive catalog, or `coodra --help`.
 
-The single-binary install / configure / run / diagnose surface for ContextOS, the MCP server platform that gives AI coding agents (Claude Code, Cursor, Windsurf) Feature Packs, Context Packs, and policy enforcement.
+The single-binary install / configure / run / diagnose surface for Coodra, the MCP server platform that gives AI coding agents (Claude Code, Cursor, Windsurf) Feature Packs, Context Packs, and policy enforcement.
 
 ## Install
 
 ```bash
 # Global install (recommended for repeat use)
-npm i -g @coodra/contextos-cli
+npm i -g @coodra/cli
 
 # One-shot use without installing
-npx @coodra/contextos-cli init
+npx @coodra/cli init
 ```
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `contextos init [--project-slug] [--ide] [--no-graphify] [--dry-run] [--force]` | Set up ContextOS in the current project: writes `~/.contextos/`, applies migrations + seeds the F7 sentinel project, merges `.mcp.json`, writes `.contextos.json`, writes `.env` with solo-mode sentinels, seeds a Feature Pack folder. Idempotent merge by default; `--force` overwrites baselines. |
-| `contextos start [--no-mcp] [--no-hooks] [--foreground]` | Launch MCP Server + Hooks Bridge as background daemons via the platform's native manager (launchd / systemd) or detached fallback. Polls `/healthz` until ready. |
-| `contextos stop [--service <name>] [--uninstall]` | Stop running daemons. Idempotent. `--uninstall` also removes the daemon-manager unit. |
-| `contextos status [--json]` | Print unified project + service state for the current cwd: project slug + registration, mode, service health probes (MCP `/healthz` + bridge `/healthz`), recent run + last decision + open blockers. |
-| `contextos doctor [--json] [--timeout-ms <ms>]` | 20-check read-only health report covering Node / `~/.contextos/` / data.db / migrations / F7 sentinel / F8 + F14 + F15 invariants / `/healthz` / IDE detection / daemon manager / port availability / `LOCAL_HOOK_SECRET` / Module 03.1 placeholder. |
-| `contextos team login [token] [--server <url>]` | **Stub in 08a.** Surface lives; body lands when team mode reaches GA. Exits 2. |
-| `contextos team logout` | **Stub in 08a.** Same status. |
-| `contextos --version` / `--help` | Standard CLI metadata. Per-subcommand `--help` available. |
+| `coodra init [--project-slug] [--ide] [--no-graphify] [--dry-run] [--force]` | Set up Coodra in the current project: writes `~/.coodra/`, applies migrations + seeds the F7 sentinel project, merges `.mcp.json`, writes `.coodra.json`, writes `.env` with solo-mode sentinels, seeds a Feature Pack folder. Idempotent merge by default; `--force` overwrites baselines. |
+| `coodra start [--no-mcp] [--no-hooks] [--foreground]` | Launch MCP Server + Hooks Bridge as background daemons via the platform's native manager (launchd / systemd) or detached fallback. Polls `/healthz` until ready. |
+| `coodra stop [--service <name>] [--uninstall]` | Stop running daemons. Idempotent. `--uninstall` also removes the daemon-manager unit. |
+| `coodra status [--json]` | Print unified project + service state for the current cwd: project slug + registration, mode, service health probes (MCP `/healthz` + bridge `/healthz`), recent run + last decision + open blockers. |
+| `coodra doctor [--json] [--timeout-ms <ms>]` | 20-check read-only health report covering Node / `~/.coodra/` / data.db / migrations / F7 sentinel / F8 + F14 + F15 invariants / `/healthz` / IDE detection / daemon manager / port availability / `LOCAL_HOOK_SECRET` / Module 03.1 placeholder. |
+| `coodra team login [token] [--server <url>]` | **Stub in 08a.** Surface lives; body lands when team mode reaches GA. Exits 2. |
+| `coodra team logout` | **Stub in 08a.** Same status. |
+| `coodra --version` / `--help` | Standard CLI metadata. Per-subcommand `--help` available. |
 
 ## Exit codes
 
@@ -41,15 +41,15 @@ These codes are stable across versions — shell scripts can rely on them.
 
 ## Where files live
 
-`contextos init` resolves `~/.contextos/` per Decision 2 (signed off 2026-04-27):
+`coodra init` resolves `~/.coodra/` per Decision 2 (signed off 2026-04-27):
 
 | Platform | Path |
 |---|---|
-| Linux + `$XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/contextos/` |
-| Linux without XDG | `$HOME/.contextos/` |
-| macOS / Windows | `$HOME/.contextos/` |
+| Linux + `$XDG_CONFIG_HOME` set | `$XDG_CONFIG_HOME/coodra/` |
+| Linux without XDG | `$HOME/.coodra/` |
+| macOS / Windows | `$HOME/.coodra/` |
 
-Override with `CONTEXTOS_HOME=/path/to/dir` in the environment.
+Override with `COODRA_HOME=/path/to/dir` in the environment.
 
 ## Documentation
 

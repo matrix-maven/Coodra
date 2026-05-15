@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # __tests__/functional/g10-org-switch.sh
 #
-# Phase G.10 functional test — `contextos org` parent + subcommands.
+# Phase G.10 functional test — `coodra org` parent + subcommands.
 #
 # What it proves:
-#   1. `contextos org status` exists and prints status (or "no session")
-#   2. `contextos org switch <orgSlug>` exists and requires the slug arg
+#   1. `coodra org status` exists and prints status (or "no session")
+#   2. `coodra org switch <orgSlug>` exists and requires the slug arg
 #   3. Help text references the right flags
 #   4. `org switch` without a slug exits non-zero with helpful message
 #
@@ -22,7 +22,7 @@ set -uo pipefail
 SLICE="G.10"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 PASS=0
@@ -38,8 +38,8 @@ assert_pass() { green "  ✓ PASS — $*"; PASS=$((PASS + 1)); }
 assert_fail() { red "  ✗ FAIL — $*"; FAIL=$((FAIL + 1)); }
 assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 
-contextos() {
-  CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
+coodra() {
+  COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ hdr "Precondition"
 
 if [ ! -f "$CLI_BIN" ]; then
   yel "Building CLI..."
-  (cd "$REPO_ROOT" && pnpm --filter @coodra/contextos-cli build 2>&1 | tail -3) || exit 1
+  (cd "$REPO_ROOT" && pnpm --filter @coodra/cli build 2>&1 | tail -3) || exit 1
 fi
 green "  ✓ CLI bundle present"
 
@@ -82,7 +82,7 @@ hdr "Section 2 — org status"
 # ---------------------------------------------------------------------------
 
 # 2.1: with no session → prints "No active Clerk session"
-OUT=$(contextos org status 2>&1)
+OUT=$(coodra org status 2>&1)
 if echo "$OUT" | grep -q "No active Clerk session\|active org\|Active org"; then
   assert_pass "2.1 — org status prints session info (got: $(echo "$OUT" | head -1 | tr -d '\033[0-9;m'))"
 else
@@ -94,7 +94,7 @@ hdr "Section 3 — org switch validation"
 # ---------------------------------------------------------------------------
 
 # 3.1: org switch without slug → refuses
-OUT=$(contextos org switch 2>&1 || true)
+OUT=$(coodra org switch 2>&1 || true)
 if echo "$OUT" | grep -q "missing.*orgSlug\|required argument\|missing.*argument"; then
   assert_pass "3.1 — org switch without slug refused"
 else

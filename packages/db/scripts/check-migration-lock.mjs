@@ -29,7 +29,7 @@
  *                         hook.
  *   --write               rewrite `migrations.lock.json` with the current
  *                         blocks. Used by a contributor after intentionally
- *                         editing a block: `pnpm --filter @coodra/contextos-db
+ *                         editing a block: `pnpm --filter @coodra/db
  *                         check:migration-lock --write`.
  */
 
@@ -120,9 +120,9 @@ function serializeLock(entries) {
   );
   return `${JSON.stringify(
     {
-      $schema: 'https://contextos.dev/schemas/migrations-lock.v1.json',
+      $schema: 'https://coodra.dev/schemas/migrations-lock.v1.json',
       description:
-        'Hand-written preserve-blocks inside drizzle migrations. Regenerate via `pnpm --filter @coodra/contextos-db check:migration-lock --write` after intentional edits. CI enforces drift via `pnpm --filter @coodra/contextos-db check:migration-lock`.',
+        'Hand-written preserve-blocks inside drizzle migrations. Regenerate via `pnpm --filter @coodra/db check:migration-lock --write` after intentional edits. CI enforces drift via `pnpm --filter @coodra/db check:migration-lock`.',
       entries: sorted,
     },
     null,
@@ -163,7 +163,7 @@ async function main() {
   } catch (err) {
     if (/** @type {NodeJS.ErrnoException} */ (err).code === 'ENOENT') {
       console.error(`migration-lock: ${relative(REPO_ROOT, LOCK_PATH)} does not exist.`);
-      console.error('run `pnpm --filter @coodra/contextos-db check:migration-lock --write` to create it.');
+      console.error('run `pnpm --filter @coodra/db check:migration-lock --write` to create it.');
       process.exit(1);
     }
     throw err;
@@ -196,7 +196,7 @@ async function main() {
           `    current  sha256: ${liveEntry.sha256}\n` +
           `    line range now : ${JSON.stringify(liveEntry.lineRange)} (was ${JSON.stringify(lockedEntry.lineRange)})\n` +
           `    the block body has drifted. if the edit was intentional, run\n` +
-          `    \`pnpm --filter @coodra/contextos-db check:migration-lock --write\` and commit.`,
+          `    \`pnpm --filter @coodra/db check:migration-lock --write\` and commit.`,
       );
     }
   }
@@ -208,7 +208,7 @@ async function main() {
           `    current sha256: ${liveEntry.sha256}\n` +
           `    current lineRange: ${JSON.stringify(liveEntry.lineRange)}\n` +
           `    a new hand-written block exists but is not in the lock file.\n` +
-          `    run \`pnpm --filter @coodra/contextos-db check:migration-lock --write\` and commit.`,
+          `    run \`pnpm --filter @coodra/db check:migration-lock --write\` and commit.`,
       );
     }
   }

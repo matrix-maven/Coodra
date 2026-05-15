@@ -1,10 +1,10 @@
 /**
- * `src/tui/index.tsx` — entry point for the interactive ContextOS
- * terminal UI. Launched by `contextos` with no arguments (when stdout
- * is a TTY) and by the explicit `contextos ui` command.
+ * `src/tui/index.tsx` — entry point for the interactive Coodra
+ * terminal UI. Launched by `coodra` with no arguments (when stdout
+ * is a TTY) and by the explicit `coodra ui` command.
  *
  * Kept behind a dynamic `import()` from `program.ts` so React + Ink
- * never load on the hot path of a one-shot command — `contextos
+ * never load on the hot path of a one-shot command — `coodra
  * status` and friends pay nothing for the TUI existing.
  */
 
@@ -16,21 +16,21 @@ import { detectTerminalBackground } from './detect-background.js';
 
 /**
  * Boot the TUI. Requires an interactive terminal — in a non-TTY
- * context (pipe, CI, `contextos | cat`) it prints a hint and sets a
+ * context (pipe, CI, `coodra | cat`) it prints a hint and sets a
  * non-zero exit code instead of rendering a UI nothing can drive.
  */
 export async function launchTui(): Promise<void> {
   if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
     process.stderr.write(
-      'contextos: the interactive UI needs an interactive terminal (TTY).\n' +
-        '  Run a command directly instead — e.g. `contextos status` or `contextos --help`.\n',
+      'coodra: the interactive UI needs an interactive terminal (TTY).\n' +
+        '  Run a command directly instead — e.g. `coodra status` or `coodra --help`.\n',
     );
     process.exitCode = 1;
     return;
   }
 
   // Auto-adapt the accent palette to the terminal background. Only when
-  // the synchronous detection (CONTEXTOS_THEME / COLORFGBG) came back
+  // the synchronous detection (COODRA_THEME / COLORFGBG) came back
   // `unknown` — an explicit override or COLORFGBG hint always wins. The
   // probe is best-effort: on failure the `unknown` palette stands, which
   // is already readable on any background.

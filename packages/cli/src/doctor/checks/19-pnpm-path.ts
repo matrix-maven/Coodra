@@ -23,7 +23,7 @@ export const pnpmPathCheck: Check = {
       return {
         status: 'yellow',
         detail: `pnpm not reachable: ${(err as Error).message}`,
-        remediation: 'Only required when running ContextOS from the dev monorepo. End users do not need pnpm.',
+        remediation: 'Only required when running Coodra from the dev monorepo. End users do not need pnpm.',
       };
     }
   },

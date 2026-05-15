@@ -2,14 +2,14 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
 import { promisify } from 'node:util';
-import { type DbHandle, sqliteSchema } from '@coodra/contextos-db';
+import { type DbHandle, sqliteSchema } from '@coodra/db';
 import {
   createLogger,
   MAX_FILES_PER_DIFF,
   type RunDiffFileEntry,
   type RunDiffFileStatus,
   truncateUnifiedDiff,
-} from '@coodra/contextos-shared';
+} from '@coodra/shared';
 import { asc, eq } from 'drizzle-orm';
 
 /**

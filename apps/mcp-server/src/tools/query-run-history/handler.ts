@@ -1,11 +1,11 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { QueryRunHistoryInput, QueryRunHistoryOutput, RunHistoryEntry } from './schema.js';
 
 /**
- * Handler factory for `contextos__query_run_history` (§24.4, S12).
+ * Handler factory for `coodra__query_run_history` (§24.4, S12).
  *
  * Factory shape because the handler closes over a `DbHandle` for the
  * projects-slug resolution + the runs SELECT with the optional
@@ -157,7 +157,7 @@ export function createQueryRunHistoryHandler(deps: QueryRunHistoryHandlerDeps) {
         ok: false,
         error: 'project_not_found',
         howToFix:
-          'Register the project via the CLI (`contextos init`) or verify the slug matches an existing entry in the projects table.',
+          'Register the project via the CLI (`coodra init`) or verify the slug matches an existing entry in the projects table.',
       };
     }
 

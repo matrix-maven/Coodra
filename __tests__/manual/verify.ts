@@ -39,21 +39,21 @@ function emit(label: string, payload: unknown): void {
 }
 
 async function main(): Promise<void> {
-  // Use the externally-migrated DB at /tmp/contextos-verify/data.db
+  // Use the externally-migrated DB at /tmp/coodra-verify/data.db
   // (the verify harness pre-migrates because the production
   // mcp-server does NOT auto-migrate at boot — see Surprises §1).
   // After Fix 1 (auto-migrate at boot), this can be a fresh path —
   // the binary will migrate on first call. Kept fixed for diagnosability.
-  const sqlitePath = '/tmp/contextos-verify/data.db';
+  const sqlitePath = '/tmp/coodra-verify/data.db';
   // FINDING: lib/context-pack.ts defaults `contextPacksRoot` to
   // `process.cwd()/docs/context-packs` and lib/graphify.ts defaults
-  // graphifyRoot to `~/.contextos/graphify`. Neither is env-driven.
+  // graphifyRoot to `~/.coodra/graphify`. Neither is env-driven.
   // For verification we use the production defaults — packs land in
   // the repo's `docs/context-packs/` (and we'll clean the new file
-  // after) and graphify reads from `~/.contextos/graphify/coodra/`
+  // after) and graphify reads from `~/.coodra/graphify/coodra/`
   // which we seed temporarily.
   const cpRoot = resolve(ROOT, 'docs/context-packs');
-  const gfxRoot = resolve(homedir(), '.contextos', 'graphify');
+  const gfxRoot = resolve(homedir(), '.coodra', 'graphify');
   const gfxSlug = join(gfxRoot, 'coodra');
 
   emit('paths', { sqlitePath, cpRoot, gfxRoot });
@@ -66,9 +66,9 @@ async function main(): Promise<void> {
       ...process.env,
       NODE_ENV: 'production',
       LOG_LEVEL: 'error',
-      CONTEXTOS_MODE: 'solo',
-      CONTEXTOS_LOG_DESTINATION: 'stderr',
-      CONTEXTOS_SQLITE_PATH: sqlitePath,
+      COODRA_MODE: 'solo',
+      COODRA_LOG_DESTINATION: 'stderr',
+      COODRA_SQLITE_PATH: sqlitePath,
       CLERK_SECRET_KEY: 'sk_test_replace_me',
     } as Record<string, string>,
     stderr: 'inherit',
@@ -118,7 +118,7 @@ async function main(): Promise<void> {
 
 ## What this run did
 - Connected an SDK Client over stdio to the built mcp-server binary at
-  apps/mcp-server/dist/index.js with CONTEXTOS_MODE=solo.
+  apps/mcp-server/dist/index.js with COODRA_MODE=solo.
 - Called every advertised tool against a non-trivial input shape and
   captured the response envelopes for the verification report.
 
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
    Streamable HTTP transport writes directly to ServerResponse and
    conflicts with Hono's Response-return contract.
 2. CLERK_SECRET_KEY sentinel in CI integration env — the schema's
-   superRefine requires it under CONTEXTOS_MODE=team; sentinel is
+   superRefine requires it under COODRA_MODE=team; sentinel is
    exempt and routes auth through the bypass path.
 3. testcontainers Postgres only for idempotency e2e — sqlite cannot
    fake real concurrent INSERT...ON CONFLICT racing because writes

@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { asc, eq } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -11,7 +11,7 @@ import {
 } from './schema.js';
 
 /**
- * Handler factory for `contextos__read_context_pack` (M05 §5.2).
+ * Handler factory for `coodra__read_context_pack` (M05 §5.2).
  *
  * Hydrates the full pack body + all decisions for the run (capped by
  * `decisionsLimit`). Returns `pack_too_large` when content exceeds 200KB

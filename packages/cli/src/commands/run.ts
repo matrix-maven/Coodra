@@ -10,9 +10,9 @@ import {
   type RunEventRow,
   type RunRow,
   type RunWithEverything,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import {
   commandTitle,
@@ -28,7 +28,7 @@ import {
 } from '../ui/index.js';
 
 /**
- * `contextos run {list|show|cancel}` — admin surface for the `runs`
+ * `coodra run {list|show|cancel}` — admin surface for the `runs`
  * table + every per-run audit row. Module 08b S11.
  *
  * Per OQ-6 lock (2026-05-03), `cancel` is informational metadata
@@ -61,7 +61,7 @@ export interface RunIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_RUN_IO: RunIO = {
@@ -201,8 +201,8 @@ export async function runRunCancelCommand(runId: string, options: RunCancelOptio
 // ============================================================================
 
 async function openHandle(io: RunIO): Promise<Awaited<ReturnType<typeof openLocalDb>>> {
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   return await openLocalDb(dbPath);
 }
 

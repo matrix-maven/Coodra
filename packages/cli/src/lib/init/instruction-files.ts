@@ -5,28 +5,28 @@ import type { WriteOutcome } from './types.js';
 /**
  * `packages/cli/src/lib/init/instruction-files.ts` — beta.95 (Scope A).
  *
- * Generates the ContextOS **agent operating contract** into the per-agent
+ * Generates the Coodra **agent operating contract** into the per-agent
  * project instruction file:
  *   - Codex   → `<repo>/AGENTS.md`        (Codex reads it on the first turn)
  *   - Windsurf→ `<repo>/.windsurfrules`   (Cascade applies it to everything)
  *
- * Why this matters for Codex + Windsurf specifically: ContextOS's hooks-
+ * Why this matters for Codex + Windsurf specifically: Coodra's hooks-
  * bridge auto-injects the Feature Pack and auto-saves the Context Pack
  * for Claude Code. Codex + Windsurf get no hooks in Scope A — so the
  * instruction file IS the trigger contract. It tells the agent WHEN to
- * call which `contextos__*` MCP tool. Without it the 26 tools are
+ * call which `coodra__*` MCP tool. Without it the 26 tools are
  * present but the agent never knows to call them.
  *
  * **Marker-block discipline.** The generated content lives between
- * `<!-- contextos:start -->` / `<!-- contextos:end -->`. `init` only ever
+ * `<!-- coodra:start -->` / `<!-- coodra:end -->`. `init` only ever
  * touches the region between the markers — any user content outside is
  * preserved byte-for-byte. Re-running `init` refreshes the block;
- * `contextos uninstall` strips just the block (and deletes the file
+ * `coodra uninstall` strips just the block (and deletes the file
  * only if init created it and nothing else was added).
  */
 
-export const INSTRUCTION_BLOCK_START = '<!-- contextos:start -->';
-export const INSTRUCTION_BLOCK_END = '<!-- contextos:end -->';
+export const INSTRUCTION_BLOCK_START = '<!-- coodra:start -->';
+export const INSTRUCTION_BLOCK_END = '<!-- coodra:end -->';
 
 export type InstructionFileName = 'AGENTS.md' | '.windsurfrules';
 
@@ -37,50 +37,50 @@ export type InstructionFileName = 'AGENTS.md' | '.windsurfrules';
  */
 export function buildInstructionBlock(projectSlug: string): string {
   return `${INSTRUCTION_BLOCK_START}
-## ContextOS — agent operating contract
+## Coodra — agent operating contract
 
-This project uses **ContextOS**, an MCP server providing Feature Packs
+This project uses **Coodra**, an MCP server providing Feature Packs
 (project blueprints), Features (on-demand skills), Context Packs (records of
-past work), and a Policy Engine. The ContextOS MCP server is wired into this
-agent — you have the \`contextos__*\` tools available. **These tools are how
-ContextOS works; if you don't call them, ContextOS does nothing.**
+past work), and a Policy Engine. The Coodra MCP server is wired into this
+agent — you have the \`coodra__*\` tools available. **These tools are how
+Coodra works; if you don't call them, Coodra does nothing.**
 
 Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool that takes it.
 
 ### At the start of every session — do this first
-1. \`contextos__get_run_id { projectSlug: "${projectSlug}" }\` — obtains the
+1. \`coodra__get_run_id { projectSlug: "${projectSlug}" }\` — obtains the
    \`runId\` that binds this session. Cache it; reuse it in every later call.
-2. \`contextos__get_feature_pack { projectSlug: "${projectSlug}" }\` — the
+2. \`coodra__get_feature_pack { projectSlug: "${projectSlug}" }\` — the
    architectural blueprint + conventions + permitted files for this project.
    Read it before writing code.
-3. \`contextos__list_features { projectSlug: "${projectSlug}" }\` — the available
-   skills. Read each description; pull one with \`contextos__get_feature\` only
+3. \`coodra__list_features { projectSlug: "${projectSlug}" }\` — the available
+   skills. Read each description; pull one with \`coodra__get_feature\` only
    when a user request matches its trigger.
-4. \`contextos__query_run_history { projectSlug: "${projectSlug}", limit: 5 }\` +
-   \`contextos__search_packs_nl { projectSlug: "${projectSlug}", query: "<what you're about to build>" }\`
+4. \`coodra__query_run_history { projectSlug: "${projectSlug}", limit: 5 }\` +
+   \`coodra__search_packs_nl { projectSlug: "${projectSlug}", query: "<what you're about to build>" }\`
    — so you don't duplicate or contradict past work.
 
 ### Before every file write, edit, or shell command
-Call \`contextos__check_policy\` with the tool + input. \`permissionDecision:
+Call \`coodra__check_policy\` with the tool + input. \`permissionDecision:
 "deny"\` → STOP, surface the reason, do not work around it. \`"ask"\` → surface
 the question to the user and wait. \`"allow"\` → proceed.
 
 ### At every design decision — immediately, not at session end
 When you pick a library, design an API/schema, choose an approach, or decide
-NOT to do something: \`contextos__record_decision { runId, description,
+NOT to do something: \`coodra__record_decision { runId, description,
 rationale, alternatives }\`. Log each as you make it — unlogged decisions are
 lost if the session is interrupted.
 
 ### When the user asks about prior work
 "What was done?", "why did we choose X?", "has Y been tried?" → answer from
-\`contextos__query_decisions\`, \`contextos__search_packs_nl\`,
-\`contextos__query_run_history\` — not from memory.
+\`coodra__query_decisions\`, \`coodra__search_packs_nl\`,
+\`coodra__query_run_history\` — not from memory.
 
 ### Before structural refactors
-\`contextos__query_codebase_graph { projectSlug, query }\` for blast radius.
+\`coodra__query_codebase_graph { projectSlug, query }\` for blast radius.
 
 ### At the end of the session
-\`contextos__save_context_pack { runId, title, content }\` — a markdown summary
+\`coodra__save_context_pack { runId, title, content }\` — a markdown summary
 of what was built, decisions made, files changed, and what's next. This is how
 the next session (yours or a teammate's) resumes without starting from zero.
 
@@ -89,8 +89,8 @@ If this machine is in team mode, the same tools sync to your team's cloud:
 decisions, context packs, and features become visible to teammates and the
 policy engine enforces your org's rules. No extra steps — the tools handle it.
 
-> Managed by \`contextos init\`. Edit freely OUTSIDE the markers; this block is
-> regenerated on \`contextos init\` and removed by \`contextos uninstall\`.
+> Managed by \`coodra init\`. Edit freely OUTSIDE the markers; this block is
+> regenerated on \`coodra init\` and removed by \`coodra uninstall\`.
 ${INSTRUCTION_BLOCK_END}`;
 }
 
@@ -102,7 +102,7 @@ export interface MergeInstructionFileOptions {
 }
 
 /**
- * Idempotent write of the ContextOS block into `<cwd>/<filename>`.
+ * Idempotent write of the Coodra block into `<cwd>/<filename>`.
  *
  *   - File absent              → create it containing just the block.
  *   - File has the markers     → replace the block content (it's our
@@ -120,7 +120,7 @@ export async function mergeInstructionFile(options: MergeInstructionFileOptions)
 
   if (!exists) {
     if (!options.dryRun) await writeFile(path, `${block}\n`, 'utf8');
-    return { path, action: 'wrote', notes: `created ${options.filename} with the ContextOS agent contract` };
+    return { path, action: 'wrote', notes: `created ${options.filename} with the Coodra agent contract` };
   }
 
   const raw = await readFile(path, 'utf8');
@@ -132,20 +132,20 @@ export async function mergeInstructionFile(options: MergeInstructionFileOptions)
     const after = raw.slice(endIdx + INSTRUCTION_BLOCK_END.length);
     const next = `${before}${block}${after}`;
     if (next === raw) {
-      return { path, action: 'unchanged', notes: 'ContextOS agent contract already up to date' };
+      return { path, action: 'unchanged', notes: 'Coodra agent contract already up to date' };
     }
     if (!options.dryRun) await writeFile(path, next, 'utf8');
-    return { path, action: 'merged', notes: `refreshed the ContextOS block in ${options.filename}` };
+    return { path, action: 'merged', notes: `refreshed the Coodra block in ${options.filename}` };
   }
 
   // No markers — append, preserving every existing line.
   const sep = raw.endsWith('\n') ? '\n' : '\n\n';
   if (!options.dryRun) await writeFile(path, `${raw}${sep}${block}\n`, 'utf8');
-  return { path, action: 'merged', notes: `appended the ContextOS block to existing ${options.filename}` };
+  return { path, action: 'merged', notes: `appended the Coodra block to existing ${options.filename}` };
 }
 
 /**
- * `contextos uninstall` reverse — strips the ContextOS marker block from
+ * `coodra uninstall` reverse — strips the Coodra marker block from
  * `<cwd>/<filename>`. Content outside the markers is preserved. If the
  * file is left with only whitespace (init created it and the user added
  * nothing else), the file is deleted.
@@ -165,7 +165,7 @@ export async function removeInstructionBlock(options: {
   const startIdx = raw.indexOf(INSTRUCTION_BLOCK_START);
   const endIdx = raw.indexOf(INSTRUCTION_BLOCK_END);
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
-    return { path, action: 'unchanged', notes: `no ContextOS block in ${options.filename}` };
+    return { path, action: 'unchanged', notes: `no Coodra block in ${options.filename}` };
   }
 
   const before = raw.slice(0, startIdx).replace(/\s+$/, '');
@@ -173,13 +173,13 @@ export async function removeInstructionBlock(options: {
   const remaining = `${before}${before.length > 0 && after.length > 0 ? '\n\n' : ''}${after}`;
 
   if (remaining.trim().length === 0) {
-    // File held only the ContextOS block — remove the file entirely.
+    // File held only the Coodra block — remove the file entirely.
     if (!options.dryRun) await unlink(path);
-    return { path, action: 'merged', notes: `removed ${options.filename} (held only the ContextOS block)` };
+    return { path, action: 'merged', notes: `removed ${options.filename} (held only the Coodra block)` };
   }
 
   if (!options.dryRun) await writeFile(path, `${remaining}\n`, 'utf8');
-  return { path, action: 'merged', notes: `stripped the ContextOS block from ${options.filename}` };
+  return { path, action: 'merged', notes: `stripped the Coodra block from ${options.filename}` };
 }
 
 async function pathExists(path: string): Promise<boolean> {

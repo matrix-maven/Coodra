@@ -14,15 +14,15 @@ export const dynamic = 'force-dynamic';
  *
  * Five linear steps. The wizard never makes a destructive change — it
  * only verifies + explains + hands the user the exact CLI command to
- * run. Persistence happens through `contextos team setup`, which
- * writes `~/.contextos/config.json::team` + `~/.contextos/.env` (the
- * env file is the one `contextos start` reads when spawning daemons).
+ * run. Persistence happens through `coodra team setup`, which
+ * writes `~/.coodra/config.json::team` + `~/.coodra/.env` (the
+ * env file is the one `coodra start` reads when spawning daemons).
  *
  *   Step 1 · Supabase  — admin creates a Postgres project, copies URL.
  *   Step 2 · Connect   — admin pastes the URL; we verify reachability + schema.
  *   Step 3 · Clerk     — admin creates a Clerk app + an org, copies keys + their userId / orgId.
- *   Step 4 · CLI       — admin runs `contextos team setup` (we render the exact, copy-paste-ready command).
- *   Step 5 · Invite    — admin shares the four-credential block with teammates so they can run `contextos team join`.
+ *   Step 4 · CLI       — admin runs `coodra team setup` (we render the exact, copy-paste-ready command).
+ *   Step 5 · Invite    — admin shares the four-credential block with teammates so they can run `coodra team join`.
  *
  * State is fully URL-driven (search params). No client state. The
  * verify-step server action redirects with the result encoded back
@@ -53,8 +53,8 @@ export default async function TeamOnboardingWizardPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  // The wizard guides an admin through running `contextos team setup`
-  // on their LAPTOP — the resulting writes go to ~/.contextos/ which
+  // The wizard guides an admin through running `coodra team setup`
+  // on their LAPTOP — the resulting writes go to ~/.coodra/ which
   // doesn't exist on a deployed server. Hide on team-hosted so the
   // sidebar's "Set up team / Mode picker" never opens this page from
   // a hosted dashboard.
@@ -67,7 +67,7 @@ export default async function TeamOnboardingWizardPage({
 
   return (
     <>
-      <Topbar crumb="Team setup" crumbPrefix="contextos / onboarding" />
+      <Topbar crumb="Team setup" crumbPrefix="coodra / onboarding" />
       <section className="screen">
         <div className="head">
           <div>
@@ -195,9 +195,9 @@ function StepOneSupabase() {
           Create a <em>Postgres</em> project.
         </h2>
         <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.6, marginBottom: 28 }}>
-          ContextOS team mode needs a Postgres ≥ 16 with the <code style={inlineMono}>pgvector</code> extension. Supabase
+          Coodra team mode needs a Postgres ≥ 16 with the <code style={inlineMono}>pgvector</code> extension. Supabase
           is the easy default — free tier is fine for a small team. The free tier’s pooler is sufficient for the workload
-          ContextOS produces (small append-only inserts).
+          Coodra produces (small append-only inserts).
         </p>
 
         <Substep
@@ -251,7 +251,7 @@ function StepOneSupabase() {
         rows={[
           { k: 'Append-only audit', v: 'Decisions, runs, packs flow into the cloud DB so teammates can read each other’s history.' },
           { k: 'pgvector', v: 'Used by Module 05’s semantic search over context packs.' },
-          { k: 'You own the data', v: 'ContextOS never sees these credentials. The DB lives in your Supabase account.' },
+          { k: 'You own the data', v: 'Coodra never sees these credentials. The DB lives in your Supabase account.' },
           { k: 'Cost', v: 'Free tier handles ~50 active users for an active team. Upgrade only if you scale.' },
         ]}
       />
@@ -310,7 +310,7 @@ function StepTwoConnect({ sp }: { readonly sp: SearchParams }) {
         title={<>What we <em>check</em></>}
         rows={[
           { k: '1 · reachability', v: 'SELECT 1 against the URL. Catches typos, wrong password, blocked egress.' },
-          { k: '2 · schema', v: 'List public tables. Expects 12 ContextOS tables.' },
+          { k: '2 · schema', v: 'List public tables. Expects 12 Coodra tables.' },
           { k: 'first run', v: 'Schema is missing — that’s expected. Step 4 (CLI) applies migrations to the same DB.' },
           { k: 'we never store', v: 'The URL travels through the page POST → the verify action → trash. The CLI is what writes credentials.' },
         ]}
@@ -362,7 +362,7 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
         ) : null}
         <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.6, marginBottom: 20 }}>
           Clerk is your team’s identity provider. Each member signs into the web app via Clerk. Your <strong>org</strong>{' '}
-          inside Clerk is what scopes ContextOS data — every decision/pack/run is stamped with the author’s Clerk user
+          inside Clerk is what scopes Coodra data — every decision/pack/run is stamped with the author’s Clerk user
           id, then filtered through the org id when teammates read.
         </p>
 
@@ -381,7 +381,7 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
             ⚠ ORDER MATTERS
           </strong>
           <br />
-          You can't run <code style={inlineMono}>contextos team setup --user-id ... --org-id ...</code> with values
+          You can't run <code style={inlineMono}>coodra team setup --user-id ... --org-id ...</code> with values
           that don't yet exist in Clerk. You'd end up with a working <em>local-team</em> setup that nobody else can
           ever sign into, because Clerk would never produce sessions matching those fake IDs. Complete substeps 3.1
           through 3.4 below <em>first</em>, then return to Step 5 with the real ids in hand.
@@ -397,7 +397,7 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
                 <a href="https://dashboard.clerk.com/apps/new" target="_blank" rel="noreferrer" style={linkStyle}>
                   dashboard.clerk.com/apps/new
                 </a>
-                . Pick name “ContextOS”. Enable <strong>Email + Password</strong> at minimum; OAuth is optional.
+                . Pick name “Coodra”. Enable <strong>Email + Password</strong> at minimum; OAuth is optional.
               </span>
             </>
           }
@@ -454,7 +454,7 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
               <span>
                 In Clerk’s <strong>API Keys</strong> page, copy <code style={inlineMono}>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code>{' '}
                 and <code style={inlineMono}>CLERK_SECRET_KEY</code>. The web app reads both — the publishable on the client,
-                the secret on the server. They go into <code style={inlineMono}>~/.contextos/.env</code> in step 4.
+                the secret on the server. They go into <code style={inlineMono}>~/.coodra/.env</code> in step 4.
               </span>
             </>
           }
@@ -473,7 +473,7 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
       <SidePanel
         title={<>Why <em>Clerk</em>?</>}
         rows={[
-          { k: 'Identity', v: 'Stable user_id + org_id every server action can rely on. ContextOS RBAC reads from these.' },
+          { k: 'Identity', v: 'Stable user_id + org_id every server action can rely on. Coodra RBAC reads from these.' },
           { k: 'Three roles', v: 'admin / member / viewer. Default Clerk roles + one custom (viewer). No custom auth code.' },
           { k: 'Free tier', v: 'Up to 10,000 monthly active users. More than enough for an org.' },
           { k: 'Replaceable', v: 'If you don’t want Clerk, you can run only the local bridge — but the web app team UI needs Clerk.' },
@@ -490,7 +490,7 @@ function StepFourCli({ sp }: { readonly sp: SearchParams }) {
     <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'start' }}>
       <div className="card" style={{ padding: 36 }}>
         <h2 className="card__title" style={{ marginBottom: 14 }}>
-          Run <em>contextos team init</em>.
+          Run <em>coodra team init</em>.
         </h2>
         <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.6, marginBottom: 18 }}>
           One interactive command persists everything. The wizard prompts you for your DATABASE_URL and Clerk Secret
@@ -498,19 +498,19 @@ function StepFourCli({ sp }: { readonly sp: SearchParams }) {
           team-mode env. No flags needed for first-time setup — just paste the two values when asked.
         </p>
         <p style={{ fontSize: 13, color: 'var(--ink-mute)', lineHeight: 1.6, marginBottom: 28 }}>
-          (Phase B, 2026-05-11): the legacy six-flag <code style={inlineMono}>contextos team setup</code> still works
-          for CI / automation — see <code style={inlineMono}>contextos team setup --help</code>. Most users should
+          (Phase B, 2026-05-11): the legacy six-flag <code style={inlineMono}>coodra team setup</code> still works
+          for CI / automation — see <code style={inlineMono}>coodra team setup --help</code>. Most users should
           prefer the interactive <code style={inlineMono}>team init</code> wizard.
         </p>
 
         <FieldLabel>Run this in your terminal</FieldLabel>
         <pre style={{ ...codeBlockStyle, padding: 22 }}>
-{`contextos team init`}
+{`coodra team init`}
         </pre>
         <details style={{ marginTop: 14, fontSize: 12, color: 'var(--ink-dim)' }}>
           <summary style={{ cursor: 'pointer' }}>Need a non-interactive command for CI?</summary>
           <pre style={{ ...codeBlockStyle, padding: 18, marginTop: 12 }}>
-{`contextos team setup \\
+{`coodra team setup \\
   --database-url 'postgresql://postgres.abc123:YOUR-PASSWORD@aws-0-us-east-1.pooler.supabase.com:5432/postgres' \\
   --user-id 'user_2nKjYourClerkUserId' \\
   --org-id 'org_2nKjYourClerkOrgId'`}
@@ -532,12 +532,12 @@ function StepFourCli({ sp }: { readonly sp: SearchParams }) {
         </div>
 
         <p style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-          You also need the Clerk keys in <code style={inlineMono}>~/.contextos/.env</code>. Copy this block manually
+          You also need the Clerk keys in <code style={inlineMono}>~/.coodra/.env</code>. Copy this block manually
           after the CLI runs — three lines, the publishable key appears twice (one for the web app’s React tree, one
           for the daemons’ Zod-validated env):
         </p>
         <pre style={{ ...codeBlockStyle, padding: 22 }}>
-{`# append to ~/.contextos/.env
+{`# append to ~/.coodra/.env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_…
 CLERK_PUBLISHABLE_KEY=pk_live_…
 CLERK_SECRET_KEY=sk_live_…`}
@@ -557,8 +557,8 @@ CLERK_SECRET_KEY=sk_live_…`}
             ⚠ DEPLOYING THE WEB ANYWHERE (Vercel/Fly/Docker)?
           </strong>
           <br />
-          You MUST set <code style={inlineMono}>CONTEXTOS_EXPECTED_ORG_ID=org_…</code> + {' '}
-          <code style={inlineMono}>CONTEXTOS_DEPLOYMENT=team-hosted</code> in your deployment env. Without the
+          You MUST set <code style={inlineMono}>COODRA_EXPECTED_ORG_ID=org_…</code> + {' '}
+          <code style={inlineMono}>COODRA_DEPLOYMENT=team-hosted</code> in your deployment env. Without the
           expected-org pin, anyone with a Clerk account in your Clerk app (including random Google sign-ups) can
           sign in and read your team's data. The web app refuses to boot in team-hosted mode without it.
         </p>
@@ -574,7 +574,7 @@ CLERK_SECRET_KEY=sk_live_…`}
         >
           The <code style={inlineMono}>NEXT_PUBLIC_</code> prefix exposes the key to the browser bundle; the
           unprefixed copy is what the MCP server + Hooks Bridge boot-time env validators look for. Skipping the
-          unprefixed line crashes <code style={inlineMono}>contextos start</code> with{' '}
+          unprefixed line crashes <code style={inlineMono}>coodra start</code> with{' '}
           <code style={inlineMono}>CLERK_PUBLISHABLE_KEY required when CLERK_SECRET_KEY is set</code>.
         </p>
 
@@ -593,8 +593,8 @@ CLERK_SECRET_KEY=sk_live_…`}
       <SidePanel
         title={<>What it <em>writes</em></>}
         rows={[
-          { k: 'config.json', v: '~/.contextos/config.json::team — clerkUserId, clerkOrgId, localHookSecret, joinedAt.' },
-          { k: '.env', v: '~/.contextos/.env — CONTEXTOS_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET, CONTEXTOS_TEAM_ORG_ID.' },
+          { k: 'config.json', v: '~/.coodra/config.json::team — clerkUserId, clerkOrgId, localHookSecret, joinedAt.' },
+          { k: '.env', v: '~/.coodra/.env — COODRA_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET, COODRA_TEAM_ORG_ID.' },
           { k: 'cloud schema', v: '13 Drizzle migrations applied to your Postgres.' },
           { k: 'pgvector', v: 'CREATE EXTENSION IF NOT EXISTS vector. Idempotent.' },
           { k: 're-runs', v: 'Safe — repeat to rotate the hook secret or migrate to a new DB.' },
@@ -626,14 +626,14 @@ clerk org id        org_2nKjYourClerkOrgId
 local hook secret   <printed by step 4 — don't lose it>
 clerk publishable   pk_live_…   (each teammate appends as BOTH
                                  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-                                 and CLERK_PUBLISHABLE_KEY= to ~/.contextos/.env)
+                                 and CLERK_PUBLISHABLE_KEY= to ~/.coodra/.env)
 clerk secret key    sk_live_…   (each teammate appends as
-                                 CLERK_SECRET_KEY= to ~/.contextos/.env)`}
+                                 CLERK_SECRET_KEY= to ~/.coodra/.env)`}
         </pre>
 
         <FieldLabel style={{ marginTop: 24 }}>Each teammate runs</FieldLabel>
         <pre style={{ ...codeBlockStyle, padding: 22 }}>
-{`contextos team join \\
+{`coodra team join \\
   --user-id <their-clerk-user-id> \\
   --org-id 'org_2nKjYourClerkOrgId' \\
   --secret '<the-hook-secret-from-step-4>' \\
@@ -642,7 +642,7 @@ clerk secret key    sk_live_…   (each teammate appends as
 
         <p style={{ marginTop: 24, fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
           They also append the same Clerk publishable + secret keys to their own{' '}
-          <code style={inlineMono}>~/.contextos/.env</code>. Once they run <code style={inlineMono}>contextos start</code>,
+          <code style={inlineMono}>~/.coodra/.env</code>. Once they run <code style={inlineMono}>coodra start</code>,
           their bridge syncs to the same Postgres — and from then on, all your runs / decisions / packs flow into one
           shared audit history.
         </p>
@@ -869,11 +869,11 @@ const codeBlockStyle: React.CSSProperties = {
  * `team init` wizard. Some admins prefer pasting credentials into a
  * browser form over a terminal prompt. The form posts to
  * `runTeamInitWizardAction` which runs the same shared library
- * functions the CLI does, writes the same `~/.contextos/` files,
+ * functions the CLI does, writes the same `~/.coodra/` files,
  * then redirects to `/settings/team`.
  *
  * Refused in `team-hosted` (the deployment server doesn't have a
- * `~/.contextos/`) and `local-team` (already set up). The action
+ * `~/.coodra/`) and `local-team` (already set up). The action
  * double-checks this gate; the form is hidden on the page when the
  * top-level mode check already redirected.
  */
@@ -907,7 +907,7 @@ function ExecuteInBrowserForm({ sp }: { readonly sp: SearchParams }) {
       </summary>
       <p style={{ fontSize: 12, color: 'var(--ink-dim)', lineHeight: 1.65, marginTop: 14, marginBottom: 14 }}>
         Paste your DATABASE_URL and Clerk Secret Key below. The form runs the same three-step bootstrap the CLI does
-        and writes to <code style={inlineMono}>~/.contextos/</code> on this machine. Refused in team-hosted
+        and writes to <code style={inlineMono}>~/.coodra/</code> on this machine. Refused in team-hosted
         deployments — the wizard only ships writes to the laptop running this dev server.
       </p>
       {failed ? (

@@ -23,7 +23,7 @@ import type { Check } from '../types.js';
  *   4. PreToolUse and PostToolUse have a tool-name regex matcher
  *      covering the file-mutating tool set
  *      (Write|Edit|MultiEdit|NotebookEdit|Bash). The literal sentinel
- *      `__contextos__` is flagged as legacy pre-Fix-F drift — the
+ *      `__coodra__` is flagged as legacy pre-Fix-F drift — the
  *      remediation tells the user to re-run init.
  *   5. SessionStart/Stop/SessionEnd have NO matcher (per Claude Code's
  *      hook spec: matcher only applies to tool events).
@@ -55,11 +55,11 @@ const settingsSchema = z
 const REQUIRED_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const;
 const TOOL_EVENTS: ReadonlySet<string> = new Set(['PreToolUse', 'PostToolUse']);
 const EXPECTED_TOOL_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit|Bash';
-const LEGACY_SENTINEL = '__contextos__';
+const LEGACY_SENTINEL = '__coodra__';
 
 export const claudeHookRegistrationCheck: Check = {
   id: 28,
-  name: '~/.claude/settings.json registers all 5 ContextOS hook events with correct matchers',
+  name: '~/.claude/settings.json registers all 5 Coodra hook events with correct matchers',
   severity: 'yellow',
   async run(ctx) {
     const settingsPath = join(homedir(), '.claude', 'settings.json');
@@ -71,8 +71,8 @@ export const claudeHookRegistrationCheck: Check = {
       if (code === 'ENOENT') {
         return {
           status: 'yellow',
-          detail: `~/.claude/settings.json not found — Claude Code is not configured to call the ContextOS bridge.`,
-          remediation: 'Run `contextos init` to write the hook registration.',
+          detail: `~/.claude/settings.json not found — Claude Code is not configured to call the Coodra bridge.`,
+          remediation: 'Run `coodra init` to write the hook registration.',
         };
       }
       return {
@@ -88,7 +88,7 @@ export const claudeHookRegistrationCheck: Check = {
       return {
         status: 'yellow',
         detail: `~/.claude/settings.json invalid JSON or shape: ${(err as Error).message}`,
-        remediation: 'Re-run `contextos init` to rewrite the hook registration.',
+        remediation: 'Re-run `coodra init` to rewrite the hook registration.',
       };
     }
 
@@ -114,7 +114,7 @@ export const claudeHookRegistrationCheck: Check = {
       // Matcher contract:
       //   - tool events MUST equal EXPECTED_TOOL_MATCHER (Phase 4 Fix F)
       //   - non-tool events MUST omit matcher entirely
-      //   - the legacy `__contextos__` sentinel is pre-Fix-F drift
+      //   - the legacy `__coodra__` sentinel is pre-Fix-F drift
       if (TOOL_EVENTS.has(eventName)) {
         if (ours.matcher === LEGACY_SENTINEL) {
           legacySentinels.push(eventName);
@@ -131,23 +131,23 @@ export const claudeHookRegistrationCheck: Check = {
     if (legacySentinels.length > 0) {
       return {
         status: 'yellow',
-        detail: `pre-Fix-F legacy matcher (\`__contextos__\`) present on: ${legacySentinels.join(', ')}. Claude Code's hook matcher is a regex over tool names; the literal sentinel never matches any real tool, so PreToolUse / PostToolUse hooks are functionally inert.`,
+        detail: `pre-Fix-F legacy matcher (\`__coodra__\`) present on: ${legacySentinels.join(', ')}. Claude Code's hook matcher is a regex over tool names; the literal sentinel never matches any real tool, so PreToolUse / PostToolUse hooks are functionally inert.`,
         remediation:
-          'Re-run `contextos init` to migrate the entry to the post-Fix-F per-event matcher (`Write|Edit|MultiEdit|NotebookEdit|Bash`).',
+          'Re-run `coodra init` to migrate the entry to the post-Fix-F per-event matcher (`Write|Edit|MultiEdit|NotebookEdit|Bash`).',
       };
     }
     if (missing.length > 0) {
       return {
         status: 'yellow',
         detail: `missing hook registrations: ${missing.join(', ')}. Claude Code will not POST these events to the bridge.`,
-        remediation: 'Re-run `contextos init` to add the missing hook entries.',
+        remediation: 'Re-run `coodra init` to add the missing hook entries.',
       };
     }
     if (driftedMatchers.length > 0) {
       return {
         status: 'yellow',
         detail: `unexpected matcher shape: ${driftedMatchers.join(', ')}.`,
-        remediation: 'Re-run `contextos init` to rewrite the hook entries with the canonical matcher set.',
+        remediation: 'Re-run `coodra init` to rewrite the hook entries with the canonical matcher set.',
       };
     }
     return {

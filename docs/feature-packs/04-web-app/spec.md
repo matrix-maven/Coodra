@@ -1,18 +1,18 @@
-# Module 04 — Web App (`apps/web` admin + audit-trail UI for ContextOS) — Spec
+# Module 04 — Web App (`apps/web` admin + audit-trail UI for Coodra) — Spec
 
 > **Status:** kickoff (2026-05-03). No implementation slice has landed yet. This spec is the kickoff document; open questions in §13 were locked by the project lead in the same session it was authored.
 > **Depends on:** 01 Foundation (DB), 02 MCP Server, 03 Hooks Bridge, 03.1 Durable Outbox (audit-trail integrity), 04a Sync Daemon (one-way push baseline; M04 extends to bidirectional — see §10), 08a CLI (operational install/lifecycle), 08b CLI Expansion (admin surfaces — `policy/project/run/pack/template/pause/export/doctor` shape the web's contract).
 > **Blocks:** 07 VS Code Extension's session-panel and admin-surface webview consumers — they target the M04 routes once they exist. Team-mode hosted deploy in production also blocks on M04 (web is the user-visible surface that justifies the cloud bill).
 > **Aware of:** 05 NL Assembly will eventually own a `/search` route + Context-Pack semantic-search UI; 06 Semantic Diff will eventually own a `/runs/[id]/diff` overlay. Neither lands in M04.
-> **Source of truth:** `system-architecture.md` §1 (modes), §2 (service inventory; web is item 4 on `:3000`), §3.1 (HTTP versions — Next.js 15 ships HTTP/2 ready), §4 (data-at-rest — M04 reads from the same 11-table schema; no deltas), §7 (fail-open — web inherits this for live updates), §13 (`contextos start` provisions web in solo dev), §15 (web scaling — solo single-process, team standard Vercel-style hosting), §16 patterns 1–4 (idempotency carries through to web mutations) + 12 (admin authority) + 19 (auth) + 20 (bridge-mediated session lifecycle — M04 reads the run state the bridge persists), §19 (auth — solo bypass + team Clerk JWT). Visual identity: `brand.md` + `brand.html` (Precision Blue, Inter weight contrast, JetBrains Mono, zero-radius). User directives 2026-04-24 (no marketing site, no BYO-cloud team variant, Gemini for managed LLM) and 2026-05-03 (M04 OQ locks).
+> **Source of truth:** `system-architecture.md` §1 (modes), §2 (service inventory; web is item 4 on `:3000`), §3.1 (HTTP versions — Next.js 15 ships HTTP/2 ready), §4 (data-at-rest — M04 reads from the same 11-table schema; no deltas), §7 (fail-open — web inherits this for live updates), §13 (`coodra start` provisions web in solo dev), §15 (web scaling — solo single-process, team standard Vercel-style hosting), §16 patterns 1–4 (idempotency carries through to web mutations) + 12 (admin authority) + 19 (auth) + 20 (bridge-mediated session lifecycle — M04 reads the run state the bridge persists), §19 (auth — solo bypass + team Clerk JWT). Visual identity: `brand.md` + `brand.html` (Precision Blue, Inter weight contrast, JetBrains Mono, zero-radius). User directives 2026-04-24 (no marketing site, no BYO-cloud team variant, Gemini for managed LLM) and 2026-05-03 (M04 OQ locks).
 
 ## 1. What M04 is
 
-M04 ships **`apps/web`** — a Next.js 15 + React 19 application that exposes ContextOS's operational and audit surfaces over a browser. It is the first read surface for end-users that is not the CLI. The web app is **the same build in solo and team mode**; the storage adapter chooses local SQLite or cloud Postgres at boot, and the auth middleware chooses bypass or Clerk JWT validation.
+M04 ships **`apps/web`** — a Next.js 15 + React 19 application that exposes Coodra's operational and audit surfaces over a browser. It is the first read surface for end-users that is not the CLI. The web app is **the same build in solo and team mode**; the storage adapter chooses local SQLite or cloud Postgres at boot, and the auth middleware chooses bypass or Clerk JWT validation.
 
-**Why now.** The 20-command CLI from M08b proved that ContextOS has the right admin-surface vocabulary (policy / project / run / pack / template / pause / export / doctor); the web app makes that vocabulary visible to people who don't live in a terminal — code reviewers asking "what did the agent decide on PR #482", security reviewers asking "show me every deny in the last 7 days", team admins who need to flip a global kill-switch from a phone. The CLI gates the agent loop in real time; the web reveals what happened.
+**Why now.** The 20-command CLI from M08b proved that Coodra has the right admin-surface vocabulary (policy / project / run / pack / template / pause / export / doctor); the web app makes that vocabulary visible to people who don't live in a terminal — code reviewers asking "what did the agent decide on PR #482", security reviewers asking "show me every deny in the last 7 days", team admins who need to flip a global kill-switch from a phone. The CLI gates the agent loop in real time; the web reveals what happened.
 
-**Why also "the UI/UX module".** ContextOS has been backend-only for eleven modules. M04 is the first time the brand lives in pixels. We treat it as the visual-identity grounding event: every M04 surface uses the canonical brand (Precision Blue interactive-only, Inter weight contrast, JetBrains Mono for IDs/paths/code, zero-radius rectangles, dark hero / light content rhythm, the status palette already mapping to enforcement vocabulary). M07 (VS Code) and any future surface (e.g. a marketplace listing webview) will inherit from M04's token catalog — so we port the **full** brand catalog up-front (OQ-5 lock), not the load-bearing minimum. This is the one place in the project where over-investing in design system pays compound interest.
+**Why also "the UI/UX module".** Coodra has been backend-only for eleven modules. M04 is the first time the brand lives in pixels. We treat it as the visual-identity grounding event: every M04 surface uses the canonical brand (Precision Blue interactive-only, Inter weight contrast, JetBrains Mono for IDs/paths/code, zero-radius rectangles, dark hero / light content rhythm, the status palette already mapping to enforcement vocabulary). M07 (VS Code) and any future surface (e.g. a marketplace listing webview) will inherit from M04's token catalog — so we port the **full** brand catalog up-front (OQ-5 lock), not the load-bearing minimum. This is the one place in the project where over-investing in design system pays compound interest.
 
 **What M04 is NOT.** Not a marketing site. Not a landing page. Not a public docs portal. Not billing. Not seat management. M04 is operator-and-audit-only — every page is for someone already inside a project (solo: themselves; team: a member of an org). Marketing/distribution stays out per the standing 2026-04-24 directive.
 
@@ -28,11 +28,11 @@ A commit on `feat/04-web-app` is "complete" when **every** item below holds on a
 6. `pnpm test:e2e` — extended e2e adds the **dashboard-home contract:** boot a synthetic project with seeded runs + decisions + an active kill-switch + a doctor warning, fetch `/`, assert each tile renders the right number with the right colour from the status palette.
 7. **Schema delta:** **NONE.** M04 reads + writes against the existing 11-table schema (`projects`, `runs`, `run_events`, `context_packs`, `pending_jobs`, `policies`, `policy_rules`, `policy_decisions`, `feature_packs`, `decisions`, `kill_switches`). No new migrations. The sync-daemon's `kill_switches` handler is a new dispatcher, not a schema change.
 8. **Backwards compatibility:** every CLI command (M08a + M08b — 20 commands) keeps its surface verbatim. The web reads from the same SQLite/Postgres tables the CLI writes to; no shadow tables, no derived caches that could drift.
-9. **Mode parity:** every M04 route renders correctly in BOTH `CONTEXTOS_MODE=solo` (against `~/.contextos/data.db`) and `CONTEXTOS_MODE=team` (against the Supabase Postgres at `gyopozvfmggumidptmjr.supabase.co`). The storage adapter (§7) selects the read path; nothing else differs.
+9. **Mode parity:** every M04 route renders correctly in BOTH `COODRA_MODE=solo` (against `~/.coodra/data.db`) and `COODRA_MODE=team` (against the Supabase Postgres at `gyopozvfmggumidptmjr.supabase.co`). The storage adapter (§7) selects the read path; nothing else differs.
 10. **Brand fidelity:** every M04 surface uses tokens from `apps/web/styles/tokens.css` (the full ported catalog from `brand.md`/`brand.html`); zero hardcoded hex colors, zero hardcoded font sizes, zero non-brand typefaces, zero rounded corners. One unit test enforces this (greps the built CSS for hardcoded `#` outside the tokens file and `border-radius` values > 0).
 11. **Auth model:** in solo, every route renders without sign-in as the synthetic `__solo__` user (matches CLI's existing `__solo__` org-default). In team, every route except the auth callback is protected by Clerk JWT middleware; unauthenticated GETs return a 302 to the Clerk-hosted sign-in.
 12. **Live updates contract:** every page that surfaces real-time data (dashboard home, run detail, kill-switch admin) uses the **polling adapter** at the cadence locked in §8 (1500ms default, configurable). Optimistic UI is allowed for explicit user actions; passive page state polls.
-13. **Bidirectional kill-switch sync:** a switch flipped in the web admin (S8b) lands in cloud Postgres and is pulled by every developer's sync-daemon (S8a's new handler) within ~10s p95, then visible to the local hooks-bridge on its next 5s cache miss. A switch flipped locally via `contextos pause` is pushed up to cloud by the existing M04a one-way path, made visible to the web admin and to other developers' sync-daemons via the same pull. **This explicitly extends M04a OQ-1**, which restricted M04a to one-way push.
+13. **Bidirectional kill-switch sync:** a switch flipped in the web admin (S8b) lands in cloud Postgres and is pulled by every developer's sync-daemon (S8a's new handler) within ~10s p95, then visible to the local hooks-bridge on its next 5s cache miss. A switch flipped locally via `coodra pause` is pushed up to cloud by the existing M04a one-way path, made visible to the web admin and to other developers' sync-daemons via the same pull. **This explicitly extends M04a OQ-1**, which restricted M04a to one-way push.
 14. **Pre-M04 fix-ups PR landed first** (§12): the three blockers from `context_memory/blockers.md` (`.strict()` hook payload, init policy seeding, `seedFeaturePack` only writes spec.md) ship on a separate `fix/pre-m04-blockers` PR that merges to `main` BEFORE `feat/04-web-app/S1` opens. The `.strict()` fix is item one — it is the highest-priority item on that PR because it's been observed firing live (Stop hook returning the PreToolUse shape was rejected by the bridge during this very session, 2026-05-03).
 15. **Module 04 Context Pack** saved to `docs/context-packs/YYYY-MM-DD-module-04-web-app.md` per `essentialsforclaude/08-implementation-order.md §8.4`. The README module-status table flips 04 → ✅ in the same commit.
 
@@ -46,7 +46,7 @@ These are deliberately excluded from M04 and are **not** stubbed (per `01-develo
 - **No Atlassian / GitHub / JIRA web surfaces.** Those integrations have their own MCP-tool surfaces (§22, §23) but the web visualisation of issue/PR linking is a follow-up.
 - **No `/search` semantic-search route.** Depends on M05 NL Assembly's embedding pipeline. Until M05 ships, search would be `LIKE '%term%'` only — a "search that doesn't find anything useful" is worse than no search.
 - **No `/runs/[id]/diff` semantic-diff overlay.** Depends on M06.
-- **No notebooks / playground / "try ContextOS" sandbox.** Out of scope. Real-data only.
+- **No notebooks / playground / "try Coodra" sandbox.** Out of scope. Real-data only.
 - **No public-facing share links** (e.g. "share this run with a reviewer who isn't in the org"). Auth requirement applies to every audit row in team mode.
 - **No mobile-native app.** Responsive web that works on phones is in-scope per the brand spec's responsive guidance; a React Native shell is not.
 - **No live editor for `decisions` or `context_packs`.** Both tables are append-only by ADR-007. M04 reads them everywhere; M04 never lets the user edit them. The `record_decision` action is via the agent / MCP, not the web UI.
@@ -59,30 +59,30 @@ The web's URL surface, mapped to CLI parity and to which mode each route is mean
 
 | Route | What it shows | CLI parity | Modes | Slice |
 |---|---|---|---|---|
-| `/` | Dashboard home — active runs count, recent denials (last 24h), active kill-switches, doctor RED/YELLOW summary, latest 10 events. The CLI parity is `contextos doctor` + `contextos run list` + `contextos pause` status combined into one read | combined | solo + team | S9 |
-| `/runs` | Run list with filter by status / project / agent type. Sortable by `started_at` desc | `contextos run list` | solo + team | S3 |
-| `/runs/[id]` | Run detail — full timeline of `run_events` + `policy_decisions` + `decisions` + linked `context_packs`. HTML port of `contextos export <runId> --format markdown --include-audit` (audit always visible in web, since the audience is human-reading not Slack-broadcasting) | `contextos run show` + `contextos export` | solo + team | S3 |
+| `/` | Dashboard home — active runs count, recent denials (last 24h), active kill-switches, doctor RED/YELLOW summary, latest 10 events. The CLI parity is `coodra doctor` + `coodra run list` + `coodra pause` status combined into one read | combined | solo + team | S9 |
+| `/runs` | Run list with filter by status / project / agent type. Sortable by `started_at` desc | `coodra run list` | solo + team | S3 |
+| `/runs/[id]` | Run detail — full timeline of `run_events` + `policy_decisions` + `decisions` + linked `context_packs`. HTML port of `coodra export <runId> --format markdown --include-audit` (audit always visible in web, since the audience is human-reading not Slack-broadcasting) | `coodra run show` + `coodra export` | solo + team | S3 |
 | `/runs/[id]/live` | Live view — same shape as `/runs/[id]` but with the polling adapter wired so a session in progress updates ~1.5s. Auto-redirects to `/runs/[id]` when `status` flips to `completed` / `cancelled` / `failed` | (no direct CLI parity; CLI is request-response) | solo + team | S4 |
-| `/policies` | Policy list with row count + active/inactive | `contextos policy list` | solo + team | S5 |
-| `/policies/[id]` | Policy detail — rules table, add-rule form, enable/disable toggle on the policy itself | `contextos policy show / add / enable / disable` | solo + team | S5 |
-| `/projects` | Project list with run count + last-run timestamp | `contextos project list` | solo + team | S6 |
-| `/projects/[id]` | Project detail — recent runs, status histogram, reset button (destructive — confirmation required) | `contextos project show / reset` | solo + team | S6 |
-| `/packs` | Feature pack list with active flag + parent slug + missing-file warnings | `contextos pack list` | solo + team | S7 |
-| `/packs/[slug]` | Pack detail — contents of `spec.md` / `implementation.md` / `techstack.md` / `meta.json`, last-modified per file, isActive toggle | `contextos pack show / regenerate / delete` | solo + team | S7 |
-| `/templates` | Template browser — bundled (7) + user-installed templates with detect rules + autoSections | `contextos template list / install` | solo + team | S7 |
-| `/kill-switches` | Active + recent kill-switches; pause-new form (scope=global/project/tool/agent_type, mode=hard/soft, optional expiry); resume buttons | `contextos pause / resume` | **solo + team — but team-mode-only writes propagate to all developers via S8a sync** | S8b |
+| `/policies` | Policy list with row count + active/inactive | `coodra policy list` | solo + team | S5 |
+| `/policies/[id]` | Policy detail — rules table, add-rule form, enable/disable toggle on the policy itself | `coodra policy show / add / enable / disable` | solo + team | S5 |
+| `/projects` | Project list with run count + last-run timestamp | `coodra project list` | solo + team | S6 |
+| `/projects/[id]` | Project detail — recent runs, status histogram, reset button (destructive — confirmation required) | `coodra project show / reset` | solo + team | S6 |
+| `/packs` | Feature pack list with active flag + parent slug + missing-file warnings | `coodra pack list` | solo + team | S7 |
+| `/packs/[slug]` | Pack detail — contents of `spec.md` / `implementation.md` / `techstack.md` / `meta.json`, last-modified per file, isActive toggle | `coodra pack show / regenerate / delete` | solo + team | S7 |
+| `/templates` | Template browser — bundled (7) + user-installed templates with detect rules + autoSections | `coodra template list / install` | solo + team | S7 |
+| `/kill-switches` | Active + recent kill-switches; pause-new form (scope=global/project/tool/agent_type, mode=hard/soft, optional expiry); resume buttons | `coodra pause / resume` | **solo + team — but team-mode-only writes propagate to all developers via S8a sync** | S8b |
 | `/auth/sign-in` | Clerk-hosted sign-in (team only; redirected away in solo) | (no CLI parity) | team only | S10 |
 | `/auth/sign-up` | Clerk-hosted sign-up | (no CLI parity) | team only | S10 |
 | `/settings/team` | Org members + invites (Clerk org management) | (no CLI parity) | team only | S10 |
 | `/api/healthz` | `200 ok` for monitoring | (no CLI parity; equivalent to bridge `/healthz`) | solo + team | S1 |
 | `/api/runs/stream?runId=X` | SSE-style polling endpoint that returns the latest run state on each tick (server long-poll → fast 304/200 with delta JSON) | (no CLI parity; underpins `/runs/[id]/live`) | solo + team | S4 |
-| `/api/kill-switches` | POST to insert; PATCH to soft-resume | `contextos pause / resume` | solo + team | S8b |
+| `/api/kill-switches` | POST to insert; PATCH to soft-resume | `coodra pause / resume` | solo + team | S8b |
 
 **Routes deliberately NOT in M04** (per §3 non-goals): `/search`, `/runs/[id]/diff`, `/billing`, `/marketing/*`, `/docs/*`, any marketplace surface, any "share" route.
 
 ## 5. The "first 5 minutes" — the experience this spec is buying
 
-**Solo developer onboarding** (after `pnpm install` + `contextos init` + `contextos start`):
+**Solo developer onboarding** (after `pnpm install` + `coodra init` + `coodra start`):
 
 1. Open `http://localhost:3000` → instantly land on `/` with no sign-in. Header reads `[CTX]OS` in Inter 900 + `verify-m08b` (their project slug) in Inter 300 uppercase next to it. Below: five tiles in the status palette.
 2. Top-left tile: "Active runs: 0" (Inactive grey). Adjacent: "Denials (24h): 0" (Allowed green if zero, Denied red if non-zero). "Active kill-switches: 0". "Doctor: 11/11 essential green". Latest events: empty state with hint `Open Claude Code in this project to see events flow.`
@@ -96,7 +96,7 @@ The web's URL surface, mapped to CLI parity and to which mode each route is mean
 3. Spot a tool the agent shouldn't use → click Pause. Form pops: scope=tool, target=Bash, mode=hard, reason="2026-Q2 incident review". Submit → the row lands in cloud Postgres immediately. Within ~10s every developer's sync-daemon pulls it; within +5s their bridge cache misses and refreshes; the next Bash call any agent in the org makes is denied with `kill_switch_paused:<id>`.
 4. Drill into a run. See the agent's decisions (from `decisions` table) with rationale + alternatives, the policy decisions audit (with `permission_decision` + `reason`), the context pack. Hand the URL to a code reviewer who is also in the org — they sign in once, see the same page.
 
-Both flows are CLI-parity-first: anything the dashboard shows is something `contextos <command>` already prints. The web doesn't invent new state; it makes the existing state navigable.
+Both flows are CLI-parity-first: anything the dashboard shows is something `coodra <command>` already prints. The web doesn't invent new state; it makes the existing state navigable.
 
 ## 6. Schema deltas
 
@@ -112,12 +112,12 @@ If the web app ever needs a derived table (e.g. a `dashboard_aggregates_cache` r
 
 ## 7. Storage adapter contract (OQ-1: direct better-sqlite3 in solo)
 
-The web app's data layer is a single function `createWebDb(): DbHandle` (re-using the `DbHandle` type from `@coodra/contextos-db`). It reads `CONTEXTOS_MODE`:
+The web app's data layer is a single function `createWebDb(): DbHandle` (re-using the `DbHandle` type from `@coodra/db`). It reads `COODRA_MODE`:
 
-- **`solo`** → returns `createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(...) } })`. This is the SAME constructor the CLI and bridge use; better-sqlite3 is loaded as a Next.js server-runtime dependency (it's already a workspace dependency via `@coodra/contextos-db`).
+- **`solo`** → returns `createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(...) } })`. This is the SAME constructor the CLI and bridge use; better-sqlite3 is loaded as a Next.js server-runtime dependency (it's already a workspace dependency via `@coodra/db`).
 - **`team`** → returns `createDb({ kind: 'cloud', postgres: { url: env.DATABASE_URL } })` — a Drizzle pg pool. Pool config: `max=10` (Vercel/Railway hosting can scale horizontally; we don't need 100 conns per instance), `idle_timeout=30s`, `connect_timeout=5s`.
 
-**Why direct, not HTTP-to-services (OQ-1 alternative):** The HTTP path adds a hop (web → bridge → DB) and forces the daemons to be running just to view the dashboard. Solo developers will routinely want to read the audit trail when ContextOS isn't actively running (e.g., reviewing yesterday's session). Direct read is simpler, removes the operational surface, and matches how the CLI already works. The native-module coupling cost (`better-sqlite3` is a native dep) is acceptable because it's already in the workspace and the CLI bundles it.
+**Why direct, not HTTP-to-services (OQ-1 alternative):** The HTTP path adds a hop (web → bridge → DB) and forces the daemons to be running just to view the dashboard. Solo developers will routinely want to read the audit trail when Coodra isn't actively running (e.g., reviewing yesterday's session). Direct read is simpler, removes the operational surface, and matches how the CLI already works. The native-module coupling cost (`better-sqlite3` is a native dep) is acceptable because it's already in the workspace and the CLI bundles it.
 
 **The bridge / MCP server are still authoritative WRITERS** — the web never bypasses the bridge to write a `policy_decision` row directly. The web only writes to tables the CLI already writes to with the same helpers (`addPolicyRule`, `setPolicyActive`, `insertKillSwitch`, `softResumeKillSwitch`, `softResumeAllKillSwitches`).
 
@@ -157,9 +157,9 @@ export function usePoll<T>(opts: PollOptions<T>): { data: T | undefined; error: 
 
 ## 9. Auth model (OQ-3: solo bypass = synthetic `__solo__` user)
 
-**Solo mode** (`CONTEXTOS_MODE=solo`):
+**Solo mode** (`COODRA_MODE=solo`):
 
-- The web app skips the Clerk middleware entirely. The middleware checks `env.CONTEXTOS_MODE === 'solo'` first and short-circuits with `next()`.
+- The web app skips the Clerk middleware entirely. The middleware checks `env.COODRA_MODE === 'solo'` first and short-circuits with `next()`.
 - Every server component that needs an "authenticated user" gets a synthetic identity:
   ```ts
   { userId: '__solo__', orgId: '__solo__', mode: 'solo' }
@@ -168,7 +168,7 @@ export function usePoll<T>(opts: PollOptions<T>): { data: T | undefined; error: 
 - No sign-in page. No `/auth/*` routes are reachable in solo (returning 404).
 - The `__solo__` userId matches the CLI's `__solo__` org-default already used in `projects.org` and the F7 invariant for unregistered cwds. Continuity across surfaces.
 
-**Team mode** (`CONTEXTOS_MODE=team`):
+**Team mode** (`COODRA_MODE=team`):
 
 - Middleware wraps every route except `/auth/*` and `/api/healthz` in `clerkMiddleware()` from `@clerk/nextjs`. Unauthenticated → 302 to `/auth/sign-in`.
 - Server components extract `auth()` to get `userId` + `orgId`. Every DB query is filtered by `orgId` (RLS-style filter — the cloud Postgres also enforces row-level security on `projects.org_id` as belt-and-suspenders).
@@ -190,7 +190,7 @@ export function usePoll<T>(opts: PollOptions<T>): { data: T | undefined; error: 
 
 **Conflict semantics:** if developer A pauses globally locally at the same moment team admin pauses globally from web, both rows land in cloud. The matcher's first-match-wins (oldest unresumed by `paused_at` ASC) means whichever was earlier wins; both are visible in the audit. No row is lost. Resume of either clears that switch only — the other stays active. This is intentional per ADR-007's append-only spirit.
 
-**Local-only switches stay local.** A switch flipped via `contextos pause` with `--no-sync` (S8a adds this flag) does not push to cloud. Useful for a developer testing locally without affecting the team. Default is sync-on.
+**Local-only switches stay local.** A switch flipped via `coodra pause` with `--no-sync` (S8a adds this flag) does not push to cloud. Useful for a developer testing locally without affecting the team. Default is sync-on.
 
 **Sync-daemon scope additions** (S8a):
 
@@ -201,7 +201,7 @@ export function usePoll<T>(opts: PollOptions<T>): { data: T | undefined; error: 
 
 **Web-side write contract** (S8b):
 
-- POST `/api/kill-switches` body: `{ scope, target, mode, reason, expiresAt? }` (zod-validated, same shape as `InsertKillSwitchInput` from `@coodra/contextos-db`)
+- POST `/api/kill-switches` body: `{ scope, target, mode, reason, expiresAt? }` (zod-validated, same shape as `InsertKillSwitchInput` from `@coodra/db`)
 - PATCH `/api/kill-switches?id=<id>` for soft-resume
 - All writes idempotent by-design (the underlying helpers handle this); the web shows a duplicate-active banner ("This scope is already paused — id ks_..., paused 12 min ago by alice@org")
 
@@ -246,11 +246,11 @@ OQ-6 lock = (b) originally scoped a separate `fix/pre-m04-blockers` PR to land t
 
 **Adjacent finding (NOT a blocker):** the bridge's response shape `hookSpecificOutput.{hookEventName, permissionDecision, permissionDecisionReason, additionalContext?}` is identical for every event type. Per Claude Code's hook-response spec (`code.claude.com/docs/en/hooks` fetched 2026-05-04), only PreToolUse + SessionStart consume `hookSpecificOutput`; PostToolUse / Stop / SessionEnd / SubagentStop expect top-level `decision: 'block'` + `reason` (or empty body to allow). The docs explicitly say wrong-shape `hookSpecificOutput` is "silently ignored" — so the bridge's drift causes no rejected hooks, no failed sessions, no audit gaps. It's a fidelity gap, not a bug. **Reserved as M04 S11 cleanup** (per-event response shaping in `apps/hooks-bridge/src/app.ts`); not pre-M04 work.
 
-**Latent fragility (NOT a blocker):** `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk` still does `Promise.all` over all four files — fail-fast on any missing one. Through the supported `contextos init` path this never fires (init seeds all four), but a manually-created pack with only `spec.md` would throw `handler_threw`. **Reserved as M04 S11 cleanup** (mirror the bridge's `readMaybe` pattern for symmetry); not pre-M04 work.
+**Latent fragility (NOT a blocker):** `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk` still does `Promise.all` over all four files — fail-fast on any missing one. Through the supported `coodra init` path this never fires (init seeds all four), but a manually-created pack with only `spec.md` would throw `handler_threw`. **Reserved as M04 S11 cleanup** (mirror the bridge's `readMaybe` pattern for symmetry); not pre-M04 work.
 
 **Net result:** OQ-6 lock retired. No `fix/pre-m04-blockers` PR ships. M04 S1 opens directly off `main` after S0.5 (wireframes). The two reserved cleanups land in M04 S11 alongside the closeout pack. `context_memory/blockers.md` updated 2026-05-04 with ✅ resolved markers + Phase 3 Fix citations on each entry.
 
-**S1 first acceptance check is unchanged:** "fresh `contextos init`'s SessionStart hook against the bridge returns a populated `additionalContext`" — already true on `main` (no fix-up needed for it to hold).
+**S1 first acceptance check is unchanged:** "fresh `coodra init`'s SessionStart hook against the bridge returns a populated `additionalContext`" — already true on `main` (no fix-up needed for it to hold).
 
 ## 13. Locked design decisions (signed off 2026-05-03)
 
@@ -260,7 +260,7 @@ All open questions in M04 were locked by the project lead in the same session th
 |---|---|---|---|
 | OQ-1 | (a) Direct `better-sqlite3` from Next.js server in solo; Drizzle Postgres pool in team | Removes the operational surface of "must have daemons running to view audit"; matches CLI read pattern | §7, S1 storage adapter |
 | OQ-2 | (a) Client-side polling at 1500ms default | Works in both modes with one code path; avoids LISTEN/NOTIFY's solo-fallback complication; "feels live" enough for the v1 audience | §8, S4 live adapter, rename `/api/runs/stream` → `/api/runs/[id]/state` |
-| OQ-3 | (a) No sign-in screen in solo; every page renders as synthetic `__solo__` | Continuity with CLI's `__solo__` org-default (F7 invariant); zero friction for the developer who just ran `contextos init` | §9, S1 middleware, S10 |
+| OQ-3 | (a) No sign-in screen in solo; every page renders as synthetic `__solo__` | Continuity with CLI's `__solo__` org-default (F7 invariant); zero friction for the developer who just ran `coodra init` | §9, S1 middleware, S10 |
 | OQ-4 | (a) Sync-daemon adds `kill_switches` to its pull list; ~10s p95 propagation, no new infra | Builds on M04a's existing 5s pull cadence; bridge's 5s cache TTL is unchanged | §10, S8a, S8b; explicitly EXTENDS M04a OQ-1 |
 | OQ-5 | (b) Port the full brand catalog up-front into `apps/web/styles/` | Brand IS the engineering-rigor differentiator; under-investing invites "looks like every dev tool"; catalog is bounded (~200 tokens) | §11, S1 tokens.css, all visual slices |
 | OQ-6 | Originally (b) — separate PR; **on audit 2026-05-04 all three blockers already shipped via Phase 3 Fixes A/C/D 2026-05-02; no fix-up PR ships** | blockers.md entries were stale; user's "live observation" reconciled via Claude Code hook docs as silently-ignored response-shape drift, not a rejected hook | §12 retired; M04 S11 picks up two reserved cleanups (per-event response shaping + mcp-server reader symmetry) |
@@ -274,7 +274,7 @@ All open questions in M04 were locked by the project lead in the same session th
 | STRUCT-2 | **Split S8 into S8a (sync-daemon backend; no UI) and S8b (web admin)** | Bidirectional-sync surface stays revertable on its own; M04a OQ-1 extension is explicit; backend can ship + verify before UI | §10, S8a/S8b; sync-daemon scope grows |
 | STRUCT-3 | Add **S9 — Dashboard home `/`** as its own slice (not folded into doctor health) | Aggregate-data surface is meaty enough for its own slice; CLI parity is `doctor` summary + `run list` + `pause` status combined | §4 routes, §5 first-5-min, S9 |
 
-The doctor full-detail page (35-check registry rendering) was considered for M04 and **deferred** — operators who need that level of detail can run `contextos doctor --full --json`. The dashboard home's doctor tile shows summary RED/YELLOW counts only.
+The doctor full-detail page (35-check registry rendering) was considered for M04 and **deferred** — operators who need that level of detail can run `coodra doctor --full --json`. The dashboard home's doctor tile shows summary RED/YELLOW counts only.
 
 ---
 

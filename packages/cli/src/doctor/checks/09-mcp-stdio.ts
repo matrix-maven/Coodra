@@ -18,9 +18,9 @@ export const mcpStdioCheck: Check = {
         status: 'red',
         detail: `cannot resolve mcp-server binary: ${(err as Error).message}`,
         remediation:
-          'For dev contributors: run `pnpm --filter @coodra/contextos-cli build` to produce the bundled runtime ' +
-          'or `pnpm --filter @coodra/contextos-mcp-server build` to produce the monorepo dev dist. ' +
-          'For end users: reinstall `@coodra/contextos-cli` from npm — the bundle ships in the published tarball.',
+          'For dev contributors: run `pnpm --filter @coodra/cli build` to produce the bundled runtime ' +
+          'or `pnpm --filter @coodra/mcp-server build` to produce the monorepo dev dist. ' +
+          'For end users: reinstall `@coodra/cli` from npm — the bundle ships in the published tarball.',
       };
     }
 
@@ -32,13 +32,13 @@ export const mcpStdioCheck: Check = {
         method: 'initialize',
         params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'doctor', version: '1' } },
       });
-      const childEnv: NodeJS.ProcessEnv = { ...ctx.env, CONTEXTOS_LOG_DESTINATION: 'stderr' };
+      const childEnv: NodeJS.ProcessEnv = { ...ctx.env, COODRA_LOG_DESTINATION: 'stderr' };
       // When probing the bundled binary, set the migrations dir env so the
-      // embedded `@coodra/contextos-db` finds the SQL files in the cli's bundle.
+      // embedded `@coodra/db` finds the SQL files in the cli's bundle.
       if (source === 'bundled') {
         const bundled = bundledMigrationsDir('sqlite');
         if (bundled !== null) {
-          childEnv.CONTEXTOS_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
+          childEnv.COODRA_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
         }
       }
       const child = execa('node', [binPath, '--transport', 'stdio'], {

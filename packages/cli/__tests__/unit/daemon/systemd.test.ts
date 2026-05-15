@@ -16,7 +16,7 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-daemon-systemd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-daemon-systemd-'));
   });
 
   afterEach(() => {
@@ -31,7 +31,7 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
     expect(await mgr.isAvailable()).toBe(true);
   });
 
-  it('install writes ~/.config/systemd/user/contextos-<name>.service + runs daemon-reload', async () => {
+  it('install writes ~/.config/systemd/user/coodra-<name>.service + runs daemon-reload', async () => {
     const calls: Array<{ file: string; args: readonly string[] }> = [];
     const mgr = new SystemdDaemonManager({
       homeDir: home,
@@ -43,10 +43,10 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
     await mgr.install({
       name: 'mcp',
       command: '/usr/bin/node',
-      args: ['/opt/contextos/dist/index.js', '--transport', 'stdio'],
-      env: { CONTEXTOS_LOG_DESTINATION: 'stderr' },
+      args: ['/opt/coodra/dist/index.js', '--transport', 'stdio'],
+      env: { COODRA_LOG_DESTINATION: 'stderr' },
     });
-    const body = await readFile(join(home, '.config/systemd/user/contextos-mcp.service'), 'utf8');
+    const body = await readFile(join(home, '.config/systemd/user/coodra-mcp.service'), 'utf8');
     expect(body).toContain('[Unit]');
     expect(body).toContain('[Service]');
     expect(body).toContain('Type=simple');
@@ -54,13 +54,13 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
     expect(body).toContain('Restart=on-failure');
     // beta.8 — env lines are now `Environment="KEY=VALUE"` (whole
     // assignment quoted) so values with spaces / specials survive.
-    expect(body).toContain('Environment="CONTEXTOS_LOG_DESTINATION=stderr"');
+    expect(body).toContain('Environment="COODRA_LOG_DESTINATION=stderr"');
     // W5 / beta.5 — install runs daemon-reload THEN reset-failed so a
     // unit previously latched into `failed` by systemd's restart
-    // rate-limiter becomes startable again on the next `contextos start`.
+    // rate-limiter becomes startable again on the next `coodra start`.
     expect(calls).toEqual([
       { file: 'systemctl', args: ['--user', 'daemon-reload'] },
-      { file: 'systemctl', args: ['--user', 'reset-failed', 'contextos-mcp.service'] },
+      { file: 'systemctl', args: ['--user', 'reset-failed', 'coodra-mcp.service'] },
     ]);
   });
 
@@ -78,10 +78,10 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
     await mgr.install({
       name: 'sync-daemon',
       command: '/usr/bin/node',
-      args: ['/opt/contextos/dist/runtime/sync-daemon/index.js'],
+      args: ['/opt/coodra/dist/runtime/sync-daemon/index.js'],
       env: { DATABASE_URL: databaseUrl },
     });
-    const body = await readFile(join(home, '.config/systemd/user/contextos-sync-daemon.service'), 'utf8');
+    const body = await readFile(join(home, '.config/systemd/user/coodra-sync-daemon.service'), 'utf8');
     // The raw %40 must NOT appear; it must be doubled to %%40.
     expect(body).toContain(
       'Environment="DATABASE_URL=postgresql://postgres:Abi%%4029250204@db.example.supabase.co:5432/postgres"',
@@ -90,7 +90,7 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
   });
 
   it('start runs systemctl --user restart <unit> so re-starts pick up the new env', async () => {
-    // `start` was changed to `restart` so a second `contextos start`
+    // `start` was changed to `restart` so a second `coodra start`
     // after a unit-file change always picks up the latest env. systemd's
     // `start` is a no-op on an already-active unit; `restart` does
     // stop+start and re-reads the (already daemon-reloaded) unit file.
@@ -105,7 +105,7 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
     await mgr.install({ name: 'svc', command: '/x', args: [], env: {} });
     calls.length = 0; // discard daemon-reload from install
     await mgr.start('svc');
-    expect(calls).toEqual([{ file: 'systemctl', args: ['--user', 'restart', 'contextos-svc.service'] }]);
+    expect(calls).toEqual([{ file: 'systemctl', args: ['--user', 'restart', 'coodra-svc.service'] }]);
   });
 
   it('status parses ActiveState=active + MainPID', async () => {
@@ -143,11 +143,11 @@ describe('SystemdDaemonManager — service-file write + systemctl wiring', () =>
       command: '/usr/bin/node',
       args: ['/opt/x.js'],
       env: {},
-      stdoutPath: '/var/test/.contextos/logs/svc-logs.log',
-      stderrPath: '/var/test/.contextos/logs/svc-logs.log',
+      stdoutPath: '/var/test/.coodra/logs/svc-logs.log',
+      stderrPath: '/var/test/.coodra/logs/svc-logs.log',
     });
-    const body = await readFile(join(home, '.config/systemd/user/contextos-svc-logs.service'), 'utf8');
-    expect(body).toContain('StandardOutput=append:/var/test/.contextos/logs/svc-logs.log');
-    expect(body).toContain('StandardError=append:/var/test/.contextos/logs/svc-logs.log');
+    const body = await readFile(join(home, '.config/systemd/user/coodra-svc-logs.service'), 'utf8');
+    expect(body).toContain('StandardOutput=append:/var/test/.coodra/logs/svc-logs.log');
+    expect(body).toContain('StandardError=append:/var/test/.coodra/logs/svc-logs.log');
   });
 });

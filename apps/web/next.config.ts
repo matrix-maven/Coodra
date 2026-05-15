@@ -10,14 +10,14 @@ import type { NextConfig } from 'next';
  * route must explicitly opt out via `export const runtime = 'edge'`
  * (which would also need to drop the storage adapter import).
  *
- * `transpilePackages` is required because `@coodra/contextos-db` ships
+ * `transpilePackages` is required because `@coodra/db` ships
  * un-built TS source via the workspace protocol (other workspace consumers
  * import from compiled `dist/`). Next.js compiles the imported sources on
  * demand instead of asking for a separate build step here.
  */
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@coodra/contextos-db', '@coodra/contextos-shared'],
+  transpilePackages: ['@coodra/db', '@coodra/shared'],
   serverExternalPackages: ['better-sqlite3'],
   typedRoutes: true,
 };

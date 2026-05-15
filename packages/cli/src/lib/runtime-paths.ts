@@ -5,18 +5,18 @@ import { findRepoRoot } from './find-repo-root.js';
 
 /**
  * `lib/runtime-paths.ts` — resolves the paths to the bundled runtime
- * artifacts shipped inside `@coodra/contextos-cli`'s npm tarball.
+ * artifacts shipped inside `@coodra/cli`'s npm tarball.
  *
  * Two resolution modes, in order:
  *
  *   1. **Bundled / published mode.** The CLI was installed via
- *      `npm i -g @coodra/contextos-cli` (or `npx`). The runtime artifacts live
+ *      `npm i -g @coodra/cli` (or `npx`). The runtime artifacts live
  *      next to the CLI's compiled entry at `<cli-dist>/runtime/<app>/
  *      index.js`. Resolved relative to `import.meta.url` so every
  *      bundled-deploy install finds them deterministically.
  *
  *   2. **Monorepo / dev mode.** The CLI is being run from the
- *      `Coodra/` checkout (e.g. `pnpm --filter @coodra/contextos-cli dev`).
+ *      `Coodra/` checkout (e.g. `pnpm --filter @coodra/cli dev`).
  *      `findRepoRoot()` locates `pnpm-workspace.yaml`; the runtime
  *      points at `apps/<app>/dist/index.js` so tsc-built dev binaries
  *      keep working without a bundle step.
@@ -26,7 +26,7 @@ import { findRepoRoot } from './find-repo-root.js';
  *
  * Decision dec_83ba10c1 (2026-05-02): prior to this module the
  * published-install path was broken because `mcp-merge.ts` fell back
- * to `npx -y @coodra/contextos-cli mcp-stdio`, a subcommand that does not
+ * to `npx -y @coodra/cli mcp-stdio`, a subcommand that does not
  * exist. `services.ts:resolveServices` threw outright when
  * `findRepoRoot()` returned null. This module replaces both lookups
  * with one canonical resolver that tries bundled paths first.
@@ -100,15 +100,15 @@ export function bundledRuntimeCandidates(app: RuntimeApp): string[] {
 
 /**
  * Resolve the absolute path of the bundled drizzle migrations folder
- * for the given dialect. Used to set `CONTEXTOS_MIGRATIONS_DIR` before
+ * for the given dialect. Used to set `COODRA_MIGRATIONS_DIR` before
  * spawning a bundled mcp-server or hooks-bridge so the embedded
- * `@coodra/contextos-db::migrateSqlite` finds the SQL files inside the
+ * `@coodra/db::migrateSqlite` finds the SQL files inside the
  * published tarball.
  *
  * Returns null when the bundled drizzle directory is not present —
  * the caller (boot path) should fall back to leaving the env unset
  * so the workspace-default `MIGRATIONS_FOLDER` resolves via the
- * `@coodra/contextos-db` package's own `import.meta.url`.
+ * `@coodra/db` package's own `import.meta.url`.
  */
 export function bundledMigrationsDir(dialect: 'sqlite' | 'postgres'): string | null {
   const candidates = [
@@ -158,7 +158,7 @@ export async function resolveRuntimeBinary(
   const repoRoot = (await findRepoRoot(here)) ?? (await findRepoRoot(cwd));
   if (repoRoot !== null) {
     // Web's monorepo dev path is the in-repo standalone output; if a
-    // contributor ran `pnpm --filter @coodra/contextos-web-v2 build`, the
+    // contributor ran `pnpm --filter @coodra/web-v2 build`, the
     // server lives at apps/web-v2/.next/standalone/apps/web-v2/server.js.
     const monorepoPath =
       app === 'web'
@@ -169,14 +169,14 @@ export async function resolveRuntimeBinary(
     }
   }
   const err = new Error(
-    `Cannot resolve @coodra/contextos-${app} runtime binary.\n` +
-      'Looked in bundled paths (relative to the @coodra/contextos-cli install) and in the monorepo at ' +
+    `Cannot resolve @coodra/${app} runtime binary.\n` +
+      'Looked in bundled paths (relative to the @coodra/cli install) and in the monorepo at ' +
       `apps/${app}/dist/index.js. ` +
-      'If you are developing in the monorepo, run `pnpm --filter @coodra/contextos-cli build` to produce the bundle, ' +
-      'or `pnpm --filter @coodra/contextos-' +
+      'If you are developing in the monorepo, run `pnpm --filter @coodra/cli build` to produce the bundle, ' +
+      'or `pnpm --filter @coodra/' +
       app +
       ' build` to produce the dev dist.',
   );
-  (err as { code?: string }).code = 'CONTEXTOS_RUNTIME_BINARY_NOT_FOUND';
+  (err as { code?: string }).code = 'COODRA_RUNTIME_BINARY_NOT_FOUND';
   throw err;
 }

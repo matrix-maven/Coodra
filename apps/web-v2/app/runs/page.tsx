@@ -39,7 +39,7 @@ const DEFAULT_HIDDEN_STATUSES: ReadonlyArray<string> = ['abandoned'];
 /**
  * Synthetic session-id patterns to hide by default. Cleanup writes
  * orphan-event backfill rows under sessions like
- * `orphan-backfill-2-<ts>`; the doctor's `__contextos_synthetic__`
+ * `orphan-backfill-2-<ts>`; the doctor's `__coodra_synthetic__`
  * probe rows are now hard-deleted but the pattern guard remains as
  * defense-in-depth.
  */

@@ -8,7 +8,7 @@ describe('detectProjectRoot', () => {
   let scratch: string;
 
   beforeEach(async () => {
-    scratch = await mkdtemp(join(tmpdir(), 'contextos-detect-root-'));
+    scratch = await mkdtemp(join(tmpdir(), 'coodra-detect-root-'));
   });
   afterEach(() => {
     /* tmp cleaned by OS */
@@ -24,7 +24,7 @@ describe('detectProjectRoot', () => {
   });
 
   it('falls back to the cwd when no marker is found anywhere up the tree', async () => {
-    const isolated = await mkdtemp(join(tmpdir(), 'contextos-detect-isolated-'));
+    const isolated = await mkdtemp(join(tmpdir(), 'coodra-detect-isolated-'));
     const sub = join(isolated, 'a', 'b');
     await mkdir(sub, { recursive: true });
     const result = await detectProjectRoot(sub);
@@ -44,7 +44,7 @@ describe('detectLanguages', () => {
   let scratch: string;
 
   beforeEach(async () => {
-    scratch = await mkdtemp(join(tmpdir(), 'contextos-detect-langs-'));
+    scratch = await mkdtemp(join(tmpdir(), 'coodra-detect-langs-'));
   });
 
   it('reports empty list when no source files', async () => {
@@ -77,7 +77,7 @@ describe('detectIDE', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-detect-ide-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-detect-ide-'));
   });
 
   it('returns empty list when no IDE config dir exists', async () => {
@@ -101,7 +101,7 @@ describe('detectExistingMCPConfig', () => {
   let scratch: string;
 
   beforeEach(async () => {
-    scratch = await mkdtemp(join(tmpdir(), 'contextos-detect-mcp-'));
+    scratch = await mkdtemp(join(tmpdir(), 'coodra-detect-mcp-'));
   });
 
   it('returns null when .mcp.json is absent', async () => {
@@ -111,13 +111,13 @@ describe('detectExistingMCPConfig', () => {
   it('returns the parsed config when .mcp.json exists and is valid', async () => {
     const config = {
       mcpServers: {
-        contextos: { command: '/usr/local/bin/contextos-mcp-server' },
+        coodra: { command: '/usr/local/bin/coodra-mcp-server' },
         other: { command: 'npx', args: ['some-server'] },
       },
     };
     await writeFile(join(scratch, '.mcp.json'), JSON.stringify(config));
     const parsed = await detectExistingMCPConfig(scratch);
-    expect(parsed?.mcpServers?.contextos?.command).toBe('/usr/local/bin/contextos-mcp-server');
+    expect(parsed?.mcpServers?.coodra?.command).toBe('/usr/local/bin/coodra-mcp-server');
     expect(parsed?.mcpServers?.other?.args).toEqual(['some-server']);
   });
 

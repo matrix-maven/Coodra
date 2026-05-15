@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# ContextOS pre-commit hook — zero-dependency (no Husky, no simple-git-hooks).
+# Coodra pre-commit hook — zero-dependency (no Husky, no simple-git-hooks).
 #
 # Activated automatically on `pnpm install` via the workspace `postinstall`
 # script (`package.json` → "prepare"). If a contributor skips pnpm install,
@@ -23,7 +23,7 @@ staged=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
 case "$staged" in
   *packages/db/*)
     echo "pre-commit: running migration-lock check (staged files in packages/db detected)"
-    pnpm --filter @coodra/contextos-db run check:migration-lock
+    pnpm --filter @coodra/db run check:migration-lock
     ;;
   *)
     # No DB changes staged — nothing to verify.

@@ -5,9 +5,9 @@ import { VERSION } from '../../version.js';
 import type { Check } from '../types.js';
 
 /**
- * Module 08b S18 check 32 — newer @coodra/contextos-cli published.
+ * Module 08b S18 check 32 — newer @coodra/cli published.
  *
- * Gated by `CONTEXTOS_DOCTOR_CHECK_UPDATES=1` because doctor is
+ * Gated by `COODRA_DOCTOR_CHECK_UPDATES=1` because doctor is
  * otherwise fully offline; users who want the network probe opt in.
  * `--check-updates` flag wiring on the doctor command is reserved
  * for a follow-up — the env var is the contract operators can set
@@ -20,13 +20,13 @@ import type { Check } from '../types.js';
  */
 export const upgradeAvailableCheck: Check = {
   id: 32,
-  name: 'No newer @coodra/contextos-cli published (M08b)',
+  name: 'No newer @coodra/cli published (M08b)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    if (ctx.env.CONTEXTOS_DOCTOR_CHECK_UPDATES !== '1') {
+    if (ctx.env.COODRA_DOCTOR_CHECK_UPDATES !== '1') {
       return {
         status: 'skipped',
-        detail: 'set CONTEXTOS_DOCTOR_CHECK_UPDATES=1 to enable npm-registry version probe',
+        detail: 'set COODRA_DOCTOR_CHECK_UPDATES=1 to enable npm-registry version probe',
       };
     }
     let published: string;
@@ -38,7 +38,7 @@ export const upgradeAvailableCheck: Check = {
         status: 'red',
         detail: `npm view failed: ${message}`,
         remediation:
-          'Check internet connectivity / corporate proxy. Re-run `contextos doctor --full` once the registry is reachable.',
+          'Check internet connectivity / corporate proxy. Re-run `coodra doctor --full` once the registry is reachable.',
       };
     }
     if (!semver.valid(published) || !semver.valid(VERSION)) {
@@ -51,7 +51,7 @@ export const upgradeAvailableCheck: Check = {
       return {
         status: 'yellow',
         detail: `installed ${VERSION}, latest ${published}`,
-        remediation: `Run \`npm i -g @coodra/contextos-cli@${published}\` then \`contextos upgrade\` to apply migrations + restart daemons.`,
+        remediation: `Run \`npm i -g @coodra/cli@${published}\` then \`coodra upgrade\` to apply migrations + restart daemons.`,
       };
     }
     return { status: 'green', detail: `installed ${VERSION} matches latest published` };

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { insertKillSwitch, migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { insertKillSwitch, migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { activeKillSwitchesCheck } from '../../../src/doctor/checks/31-active-kill-switches.js';
@@ -26,7 +26,7 @@ import { openLocalDb } from '../../../src/lib/open-local-db.js';
 function ctxWithHome(home: string, overrides: Partial<Parameters<typeof buildCheckContext>[0]> = {}) {
   return buildCheckContext({
     env: {},
-    contextosHomeOverride: home,
+    coodraHomeOverride: home,
     cwd: home,
     ...overrides,
   });
@@ -71,7 +71,7 @@ describe('activeKillSwitchesCheck (31)', () => {
     const result = await activeKillSwitchesCheck.run(ctx);
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/1 active kill switch\(es\); oldest paused 5 min ago/);
-    expect(result.remediation).toContain('contextos resume --all');
+    expect(result.remediation).toContain('coodra resume --all');
   });
 
   it('counts project-scoped switches (scope-agnostic by design)', async () => {
@@ -113,17 +113,17 @@ describe('activeKillSwitchesCheck (31)', () => {
 // ---------------------------------------------------------------------------
 
 describe('upgradeAvailableCheck (32)', () => {
-  it('skipped when CONTEXTOS_DOCTOR_CHECK_UPDATES is unset', async () => {
-    const ctx = buildCheckContext({ env: {}, contextosHomeOverride: '/tmp/x', cwd: '/tmp' });
+  it('skipped when COODRA_DOCTOR_CHECK_UPDATES is unset', async () => {
+    const ctx = buildCheckContext({ env: {}, coodraHomeOverride: '/tmp/x', cwd: '/tmp' });
     const result = await upgradeAvailableCheck.run(ctx);
     expect(result.status).toBe('skipped');
-    expect(result.detail).toContain('CONTEXTOS_DOCTOR_CHECK_UPDATES=1');
+    expect(result.detail).toContain('COODRA_DOCTOR_CHECK_UPDATES=1');
   });
 
   it('skipped when the env var is set to anything other than "1"', async () => {
     const ctx = buildCheckContext({
-      env: { CONTEXTOS_DOCTOR_CHECK_UPDATES: 'true' },
-      contextosHomeOverride: '/tmp/x',
+      env: { COODRA_DOCTOR_CHECK_UPDATES: 'true' },
+      coodraHomeOverride: '/tmp/x',
       cwd: '/tmp',
     });
     const result = await upgradeAvailableCheck.run(ctx);
@@ -181,7 +181,7 @@ describe('staleBackupsCheck (33)', () => {
 
 describe('bundledTemplatesCheck (34)', () => {
   it('green for the real bundled templates dir', async () => {
-    const ctx = buildCheckContext({ env: {}, contextosHomeOverride: '/tmp/x', cwd: '/tmp' });
+    const ctx = buildCheckContext({ env: {}, coodraHomeOverride: '/tmp/x', cwd: '/tmp' });
     const result = await bundledTemplatesCheck.run(ctx);
     expect(result.status).toBe('green');
     expect(result.detail).toMatch(/7 bundled templates loaded cleanly/);
@@ -194,7 +194,7 @@ describe('bundledTemplatesCheck (34)', () => {
 
 describe('autoMarkerSmokeCheck (35)', () => {
   it('green for every shipped template', async () => {
-    const ctx = buildCheckContext({ env: {}, contextosHomeOverride: '/tmp/x', cwd: '/tmp' });
+    const ctx = buildCheckContext({ env: {}, coodraHomeOverride: '/tmp/x', cwd: '/tmp' });
     const result = await autoMarkerSmokeCheck.run(ctx);
     expect(result.status).toBe('green');
     expect(result.detail).toContain('every bundled template parses cleanly');

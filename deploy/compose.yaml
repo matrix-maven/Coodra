@@ -1,4 +1,4 @@
-# ContextOS team-mode self-host stack — Module 04a S7.
+# Coodra team-mode self-host stack — Module 04a S7.
 #
 # Operator-facing entrypoint for self-hosted deployments. Run from the
 # repo root after copying `deploy/.env.example` to `deploy/.env` and
@@ -8,28 +8,28 @@
 #
 # Boot order (Compose dependency chain):
 #   1. postgres        — pgvector image; healthchecked
-#   2. cloud-migrate   — one-shot; runs `contextos cloud-migrate`
+#   2. cloud-migrate   — one-shot; runs `coodra cloud-migrate`
 #   3. mcp-server      — depends on cloud-migrate completing
 #   4. hooks-bridge    — depends on cloud-migrate completing
 #   5. sync-daemon     — depends on cloud-migrate completing
 
-name: contextos
+name: coodra
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: contextos-postgres
+    container_name: coodra-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-contextos}
+      POSTGRES_USER: ${POSTGRES_USER:-coodra}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-contextos}
+      POSTGRES_DB: ${POSTGRES_DB:-coodra}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - contextos_pg_data:/var/lib/postgresql/data
+      - coodra_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-contextos} -d ${POSTGRES_DB:-contextos}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coodra} -d ${POSTGRES_DB:-coodra}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -43,8 +43,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.cloud-migrate
-    image: contextos/cloud-migrate:dev
-    container_name: contextos-cloud-migrate
+    image: coodra/cloud-migrate:dev
+    container_name: coodra-cloud-migrate
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,63 +56,63 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.mcp-server
-    image: contextos/mcp-server:dev
-    container_name: contextos-mcp-server
+    image: coodra/mcp-server:dev
+    container_name: coodra-mcp-server
     depends_on:
       cloud-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     environment:
-      CONTEXTOS_MODE: team
-      CONTEXTOS_HOME: /home/node/.contextos
+      COODRA_MODE: team
+      COODRA_HOME: /home/node/.coodra
       DATABASE_URL: ${DATABASE_URL}
       LOCAL_HOOK_SECRET: ${LOCAL_HOOK_SECRET}
     ports:
       - "${MCP_SERVER_PORT:-3100}:3100"
     volumes:
-      - contextos_home:/home/node/.contextos
+      - coodra_home:/home/node/.coodra
 
   hooks-bridge:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.hooks-bridge
-    image: contextos/hooks-bridge:dev
-    container_name: contextos-hooks-bridge
+    image: coodra/hooks-bridge:dev
+    container_name: coodra-hooks-bridge
     depends_on:
       cloud-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     environment:
-      CONTEXTOS_MODE: team
-      CONTEXTOS_HOME: /home/node/.contextos
+      COODRA_MODE: team
+      COODRA_HOME: /home/node/.coodra
       DATABASE_URL: ${DATABASE_URL}
       LOCAL_HOOK_SECRET: ${LOCAL_HOOK_SECRET}
     ports:
       - "${HOOKS_BRIDGE_PORT:-3101}:3101"
     volumes:
-      - contextos_home:/home/node/.contextos
+      - coodra_home:/home/node/.coodra
 
   sync-daemon:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.sync-daemon
-    image: contextos/sync-daemon:dev
-    container_name: contextos-sync-daemon
+    image: coodra/sync-daemon:dev
+    container_name: coodra-sync-daemon
     depends_on:
       cloud-migrate:
         condition: service_completed_successfully
     restart: unless-stopped
     environment:
-      CONTEXTOS_MODE: team
-      CONTEXTOS_HOME: /home/node/.contextos
+      COODRA_MODE: team
+      COODRA_HOME: /home/node/.coodra
       DATABASE_URL: ${DATABASE_URL}
-      CONTEXTOS_SYNC_TICK_MS: ${CONTEXTOS_SYNC_TICK_MS:-1000}
-      CONTEXTOS_SYNC_LEASE_MS: ${CONTEXTOS_SYNC_LEASE_MS:-30000}
+      COODRA_SYNC_TICK_MS: ${COODRA_SYNC_TICK_MS:-1000}
+      COODRA_SYNC_LEASE_MS: ${COODRA_SYNC_LEASE_MS:-30000}
     volumes:
-      - contextos_home:/home/node/.contextos
+      - coodra_home:/home/node/.coodra
 
 volumes:
-  contextos_pg_data:
-    name: contextos_pg_data
-  contextos_home:
-    name: contextos_home_compose
+  coodra_pg_data:
+    name: coodra_pg_data
+  coodra_home:
+    name: coodra_home_compose

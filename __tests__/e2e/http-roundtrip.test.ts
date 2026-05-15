@@ -36,7 +36,7 @@ afterEach(async () => {
 
 describe('http-roundtrip — solo-bypass mode', () => {
   it('initialize succeeds with no auth header (sentinel CLERK_SECRET_KEY)', async () => {
-    const boot = await start({ CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
+    const boot = await start({ COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
     if (!boot.http) throw new Error('expected http handle');
     const res = await fetch(`${boot.http.url}/mcp`, {
       method: 'POST',
@@ -58,7 +58,7 @@ describe('http-roundtrip — solo-bypass mode', () => {
 
 describe('http-roundtrip — team mode auth surface', () => {
   const TEAM_OPTS = {
-    CONTEXTOS_MODE: 'team' as const,
+    COODRA_MODE: 'team' as const,
     CLERK_SECRET_KEY: 'sk_test_team_e2e_realistic_secret_xxx',
     CLERK_PUBLISHABLE_KEY: 'pk_test_team_e2e_realistic_publishable_xxx',
     LOCAL_HOOK_SECRET: 'http-rt-e2e-hook-secret-16chars-min',

@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
-import { createDb, type DbHandle, ensureGlobalProject, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
+import { OutboxWorker } from '@coodra/cli/lib/outbox';
+import { createDb, type DbHandle, ensureGlobalProject, migrateSqlite, sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -80,7 +80,7 @@ beforeAll(async () => {
     reason: 'allow all writes for the e2e smoke',
   });
 
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: PROJECT_SLUG }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: PROJECT_SLUG }));
 
   const policy = createPolicyClient({ db: handle, cacheTtlMs: 100 });
   const projectSlugResolver = createProjectSlugResolver({ cacheTtlMs: 100 });
@@ -98,7 +98,7 @@ beforeAll(async () => {
     userPromptSubmit: stubAllow,
   });
   const { hono } = buildApp({
-    env: { CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' },
+    env: { COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' },
     dispatch,
   });
 

@@ -1,4 +1,4 @@
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../src/app.js';
@@ -10,7 +10,7 @@ import { buildApp } from '../../src/app.js';
 
 function makeEnv(overrides: Partial<AuthEnv> = {}): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
     ...overrides,
   };
@@ -36,7 +36,7 @@ describe('GET /healthz', () => {
     // Use a team-mode env with real keys so the auth middleware would
     // normally reject anonymous requests; healthz must still return 200.
     const env = makeEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_realRealKey1234',
       CLERK_PUBLISHABLE_KEY: 'pk_test_realRealKey1234',
     });

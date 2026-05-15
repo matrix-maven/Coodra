@@ -1,7 +1,7 @@
-import type { RunWithEverything } from '@coodra/contextos-db';
+import type { RunWithEverything } from '@coodra/db';
 
 /**
- * `lib/export/render-markdown` — pure renderer for `contextos export
+ * `lib/export/render-markdown` — pure renderer for `coodra export
  * <runId> --format markdown`. No I/O. Output is a single string.
  *
  * Per OQ-7 lock (2026-05-03), the audit trail (policy_decisions) is

@@ -1,7 +1,7 @@
 import { access, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { selectDaemonManager } from '../lib/daemon/index.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -82,7 +82,7 @@ export interface RecentState {
 export interface MachineModeState {
   /**
    * The mode the machine is configured for, per
-   * `~/.contextos/config.json::mode`. This is the SOLE authority for
+   * `~/.coodra/config.json::mode`. This is the SOLE authority for
    * machine mode (Phase A, clarity-pass-plan 2026-05-11) — env vars
    * and project `.env` files are derived from it, never the other
    * way around.
@@ -93,17 +93,17 @@ export interface MachineModeState {
   /** Clerk org id, when in team mode. Falls back to `null` for solo. */
   readonly orgId: string | null;
   /**
-   * The literal value of `process.env.CONTEXTOS_MODE` when set, or `null`
+   * The literal value of `process.env.COODRA_MODE` when set, or `null`
    * when unset. Surfaced for diagnostic output ("shell says X but config
    * says Y"). `envDriftsFromConfig` is the derived boolean signal.
    */
   readonly shellModeValue: string | null;
   /**
-   * Drift signal: true when `process.env.CONTEXTOS_MODE` is set AND
-   * disagrees with the config.json mode. `contextos start` would
+   * Drift signal: true when `process.env.COODRA_MODE` is set AND
+   * disagrees with the config.json mode. `coodra start` would
    * still pick the home-env layer (which wins for MACHINE_LEVEL_KEYS
    * after Phase A's `load-home-env` fix), but a drift here means the
-   * operator's shell will mislead them when they `echo $CONTEXTOS_MODE`.
+   * operator's shell will mislead them when they `echo $COODRA_MODE`.
    */
   readonly envDriftsFromConfig: boolean;
 }
@@ -113,37 +113,37 @@ export interface StatusReport {
   readonly project: ProjectState;
   readonly services: ServiceState[];
   readonly recent: RecentState;
-  readonly contextosHome: string;
+  readonly coodraHome: string;
 }
 
 export async function runStatusCommand(options: StatusOptions = {}, io: StatusIO = DEFAULT_STATUS_IO): Promise<never> {
   const baseEnv = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  const contextosHome = resolveContextosHome({
+  const coodraHome = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env: baseEnv,
   });
-  // Layer ~/.contextos/.env + <cwd>/.env in so that team-mode flags
+  // Layer ~/.coodra/.env + <cwd>/.env in so that team-mode flags
   // surface in `ctx status` even when the operator hasn't exported
-  // CONTEXTOS_MODE in their shell. Without this, status from a
+  // COODRA_MODE in their shell. Without this, status from a
   // non-demo cwd reports the worker as "stopped" because the
   // `requiresTeamMode` filter trips off the team check entirely.
-  const layered = loadHomeEnv(contextosHome, cwd);
+  const layered = loadHomeEnv(coodraHome, cwd);
   const env: NodeJS.ProcessEnv = { ...layered, ...baseEnv };
   const fetchImpl = options.fetchImpl ?? fetch;
 
-  const machine = collectMachineMode(contextosHome, baseEnv);
+  const machine = collectMachineMode(coodraHome, baseEnv);
   // Project mode is INHERITED from the machine — sourcing it from
-  // `machine.mode` (config.json) rather than `env.CONTEXTOS_MODE` keeps
+  // `machine.mode` (config.json) rather than `env.COODRA_MODE` keeps
   // the two lines in agreement even when the operator's shell carries
-  // a stale `CONTEXTOS_MODE` override. The drift signal in
+  // a stale `COODRA_MODE` override. The drift signal in
   // `machine.envDriftsFromConfig` already surfaces the override
   // separately as a `⚠`.
-  const project = await collectProjectState(cwd, contextosHome, env, machine.mode);
-  const services = await collectServiceStates(env, fetchImpl, contextosHome);
-  const recent = await collectRecentState(contextosHome, project.projectId);
+  const project = await collectProjectState(cwd, coodraHome, env, machine.mode);
+  const services = await collectServiceStates(env, fetchImpl, coodraHome);
+  const recent = await collectRecentState(coodraHome, project.projectId);
 
-  const report: StatusReport = { machine, project, services, recent, contextosHome };
+  const report: StatusReport = { machine, project, services, recent, coodraHome };
 
   if (options.json === true) {
     io.writeStdout(`${JSON.stringify(report, null, 2)}\n`);
@@ -156,8 +156,8 @@ export async function runStatusCommand(options: StatusOptions = {}, io: StatusIO
 }
 
 /**
- * Read the machine-level mode from `~/.contextos/config.json` and compare
- * it to the operator's shell `CONTEXTOS_MODE` to detect drift.
+ * Read the machine-level mode from `~/.coodra/config.json` and compare
+ * it to the operator's shell `COODRA_MODE` to detect drift.
  *
  * `baseEnv` (the original `process.env`, NOT the layered one) is used
  * deliberately — the layered env always agrees with config.json because
@@ -165,24 +165,24 @@ export async function runStatusCommand(options: StatusOptions = {}, io: StatusIO
  * drift signal we want here is "what does the operator's terminal show?"
  * which is the un-layered `process.env`.
  */
-function collectMachineMode(contextosHome: string, baseEnv: NodeJS.ProcessEnv): MachineModeState {
-  const cfg = readTeamConfig({ homeOverride: contextosHome });
+function collectMachineMode(coodraHome: string, baseEnv: NodeJS.ProcessEnv): MachineModeState {
+  const cfg = readTeamConfig({ homeOverride: coodraHome });
   const mode: 'solo' | 'team' = cfg.mode;
   const orgSlug = cfg.team?.clerkOrgSlug ?? null;
   const orgId = cfg.team?.clerkOrgId ?? null;
   const shellModeValue =
-    typeof baseEnv.CONTEXTOS_MODE === 'string' && baseEnv.CONTEXTOS_MODE.length > 0 ? baseEnv.CONTEXTOS_MODE : null;
+    typeof baseEnv.COODRA_MODE === 'string' && baseEnv.COODRA_MODE.length > 0 ? baseEnv.COODRA_MODE : null;
   const envDriftsFromConfig = shellModeValue !== null && shellModeValue !== mode;
   return { mode, orgSlug, orgId, shellModeValue, envDriftsFromConfig };
 }
 
 async function collectProjectState(
   cwd: string,
-  contextosHome: string,
+  coodraHome: string,
   _env: NodeJS.ProcessEnv,
   inheritedMode: 'solo' | 'team',
 ): Promise<ProjectState> {
-  const configPath = join(cwd, '.contextos.json');
+  const configPath = join(cwd, '.coodra.json');
   const notes: string[] = [];
   let slug: string | null = null;
   try {
@@ -190,7 +190,7 @@ async function collectProjectState(
     const parsed = JSON.parse(raw) as { projectSlug?: unknown };
     if (typeof parsed.projectSlug === 'string') slug = parsed.projectSlug;
   } catch {
-    notes.push('.contextos.json missing — bridge will fall back to __global__ for this cwd');
+    notes.push('.coodra.json missing — bridge will fall back to __global__ for this cwd');
   }
   // Resolve the slug to a projects.id in local SQLite so `collectRecent`
   // can scope the "Last run / Last decision" query to THIS project.
@@ -206,7 +206,7 @@ async function collectProjectState(
   let projectOrgId: string | null = null;
   if (slug !== null) {
     try {
-      const dataDb = join(contextosHome, 'data.db');
+      const dataDb = join(coodraHome, 'data.db');
       const handle = await openLocalDb(dataDb);
       try {
         const row = handle.raw.prepare('SELECT id, org_id FROM projects WHERE slug = ? LIMIT 1').get(slug) as
@@ -222,7 +222,7 @@ async function collectProjectState(
       }
     } catch {
       // DB missing / unreadable — leave registered=false and projectId=null.
-      // The note from the missing-.contextos.json branch already covers
+      // The note from the missing-.coodra.json branch already covers
       // the "you need to init" case; nothing extra to surface here.
     }
   }
@@ -236,7 +236,7 @@ async function collectProjectState(
 async function collectServiceStates(
   env: NodeJS.ProcessEnv,
   fetchImpl: typeof fetch,
-  contextosHome: string,
+  coodraHome: string,
 ): Promise<ServiceState[]> {
   const mcpPort = parsePort(env.MCP_SERVER_PORT, 3100);
   const bridgePort = parsePort(env.HOOKS_BRIDGE_PORT, 3101);
@@ -244,8 +244,8 @@ async function collectServiceStates(
   // port resolution; the `: bridgePort` fallthrough showed it on :3101
   // (the bridge's port), probed the bridge's non-existent /api/healthz,
   // got a 404, and reported the web as "unknown" forever.
-  const webPort = parsePort(env.CONTEXTOS_WEB_PORT, 3001);
-  const isTeamMode = env.CONTEXTOS_MODE === 'team';
+  const webPort = parsePort(env.COODRA_WEB_PORT, 3001);
+  const isTeamMode = env.COODRA_MODE === 'team';
 
   const states: ServiceState[] = [];
   for (const descriptor of SERVICES) {
@@ -276,19 +276,19 @@ async function collectServiceStates(
       });
     } else {
       // Worker: ask the active daemon manager. launchd-managed daemons
-      // do NOT write to ~/.contextos/pids/, so the PID-file fallback
+      // do NOT write to ~/.coodra/pids/, so the PID-file fallback
       // alone reports stopped even when the daemon is running. Try the
       // manager first, fall back to PID file for the no-launchd
       // (`fallback`) manager which DOES write the PID file at start.
       let state: ServiceState['state'] = 'stopped';
       try {
-        const manager = await selectDaemonManager({ contextosHome });
+        const manager = await selectDaemonManager({ coodraHome });
         const ds = await manager.status(descriptor.name);
         if (ds.state === 'running') state = 'running';
         else if (ds.state === 'unknown') state = 'unknown';
         else state = 'stopped';
       } catch {
-        const pid = await readPidStatus(contextosHome, descriptor.name);
+        const pid = await readPidStatus(coodraHome, descriptor.name);
         state = pid.state === 'alive' ? 'running' : pid.state === 'dead' ? 'unknown' : 'stopped';
       }
       states.push({
@@ -304,8 +304,8 @@ async function collectServiceStates(
   return states;
 }
 
-async function collectRecentState(contextosHome: string, projectId: string | null): Promise<RecentState> {
-  const dataDb = join(contextosHome, 'data.db');
+async function collectRecentState(coodraHome: string, projectId: string | null): Promise<RecentState> {
+  const dataDb = join(coodraHome, 'data.db');
   let dbExists = true;
   try {
     await access(dataDb);
@@ -413,11 +413,11 @@ function formatHumanReport(report: StatusReport): string {
   }
   lines.push(kvBlock(machineRows, { keyWidth: 14, indent: 2 }));
   if (m.envDriftsFromConfig) {
-    // Shell CONTEXTOS_MODE disagrees with config.json — the daemon
+    // Shell COODRA_MODE disagrees with config.json — the daemon
     // spawn-env layer neutralises it, but the operator's terminal will
-    // mislead them. The fix is shell-side (`unset CONTEXTOS_MODE`).
+    // mislead them. The fix is shell-side (`unset COODRA_MODE`).
     lines.push(
-      `  ${warnLine(`shell $CONTEXTOS_MODE=${m.shellModeValue ?? ''} disagrees with config.json (mode=${m.mode}) — \`unset CONTEXTOS_MODE\` to clear`)}`,
+      `  ${warnLine(`shell $COODRA_MODE=${m.shellModeValue ?? ''} disagrees with config.json (mode=${m.mode}) — \`unset COODRA_MODE\` to clear`)}`,
     );
   }
   lines.push('');
@@ -426,11 +426,11 @@ function formatHumanReport(report: StatusReport): string {
   lines.push(sectionHead('02', 'project', { width }));
   let modeMeta: string;
   if (!p.registered) {
-    modeMeta = 'cwd not yet registered — run `contextos init`';
+    modeMeta = 'cwd not yet registered — run `coodra init`';
   } else if (p.mode === 'team') {
     modeMeta = `syncs to ${p.orgId !== null ? `${p.orgId.slice(0, 16)}…` : 'team org'}`;
   } else {
-    modeMeta = 'local-only — `contextos project promote` to share';
+    modeMeta = 'local-only — `coodra project promote` to share';
   }
   const projectRows: KvRow[] = [
     {
@@ -500,7 +500,7 @@ function formatHumanReport(report: StatusReport): string {
     );
   }
   lines.push('');
-  lines.push(hintLine('  Run `contextos doctor` for the full diagnostic.'));
+  lines.push(hintLine('  Run `coodra doctor` for the full diagnostic.'));
   return `${lines.join('\n')}\n`;
 }
 

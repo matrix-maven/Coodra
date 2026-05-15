@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 
-import { postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { postgresSchema, sqliteSchema } from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 
@@ -52,7 +52,7 @@ export interface PackListRow {
   readonly hasTechstack: boolean;
   readonly fileCount: number;
   /**
-   * True when this pack was written by `contextos init` and never edited
+   * True when this pack was written by `coodra init` and never edited
    * — i.e. it is the canonical 4-file template stub. Used by the web
    * upload flow to auto-allow overwrite without forcing the operator to
    * tick the "force" checkbox; uploading over a stub is *not* an
@@ -80,7 +80,7 @@ export interface PackDetail extends PackListRow {
  * directory. Returns null if none found within 6 levels.
  *
  * Why walk up: `process.cwd()` is whatever directory Next.js was
- * launched from — running `pnpm --filter @coodra/contextos-web start`
+ * launched from — running `pnpm --filter @coodra/web start`
  * lands in `apps/web/` (the package dir), but the project's
  * `docs/feature-packs/` lives at the repo root. Walking up finds it
  * regardless of the launch dir.
@@ -122,11 +122,11 @@ function findPacksRoot(start: string = process.cwd()): string | null {
  *    where there is no project context, and by pre-2026-05-08 projects
  *    rows that have a null `cwd`.
  *
- * 3. `CONTEXTOS_PACKS_ROOT` env override always wins (test / containerized
+ * 3. `COODRA_PACKS_ROOT` env override always wins (test / containerized
  *    deploys that pin packs to a known absolute path).
  */
 export function packsRoot(cwd: string = process.cwd()): string {
-  const override = process.env.CONTEXTOS_PACKS_ROOT;
+  const override = process.env.COODRA_PACKS_ROOT;
   if (typeof override === 'string' && override.length > 0) {
     return override;
   }
@@ -178,7 +178,7 @@ function buildRow(slug: string, dir: string): PackListRow {
   }
   const fileCount = [hasMeta, hasSpec, hasImplementation, hasTechstack].filter(Boolean).length;
   // Template-stub detection. Two signals:
-  //  1. meta.json's `kind` is NOT 'freeform'. `contextos init`
+  //  1. meta.json's `kind` is NOT 'freeform'. `coodra init`
   //     historically wrote meta.json without a `kind` field (or with a
   //     template-specific value). The web `uploadPackAction` always
   //     writes `kind: 'freeform'`, so its absence reliably marks a

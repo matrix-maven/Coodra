@@ -16,7 +16,7 @@ const cliRoot = resolve(here, '..', '..');
  * exclusion lists, NOT on the absolute path order, so re-ordering by
  * pnpm pack does not flake the test.
  */
-describe('@coodra/contextos-cli — `npm pack --dry-run` file-list lock', () => {
+describe('@coodra/cli — `npm pack --dry-run` file-list lock', () => {
   it('includes only dist/, package.json, README.md (no src/, no __tests__/, no node_modules/)', async () => {
     const result = await execa('pnpm', ['pack', '--dry-run', '--json'], {
       cwd: cliRoot,
@@ -33,7 +33,7 @@ describe('@coodra/contextos-cli — `npm pack --dry-run` file-list lock', () => 
       name: string;
       files: Array<{ path: string }>;
     };
-    expect(parsed.name).toBe('@coodra/contextos-cli');
+    expect(parsed.name).toBe('@coodra/cli');
     const files = parsed.files.map((f) => f.path).sort();
 
     // Allowed paths.

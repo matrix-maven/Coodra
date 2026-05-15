@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 /**
  * Unit tests for `apps/web-v2/lib/invite-token.ts`.
  *
- * The module reads `CONTEXTOS_INVITE_HMAC_SECRET` at import time via
+ * The module reads `COODRA_INVITE_HMAC_SECRET` at import time via
  * `loadInviteSecret()` invocations, but loads are per-call (not
  * cached at module-init), so we can flip the env var per test and the
  * next sign/verify picks up the new secret.
@@ -37,10 +37,10 @@ async function reload(): Promise<typeof import('@/lib/invite-token')> {
 
 describe('invite-token round-trip', () => {
   beforeEach(() => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
+    process.env.COODRA_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
   });
   afterEach(() => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = undefined;
+    process.env.COODRA_INVITE_HMAC_SECRET = undefined;
   });
 
   it('signs and verifies a valid payload', async () => {
@@ -53,7 +53,7 @@ describe('invite-token round-trip', () => {
       role: 'member' as const,
       email: 'alice@acme.com',
       exp: now + 3600,
-      iss: 'https://contextos-acme.test',
+      iss: 'https://coodra-acme.test',
     };
     const token = signInviteToken(payload);
     expect(token.split('.').length).toBe(2);
@@ -150,7 +150,7 @@ describe('invite-token round-trip', () => {
   });
 
   it('rejects tokens signed with a different secret (forgery attempt)', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
+    process.env.COODRA_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
     const sigA = (await reload()).signInviteToken;
     const now = Math.floor(Date.now() / 1000);
     const token = sigA({
@@ -163,7 +163,7 @@ describe('invite-token round-trip', () => {
       iss: 'https://x.test',
     });
 
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = ALT_SECRET_HEX;
+    process.env.COODRA_INVITE_HMAC_SECRET = ALT_SECRET_HEX;
     const verifyB = (await reload()).verifyInviteToken;
     const result = verifyB(token, now);
     expect(result.ok).toBe(false);
@@ -215,11 +215,11 @@ describe('invite-token round-trip', () => {
 
 describe('invite-token secret misconfiguration', () => {
   afterEach(() => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = undefined;
+    process.env.COODRA_INVITE_HMAC_SECRET = undefined;
   });
 
   it('verify returns secret_misconfigured when env is unset', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = undefined;
+    process.env.COODRA_INVITE_HMAC_SECRET = undefined;
     const { verifyInviteToken } = await reload();
     const result = verifyInviteToken('aaa.bbb', Math.floor(Date.now() / 1000));
     expect(result.ok).toBe(false);
@@ -227,7 +227,7 @@ describe('invite-token secret misconfiguration', () => {
   });
 
   it('verify returns secret_misconfigured when secret is too short', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = 'shorty';
+    process.env.COODRA_INVITE_HMAC_SECRET = 'shorty';
     const { verifyInviteToken } = await reload();
     const result = verifyInviteToken('aaa.bbb', Math.floor(Date.now() / 1000));
     expect(result.ok).toBe(false);
@@ -235,21 +235,21 @@ describe('invite-token secret misconfiguration', () => {
   });
 
   it('describeInviteSecretConfig returns null when secret is valid', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
+    process.env.COODRA_INVITE_HMAC_SECRET = TEST_SECRET_HEX;
     const { describeInviteSecretConfig } = await reload();
     expect(describeInviteSecretConfig()).toBeNull();
   });
 
   it('describeInviteSecretConfig returns a remediation message when secret is missing', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = undefined;
+    process.env.COODRA_INVITE_HMAC_SECRET = undefined;
     const { describeInviteSecretConfig } = await reload();
     const msg = describeInviteSecretConfig();
     expect(msg).not.toBeNull();
-    expect(msg).toMatch(/CONTEXTOS_INVITE_HMAC_SECRET/);
+    expect(msg).toMatch(/COODRA_INVITE_HMAC_SECRET/);
   });
 
   it('sign throws when the secret is missing', async () => {
-    process.env.CONTEXTOS_INVITE_HMAC_SECRET = undefined;
+    process.env.COODRA_INVITE_HMAC_SECRET = undefined;
     const { signInviteToken } = await reload();
     expect(() =>
       signInviteToken({
@@ -261,6 +261,6 @@ describe('invite-token secret misconfiguration', () => {
         exp: Math.floor(Date.now() / 1000) + 60,
         iss: 'x',
       }),
-    ).toThrow(/CONTEXTOS_INVITE_HMAC_SECRET/);
+    ).toThrow(/COODRA_INVITE_HMAC_SECRET/);
   });
 });

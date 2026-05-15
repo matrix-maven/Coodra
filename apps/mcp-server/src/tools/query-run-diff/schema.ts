@@ -1,8 +1,8 @@
-import { runDiffFileEntrySchema } from '@coodra/contextos-shared';
+import { runDiffFileEntrySchema } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__query_run_diff` (Module 06).
+ * Input + output schemas for `coodra__query_run_diff` (Module 06).
  *
  * Read-only tool. The bridge writes the row at SessionEnd; this tool
  * surfaces it back to agents for richer save_context_pack writeups, or
@@ -29,7 +29,7 @@ export const queryRunDiffInputSchema = z
     runId: z.string().min(1, 'runId is required').max(256),
   })
   .strict()
-  .describe('Input for contextos__query_run_diff.');
+  .describe('Input for coodra__query_run_diff.');
 
 const successBranch = z
   .object({

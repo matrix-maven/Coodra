@@ -5,7 +5,7 @@ import { type CheckPolicyHandlerDeps, createCheckPolicyHandler } from './handler
 import { type CheckPolicyInput, checkPolicyInputSchema, checkPolicyOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__check_policy` (§24.4, S14).
+ * Registration factory for `coodra__check_policy` (§24.4, S14).
  *
  * Factory-shaped because the handler closes over a `DbHandle` for
  * projects-slug resolution + `recordPolicyDecision` audit write.
@@ -20,7 +20,7 @@ import { type CheckPolicyInput, checkPolicyInputSchema, checkPolicyOutputSchema 
  * `ON CONFLICT DO NOTHING` inside `recordPolicyDecision`.
  *
  * §24.3 description anatomy (five-part recipe + 40–80 word band) is
- * enforced by `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`.
+ * enforced by `@coodra/shared/test-utils::assertManifestDescriptionValid`.
  */
 
 const checkPolicyIdempotencyKey: IdempotencyKeyBuilder<CheckPolicyInput> = (input, _ctx) => {
@@ -42,7 +42,7 @@ export function createCheckPolicyToolRegistration(
 ): ToolRegistration<typeof checkPolicyInputSchema, typeof checkPolicyOutputSchema> {
   return {
     name: 'check_policy',
-    title: 'ContextOS: check_policy',
+    title: 'Coodra: check_policy',
     description:
       'Call this BEFORE every file write, shell command, or destructive operation. Returns "allow", "ask", or "deny" — ' +
       'project-scoped policy rules decide. If the response is "deny", DO NOT proceed — report the reason to the user and stop. ' +

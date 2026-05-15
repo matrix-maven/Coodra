@@ -5,7 +5,7 @@ import { createMcpLogger } from '../../../src/lib/logger.js';
 /**
  * Integration test for `src/lib/logger.ts`.
  *
- * The factory wraps `@coodra/contextos-shared::createLogger` with an
+ * The factory wraps `@coodra/shared::createLogger` with an
  * `mcp-server.<moduleName>` namespace. This test locks:
  *   - non-empty moduleName is required;
  *   - returned logger has the pino-shaped methods tool code expects

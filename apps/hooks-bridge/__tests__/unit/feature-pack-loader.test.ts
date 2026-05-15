@@ -17,14 +17,14 @@ import { loadFeaturePackForSession } from '../../src/lib/feature-pack-loader.js'
  *   3. The returned content is a single Markdown blob with H1
  *      sections so the agent can scan section headers.
  *   4. Path-traversal slugs are refused (defence-in-depth: a
- *      malicious `.contextos.json` cannot make the loader read
+ *      malicious `.coodra.json` cannot make the loader read
  *      `../../etc/passwd`).
  */
 describe('loadFeaturePackForSession', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-fp-loader-test-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-fp-loader-test-'));
   });
   afterEach(() => {
     /* tmp cleaned by OS */
@@ -48,7 +48,7 @@ describe('loadFeaturePackForSession', () => {
     const result = await loadFeaturePackForSession({ cwd, projectSlug: slug });
     expect(result).not.toBeNull();
     expect(result?.slug).toBe('spec-only');
-    expect(result?.content).toContain('# ContextOS Feature Pack — spec-only');
+    expect(result?.content).toContain('# Coodra Feature Pack — spec-only');
     expect(result?.content).toContain('## spec.md');
     expect(result?.content).toContain('# Spec body');
     expect(result?.content).not.toContain('## implementation.md');

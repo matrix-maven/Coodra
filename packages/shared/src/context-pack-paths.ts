@@ -19,11 +19,11 @@ import { resolve } from 'node:path';
  * `save_context_pack` call mid-session and the bridge's autonomous
  * SessionEnd save produce the same filename for the same runId
  * (which idempotency check catches as a no-op via `context_packs.run_id`
- * unique constraint, but matching filenames keep `ls ~/.contextos/packs/`
+ * unique constraint, but matching filenames keep `ls ~/.coodra/packs/`
  * coherent).
  *
  * These helpers were originally in `apps/mcp-server/src/lib/context-pack.ts`
- * (lines 91-126 pre-Fix-H). Extracted to `@coodra/contextos-shared`
+ * (lines 91-126 pre-Fix-H). Extracted to `@coodra/shared`
  * to avoid an app→app dependency from the bridge to the mcp-server.
  * The mcp-server module re-exports them so the existing public API
  * is unchanged.
@@ -33,9 +33,9 @@ import { resolve } from 'node:path';
  * Default root for on-disk `YYYY-MM-DD-<runId>.md` files.
  *
  * F13 closure (verification 2026-04-27): the auto-saved per-pack
- * markdown lands in `~/.contextos/packs/` by default — out of any
+ * markdown lands in `~/.coodra/packs/` by default — out of any
  * repo, separate from the curated archive at `docs/context-packs/`.
- * The override knob (env `CONTEXTOS_CONTEXT_PACKS_ROOT`, or
+ * The override knob (env `COODRA_CONTEXT_PACKS_ROOT`, or
  * `contextPacksRoot` option on `createContextPackStore`) still
  * applies. Hand-curated module closeouts live in
  * `<repo>/docs/context-packs/` and stay tracked in git; this default
@@ -43,7 +43,7 @@ import { resolve } from 'node:path';
  * closeouts don't leave orphan auto-saved files in the repo.
  */
 export function defaultContextPacksRoot(): string {
-  return resolve(homedir(), '.contextos', 'packs');
+  return resolve(homedir(), '.coodra', 'packs');
 }
 
 /**

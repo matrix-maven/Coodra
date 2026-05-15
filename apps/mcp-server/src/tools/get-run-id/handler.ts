@@ -1,14 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger, generateRunKey } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger, generateRunKey } from '@coodra/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { SOLO_IDENTITY } from '../../lib/auth.js';
 import type { GetRunIdInput, GetRunIdOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__get_run_id`.
+ * Handler factory for `coodra__get_run_id`.
  *
  * Factory shape (not a bare function like `ping`) because the
  * handler's asymmetric solo/team behaviour per user directive Q1
@@ -47,7 +47,7 @@ import type { GetRunIdInput, GetRunIdOutput } from './schema.js';
  *      directive Q2).
  *
  *   4. `mode` stamped onto the new row is the factory's `deps.mode`
- *      — the process's boot-time `CONTEXTOS_MODE`.
+ *      — the process's boot-time `COODRA_MODE`.
  *
  *   5. `startedAt` comes from the DB's `DEFAULT (unixepoch())`
  *      clause, surfaced via the INSERT RETURNING. Handler never
@@ -143,7 +143,7 @@ async function autoCreateProject(deps: GetRunIdHandlerDeps, projectSlug: string)
 }
 
 // NOTE: The bridge's RunRecorder uses the leaner `lookupRunId` helper
-// from @coodra/contextos-db (verification F8 closure, 2026-04-27) which returns
+// from @coodra/db (verification F8 closure, 2026-04-27) which returns
 // just the id. This local `selectLatestRun` keeps the wider RunRow
 // shape (id + status + startedAt) needed by `get_run_id` to decide
 // whether to return the existing in-progress row vs mint a new one.
@@ -265,7 +265,7 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
       return {
         ok: false,
         error: 'project_not_found',
-        howToFix: 'Register this project via the Web App or run `contextos init` in the project root before retrying.',
+        howToFix: 'Register this project via the Web App or run `coodra init` in the project root before retrying.',
       };
     }
 

@@ -29,7 +29,7 @@ const NO_DATA_PLACEHOLDERS: Readonly<Record<string, string>> = {
   'directory-structure': '_Project root is empty._',
   scripts: '_No scripts detected (no package.json / Makefile / pyproject.toml [project.scripts] found)._',
   'entry-points': '_No entry points detected._',
-  services: '_No ContextOS services running on this machine._',
+  services: '_No Coodra services running on this machine._',
   overview: '_(write a short overview of what this project does)_',
 };
 
@@ -170,7 +170,7 @@ function walkDirShallow(absRoot: string, relPath: string, depth: number, out: st
   const skip = new Set([
     'node_modules',
     '.git',
-    '.contextos',
+    '.coodra',
     'dist',
     'build',
     '.next',
@@ -182,7 +182,7 @@ function walkDirShallow(absRoot: string, relPath: string, depth: number, out: st
     '.turbo',
   ]);
   for (const name of entries.sort()) {
-    if (name.startsWith('.') && name !== '.contextos.json' && name !== '.mcp.json') continue;
+    if (name.startsWith('.') && name !== '.coodra.json' && name !== '.mcp.json') continue;
     if (skip.has(name)) continue;
     const subRel = relPath === '' ? name : `${relPath}/${name}`;
     let isDir = false;
@@ -260,12 +260,12 @@ function generateEntryPoints(projectRoot: string): string {
 }
 
 function generateServices(_projectRoot: string): string {
-  // Reads ~/.contextos/pids/*.pid via pid-status.ts in a future refresh
+  // Reads ~/.coodra/pids/*.pid via pid-status.ts in a future refresh
   // pass. For S15, return a static informational note pointing operators
-  // at `contextos status` for live data — populating this section
+  // at `coodra status` for live data — populating this section
   // requires reaching outside projectRoot which complicates the pure
   // contract. Documented as a deferred enhancement.
-  return '_Run `contextos status` for live service health (this section will populate from pid-status in a future refresh)._';
+  return '_Run `coodra status` for live service health (this section will populate from pid-status in a future refresh)._';
 }
 
 function readJsonIfExists(path: string): Record<string, unknown> | null {

@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { createLogger, InternalError, ValidationError } from '@coodra/contextos-shared';
+import { createLogger, InternalError, ValidationError } from '@coodra/shared';
 import Database, { type Database as BetterSqliteDatabase } from 'better-sqlite3';
 import { type BetterSQLite3Database, drizzle as drizzleSqlite } from 'drizzle-orm/better-sqlite3';
 import { drizzle as drizzlePostgres, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
@@ -29,7 +29,7 @@ export type PostgresDb = PostgresJsDatabase<typeof postgresSchema>;
 export interface CreateSqliteDbOptions {
   /**
    * Filesystem path to the SQLite database. `:memory:` is accepted for
-   * tests. Defaults to `~/.contextos/data.db` when omitted, with the
+   * tests. Defaults to `~/.coodra/data.db` when omitted, with the
    * parent directory created on demand.
    */
   path?: string;
@@ -43,7 +43,7 @@ export interface CreateSqliteDbOptions {
    * usable by this handle. Defaults to `true`.
    *
    * Failure handling (per decision 2026-04-22 22:08):
-   *   - `NODE_ENV=test` or `CONTEXTOS_REQUIRE_VEC=1` → throw
+   *   - `NODE_ENV=test` or `COODRA_REQUIRE_VEC=1` → throw
    *     `InternalError('sqlite_vec_unavailable')`. Dev and test must not
    *     silently degrade — a missing extension would hide embedding-index
    *     regressions.
@@ -108,35 +108,35 @@ function expandHome(path: string): string {
  *
  * Precedence (highest first), per integration finding 2026-04-27 (post-08a
  * walk):
- *   1. `input` argument (explicit caller override; e.g. `contextos doctor`
- *      passes `<contextos-home>/data.db` directly).
- *   2. `CONTEXTOS_SQLITE_PATH` env var (per-process override).
- *   3. `CONTEXTOS_HOME` env var (per-machine umbrella; bridge + mcp-server
- *      daemons spawned by `contextos start` get this through the plist /
+ *   1. `input` argument (explicit caller override; e.g. `coodra doctor`
+ *      passes `<coodra-home>/data.db` directly).
+ *   2. `COODRA_SQLITE_PATH` env var (per-process override).
+ *   3. `COODRA_HOME` env var (per-machine umbrella; bridge + mcp-server
+ *      daemons spawned by `coodra start` get this through the plist /
  *      systemd unit / fallback environment block so they write to the
  *      same data.db the CLI tools read from).
- *   4. `~/.contextos/data.db` (per-user fallback).
+ *   4. `~/.coodra/data.db` (per-user fallback).
  *
  * Why this layering matters: pre-fix, daemons spawned by the CLI ignored
- * `CONTEXTOS_HOME` for the DB path and resolved `~/.contextos/data.db`
+ * `COODRA_HOME` for the DB path and resolved `~/.coodra/data.db`
  * against the OS user's homedir — so the daemon wrote audit rows to
  * a DB at one path while doctor + status read from another path. Test
- * environments that set `CONTEXTOS_HOME=/tmp/...` saw daemons silently
- * polluting the user's real `~/.contextos/data.db`.
+ * environments that set `COODRA_HOME=/tmp/...` saw daemons silently
+ * polluting the user's real `~/.coodra/data.db`.
  */
 export function resolveSqlitePath(input: string | undefined): string {
   if (input !== undefined && input !== '') {
     return input === ':memory:' ? ':memory:' : resolve(expandHome(input));
   }
-  const sqlitePathEnv = process.env.CONTEXTOS_SQLITE_PATH;
+  const sqlitePathEnv = process.env.COODRA_SQLITE_PATH;
   if (sqlitePathEnv !== undefined && sqlitePathEnv !== '') {
     return sqlitePathEnv === ':memory:' ? ':memory:' : resolve(expandHome(sqlitePathEnv));
   }
-  const contextosHomeEnv = process.env.CONTEXTOS_HOME;
-  if (contextosHomeEnv !== undefined && contextosHomeEnv !== '') {
-    return resolve(join(expandHome(contextosHomeEnv), 'data.db'));
+  const coodraHomeEnv = process.env.COODRA_HOME;
+  if (coodraHomeEnv !== undefined && coodraHomeEnv !== '') {
+    return resolve(join(expandHome(coodraHomeEnv), 'data.db'));
   }
-  return resolve(expandHome('~/.contextos/data.db'));
+  return resolve(expandHome('~/.coodra/data.db'));
 }
 
 /**
@@ -144,10 +144,10 @@ export function resolveSqlitePath(input: string | undefined): string {
  * In `test` and explicit opt-in contexts, a silent fallback would hide
  * embedding-path regressions; so we throw. Production defaults to WARN.
  * Environment variables are re-read on every call so test code can flip
- * `CONTEXTOS_REQUIRE_VEC` at runtime without re-importing the module.
+ * `COODRA_REQUIRE_VEC` at runtime without re-importing the module.
  */
 function vecLoadIsRequired(): boolean {
-  return process.env.NODE_ENV === 'test' || process.env.CONTEXTOS_REQUIRE_VEC === '1';
+  return process.env.NODE_ENV === 'test' || process.env.COODRA_REQUIRE_VEC === '1';
 }
 
 /**
@@ -265,7 +265,7 @@ export function createPostgresDb(options: CreatePostgresDbOptions): PostgresHand
  *
  * `mode` (`'solo' | 'team'`) is a hint for any caller that wants to
  * branch on auth strategy or future logging tags. It does NOT dictate
- * DB choice. Module 02 S4's `CONTEXTOS_DB_OVERRIDE_MODE` env knob —
+ * DB choice. Module 02 S4's `COODRA_DB_OVERRIDE_MODE` env knob —
  * introduced as a stop-gap for the team-mode-auth + sqlite local-dev
  * scenario — is removed in Module 03 S4 because the new `kind`
  * discriminator makes the override unnecessary.

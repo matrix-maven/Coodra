@@ -9,7 +9,7 @@
  *
  * The wizard then prompts the admin (or auto-selects, when there's
  * exactly one org) which org represents their team. The selected org's
- * id + slug land in `~/.contextos/config.json::team`.
+ * id + slug land in `~/.coodra/config.json::team`.
  *
  * Why a Backend SDK call rather than asking the admin for IDs:
  *
@@ -173,7 +173,7 @@ export async function bootstrapClerk(input: ClerkBootstrapInput): Promise<ClerkB
       error: 'no_orgs',
       howToFix:
         "You're not a member of any Clerk organization yet. Open your Clerk dashboard → Organizations → New, " +
-        "create one (the name + slug become your team's ContextOS identity), then re-run this wizard.",
+        "create one (the name + slug become your team's Coodra identity), then re-run this wizard.",
       underlyingError: 'getOrganizationMembershipList() returned empty list',
     };
   }

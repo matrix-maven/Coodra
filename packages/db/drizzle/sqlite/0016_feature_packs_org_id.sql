@@ -1,7 +1,7 @@
 -- 0016_feature_packs_org_id.sql — Phase G slice G.9 (2026-05-12).
 --
 -- Multi-tenancy column. Local SQLite is single-tenant on a developer's
--- laptop (one org per ~/.contextos), so org_id is informational for
+-- laptop (one org per ~/.coodra), so org_id is informational for
 -- parity with the cloud schema. The cloud sync path populates org_id
 -- from the verified Clerk JWT on every push; multi-tenancy enforcement
 -- happens at the cloud query layer.

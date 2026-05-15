@@ -1,6 +1,6 @@
 # Module 04 Phase 2 — Web App completion — Implementation
 
-> Slice-by-slice work breakdown for the Phase 2 portion of `feat/04-web-app`. Read `spec.md` first for scope and `techstack.md` for the new runtime/dep choices (markdown renderer + react-flow). Decisions made mid-implementation get logged in `context_memory/decisions-log.md` and mirrored to the MCP via `contextos__record_decision`.
+> Slice-by-slice work breakdown for the Phase 2 portion of `feat/04-web-app`. Read `spec.md` first for scope and `techstack.md` for the new runtime/dep choices (markdown renderer + react-flow). Decisions made mid-implementation get logged in `context_memory/decisions-log.md` and mirrored to the MCP via `coodra__record_decision`.
 
 > **Re-authored 2026-05-04** after user IA pivot (OQ-1 re-locked from dropdown to hub-and-spoke). The original 11-slice plan that nested route migration as a single S2 has been reshaped into 14 slices (S2-S15) with the IA migration broken into S2a/b/c sub-commits.
 
@@ -78,7 +78,7 @@ apps/web/app/api/runs/[id]/state/        → apps/web/app/api/projects/[slug]/ru
 - `apps/web/app/layout.tsx` — wrap children with new HeaderNav contract (S2c shapes the actual nav; S2b just stubs).
 
 **Acceptance (S2b):**
-- `/` renders cards for `coodra-dev` + `contextos` (post-cleanup state).
+- `/` renders cards for `coodra-dev` + `coodra` (post-cleanup state).
 - `/projects/coodra-dev` renders 4 tiles + the live event stream for that project only.
 - `/projects/nonexistent-slug` returns 404 (not 500).
 - Both pages declare `dynamic = 'force-dynamic'`.
@@ -256,7 +256,7 @@ apps/web/app/api/runs/[id]/state/        → apps/web/app/api/projects/[slug]/ru
 
 **Files added:**
 
-- `apps/web/app/projects/[slug]/graph/page.tsx` — Server Component. Reads `~/.contextos/graphify/<slug>/graph.json`. Empty state when missing → `<GraphifyEmptyState>` per AC #26.
+- `apps/web/app/projects/[slug]/graph/page.tsx` — Server Component. Reads `~/.coodra/graphify/<slug>/graph.json`. Empty state when missing → `<GraphifyEmptyState>` per AC #26.
 - `apps/web/components/GraphifyEmptyState.tsx` — install CTA copy + "Copy install command" button.
 - `apps/web/components/GraphReader.tsx` — client component, react-flow canvas + symbol search-table.
 - `apps/web/lib/queries/graph.ts::loadGraph(projectSlug)`.
@@ -377,7 +377,7 @@ apps/web/app/api/runs/[id]/state/        → apps/web/app/api/projects/[slug]/ru
 - Flip `README.md` module-status row: `04 ✅ complete (Phase 1 + Phase 2)`.
 - Update `docs/feature-packs/04-web-app/SETUP.md` with new URLs + new actions.
 - Mark Phase 2 OQ locks final in `context_memory/decisions-log.md`.
-- Save closeout via `contextos__save_context_pack`.
+- Save closeout via `coodra__save_context_pack`.
 
 **Acceptance:**
 - All 27 Phase 2 ACs hold on a clean checkout.
@@ -400,8 +400,8 @@ Per `docs/audit/2026-05-04-strict-bug-status.md` and S1's verification: `.passth
 After S15 closeout lands:
 
 1. `pnpm install`, `pnpm typecheck`, `pnpm lint`, `pnpm test:unit`, `pnpm test:integration`, `pnpm test:e2e`. All green.
-2. Stop services. Backup + purge `~/.contextos/data.db` per `docs/audit/2026-05-04-purge-and-retest.md`.
-3. `contextos init --project-slug coodra-dev --no-graphify --ide claude`; `contextos start`; `contextos doctor` — green.
+2. Stop services. Backup + purge `~/.coodra/data.db` per `docs/audit/2026-05-04-purge-and-retest.md`.
+3. `coodra init --project-slug coodra-dev --no-graphify --ide claude`; `coodra start`; `coodra doctor` — green.
 4. Boot web in solo mode. `/` shows ONE project card.
 5. Use `/init` to provision `alpha`. `/` now shows TWO project cards.
 6. Click `coodra-dev` → land at `/projects/coodra-dev`. Sub-nav shows.
@@ -409,9 +409,9 @@ After S15 closeout lands:
 8. Drive 14 hook events for `coodra-dev`. Refresh `/projects/coodra-dev` — tile values match SQLite.
 9. Edit a feature pack via `/projects/coodra-dev/packs/<slug>/edit`; assert auto-managed sections survived round-trip.
 10. Delete a non-essential pack; confirm dir removed + is_active=false.
-11. `/projects/coodra-dev/logs/hooks-bridge`; `echo 'manual line' >> ~/.contextos/logs/hooks-bridge.log`; line appears in <500ms.
+11. `/projects/coodra-dev/logs/hooks-bridge`; `echo 'manual line' >> ~/.coodra/logs/hooks-bridge.log`; line appears in <500ms.
 12. `/settings/workspace` → click "Stop services" → confirm → bridge + mcp-server stop.
-13. Switch to team mode (`CONTEXTOS_MODE=team` env + restart); `/sync` renders queue depth.
+13. Switch to team mode (`COODRA_MODE=team` env + restart); `/sync` renders queue depth.
 14. Toggle dark mode in user menu; assert all routes re-render in dark.
 15. Resize browser to 375px; tables collapse to cards, HeaderNav becomes hamburger.
 

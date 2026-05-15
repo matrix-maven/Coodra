@@ -1,6 +1,6 @@
 # `/` — Dashboard home (S9)
 
-CLI parity: `contextos doctor` (summary) + `contextos run list` + `contextos pause` status combined. The single load-bearing first-impression page; informs everything downstream.
+CLI parity: `coodra doctor` (summary) + `coodra run list` + `coodra pause` status combined. The single load-bearing first-impression page; informs everything downstream.
 
 ## Desktop (≥ lg) — full layout
 
@@ -89,7 +89,7 @@ Tiles stack vertically. Latest events table becomes a card list (one card per ev
 | Surface | Solo | Team |
 |---|---|---|
 | Tile counts | Local SQLite query | Cloud Postgres query, scoped to org |
-| Doctor tile | Shells `contextos doctor --json --full`, cached 60s | Caption "Per-developer doctor; no cloud rollup" — values are dashes |
+| Doctor tile | Shells `coodra doctor --json --full`, cached 60s | Caption "Per-developer doctor; no cloud rollup" — values are dashes |
 | Latest events | `run_events` LIMIT 10 ORDER BY created_at DESC, scoped to current project | Same query, scoped to org's projects |
 
 ## Empty state

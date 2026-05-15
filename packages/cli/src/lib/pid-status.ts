@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { resolveContextosPidsDir } from './contextos-home.js';
+import { resolveCoodraPidsDir } from './coodra-home.js';
 
 /**
  * `packages/cli/src/lib/pid-status` — shared helper for "is the daemon
@@ -10,7 +10,7 @@ import { resolveContextosPidsDir } from './contextos-home.js';
  * 10/11 distinguish "bridge crashed" (RED) from "never started"
  * (YELLOW with remediation).
  *
- *   - `alive`        — `<contextos-home>/pids/<name>.pid` exists and the
+ *   - `alive`        — `<coodra-home>/pids/<name>.pid` exists and the
  *                      PID responds to signal 0. Process is live.
  *   - `dead`         — PID file exists but the PID has gone away (kill
  *                      returned ESRCH). The fallback daemon manager
@@ -21,7 +21,7 @@ import { resolveContextosPidsDir } from './contextos-home.js';
  *   - `no-pid-file`  — no PID file. Either the daemon was never
  *                      started, was cleanly stopped, or is managed by
  *                      launchd/systemd (which don't write to
- *                      ~/.contextos/pids/). YELLOW-worthy.
+ *                      ~/.coodra/pids/). YELLOW-worthy.
  *
  * Caller responsibility: dead vs no-pid-file is the same exit-1 from
  * the doctor's perspective; both fail the healthz probe. The state
@@ -34,8 +34,8 @@ export type PidStatus =
   | { readonly state: 'dead'; readonly pid: number }
   | { readonly state: 'no-pid-file' };
 
-export async function readPidStatus(contextosHome: string, unitName: string): Promise<PidStatus> {
-  const pidsDir = resolveContextosPidsDir(contextosHome);
+export async function readPidStatus(coodraHome: string, unitName: string): Promise<PidStatus> {
+  const pidsDir = resolveCoodraPidsDir(coodraHome);
   const path = join(pidsDir, `${unitName}.pid`);
   let raw: string;
   try {

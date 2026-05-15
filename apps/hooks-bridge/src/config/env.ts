@@ -1,14 +1,14 @@
-import { type BaseEnv, baseEnvSchema, parseEnv } from '@coodra/contextos-shared';
+import { type BaseEnv, baseEnvSchema, parseEnv } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
- * The one and only place in `@coodra/contextos-hooks-bridge` that reads
+ * The one and only place in `@coodra/hooks-bridge` that reads
  * `process.env`. Same contract as `apps/mcp-server/src/config/env.ts`:
  * synchronous parse at module load, fail-fast on bad config, no
  * `string | undefined` leaks past this file.
  *
  * Module 03 S5 scope: HOOKS_BRIDGE_HOST + HOOKS_BRIDGE_PORT for the
- * Hono listener; CONTEXTOS_SQLITE_PATH for the local DB; the same
+ * Hono listener; COODRA_SQLITE_PATH for the local DB; the same
  * three-layer auth chain config that mcp-server's env carries
  * (LOCAL_HOOK_SECRET + Clerk keys). Mode-conditional Clerk strictness
  * mirrors the mcp-server contract.
@@ -19,7 +19,7 @@ const SOLO_BYPASS_CLERK_SENTINEL = 'sk_test_replace_me' as const;
 const hooksBridgeEnvSchema = baseEnvSchema
   .extend({
     /** Where pino writes log lines. Hooks Bridge accepts both. */
-    CONTEXTOS_LOG_DESTINATION: z
+    COODRA_LOG_DESTINATION: z
       .enum(['stdout', 'stderr'])
       .default('stderr')
       .describe(
@@ -84,7 +84,7 @@ const hooksBridgeEnvSchema = baseEnvSchema
       .optional()
       .describe('Clerk secret (backend) key. Required in team mode unless the solo-bypass sentinel is set.'),
 
-    /** Clerk JWT issuer URL, used by `@coodra/contextos-shared/auth::verifyClerkJwt`. */
+    /** Clerk JWT issuer URL, used by `@coodra/shared/auth::verifyClerkJwt`. */
     CLERK_JWT_ISSUER: z
       .string()
       .url()
@@ -96,16 +96,16 @@ const hooksBridgeEnvSchema = baseEnvSchema
      * Hooks Bridge always runs on local SQLite, in both solo and team
      * mode, per `system-architecture.md` §1.
      */
-    CONTEXTOS_SQLITE_PATH: z
+    COODRA_SQLITE_PATH: z
       .string()
       .min(1)
       .optional()
-      .describe('Override path for the local SQLite database. Defaults to ~/.contextos/data.db.'),
+      .describe('Override path for the local SQLite database. Defaults to ~/.coodra/data.db.'),
   })
   .superRefine((env, ctx) => {
     // Same Clerk strictness as mcp-server (Module 02 addition C):
     // team mode with a non-sentinel secret requires BOTH Clerk keys.
-    if (env.CONTEXTOS_MODE === 'team' && env.CLERK_SECRET_KEY !== SOLO_BYPASS_CLERK_SENTINEL) {
+    if (env.COODRA_MODE === 'team' && env.CLERK_SECRET_KEY !== SOLO_BYPASS_CLERK_SENTINEL) {
       if (!env.CLERK_SECRET_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

@@ -22,9 +22,9 @@ import { buildProgram } from '../program.js';
 export interface CatalogCommand {
   /** Stable id, e.g. `policy-list`. */
   readonly id: string;
-  /** Command line without argument placeholders — `contextos policy list`. */
+  /** Command line without argument placeholders — `coodra policy list`. */
   readonly command: string;
-  /** Command line with argument placeholders — `contextos export <runId>` — inserted into the prompt on select. */
+  /** Command line with argument placeholders — `coodra export <runId>` — inserted into the prompt on select. */
   readonly display: string;
   /** argv for the in-process runner — `['policy', 'list']`. */
   readonly argv: readonly string[];
@@ -93,24 +93,24 @@ const CATEGORIES: ReadonlyArray<{ readonly num: string; readonly title: string; 
 
 /**
  * Commands that need their own terminal — keyed by the full
- * `contextos …` string. A readline prompt (`init` on a team machine,
+ * `coodra …` string. A readline prompt (`init` on a team machine,
  * `db restore`'s confirmation, the `team` bootstrap/migration flows) or
  * a browser sign-in (`login`, `org switch`, `team login`/`join`) cannot
  * share Ink's raw-mode stdin, so the TUI surfaces "run it in your own
  * terminal" instead of running these in-process.
  */
 const INTERACTIVE: ReadonlySet<string> = new Set([
-  'contextos init',
-  'contextos login',
-  'contextos org switch',
-  'contextos db restore',
-  'contextos team init',
-  'contextos team setup',
-  'contextos team join',
-  'contextos team install',
-  'contextos team migrate',
-  'contextos team leave',
-  'contextos team login',
+  'coodra init',
+  'coodra login',
+  'coodra org switch',
+  'coodra db restore',
+  'coodra team init',
+  'coodra team setup',
+  'coodra team join',
+  'coodra team install',
+  'coodra team migrate',
+  'coodra team leave',
+  'coodra team login',
 ]);
 
 /** First sentence of a commander description, capped — commander descriptions run long. */
@@ -146,7 +146,7 @@ function buildCatalog(): { readonly categories: CatalogCategory[]; readonly flat
 
     if (top.commands.length > 0) {
       for (const sub of top.commands) {
-        const command = `contextos ${name} ${sub.name()}`;
+        const command = `coodra ${name} ${sub.name()}`;
         push(
           {
             id: `${name}-${sub.name()}`,
@@ -160,7 +160,7 @@ function buildCatalog(): { readonly categories: CatalogCategory[]; readonly flat
         );
       }
     } else {
-      const command = `contextos ${name}`;
+      const command = `coodra ${name}`;
       push(
         {
           id: name,
@@ -195,11 +195,11 @@ export const ALL_CATALOG_COMMANDS: readonly CatalogCommand[] = BUILT.flat;
 /** Total command count. */
 export const CATALOG_COMMAND_COUNT = ALL_CATALOG_COMMANDS.length;
 
-/** Parse a typed prompt string into argv — strips the optional `contextos ` prefix, collapses whitespace. */
+/** Parse a typed prompt string into argv — strips the optional `coodra ` prefix, collapses whitespace. */
 export function parseCommandInput(input: string): string[] {
   const trimmed = input.trim().replace(/\s+/g, ' ');
   if (trimmed.length === 0) return [];
-  const withoutPrefix = trimmed.startsWith('contextos ') ? trimmed.slice('contextos '.length) : trimmed;
+  const withoutPrefix = trimmed.startsWith('coodra ') ? trimmed.slice('coodra '.length) : trimmed;
   return withoutPrefix.length === 0 ? [] : withoutPrefix.split(' ');
 }
 
@@ -222,11 +222,11 @@ export function resolveCatalogCommand(input: string): CatalogCommand | null {
  */
 export function isInteractiveCommand(argv: readonly string[]): boolean {
   if (argv.length === 0) return false;
-  if (argv.length >= 2 && INTERACTIVE.has(`contextos ${argv[0]} ${argv[1]}`)) return true;
-  return INTERACTIVE.has(`contextos ${argv[0]}`);
+  if (argv.length >= 2 && INTERACTIVE.has(`coodra ${argv[0]} ${argv[1]}`)) return true;
+  return INTERACTIVE.has(`coodra ${argv[0]}`);
 }
 
-/** Whether `argv[0]` is a real top-level `contextos` command. */
+/** Whether `argv[0]` is a real top-level `coodra` command. */
 export function isKnownCommand(argv: readonly string[]): boolean {
   const first = argv[0];
   return first !== undefined && Object.hasOwn(CATEGORY_OF, first);

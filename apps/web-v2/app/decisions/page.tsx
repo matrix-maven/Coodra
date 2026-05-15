@@ -19,8 +19,8 @@ interface SearchParams {
  * `/decisions` — workspace-wide decisions browser.
  *
  * Pre-cleanup the agent could record decisions via
- * `contextos__record_decision` and query them via
- * `contextos__query_decisions`, but the web app only surfaced them
+ * `coodra__record_decision` and query them via
+ * `coodra__query_decisions`, but the web app only surfaced them
  * per-run (on `/runs/[id]`). Operators trying to answer "what's the
  * trail of architectural decisions across this whole workspace?"
  * had to grep the SQLite DB. This page closes the gap.
@@ -56,7 +56,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
     <>
       <Topbar
         crumb="Decisions"
-        crumbPrefix={selectedProject !== undefined ? `contextos / ${selectedProject.slug}` : 'contextos'}
+        crumbPrefix={selectedProject !== undefined ? `coodra / ${selectedProject.slug}` : 'coodra'}
       />
       <section className="screen">
         <div className="head">
@@ -70,7 +70,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
             </h1>
             <p className="head__lede">
               Each row is a deliberate architectural or implementation choice the agent recorded mid-session via{' '}
-              <code style={mono}>contextos__record_decision</code>. Future sessions consult this list — and SessionStart
+              <code style={mono}>coodra__record_decision</code>. Future sessions consult this list — and SessionStart
               auto-injects the most recent — so silent contradictions don&apos;t happen.
               {selectedProject !== undefined ? (
                 <>
@@ -131,7 +131,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
             <strong>
               No decisions <em>yet</em>.
             </strong>
-            The agent records decisions via <code style={mono}>contextos__record_decision</code>. They&apos;ll appear
+            The agent records decisions via <code style={mono}>coodra__record_decision</code>. They&apos;ll appear
             here as they&apos;re made.
           </div>
         ) : (

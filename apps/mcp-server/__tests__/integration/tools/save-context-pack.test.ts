@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
@@ -14,7 +14,7 @@ import type { SaveContextPackOutput } from '../../../src/tools/save-context-pack
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__save_context_pack` (S10).
+ * Integration test for `coodra__save_context_pack` (S10).
  *
  * Exercises the real handler end-to-end via the `ToolRegistry`
  * against an in-memory SQLite DB seeded with a projects row + a runs

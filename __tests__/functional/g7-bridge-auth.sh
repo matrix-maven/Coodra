@@ -22,7 +22,7 @@ set -uo pipefail
 
 SLICE="G.7"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 PASS=0
@@ -41,14 +41,14 @@ assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 runner() {
   local body="$1"
   local tmpdir
-  tmpdir=$(mktemp -d -t "contextos-${SLICE}-runner.XXXXXX")
+  tmpdir=$(mktemp -d -t "coodra-${SLICE}-runner.XXXXXX")
   local tmpfile="$tmpdir/runner.mjs"
   cat > "$tmpfile" <<EOF
 import { getActorIdentity } from '${REPO_ROOT}/apps/hooks-bridge/src/lib/actor-identity.ts';
 ${body}
 EOF
   cd "$REPO_ROOT"
-  CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 npx tsx "$tmpfile" 2>&1
+  COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 npx tsx "$tmpfile" 2>&1
   rm -rf "$tmpdir"
 }
 

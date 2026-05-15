@@ -81,7 +81,7 @@ export default async function PacksListPage({
           }
           body={
             <>
-              Run <span className="font-mono text-accent">contextos pack new &lt;slug&gt;</span> in{' '}
+              Run <span className="font-mono text-accent">coodra pack new &lt;slug&gt;</span> in{' '}
               <span className="font-mono text-accent">{project.slug}</span> to scaffold one.
             </>
           }

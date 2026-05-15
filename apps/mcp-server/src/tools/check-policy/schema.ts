@@ -1,8 +1,8 @@
-import { runKeySegmentSchema } from '@coodra/contextos-shared';
+import { runKeySegmentSchema } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__check_policy` (§24.4, S14).
+ * Input + output schemas for `coodra__check_policy` (§24.4, S14).
  *
  * §24.4 base input:
  *   { projectSlug, sessionId, agentType, eventType, toolName, toolInput }
@@ -63,7 +63,7 @@ export const checkPolicyInputSchema = z
     toolUseId: z.string().min(1).max(256).optional(),
   })
   .strict()
-  .describe('Input for contextos__check_policy.');
+  .describe('Input for coodra__check_policy.');
 
 const successBranch = z
   .object({

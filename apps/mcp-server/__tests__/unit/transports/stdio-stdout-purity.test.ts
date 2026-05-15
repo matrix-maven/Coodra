@@ -10,10 +10,10 @@ import { describe, expect, it } from 'vitest';
  * This is the authoritative end-to-end check that the stderr-logging
  * contract (README "Critical invariants") is maintained across:
  *   - our `bootstrap/ensure-stderr-logging.ts` side effect,
- *   - @coodra/contextos-shared's logger reading CONTEXTOS_LOG_DESTINATION,
- *   - @coodra/contextos-db's transitively-loaded sqlite-vec loader (which
+ *   - @coodra/shared's logger reading COODRA_LOG_DESTINATION,
+ *   - @coodra/db's transitively-loaded sqlite-vec loader (which
  *     would WARN via `db.sqlite-vec-loader` on this sandbox, where no
- *     DB path is provided — but nothing imports @coodra/contextos-db from
+ *     DB path is provided — but nothing imports @coodra/db from
  *     the mcp-server yet; S7a does).
  *
  * The test spawns the built entrypoint via `tsx` and asserts:
@@ -55,17 +55,17 @@ describe('stdio transport — stdout purity', () => {
           ...process.env,
           // Bootstrap will set this if unset, but we verify the
           // "already set correctly" branch works too.
-          CONTEXTOS_LOG_DESTINATION: 'stderr',
-          CONTEXTOS_MODE: 'solo',
+          COODRA_LOG_DESTINATION: 'stderr',
+          COODRA_MODE: 'solo',
           NODE_ENV: 'test',
           // Defensive: keep LOG_LEVEL quiet so the subprocess does not
           // flood stderr with boot noise during this test.
           LOG_LEVEL: 'error',
           // S7a wires `createDbClient` at boot. Point it at an in-
           // memory SQLite so the test never touches the user's real
-          // ~/.contextos/data.db, and so the subprocess can tear
+          // ~/.coodra/data.db, and so the subprocess can tear
           // down instantly on SIGTERM without leaving a WAL behind.
-          CONTEXTOS_SQLITE_PATH: ':memory:',
+          COODRA_SQLITE_PATH: ':memory:',
         },
       },
     );

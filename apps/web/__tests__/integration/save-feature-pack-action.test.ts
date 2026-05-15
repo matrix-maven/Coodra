@@ -73,12 +73,12 @@ beforeEach(() => {
   writeFileSync(join(packDir, 'implementation.md'), '# impl\n');
   writeFileSync(join(packDir, 'techstack.md'), '# tech\n');
   // Steer the queries/packs.ts resolver at the pack root we just created.
-  process.env.CONTEXTOS_PACKS_ROOT = join(tmpRoot, 'docs', 'feature-packs');
+  process.env.COODRA_PACKS_ROOT = join(tmpRoot, 'docs', 'feature-packs');
 });
 
 afterEach(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
-  delete process.env.CONTEXTOS_PACKS_ROOT;
+  delete process.env.COODRA_PACKS_ROOT;
 });
 
 async function callSave(input: {

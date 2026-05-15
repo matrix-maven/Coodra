@@ -27,10 +27,10 @@ If `current-session.md` has a "Next action" that is still valid, continue from i
 
 ## Bootstrap note (2026-04-22)
 
-During the Module 01 bootstrap, the ContextOS MCP server does not yet exist. That means:
+During the Module 01 bootstrap, the Coodra MCP server does not yet exist. That means:
 
-- `contextos__record_decision` is **not callable** — all decisions are written directly to `decisions-log.md`.
-- `contextos__save_context_pack` is **not callable** — Module 01's pack is written by hand to `docs/context-packs/2026-04-22-module-01-foundation.md`.
-- `contextos__search_packs_nl`, `contextos__query_run_history`, etc. likewise unavailable — agents fall back to `grep` over this folder.
+- `coodra__record_decision` is **not callable** — all decisions are written directly to `decisions-log.md`.
+- `coodra__save_context_pack` is **not callable** — Module 01's pack is written by hand to `docs/context-packs/2026-04-22-module-01-foundation.md`.
+- `coodra__search_packs_nl`, `coodra__query_run_history`, etc. likewise unavailable — agents fall back to `grep` over this folder.
 
 This is a temporary condition; once Module 02 ships and `.mcp.json` points to a live server, the tool-loop closes and the MCP calls become the primary record path. The manual discipline in `essentialsforclaude/03-context-memory.md` remains the fallback even after that.

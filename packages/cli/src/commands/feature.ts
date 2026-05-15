@@ -10,20 +10,20 @@ import {
   readFeatureRow,
   renderFeatureMd,
   walkFeatures,
-} from '@coodra/contextos-shared/features';
+} from '@coodra/shared/features';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { deleteFeatureFromDb, upsertFeatureInDb } from '../lib/feature-db.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `contextos feature {add|list|show|edit|index|remove}` — admin surface
+ * `coodra feature {add|list|show|edit|index|remove}` — admin surface
  * for the skill-style features layer.
  *
  * Each subcommand does exactly one thing. They all share the same IO
  * shape (`FeatureIO`) and `--cwd` resolution so they're trivially
  * testable in isolation. The heavy lifting (parse, walk, generate)
- * lives in `@coodra/contextos-shared/features`; this module is just
+ * lives in `@coodra/shared/features`; this module is just
  * the CLI front-end.
  *
  * Every mutating command (add, edit-via-save, remove) ALWAYS regenerates
@@ -94,13 +94,13 @@ export interface FeatureRemoveOptions extends FeatureBaseOptions {
 
 interface ResolvedProject {
   readonly cwd: string;
-  /** Slug from `<cwd>/.contextos.json` if present, else basename. */
+  /** Slug from `<cwd>/.coodra.json` if present, else basename. */
   readonly projectSlug: string;
 }
 
 function resolveProject(rawCwd: string | undefined, io: FeatureIO): ResolvedProject {
   const cwd = resolve(rawCwd ?? process.cwd());
-  const sidecarPath = join(cwd, '.contextos.json');
+  const sidecarPath = join(cwd, '.coodra.json');
   let projectSlug: string | undefined;
   if (existsSync(sidecarPath)) {
     try {
@@ -115,7 +115,7 @@ function resolveProject(rawCwd: string | undefined, io: FeatureIO): ResolvedProj
   }
   if (!FEATURE_SLUG_RE.test(projectSlug)) {
     io.writeStderr(
-      `${pc.red('contextos feature')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Add "projectSlug" to ${sidecarPath} or run from a project root.\n`,
+      `${pc.red('coodra feature')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Add "projectSlug" to ${sidecarPath} or run from a project root.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -147,7 +147,7 @@ function sanitizeFeatureSlug(raw: string): string {
 
 /**
  * Sentinel placeholder. `validateFrontmatterQuality` (in
- * `@coodra/contextos-shared/features/schema`) explicitly flags any
+ * `@coodra/shared/features/schema`) explicitly flags any
  * description matching `TODO: describe …` so the index records
  * `hasWarnings=true` until the user edits it. Pre-fix the placeholder
  * was a well-formed sentence that accidentally passed every quality
@@ -164,7 +164,7 @@ export async function runFeatureAddCommand(
   const slug = sanitizeFeatureSlug(rawSlug);
   if (!FEATURE_SLUG_RE.test(slug)) {
     io.writeStderr(
-      `${pc.red('contextos feature add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`,
+      `${pc.red('coodra feature add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -175,7 +175,7 @@ export async function runFeatureAddCommand(
 
   if (existsSync(featureMdPath) && !force) {
     io.writeStderr(
-      `${pc.red('contextos feature add')}: feature "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`contextos feature edit ${slug}\` to modify it in your editor.\n`,
+      `${pc.red('coodra feature add')}: feature "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`coodra feature edit ${slug}\` to modify it in your editor.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -200,7 +200,7 @@ export async function runFeatureAddCommand(
   // Auto-regenerate so INDEX is correct without a separate step.
   const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
 
-  // Phase F.1.c — mirror the feature into ~/.contextos/data.db so
+  // Phase F.1.c — mirror the feature into ~/.coodra/data.db so
   // team mode can sync it via the sync-daemon. Solo mode keeps the
   // row purely for the future web /features list to read off the
   // same shape. The filesystem write above is the source of truth
@@ -238,7 +238,7 @@ export async function runFeatureAddCommand(
     io.writeStdout(`${pc.green('✓')} Created feature "${slug}" at ${featureMdPath}\n`);
     if (description === PLACEHOLDER_DESCRIPTION) {
       io.writeStdout(
-        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`contextos feature index\` (or just save via the web UI) to refresh.\n`,
+        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`coodra feature index\` (or just save via the web UI) to refresh.\n`,
       );
     }
     io.writeStdout(
@@ -287,7 +287,7 @@ function scaffoldBody(slug: string): string {
     `# ${slug}`,
     '',
     '> The body of this feature is what the agent loads on demand via',
-    '> `contextos__get_feature({slug:"' + slug + '"})`. Keep the most',
+    '> `coodra__get_feature({slug:"' + slug + '"})`. Keep the most',
     '> load-bearing context here; deeper detail goes in supporting files',
     '> alongside this `feature.md`.',
     '',
@@ -343,7 +343,7 @@ export async function runFeatureListCommand(
 
   io.writeStdout(`${commandTitle('Features', projectSlug, { width: terminalWidth() })}\n`);
   if (rows.length === 0) {
-    io.writeStdout(`No features yet. Run \`contextos feature add <name>\` to create one.\n`);
+    io.writeStdout(`No features yet. Run \`coodra feature add <name>\` to create one.\n`);
     io.writeStdout(`(Looked in ${featuresRoot(cwd)})\n`);
     return io.exit(EXIT_OK);
   }
@@ -378,12 +378,12 @@ export async function runFeatureShowCommand(
   const slug = sanitizeFeatureSlug(rawSlug);
   const dir = join(featuresRoot(cwd), slug);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-    io.writeStderr(`${pc.red('contextos feature show')}: no feature at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra feature show')}: no feature at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const row = readFeatureRow(slug, dir);
   if (row === null) {
-    io.writeStderr(`${pc.red('contextos feature show')}: ${dir} has no feature.md\n`);
+    io.writeStderr(`${pc.red('coodra feature show')}: ${dir} has no feature.md\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.json === true) {
@@ -431,7 +431,7 @@ export async function runFeatureEditCommand(
   const featureMdPath = join(featuresRoot(cwd), slug, 'feature.md');
   if (!existsSync(featureMdPath)) {
     io.writeStderr(
-      `${pc.red('contextos feature edit')}: no feature.md at ${featureMdPath}. Create it with \`contextos feature add ${slug}\` first.\n`,
+      `${pc.red('coodra feature edit')}: no feature.md at ${featureMdPath}. Create it with \`coodra feature add ${slug}\` first.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -448,7 +448,7 @@ export async function runFeatureEditCommand(
   if (parsed.errors.length > 0) {
     io.writeStderr(`${pc.yellow('⚠')} feature.md has parse errors after edit:\n`);
     for (const e of parsed.errors) io.writeStderr(`  - ${e}\n`);
-    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`contextos feature index\`.\n`);
+    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`coodra feature index\`.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
@@ -545,12 +545,12 @@ export async function runFeatureRemoveCommand(
   const slug = sanitizeFeatureSlug(rawSlug);
   const dir = join(featuresRoot(cwd), slug);
   if (!existsSync(dir)) {
-    io.writeStderr(`${pc.red('contextos feature remove')}: no feature at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra feature remove')}: no feature at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.force !== true) {
     io.writeStderr(
-      `${pc.red('contextos feature remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
+      `${pc.red('coodra feature remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }

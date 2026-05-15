@@ -1,8 +1,8 @@
-# ContextOS Functional Test — Agent Operating Guide
+# Coodra Functional Test — Agent Operating Guide
 
 > **You are the test pilot.** You will pick a project, research it, define its
-> features using ContextOS, then build the project end-to-end through Claude
-> Code while continuously verifying that every ContextOS surface (CLI, web,
+> features using Coodra, then build the project end-to-end through Claude
+> Code while continuously verifying that every Coodra surface (CLI, web,
 > bridge, MCP, DB, logs) reflects what you did.
 >
 > You have **zero starting context** about this environment. This document is
@@ -13,46 +13,46 @@
 
 ## 0. Your mission in one paragraph
 
-Use ContextOS to take a real, **substantial** project from "blank folder" to
+Use Coodra to take a real, **substantial** project from "blank folder" to
 "working implementation" across **multiple Claude Code sessions** entirely
 through the tool. The point is not to finish quickly — the point is to stress
-ContextOS over a realistic multi-day, multi-session timeline where the agent
+Coodra over a realistic multi-day, multi-session timeline where the agent
 must remember what was decided, why, and what's still open. Pick a project
 big enough that it cannot fit in one session. Define **6–10 accurate
 features** with real, useful markdown (not stubs), upload supporting files
 for each, then run **at least 4 separate Claude Code sessions** that pick up
 where the last one left off. At every step, **verify by reading the
 underlying surface** (disk, SQLite, bridge response, MCP tool result, web
-route HTML). Write what you observe into `ContextOS_functest/` continuously
+route HTML). Write what you observe into `Coodra_functest/` continuously
 so the test is self-documenting. End with a report describing what worked,
-what didn't, and — critically — whether ContextOS actually held the project's
+what didn't, and — critically — whether Coodra actually held the project's
 context across sessions the way it claims to.
 
 > **The single most important thing this test is measuring:** does Session 4
 > open with full awareness of what Sessions 1–3 decided, built, and left
-> unfinished? If yes, ContextOS works. If the agent has to be re-briefed by
-> hand at the start of each session, ContextOS doesn't work yet — and that's
+> unfinished? If yes, Coodra works. If the agent has to be re-briefed by
+> hand at the start of each session, Coodra doesn't work yet — and that's
 > the most valuable signal you can produce.
 
 ---
 
 ## 1. The product you're testing
 
-ContextOS is the coordination layer between human architects and AI coding
+Coodra is the coordination layer between human architects and AI coding
 agents. It runs three local services and exposes four surfaces:
 
 | Layer | Service | Port | Purpose |
 |---|---|---|---|
 | Protocol | **Hooks Bridge** | `3101` | Receives Claude Code's `SessionStart`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd`, `UserPromptSubmit` HTTP hooks. Auto-injects the project's features index on `SessionStart`. Auto-records a context-pack digest on `Stop`. |
 | Protocol | **MCP Server** | `3100` | Streamable-HTTP MCP endpoint. Exposes 30+ tools (`list_features`, `get_feature`, `record_decision`, `save_context_pack`, `query_decisions`, `query_run_history`, `check_policy`, `get_feature_pack`, etc.) |
-| Storage | **SQLite primary store** | n/a | `~/.contextos/contextos.db`. Holds projects, runs, run_events, decisions, context_packs, feature_packs, policies, policy_rules, policy_decisions. |
+| Storage | **SQLite primary store** | n/a | `~/.coodra/coodra.db`. Holds projects, runs, run_events, decisions, context_packs, feature_packs, policies, policy_rules, policy_decisions. |
 | Client | **Web app (Next.js)** | `3001` (dev) | Read/write UI for projects, features, packs, runs, decisions, policies. |
 
-Per project, ContextOS keeps content on disk under the project root:
+Per project, Coodra keeps content on disk under the project root:
 
 ```
 <project>/
-├── .contextos.json               # { projectSlug }
+├── .coodra.json               # { projectSlug }
 ├── .mcp.json                     # tells Claude Code where to find the MCP server
 ├── .env                          # contains LOCAL_HOOK_SECRET for the bridge
 ├── docs/
@@ -71,7 +71,7 @@ The **features layer** is what you're testing first. Every feature is a
 self-contained markdown unit with a *trigger description* ("Use this when
 …"). On `SessionStart`, the bridge injects a tiny index of triggers into
 Claude's context. When Claude decides a feature applies, it calls
-`contextos__get_feature({slug})` to load the full body. Skill-style:
+`coodra__get_feature({slug})` to load the full body. Skill-style:
 **index then fetch on demand**.
 
 ---
@@ -86,12 +86,12 @@ Claude's context. When Claude decides a feature applies, it calls
 | Hooks bridge | `http://127.0.0.1:3101/v1/hooks/claude-code` |
 | Bridge health | `http://127.0.0.1:3101/healthz` |
 | Web app (dev) | `http://127.0.0.1:3001` |
-| Local SQLite primary store | `~/.contextos/contextos.db` |
-| Service logs | `~/.contextos/logs/{mcp-server,hooks-bridge,sync-daemon}.log` |
+| Local SQLite primary store | `~/.coodra/coodra.db` |
+| Service logs | `~/.coodra/logs/{mcp-server,hooks-bridge,sync-daemon}.log` |
 | Templates available to `init` | `node $CLI templates list` |
-| Your observation folder (the user supplies this) | `ContextOS_functest/` (use absolute path the user gives you) |
+| Your observation folder (the user supplies this) | `Coodra_functest/` (use absolute path the user gives you) |
 
-**Per-project secret you'll need:** after `contextos init` runs, every project
+**Per-project secret you'll need:** after `coodra init` runs, every project
 gets a `.env` file containing `LOCAL_HOOK_SECRET=<random-hex>`. The bridge
 requires this secret in the `X-Local-Hook-Secret` header on every hook POST.
 Claude Code reads it from the project's `.env` automatically; for `curl`
@@ -105,10 +105,10 @@ SECRET=$(grep LOCAL_HOOK_SECRET <project>/.env | cut -d= -f2)
 
 ```bash
 export CLI=/Users/abishaikc/Coodra/packages/cli/dist/index.js
-alias contextos='node $CLI'
+alias coodra='node $CLI'
 ```
 
-After this you can run `contextos status` / `contextos feature list` / etc.
+After this you can run `coodra status` / `coodra feature list` / etc.
 verbatim from any cwd.
 
 ---
@@ -118,10 +118,10 @@ verbatim from any cwd.
 ### 3.1 Start / stop / status
 
 ```bash
-contextos start                  # boots mcp-server + hooks-bridge (+ sync-daemon if team mode)
-contextos stop                   # idempotent
-contextos status                 # unified project + service state for current cwd
-contextos doctor                 # 11 essential health checks; --full for 35
+coodra start                  # boots mcp-server + hooks-bridge (+ sync-daemon if team mode)
+coodra stop                   # idempotent
+coodra status                 # unified project + service state for current cwd
+coodra doctor                 # 11 essential health checks; --full for 35
 ```
 
 ### 3.2 Sanity-check the services are actually up
@@ -136,8 +136,8 @@ lsof -iTCP:3001 -sTCP:LISTEN -P 2>/dev/null   # web (only if you started it)
 curl -sf http://127.0.0.1:3101/healthz
 
 # Tail the logs (keep this running in a separate terminal — see §8)
-tail -f ~/.contextos/logs/mcp-server.log     | npx pino-pretty
-tail -f ~/.contextos/logs/hooks-bridge.log   | npx pino-pretty
+tail -f ~/.coodra/logs/mcp-server.log     | npx pino-pretty
+tail -f ~/.coodra/logs/hooks-bridge.log   | npx pino-pretty
 ```
 
 ### 3.3 If the MCP server says `Server already initialized`
@@ -146,7 +146,7 @@ The Streamable-HTTP transport sometimes leaves a session alive. **Always
 restart between independent MCP probe scripts:**
 
 ```bash
-contextos stop && sleep 1 && contextos start
+coodra stop && sleep 1 && coodra start
 ```
 
 This is a known operational quirk for ad-hoc MCP probes — Claude Code itself
@@ -154,11 +154,11 @@ doesn't hit it because it owns its session for the lifetime of the IDE.
 
 ### 3.4 Web app
 
-The web app isn't started by `contextos start` — start it yourself in its own
+The web app isn't started by `coodra start` — start it yourself in its own
 terminal:
 
 ```bash
-cd /Users/abishaikc/Coodra && pnpm --filter @coodra/contextos-web-v2 dev
+cd /Users/abishaikc/Coodra && pnpm --filter @coodra/web-v2 dev
 # It runs on :3001 in dev (set in apps/web-v2/package.json).
 ```
 
@@ -167,12 +167,12 @@ cd /Users/abishaikc/Coodra && pnpm --filter @coodra/contextos-web-v2 dev
 ## 4. The mission, in phases
 
 Work through these in order. Each phase ends with you writing a numbered
-observation file into `ContextOS_functest/` — see §7 for the format.
+observation file into `Coodra_functest/` — see §7 for the format.
 
 ### Phase 1 — Pick a project
 
 **Pick something boring and big.** This is not a chance to be clever — it's a
-chance to test whether ContextOS holds context over a realistic build. Pick a
+chance to test whether Coodra holds context over a realistic build. Pick a
 shape with these properties:
 
 - **Multi-session by construction.** No human could plausibly build it in one
@@ -219,31 +219,31 @@ code. Capture:
 
 Write `01-research.md` in the observation folder.
 
-### Phase 3 — Set up the project in ContextOS
+### Phase 3 — Set up the project in Coodra
 
 ```bash
 mkdir -p ~/projects/<project-name>
 cd ~/projects/<project-name>
 git init -q && touch README.md && git add . && git commit -qm "init"
 
-contextos init --feature-pack empty --no-graphify --ide claude --mode default
+coodra init --feature-pack empty --no-graphify --ide claude --mode default
 ```
 
 Verify the four artifacts landed:
 
 ```bash
-ls -la                              # .contextos.json .env .mcp.json docs/
-cat .contextos.json                 # confirm projectSlug
-cat .mcp.json                       # confirm contextos entry
+ls -la                              # .coodra.json .env .mcp.json docs/
+cat .coodra.json                 # confirm projectSlug
+cat .mcp.json                       # confirm coodra entry
 ls docs/feature-packs/              # empty/.gitkeep
 ```
 
-Now confirm ContextOS itself knows about the project:
+Now confirm Coodra itself knows about the project:
 
 ```bash
-contextos status                    # should print project slug + service state
+coodra status                    # should print project slug + service state
 
-sqlite3 ~/.contextos/contextos.db \
+sqlite3 ~/.coodra/coodra.db \
   "SELECT slug, cwd, created_at FROM projects WHERE slug='<your-slug>';"
 ```
 
@@ -309,7 +309,7 @@ tags: [auth, jwt, security]
 # auth-flow
 
 > The body of this feature is what the agent loads on demand via
-> `contextos__get_feature({slug:"auth-flow"})`. Read this before touching
+> `coodra__get_feature({slug:"auth-flow"})`. Read this before touching
 > anything under `apps/api/auth/**`.
 
 ## What this feature owns
@@ -403,9 +403,9 @@ Don't try to write all 6–10 features perfectly upfront. Iterate:
 #### Path A — CLI
 
 ```bash
-contextos feature add auth-flow --description "Use this when wiring login, signup, password reset, or JWT issuance. Covers bcrypt cost, access/refresh token split, and JWT_SECRET rotation. Touches apps/api/auth/** and the users + refresh_tokens tables."
-contextos feature list
-contextos feature show auth-flow
+coodra feature add auth-flow --description "Use this when wiring login, signup, password reset, or JWT issuance. Covers bcrypt cost, access/refresh token split, and JWT_SECRET rotation. Touches apps/api/auth/** and the users + refresh_tokens tables."
+coodra feature list
+coodra feature show auth-flow
 ```
 
 #### Path B — Web wizard
@@ -456,7 +456,7 @@ cat > docs/features/auth-flow/examples/jwt-claims.json <<'EOF'
 {"sub":"u_01HX...","iat":1714780800,"exp":1714781700,"kind":"access"}
 EOF
 
-contextos feature index           # idempotent — also auto-runs on add/edit/remove
+coodra feature index           # idempotent — also auto-runs on add/edit/remove
 
 # Confirm via MCP that the file is reachable
 node ~/mcp-probe.mjs get_feature_file \
@@ -516,7 +516,7 @@ per session. Each session must:
 
 1. **Open cold.** Close the previous Claude Code session entirely. Don't
    resume — the test is whether the *next* session can pick up where the
-   last left off using only what ContextOS persisted.
+   last left off using only what Coodra persisted.
 2. **Receive its context via the bridge.** Watch the bridge log (Terminal B)
    to see the SessionStart fire and inject the features index +
    prior-session digest.
@@ -548,7 +548,7 @@ Adjust to your project — but keep the **multi-session** shape.
 
 Session 1, opening prompt:
 
-> "We're building `<your-project>`. ContextOS just injected the features
+> "We're building `<your-project>`. Coodra just injected the features
 > index — read `data-model`, `http-routing`, and `testing` in full before
 > writing anything. Then implement Slice 1: migrations for the core tables,
 > server bootstrap on port 4000, a single `/healthz` route, and the vitest
@@ -573,7 +573,7 @@ In Terminal D (verification scratch):
 
 ```bash
 # 1. Did the run open and close cleanly?
-sqlite3 ~/.contextos/contextos.db <<'SQL'
+sqlite3 ~/.coodra/coodra.db <<'SQL'
 .headers on
 .mode column
 SELECT id, agent_type, status, started_at, completed_at,
@@ -582,7 +582,7 @@ FROM runs ORDER BY started_at DESC LIMIT 3;
 SQL
 
 # 2. Were decisions recorded? (Aim for ≥2 per slice; <1 is a finding.)
-sqlite3 ~/.contextos/contextos.db <<'SQL'
+sqlite3 ~/.coodra/coodra.db <<'SQL'
 .headers on
 .mode column
 SELECT created_at, description, rationale
@@ -593,7 +593,7 @@ SQL
 # 3. What tools did Claude actually call? (Look for the right pattern:
 #    get_feature at the start, record_decision sprinkled, save_context_pack
 #    at the end.)
-sqlite3 ~/.contextos/contextos.db <<'SQL'
+sqlite3 ~/.coodra/coodra.db <<'SQL'
 .headers on
 .mode column
 SELECT event_type, tool_name, COUNT(*) AS n
@@ -604,7 +604,7 @@ ORDER BY n DESC;
 SQL
 
 # 4. Did any policy fire? (Useful: did anything get denied?)
-sqlite3 ~/.contextos/contextos.db <<'SQL'
+sqlite3 ~/.coodra/coodra.db <<'SQL'
 .headers on
 .mode column
 SELECT tool_name, permission_decision, reason, created_at
@@ -613,7 +613,7 @@ ORDER BY created_at DESC LIMIT 10;
 SQL
 
 # 5. Was the context pack saved? Length should be > 1000 chars for a real slice.
-sqlite3 ~/.contextos/contextos.db <<'SQL'
+sqlite3 ~/.coodra/coodra.db <<'SQL'
 .headers on
 .mode column
 SELECT id, title, length(content) AS body_chars, created_at
@@ -641,7 +641,7 @@ Don't rush from session to session. Between sessions:
 - Close Claude Code completely.
 - Wait at least a few minutes (so it's not the same process picking up the
   same in-memory state).
-- Optionally restart the bridge + MCP (`contextos stop && contextos start`)
+- Optionally restart the bridge + MCP (`coodra stop && coodra start`)
   to prove the persistence is on disk, not in process memory.
 - Read the `context_packs` row from the previous run yourself before
   starting the next session, so you know what Claude *should* know.
@@ -669,12 +669,12 @@ rm docs/features/<slug>/huge.txt docs/features/<slug>/payload.exe
 ... (call list_features with projectSlug: 'never-existed' — expect project_not_found)
 
 # Unknown feature
-contextos feature show does-not-exist
+coodra feature show does-not-exist
 ... (call get_feature with slug: 'does-not-exist' — expect feature_not_found)
 
 # Idempotent re-index
-contextos feature index    # first call may regenerate
-contextos feature index    # second call should print "Index unchanged"
+coodra feature index    # first call may regenerate
+coodra feature index    # second call should print "Index unchanged"
 
 # Hand-edit propagation
 # Edit docs/features/<slug>/feature.md by hand. Then:
@@ -702,29 +702,29 @@ Write `99-report.md`. Format in §10.
 
 ```bash
 # Lifecycle
-contextos init [--feature-pack template|empty|skip] [--no-graphify] [--ide claude] [--mode default]
-contextos start | stop | status | doctor [--full]
+coodra init [--feature-pack template|empty|skip] [--no-graphify] [--ide claude] [--mode default]
+coodra start | stop | status | doctor [--full]
 
 # Features
-contextos feature add <slug> [--description "..."]
-contextos feature list
-contextos feature show <slug>
-contextos feature edit <slug>                     # opens $VISUAL/$EDITOR
-contextos feature index                           # idempotent regen
-contextos feature remove <slug> --force
+coodra feature add <slug> [--description "..."]
+coodra feature list
+coodra feature show <slug>
+coodra feature edit <slug>                     # opens $VISUAL/$EDITOR
+coodra feature index                           # idempotent regen
+coodra feature remove <slug> --force
 
 # Templates / packs
-contextos templates list
-contextos templates install <name>                # interactive — type the confirmation phrase
+coodra templates list
+coodra templates install <name>                # interactive — type the confirmation phrase
 
 # Database admin
-contextos db migrate
-contextos db backup [--out <path>]
-contextos db restore <path>
+coodra db migrate
+coodra db backup [--out <path>]
+coodra db restore <path>
 
 # Policies
-contextos policy list
-contextos policy show <id>
+coodra policy list
+coodra policy show <id>
 ```
 
 ### 5.2 Web routes (curl-able — all GET unless noted)
@@ -817,14 +817,14 @@ cat docs/features/<slug>/feature.md
 ls -R docs/features/<slug>/
 
 # What did init write?
-cat .contextos.json .env .mcp.json
+cat .coodra.json .env .mcp.json
 ```
 
 ### 6.2 SQLite
 
 ```bash
 # Quick interactive
-sqlite3 ~/.contextos/contextos.db
+sqlite3 ~/.coodra/coodra.db
 
 # In sqlite3:
 .mode column
@@ -832,12 +832,12 @@ sqlite3 ~/.contextos/contextos.db
 .tables
 
 # Useful one-shots:
-sqlite3 ~/.contextos/contextos.db "SELECT slug, cwd FROM projects;"
-sqlite3 ~/.contextos/contextos.db "SELECT id, status, created_at FROM runs ORDER BY created_at DESC LIMIT 5;"
-sqlite3 ~/.contextos/contextos.db "SELECT description FROM decisions ORDER BY created_at DESC LIMIT 5;"
-sqlite3 ~/.contextos/contextos.db "SELECT title, length(content) FROM context_packs ORDER BY created_at DESC LIMIT 5;"
-sqlite3 ~/.contextos/contextos.db "SELECT tool_name, permission_decision, reason FROM policy_decisions ORDER BY created_at DESC LIMIT 10;"
-sqlite3 ~/.contextos/contextos.db "SELECT name, COUNT(*) FROM policy_rules GROUP BY name;"
+sqlite3 ~/.coodra/coodra.db "SELECT slug, cwd FROM projects;"
+sqlite3 ~/.coodra/coodra.db "SELECT id, status, created_at FROM runs ORDER BY created_at DESC LIMIT 5;"
+sqlite3 ~/.coodra/coodra.db "SELECT description FROM decisions ORDER BY created_at DESC LIMIT 5;"
+sqlite3 ~/.coodra/coodra.db "SELECT title, length(content) FROM context_packs ORDER BY created_at DESC LIMIT 5;"
+sqlite3 ~/.coodra/coodra.db "SELECT tool_name, permission_decision, reason FROM policy_decisions ORDER BY created_at DESC LIMIT 10;"
+sqlite3 ~/.coodra/coodra.db "SELECT name, COUNT(*) FROM policy_rules GROUP BY name;"
 ```
 
 ### 6.3 Bridge
@@ -885,21 +885,21 @@ node ~/mcp-probe.mjs search_packs_nl '{"projectSlug":"<slug>","query":"auth"}' "
 
 ```bash
 # Pretty-printed structured JSON
-tail -F ~/.contextos/logs/mcp-server.log     | npx pino-pretty
-tail -F ~/.contextos/logs/hooks-bridge.log   | npx pino-pretty
+tail -F ~/.coodra/logs/mcp-server.log     | npx pino-pretty
+tail -F ~/.coodra/logs/hooks-bridge.log   | npx pino-pretty
 
 # Grep by correlation
-grep '"sessionId":"<id>"' ~/.contextos/logs/hooks-bridge.log | npx pino-pretty
+grep '"sessionId":"<id>"' ~/.coodra/logs/hooks-bridge.log | npx pino-pretty
 ```
 
 ---
 
-## 7. Observation protocol — what to write into `ContextOS_functest/`
+## 7. Observation protocol — what to write into `Coodra_functest/`
 
 You write into the folder the user gave you. Suggested layout:
 
 ```
-ContextOS_functest/
+Coodra_functest/
 ├── 00-overview.md            written first; the chosen project + 6–10 planned features + session plan
 ├── 01-research.md            Phase 2 research notes
 ├── 02-setup.md               Phase 3 init artifacts + verification
@@ -966,11 +966,11 @@ You will absolutely want at least 4 terminals open. Don't try this from one.
 | Terminal | Purpose | Long-running command |
 |---|---|---|
 | **A — Claude Code** | The session driving the build | (run Claude Code itself in the project dir) |
-| **B — bridge log tail** | Watch hooks fire in real time | `tail -F ~/.contextos/logs/hooks-bridge.log \| npx pino-pretty` |
-| **C — MCP log tail** | Watch tool calls fire in real time | `tail -F ~/.contextos/logs/mcp-server.log \| npx pino-pretty` |
+| **B — bridge log tail** | Watch hooks fire in real time | `tail -F ~/.coodra/logs/hooks-bridge.log \| npx pino-pretty` |
+| **C — MCP log tail** | Watch tool calls fire in real time | `tail -F ~/.coodra/logs/mcp-server.log \| npx pino-pretty` |
 | **D — verification scratch** | curl probes, sqlite queries, MCP probes | (interactive) |
-| **E — web app** | If you started it yourself | `pnpm --filter @coodra/contextos-web-v2 dev` |
-| **F — observation writer** | Where you're editing files in `ContextOS_functest/` | (your editor of choice) |
+| **E — web app** | If you started it yourself | `pnpm --filter @coodra/web-v2 dev` |
+| **F — observation writer** | Where you're editing files in `Coodra_functest/` | (your editor of choice) |
 
 After each Claude slice finishes in **A**, switch to **D** and run the four
 SQLite queries from §5.4. Watch **B** and **C** to see whether the bridge fed
@@ -1000,7 +1000,7 @@ When something doesn't work the way this guide says it should:
 Things that are NOT failures (don't waste capture budget on these):
 
 - Web app spinning up on `:3001` instead of `:3000`. The user has another web
-  app on `:3000`; ContextOS web-v2 listens on `:3001` in dev.
+  app on `:3000`; Coodra web-v2 listens on `:3001` in dev.
 - MCP server saying "already initialized" between two probe scripts. Documented
   quirk in §3.3.
 - `query_codebase_graph` returning `codebase_graph_not_indexed`. Documented in
@@ -1013,7 +1013,7 @@ Things that are NOT failures (don't waste capture budget on these):
 ## 10. Final report — `99-report.md`
 
 ```markdown
-# ContextOS Functional Test — Final Report
+# Coodra Functional Test — Final Report
 
 **Run:** YYYY-MM-DD by <agent / model name>
 **Project:** <slug> at <abs path>
@@ -1037,11 +1037,11 @@ Include: did it actually run? `pnpm test` passed? `curl /healthz` returned 200?]
   conventions inherited)
 - Was there any duplication of work across sessions?
 - Did the agent ever ask you "what was decided about X" instead of querying
-  ContextOS?
+  Coodra?
 - If you restarted MCP+bridge between sessions, did persistence still hold?
 
-A score: 0 = ContextOS doesn't persist, every session starts blank.
-         5 = ContextOS persists perfectly, sessions feel continuous.
+A score: 0 = Coodra doesn't persist, every session starts blank.
+         5 = Coodra persists perfectly, sessions feel continuous.
          3 = mixed — context loaded but agent didn't always trust it.]
 
 ## 4. Surfaces exercised
@@ -1073,7 +1073,7 @@ Format:
 ## 7. UX rough edges
 [things that worked but felt wrong; if longer than 2 lines, promote to §6]
 
-## 8. What ContextOS does well
+## 8. What Coodra does well
 [because every test report needs a positive section. Be specific — not "it
 works", but "the SessionStart auto-injection means I never had to remind
 Claude about the project's conventions; it just knew."]
@@ -1092,13 +1092,13 @@ test worthless.]
 ## 11. Quick reference card (print this and stick it on the wall)
 
 ```
-CLI                  alias contextos='node /Users/abishaikc/Coodra/packages/cli/dist/index.js'
+CLI                  alias coodra='node /Users/abishaikc/Coodra/packages/cli/dist/index.js'
 Services up?         lsof -iTCP:3100 -sTCP:LISTEN -P; lsof -iTCP:3101 -sTCP:LISTEN -P
 Bridge health        curl -sf http://127.0.0.1:3101/healthz
-DB                   sqlite3 ~/.contextos/contextos.db
-Logs                 tail -F ~/.contextos/logs/{mcp-server,hooks-bridge}.log | npx pino-pretty
-Restart MCP          contextos stop && sleep 1 && contextos start
-Web                  cd /Users/abishaikc/Coodra && pnpm --filter @coodra/contextos-web-v2 dev   # :3001
+DB                   sqlite3 ~/.coodra/coodra.db
+Logs                 tail -F ~/.coodra/logs/{mcp-server,hooks-bridge}.log | npx pino-pretty
+Restart MCP          coodra stop && sleep 1 && coodra start
+Web                  cd /Users/abishaikc/Coodra && pnpm --filter @coodra/web-v2 dev   # :3001
 Project secret       SECRET=$(grep LOCAL_HOOK_SECRET <project>/.env | cut -d= -f2)
 Bridge probe         curl -sf -X POST http://127.0.0.1:3101/v1/hooks/claude-code \
                        -H 'Content-Type: application/json' -H "X-Local-Hook-Secret: $SECRET" \
@@ -1114,6 +1114,6 @@ Soft-fail shape      { ok:false, error:'<stable-code>', howToFix:'...' }
 **You have everything you need.** Open six terminals, pick a boring big
 project, define 6–10 accurate features (real bodies, not stubs), then run
 **at least four separate Claude Code sessions** with deliberate gaps
-between them. Write into `ContextOS_functest/` as you observe — don't wait
+between them. Write into `Coodra_functest/` as you observe — don't wait
 until the end. The headline finding is whether Session 4 opens with full
 awareness of what Sessions 1–3 did. That's the test. Ship the report.

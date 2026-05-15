@@ -1,4 +1,4 @@
-import { createDb, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, migrateSqlite } from '@coodra/db';
 import { describe, expect, it } from 'vitest';
 
 import { runRunDiff } from '../../../src/lib/run-diff-runner.js';

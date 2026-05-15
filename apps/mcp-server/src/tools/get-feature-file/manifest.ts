@@ -23,7 +23,7 @@ export function createGetFeatureFileToolRegistration(
 ): ToolRegistration<typeof getFeatureFileInputSchema, typeof getFeatureFileOutputSchema> {
   return {
     name: 'get_feature_file',
-    title: 'ContextOS: get_feature_file',
+    title: 'Coodra: get_feature_file',
     description:
       'Call this AFTER get_feature surfaces a supporting file path that the body of feature.md references — never blindly load every file. ' +
       'Returns { ok: true, path, bytes, mediaType, content } where `content` is UTF-8 text. ' +

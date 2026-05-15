@@ -1,6 +1,6 @@
-import { deleteToken, hasStoredToken, readVerifiedToken } from '@coodra/contextos-shared/auth';
+import { deleteToken, hasStoredToken, readVerifiedToken } from '@coodra/shared/auth';
 import { EXIT_OK } from '../exit-codes.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { clearTeamHomeEnv, demoteToSoloConfig, readTeamConfig } from '../lib/team-config.js';
 import { pc } from '../ui/index.js';
 
@@ -10,17 +10,17 @@ import { pc } from '../ui/index.js';
  * Symmetric to `login`. Tears down team-mode state on the local
  * machine and returns to solo:
  *
- *   1. Delete `~/.contextos/clerk-token.json` (idempotent).
- *   2. Demote `~/.contextos/config.json::mode` from `team` to `solo`,
+ *   1. Delete `~/.coodra/clerk-token.json` (idempotent).
+ *   2. Demote `~/.coodra/config.json::mode` from `team` to `solo`,
  *      removing the team block.
- *   3. Strip the four team-mode env keys (CONTEXTOS_MODE, DATABASE_URL,
- *      LOCAL_HOOK_SECRET, CONTEXTOS_TEAM_ORG_ID) from `~/.contextos/.env`.
+ *   3. Strip the four team-mode env keys (COODRA_MODE, DATABASE_URL,
+ *      LOCAL_HOOK_SECRET, COODRA_TEAM_ORG_ID) from `~/.coodra/.env`.
  *   4. Print confirmation.
  *
  * Idempotent: running `logout` when already in solo mode is a no-op
  * that prints "already logged out" and exits 0.
  *
- * Daemon restart is NOT done here — the next `contextos start` (or
+ * Daemon restart is NOT done here — the next `coodra start` (or
  * the running daemons' next disk-read of clerk-token.json) picks up
  * the new state. Doing a hard restart on logout would surprise users
  * who run logout while Claude Code sessions are active; the
@@ -59,7 +59,7 @@ export const DEFAULT_LOGOUT_IO: LogoutIO = {
 };
 
 export async function runLogoutCommand(options: LogoutOptions = {}, io: LogoutIO = DEFAULT_LOGOUT_IO): Promise<never> {
-  const home = resolveContextosHome({
+  const home = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env: options.env ?? process.env,
   });
@@ -100,7 +100,7 @@ export async function runLogoutCommand(options: LogoutOptions = {}, io: LogoutIO
   try {
     demoteToSoloConfig({ homeOverride: home });
   } catch (err) {
-    io.writeStderr(`${pc.red('contextos logout:')} could not update config.json: ${(err as Error).message}\n`);
+    io.writeStderr(`${pc.red('coodra logout:')} could not update config.json: ${(err as Error).message}\n`);
     // This is recoverable — user can manually edit config.json. Don't fail hard.
   }
 
@@ -116,7 +116,7 @@ export async function runLogoutCommand(options: LogoutOptions = {}, io: LogoutIO
   io.writeStdout(
     `${pc.green('✓')} Logged out${subject}.\n` +
       `  Local state reset: mode=solo, clerk-token.json deleted, team env keys cleared.\n` +
-      `  If daemons are running, they'll switch to solo on the next operation. Restart with \`contextos stop && contextos start\` for a clean handoff.\n`,
+      `  If daemons are running, they'll switch to solo on the next operation. Restart with \`coodra stop && coodra start\` for a clean handoff.\n`,
   );
 
   return io.exit(EXIT_OK);

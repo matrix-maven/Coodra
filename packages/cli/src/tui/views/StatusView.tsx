@@ -119,7 +119,7 @@ export function StatusView({ ctx, active }: StatusViewProps) {
             labelWidth={16}
           />
           <KeyValueRow label="cli version" value={`v${ctx.version}`} labelWidth={16} />
-          <KeyValueRow label="home" value={ctx.contextosHome} valueTone="dim" labelWidth={16} />
+          <KeyValueRow label="home" value={ctx.coodraHome} valueTone="dim" labelWidth={16} />
         </Box>
       ) : data.error !== null ? (
         <Text color={palette.crimson}>{`  ${data.error}`}</Text>

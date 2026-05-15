@@ -31,13 +31,13 @@ export default async function ProjectsHubPage() {
               {isTeamHosted ? (
                 <>
                   Each card is a registered project from any teammate's local{' '}
-                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>contextos init</span> — synced
+                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>coodra init</span> — synced
                   to your cloud Postgres.
                 </>
               ) : (
                 <>
                   Each card is a registered project under{' '}
-                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>~/.contextos</span>.
+                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>~/.coodra</span>.
                 </>
               )}{' '}
               Status dot reflects last 24h: <span style={{ color: 'var(--warn)' }}>red</span> for denials,{' '}
@@ -71,13 +71,13 @@ export default async function ProjectsHubPage() {
             {isTeamHosted ? (
               <>
                 {' '}Projects are registered by developers running{' '}
-                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos init</span> on their
+                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span> on their
                 local laptops. Once a teammate runs it against a repo and that repo's first agent session fires,
                 a project card appears here.
               </>
             ) : (
               <>
-                {' '}Run <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos init</span>{' '}
+                {' '}Run <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span>{' '}
                 in any repo — or click{' '}
                 <Link href="/init" style={{ color: 'var(--accent)' }}>
                   New project

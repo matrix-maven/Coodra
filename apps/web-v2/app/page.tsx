@@ -31,7 +31,7 @@ export default async function DashboardPage({
 
   // Three deployment modes drive the dashboard's identity story:
   //   - local-solo  → isTeam=false, no team banner
-  //   - local-team  → isTeam=true, read team config from ~/.contextos
+  //   - local-team  → isTeam=true, read team config from ~/.coodra
   //   - team-hosted → isTeam=true, read team identity from Clerk session
   const dm = resolveDeploymentMode();
   const isTeam = dm !== 'local-solo';
@@ -44,7 +44,7 @@ export default async function DashboardPage({
     if (teamCfg.mode === 'team' && teamCfg.team !== undefined) {
       teamLabel = teamCfg.team.clerkOrgSlug ?? teamCfg.team.clerkOrgId;
     } else {
-      // CONTEXTOS_MODE/DEPLOYMENT says team but config doesn't agree.
+      // COODRA_MODE/DEPLOYMENT says team but config doesn't agree.
       teamMisconfigured = true;
     }
   } else if (dm === 'team-hosted') {
@@ -87,7 +87,7 @@ export default async function DashboardPage({
     <>
       <Topbar
         crumb="Dashboard"
-        crumbPrefix={isTeam ? `contextos · ${teamLabel ?? 'team'}` : 'contextos · solo'}
+        crumbPrefix={isTeam ? `coodra · ${teamLabel ?? 'team'}` : 'coodra · solo'}
       />
       <section className="screen">
         <div className="head">
@@ -138,8 +138,8 @@ export default async function DashboardPage({
 
         {sp.joined === 'ok' ? (
           <BannerStrip tone="ok">
-            ● Joined team {sp.org !== undefined ? sp.org : ''} · ~/.contextos/config.json + ~/.contextos/.env written ·
-            run <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos start</code> in a project
+            ● Joined team {sp.org !== undefined ? sp.org : ''} · ~/.coodra/config.json + ~/.coodra/.env written ·
+            run <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra start</code> in a project
             dir to bring this machine online.
           </BannerStrip>
         ) : null}
@@ -184,7 +184,7 @@ export default async function DashboardPage({
             <div className="stat__num" style={{ fontSize: 32 }}>
               {snap.mode}
             </div>
-            <div className="stat__delta">{snap.mode === 'solo' ? '~/.contextos/data.db' : 'cloud postgres'}</div>
+            <div className="stat__delta">{snap.mode === 'solo' ? '~/.coodra/data.db' : 'cloud postgres'}</div>
           </div>
         </div>
 
@@ -318,7 +318,7 @@ export default async function DashboardPage({
                   />
                   <SystemRow
                     title="Storage"
-                    sub={snap.mode === 'solo' ? '~/.contextos/data.db' : 'cloud postgres'}
+                    sub={snap.mode === 'solo' ? '~/.coodra/data.db' : 'cloud postgres'}
                     tone="ok"
                     last
                   />
@@ -534,7 +534,7 @@ function FirstRunBanner() {
         </div>
         <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.55, marginTop: 6, maxWidth: 640 }}>
           Solo runs entirely on this machine. Team mirrors to your own Postgres so collaborators see each other’s
-          decisions. Either way, no signup is required by ContextOS — only by the cloud you bring.
+          decisions. Either way, no signup is required by Coodra — only by the cloud you bring.
         </p>
       </div>
       <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
@@ -577,7 +577,7 @@ function FreshTeamMemberBanner({ orgLabel }: { readonly orgLabel: string }) {
           You're in <em style={{ color: 'var(--accent)' }}>{orgLabel}</em>.
         </div>
         <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.55, marginTop: 6, maxWidth: 640 }}>
-          No runs or decisions yet — this team's audit history is empty so far. When teammates use ContextOS in their
+          No runs or decisions yet — this team's audit history is empty so far. When teammates use Coodra in their
           editors (Claude Code, Cursor, Windsurf), their decisions and context packs appear here within seconds. If
           you also want to run AI agents on your own machine, see <Link href="/onboarding/team/join" style={{ color: 'var(--accent)' }}>Connect to existing</Link>{' '}
           for the CLI install command.
@@ -611,9 +611,9 @@ function TeamMisconfiguredBanner() {
           ⚠ TEAM MODE — INCOMPLETE SETUP
         </strong>
         <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.55, marginTop: 6 }}>
-          <code style={inlineMono}>CONTEXTOS_MODE=team</code> is set in <code style={inlineMono}>~/.contextos/.env</code>{' '}
-          but <code style={inlineMono}>~/.contextos/config.json::team</code> has no team block. Run{' '}
-          <code style={inlineMono}>contextos team setup</code> or follow the wizard.
+          <code style={inlineMono}>COODRA_MODE=team</code> is set in <code style={inlineMono}>~/.coodra/.env</code>{' '}
+          but <code style={inlineMono}>~/.coodra/config.json::team</code> has no team block. Run{' '}
+          <code style={inlineMono}>coodra team setup</code> or follow the wizard.
         </p>
       </div>
       <Link href="/onboarding/team" className="btn btn--ghost" style={{ flexShrink: 0 }}>

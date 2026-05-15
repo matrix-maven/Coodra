@@ -6,7 +6,7 @@ import type { Check } from '../types.js';
 
 /**
  * Slice 5 (2026-05-03 audit §14.1) — synthetic PreToolUse end-to-end
- * loop test. The audit observed: the `__contextos__` matcher bug existed
+ * loop test. The audit observed: the `__coodra__` matcher bug existed
  * for weeks because doctor only checks process health, not lifecycle
  * correctness. This check fires a SYNTHETIC PreToolUse hook at the
  * bridge with a payload that the post-Fix-F default policy MUST deny
@@ -49,20 +49,20 @@ export const preToolUseLoopCheck: Check = {
   name: 'PreToolUse synthetic POST returns deny for Write→.env (proves enforcement loop)',
   severity: 'red',
   async run(ctx) {
-    // Don't fire the synthetic when the cwd has no `.contextos.json`. The
+    // Don't fire the synthetic when the cwd has no `.coodra.json`. The
     // bridge would otherwise auto-create a project from `basename(cwd)`
     // (per `resolveAndEnsure`), polluting the projects table with one row
-    // per `contextos doctor` invocation from an un-registered folder. The
+    // per `coodra doctor` invocation from an un-registered folder. The
     // policy-enforcement loop is meaningless for a freshly-derived project
     // anyway — no rules are seeded for it. Check 12 already covers the
     // missing-sidecar case.
     try {
-      await stat(join(ctx.cwd, '.contextos.json'));
+      await stat(join(ctx.cwd, '.coodra.json'));
     } catch {
       return {
         status: 'yellow',
-        detail: 'cwd has no .contextos.json — skipping synthetic enforcement probe (would auto-create a stub project).',
-        remediation: 'Run `contextos init` from the project root to register it, then re-run doctor.',
+        detail: 'cwd has no .coodra.json — skipping synthetic enforcement probe (would auto-create a stub project).',
+        remediation: 'Run `coodra init` from the project root to register it, then re-run doctor.',
       };
     }
 
@@ -84,7 +84,7 @@ export const preToolUseLoopCheck: Check = {
       return {
         status: 'yellow',
         detail: 'LOCAL_HOOK_SECRET not found in env or .env — cannot fire synthetic hook.',
-        remediation: 'Run `contextos init` to lay down a fresh .env with a generated LOCAL_HOOK_SECRET.',
+        remediation: 'Run `coodra init` to lay down a fresh .env with a generated LOCAL_HOOK_SECRET.',
       };
     }
 
@@ -116,8 +116,8 @@ export const preToolUseLoopCheck: Check = {
           detail: `bridge returned HTTP ${res.status} for synthetic PreToolUse POST.`,
           remediation:
             res.status === 401 || res.status === 403
-              ? 'Re-run `contextos init` to align the LOCAL_HOOK_SECRET between .env and the bridge.'
-              : `Check ~/.contextos/logs/hooks-bridge.log for the request handling.`,
+              ? 'Re-run `coodra init` to align the LOCAL_HOOK_SECRET between .env and the bridge.'
+              : `Check ~/.coodra/logs/hooks-bridge.log for the request handling.`,
         };
       } else {
         body = await res.json();
@@ -127,7 +127,7 @@ export const preToolUseLoopCheck: Check = {
         status: 'red',
         detail: `synthetic PreToolUse POST failed: ${(err as Error).message}`,
         remediation:
-          'Confirm hooks-bridge is running (`contextos status`) and that the daemon listens on ' +
+          'Confirm hooks-bridge is running (`coodra status`) and that the daemon listens on ' +
           `port ${ctx.bridgePort}.`,
       };
     } finally {
@@ -136,7 +136,7 @@ export const preToolUseLoopCheck: Check = {
 
     // Always sweep the probe rows the bridge created on our behalf — one
     // run, one policy_decision, one or more run_events keyed on the unique
-    // probeSessionId. Without this, every `contextos doctor` invocation
+    // probeSessionId. Without this, every `coodra doctor` invocation
     // leaves an in_progress run + audit row behind, which pollutes the
     // /runs feed and the policy-decisions feed in the web UI.
     await sweepProbeRows({ dataDb: ctx.dataDb, probeSessionId });
@@ -164,7 +164,7 @@ export const preToolUseLoopCheck: Check = {
         status: 'red',
         detail: `bridge ALLOWED synthetic Write→.env. The default policy is broken or not seeded for this project.`,
         remediation:
-          'Run `contextos init` to re-seed the default policy (Phase 3 Fix D / Phase 4 Fix F: Write/Edit/MultiEdit/NotebookEdit on .env, .git/**, node_modules/** must deny).',
+          'Run `coodra init` to re-seed the default policy (Phase 3 Fix D / Phase 4 Fix F: Write/Edit/MultiEdit/NotebookEdit on .env, .git/**, node_modules/** must deny).',
       };
     }
     return {

@@ -1,4 +1,4 @@
-import type { RunWithEverything } from '@coodra/contextos-db';
+import type { RunWithEverything } from '@coodra/db';
 
 import { renderMarkdown } from './render-markdown.js';
 
@@ -52,7 +52,7 @@ export function renderHtml(data: RunWithEverything, options: RenderHtmlOptions):
     '<html lang="en">',
     '<head>',
     '  <meta charset="utf-8">',
-    `  <title>contextos run ${escapeHtml(data.run.id)}</title>`,
+    `  <title>coodra run ${escapeHtml(data.run.id)}</title>`,
     `  <style>${STYLES}</style>`,
     '</head>',
     '<body>',

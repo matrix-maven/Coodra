@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { FeatureFrontmatter } from './types.js';
 
 /**
- * @coodra/contextos-shared/features — Zod schema for feature.md
+ * @coodra/shared/features — Zod schema for feature.md
  * frontmatter.
  *
  * Two layers:
@@ -16,7 +16,7 @@ import type { FeatureFrontmatter } from './types.js';
  *      not pick the feature, which is the user's problem to fix.
  */
 
-/** Same regex used elsewhere in ContextOS for slugs. */
+/** Same regex used elsewhere in Coodra for slugs. */
 export const FEATURE_SLUG_RE = /^[a-z0-9_-]+$/;
 
 const MATURITY_VALUES = ['draft', 'beta', 'stable', 'deprecated'] as const;

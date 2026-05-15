@@ -10,7 +10,7 @@ import { EXIT_OK } from '../../src/exit-codes.js';
 /**
  * Module 08b S4 — logs integration roundtrip.
  *
- * Generates a 100-line log file under a tmpdir contextos-home and
+ * Generates a 100-line log file under a tmpdir coodra-home and
  * verifies that --lines 10 returns exactly the last 10 lines.
  */
 
@@ -20,7 +20,7 @@ let logsDir: string;
 
 beforeAll(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-logs-int-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   logsDir = join(homePath, 'logs');
   mkdirSync(logsDir, { recursive: true });
   const lines = Array.from({ length: 100 }, (_, i) =>
@@ -38,7 +38,7 @@ afterAll(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('contextos logs <service> integration', () => {
+describe('coodra logs <service> integration', () => {
   it('--lines 10 prints exactly the last 10 lines of a 100-line file', async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -50,7 +50,7 @@ describe('contextos logs <service> integration', () => {
         exitCode = code;
         throw new Error(`__exit__:${code}`);
       },
-      contextosHome: homePath,
+      coodraHome: homePath,
     };
 
     try {

@@ -2,23 +2,23 @@ import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { createPostgresDb, postgresSchema } from '@coodra/contextos-db';
+import { createPostgresDb, postgresSchema } from '@coodra/db';
 
-import { resolveContextosHome } from './contextos-home.js';
+import { resolveCoodraHome } from './coodra-home.js';
 
 /**
  * `packages/cli/src/lib/invite-mint.ts` — Phase H.5.
  *
  * Sign a team-invite token AND insert the matching `team_invites` row
  * in cloud Postgres, from the CLI side. Used by the top-level
- * `contextos invite <email>` command so admins don't have to leave
+ * `coodra invite <email>` command so admins don't have to leave
  * their terminal to mint an invite.
  *
  * Wire format MUST match `apps/web-v2/lib/invite-token.ts` exactly —
- * the web's `verifyInviteToken` reads CONTEXTOS_INVITE_HMAC_SECRET from
+ * the web's `verifyInviteToken` reads COODRA_INVITE_HMAC_SECRET from
  * its own process env, but the same SECRET must be present in
- * `~/.contextos/.env` so both signers share it. The Phase H wizard
- * (see `finalize-config.ts`) writes the secret to `~/.contextos/.env`
+ * `~/.coodra/.env` so both signers share it. The Phase H wizard
+ * (see `finalize-config.ts`) writes the secret to `~/.coodra/.env`
  * during admin onboarding; the web's `next.config.ts` shim (Phase F.6+)
  * layers that file into the dev-server's process.env, so they agree.
  *
@@ -55,24 +55,24 @@ export class InviteSecretMissingError extends Error {
 }
 
 /**
- * Read the CONTEXTOS_INVITE_HMAC_SECRET from `~/.contextos/.env`. Mirrors
+ * Read the COODRA_INVITE_HMAC_SECRET from `~/.coodra/.env`. Mirrors
  * the same heuristic as the web side: prefer 64-hex (32 bytes), fallback
  * to utf-8 bytes when long enough. Throws `InviteSecretMissingError` if
  * absent or too short.
  *
  * We intentionally do NOT read from process.env directly. The wizard
- * writes the secret to ~/.contextos/.env so it survives shell restarts;
+ * writes the secret to ~/.coodra/.env so it survives shell restarts;
  * `loadHomeEnv` only layers a key into process.env if it's unset, which
  * means a stale shell session can mask a freshly-written secret. Going
  * through the file is the authoritative path.
  */
 export function loadInviteSecret(opts: { readonly homeOverride?: string } = {}): Buffer {
-  const home = resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
+  const home = resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
   const envPath = join(home, '.env');
   let raw: string | null = null;
   if (existsSync(envPath)) {
     const content = readFileSync(envPath, 'utf8');
-    const match = content.match(/^CONTEXTOS_INVITE_HMAC_SECRET=(\S+)/m);
+    const match = content.match(/^COODRA_INVITE_HMAC_SECRET=(\S+)/m);
     if (match !== null && match[1] !== undefined) {
       // Strip surrounding quotes when present.
       let value = match[1];
@@ -84,7 +84,7 @@ export function loadInviteSecret(opts: { readonly homeOverride?: string } = {}):
   }
   if (raw === null || raw.length === 0) {
     throw new InviteSecretMissingError(
-      "CONTEXTOS_INVITE_HMAC_SECRET is not set in ~/.contextos/.env. Run `contextos team init` to generate one (or copy the value from your web deployment's env and add it to ~/.contextos/.env).",
+      "COODRA_INVITE_HMAC_SECRET is not set in ~/.coodra/.env. Run `coodra team init` to generate one (or copy the value from your web deployment's env and add it to ~/.coodra/.env).",
     );
   }
   if (/^[0-9a-f]{64}$/i.test(raw)) {
@@ -93,7 +93,7 @@ export function loadInviteSecret(opts: { readonly homeOverride?: string } = {}):
   const buf = Buffer.from(raw, 'utf-8');
   if (buf.length < MIN_SECRET_BYTES) {
     throw new InviteSecretMissingError(
-      `CONTEXTOS_INVITE_HMAC_SECRET is too short (${buf.length} bytes < ${MIN_SECRET_BYTES}). Regenerate with \`openssl rand -hex 32\` or re-run \`contextos team init --reset-invite-secret\`.`,
+      `COODRA_INVITE_HMAC_SECRET is too short (${buf.length} bytes < ${MIN_SECRET_BYTES}). Regenerate with \`openssl rand -hex 32\` or re-run \`coodra team init --reset-invite-secret\`.`,
     );
   }
   return buf;
@@ -151,7 +151,7 @@ export interface MintInviteResult {
 
 /**
  * Mint a new team invite from the CLI side:
- *   1. Resolve HMAC secret (~/.contextos/.env or override)
+ *   1. Resolve HMAC secret (~/.coodra/.env or override)
  *   2. Generate jti + payload
  *   3. Sign HMAC token
  *   4. INSERT into cloud Postgres `team_invites`

@@ -1,9 +1,9 @@
-import { createLogger as createSharedLogger, type Logger } from '@coodra/contextos-shared';
+import { createLogger as createSharedLogger, type Logger } from '@coodra/shared';
 
 /**
  * `apps/mcp-server/src/lib/logger.ts` — typed factory for per-module
  * loggers. Every lib module and every tool handler calls this one
- * place, never `@coodra/contextos-shared::createLogger` directly, so:
+ * place, never `@coodra/shared::createLogger` directly, so:
  *
  *   - Logger names are namespaced under `mcp-server.<module>` with a
  *     grep-able prefix (stderr purity already guaranteed by

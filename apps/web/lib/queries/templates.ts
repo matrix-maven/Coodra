@@ -8,12 +8,12 @@ import { z } from 'zod';
  * `apps/web/lib/queries/templates.ts` — server-only scanner for the
  * feature-pack templates library. Walks the same two tiers as the CLI's
  * `listAvailableTemplates` (M08b S17) — user-installed under
- * `~/.contextos/templates/` then bundled under
+ * `~/.coodra/templates/` then bundled under
  * `<cli-pkg>/templates/`. User templates shadow bundled ones with the
  * same name.
  *
  * Bundled-templates resolution: read from
- * `node_modules/@coodra/contextos-cli/templates/` (or, in workspace
+ * `node_modules/@coodra/cli/templates/` (or, in workspace
  * dev, `<repo>/packages/cli/templates/` via the workspace symlink).
  * Falls back to `<cli-dist>/templates/` if the package layout differs.
  */
@@ -68,19 +68,19 @@ function readTemplateMeta(dir: string): {
 }
 
 function userTemplatesDir(): string {
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   return join(home, 'templates');
 }
 
 function bundledTemplatesDir(): string | null {
   // Try the published-package path first.
   const here = dirname(fileURLToPath(import.meta.url));
-  // Search up to 6 levels for `node_modules/@coodra/contextos-cli/templates`
+  // Search up to 6 levels for `node_modules/@coodra/cli/templates`
   // OR `packages/cli/templates` (workspace dev).
   const candidates: string[] = [];
   let cursor = here;
   for (let i = 0; i < 6; i++) {
-    candidates.push(join(cursor, 'node_modules', '@coodra', 'contextos-cli', 'templates'));
+    candidates.push(join(cursor, 'node_modules', '@coodra', 'coodra-cli', 'templates'));
     candidates.push(join(cursor, 'packages', 'cli', 'templates'));
     candidates.push(join(cursor, 'packages', 'cli', 'dist', 'templates'));
     cursor = dirname(cursor);

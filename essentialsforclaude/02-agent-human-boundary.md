@@ -1,6 +1,6 @@
 # 02 — Agent / Human Boundary (hard line, do not cross)
 
-ContextOS is built collaboratively. Some things the agent does autonomously. Others the agent cannot do and must not fake. This file draws the line.
+Coodra is built collaboratively. Some things the agent does autonomously. Others the agent cannot do and must not fake. This file draws the line.
 
 ## 2.1 What the agent does (no need to ask every time)
 
@@ -13,7 +13,7 @@ ContextOS is built collaboratively. Some things the agent does autonomously. Oth
 - Update documentation (`system-architecture.md`, `External api and library reference.md`, `README.md`, `docs/**`) when the code justifies it.
 - Create/update Context Packs under `docs/context-packs/` after completing a feature.
 - Create/update entries in `context_memory/` after every tool use (see `03-context-memory.md`).
-- Call the ContextOS MCP (`contextos__*`) to load feature packs, record decisions, save context packs.
+- Call the Coodra MCP (`coodra__*`) to load feature packs, record decisions, save context packs.
 - Research online when docs are stale (see `04-when-in-doubt.md`).
 
 ## 2.2 What the user does (never skip, never fake)

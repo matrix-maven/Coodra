@@ -1,5 +1,5 @@
 /**
- * `src/ui/index.ts` — barrel for the ContextOS terminal design system.
+ * `src/ui/index.ts` — barrel for the Coodra terminal design system.
  *
  * The non-Ink surface (tokens + brand + string formatters) is the part
  * one-shot command handlers import. The Ink component library lives

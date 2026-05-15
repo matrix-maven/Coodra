@@ -14,9 +14,9 @@ export interface CheckResult {
 }
 
 export interface CheckContext {
-  /** Resolved `~/.contextos/` per spec §11 Decision 2. */
-  readonly contextosHome: string;
-  /** Path to `<contextosHome>/data.db`. */
+  /** Resolved `~/.coodra/` per spec §11 Decision 2. */
+  readonly coodraHome: string;
+  /** Path to `<coodraHome>/data.db`. */
   readonly dataDb: string;
   /** Resolved cwd (project root candidate). */
   readonly cwd: string;
@@ -26,7 +26,7 @@ export interface CheckContext {
   readonly mcpPort: number;
   /** Hooks bridge port (from env or 3101 default). */
   readonly bridgePort: number;
-  /** Web dashboard port (from CONTEXTOS_WEB_PORT or 3001 default). W1 (2026-05-13). */
+  /** Web dashboard port (from COODRA_WEB_PORT or 3001 default). W1 (2026-05-13). */
   readonly webPort: number;
   /** Stable clock for tests. */
   readonly now: () => Date;
@@ -73,7 +73,7 @@ export interface CheckRunResult {
 
 export interface DoctorReport {
   readonly version: string;
-  readonly contextosHome: string;
+  readonly coodraHome: string;
   readonly cwd: string;
   readonly checks: readonly CheckRunResult[];
   readonly summary: {

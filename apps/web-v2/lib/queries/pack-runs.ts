@@ -1,4 +1,4 @@
-import type { ContextPackRow, RunRow } from '@coodra/contextos-db';
+import type { ContextPackRow, RunRow } from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 import { listContextPacks } from '@/lib/queries/context-packs';

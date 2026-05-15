@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 
-import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -19,20 +19,20 @@ import { z } from 'zod';
  * default in `ensureProject`.
  */
 function resolveTeamOrgIdArg(): { readonly orgId: string } | Record<string, never> {
-  if (process.env.CONTEXTOS_MODE !== 'team') return {};
-  const orgId = process.env.CONTEXTOS_TEAM_ORG_ID;
+  if (process.env.COODRA_MODE !== 'team') return {};
+  const orgId = process.env.COODRA_TEAM_ORG_ID;
   if (typeof orgId !== 'string' || orgId.length === 0) return {};
   return { orgId };
 }
 
 /**
  * `apps/hooks-bridge/src/lib/resolve-project-slug` — two-stage resolver:
- *   1. cwd → slug  (read `<cwd>/.contextos.json`, or derive from basename)
+ *   1. cwd → slug  (read `<cwd>/.coodra.json`, or derive from basename)
  *   2. slug → projects.id  (DB lookup; M04 Phase 2 S1 adds optional auto-ensure)
  *
  * Both stages are cached (60s) per-key. The policy evaluator filters
  * rules by `policies.project_id`, which is a foreign key into
- * `projects.id` (a UUID); the slug stored in `.contextos.json` and
+ * `projects.id` (a UUID); the slug stored in `.coodra.json` and
  * referenced by tools is the human-readable lookup key. The hooks-
  * bridge pre-tool handler uses this resolver to bridge the gap.
  *
@@ -58,7 +58,7 @@ function resolveTeamOrgIdArg(): { readonly orgId: string } | Record<string, neve
 
 const projectSlugLogger = createLogger('hooks-bridge.resolve-project-slug');
 
-const ContextosJsonSchema = z
+const CoodraJsonSchema = z
   .object({
     projectSlug: z.string().min(1).optional(),
   })
@@ -84,7 +84,7 @@ export interface CreateProjectResolverOptions {
 }
 
 export interface ProjectResolution {
-  /** From `.contextos.json`. */
+  /** From `.coodra.json`. */
   readonly slug: string | undefined;
   /** From the projects table. Undefined if slug not registered. */
   readonly projectId: string | undefined;
@@ -93,7 +93,7 @@ export interface ProjectResolution {
 export interface ProjectSlugResolver {
   /**
    * Read-only resolve. Returns `{ slug, projectId }` for the cwd.
-   * Both fields are undefined when no `.contextos.json` is present;
+   * Both fields are undefined when no `.coodra.json` is present;
    * only `projectId` is undefined when the slug is set but not yet
    * registered as a `projects` row. Used by the policy-evaluator
    * hot path (no side effects).
@@ -102,7 +102,7 @@ export interface ProjectSlugResolver {
   /**
    * M04 Phase 2 S1 (F3 root-cause fix). Resolve, then auto-create
    * the `projects` row when missing — using the slug from
-   * `.contextos.json` if present, else deriving a slug from
+   * `.coodra.json` if present, else deriving a slug from
    * `basename(cwd)`. Returns the resolved `{ slug, projectId }`;
    * if cwd cannot yield a usable slug (reserved name, empty,
    * sanitization fails) BOTH fields are undefined and the caller
@@ -132,18 +132,18 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
   async function resolveSlug(cwd: string): Promise<string | undefined> {
     const cached = slugCache.get(cwd);
     if (cached && now() - cached.loadedAt < cacheTtlMs) return cached.slug;
-    // Walk up from the literal cwd looking for the closest `.contextos.json`.
+    // Walk up from the literal cwd looking for the closest `.coodra.json`.
     // This is the project-root analogue of how Git finds `.git/`. Without
     // walk-up, an agent started in `~/Coodra/apps/web-v2` would derive a
     // `web-v2` slug and create a stub project, even though `~/Coodra` is
-    // the real registered root with slug `contextos`. Cap depth at 12 to
+    // the real registered root with slug `coodra`. Cap depth at 12 to
     // bound disk I/O if the cwd is far below the project root.
     let slug: string | undefined;
     let cursor = cwd;
     for (let i = 0; i < 12; i++) {
       try {
-        const raw = await readFile(join(cursor, '.contextos.json'), 'utf8');
-        const parsed = ContextosJsonSchema.parse(JSON.parse(raw));
+        const raw = await readFile(join(cursor, '.coodra.json'), 'utf8');
+        const parsed = CoodraJsonSchema.parse(JSON.parse(raw));
         slug = parsed.projectSlug;
         if (slug !== undefined) break;
       } catch {
@@ -156,12 +156,12 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
     if (slug === undefined) {
       projectSlugLogger.debug(
         { event: 'project_slug_unavailable', cwd },
-        '.contextos.json not found between cwd and filesystem root; using __global__ policy cache',
+        '.coodra.json not found between cwd and filesystem root; using __global__ policy cache',
       );
     } else if (cursor !== cwd) {
       projectSlugLogger.debug(
         { event: 'project_slug_resolved_from_ancestor', cwd, ancestor: cursor, slug },
-        'resolved project slug from ancestor `.contextos.json`',
+        'resolved project slug from ancestor `.coodra.json`',
       );
     }
     slugCache.set(cwd, { slug, loadedAt: now() });
@@ -262,7 +262,7 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
       // Auto-create. ensureProject is idempotent at the unique-slug index, so
       // a concurrent insert from another handler is benign. Pass `cwd` so the
       // projects row records the absolute filesystem path of the project root
-      // (the directory containing `.contextos.json`) — the web app's per-project
+      // (the directory containing `.coodra.json`) — the web app's per-project
       // pack uploader reads this to write into the right folder.
       // ensureProject backfills only when the existing row's cwd is null, so
       // a stale cwd from a renamed/moved project never overwrites the original.
@@ -316,7 +316,7 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
  * Reserved-name reject list: filesystem-root-ish basenames where
  * auto-creating a project would be wrong (e.g. `/Users/abishaikc` →
  * `abishaikc` is fine; `/tmp` → `tmp` is reserved). The list is
- * conservative; users hitting one of these can ship a `.contextos.json`
+ * conservative; users hitting one of these can ship a `.coodra.json`
  * to be explicit.
  */
 const RESERVED_BASENAMES = new Set(['', '/', 'root', 'tmp', 'var', 'home', 'users', 'private', 'opt', 'etc']);

@@ -1,4 +1,4 @@
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 
 import type { DbHandle } from './client.js';
 import {
@@ -74,7 +74,7 @@ export interface ScheduleAuditWriteWithSyncArgs {
    */
   readonly sync?: SyncSpec;
   /**
-   * Override `process.env.CONTEXTOS_MODE` for this call. Tests pass
+   * Override `process.env.COODRA_MODE` for this call. Tests pass
    * `'solo'` or `'team'` directly; production reads from env.
    */
   readonly mode?: 'solo' | 'team';
@@ -90,7 +90,7 @@ const log = createLogger('db.schedule-audit-write-with-sync');
 
 function effectiveMode(override: 'solo' | 'team' | undefined): 'solo' | 'team' {
   if (override !== undefined) return override;
-  const envMode = process.env.CONTEXTOS_MODE;
+  const envMode = process.env.COODRA_MODE;
   if (envMode === 'team') return 'team';
   return 'solo';
 }

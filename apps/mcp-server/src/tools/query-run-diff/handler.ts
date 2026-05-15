@@ -1,12 +1,12 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger, parseRunDiffFilesChanged } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger, parseRunDiffFilesChanged } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { QueryRunDiffInput, QueryRunDiffOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__query_run_diff` (Module 06).
+ * Handler factory for `coodra__query_run_diff` (Module 06).
  *
  * Read-only. Two-step query:
  *   1. SELECT runs.id WHERE runs.id = ? — confirms the run exists; if

@@ -1,7 +1,7 @@
-import type { RunWithEverything } from '@coodra/contextos-db';
+import type { RunWithEverything } from '@coodra/db';
 
 /**
- * `lib/export/render-slack` — pure renderer for `contextos export
+ * `lib/export/render-slack` — pure renderer for `coodra export
  * <runId> --format slack`. Slack mrkdwn (a truncated subset of
  * markdown — different syntax for bold, italics, code blocks).
  *

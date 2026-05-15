@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createDbClient } from '../../../src/lib/db.js';

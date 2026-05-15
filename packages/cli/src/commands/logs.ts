@@ -2,20 +2,20 @@ import { type FSWatcher, watch } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosHome, resolveContextosLogsDir } from '../lib/contextos-home.js';
+import { resolveCoodraHome, resolveCoodraLogsDir } from '../lib/coodra-home.js';
 import { DurationParseError, parseDuration } from '../lib/duration.js';
 import { readLastNLines, readLinesSince } from '../lib/log-reader.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos logs <service>` — tail or print recent lines from
- * `<contextosHome>/logs/<service>.log`. Pure file I/O; no DB calls.
+ * `coodra logs <service>` — tail or print recent lines from
+ * `<coodraHome>/logs/<service>.log`. Pure file I/O; no DB calls.
  *
  * Service names mirror `lib/services.ts::ServiceName`:
  * `mcp-server | hooks-bridge | sync-daemon | web`. Unknown service →
  * exit 1 with the valid set listed. Missing log file → exit 2
  * with "daemon hasn't started yet" remediation pointing at
- * `contextos start`.
+ * `coodra start`.
  *
  * `--follow` uses `node:fs::watch` (same pattern Hono dev tools use)
  * — no `tail -f` shellout, so Windows parity holds.
@@ -39,7 +39,7 @@ export interface LogsIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   /**
    * Optional override for `--follow` so tests can inject a deterministic
    * watcher. Production code path uses `node:fs::watch`.
@@ -69,8 +69,8 @@ export async function runLogsCommand(service: string, options: LogsOptions, ioOv
   }
   const validService = service as ValidService;
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const logPath = join(resolveContextosLogsDir(homePath), `${validService}.log`);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const logPath = join(resolveCoodraLogsDir(homePath), `${validService}.log`);
 
   let exists = false;
   try {
@@ -81,7 +81,7 @@ export async function runLogsCommand(service: string, options: LogsOptions, ioOv
   }
   if (!exists) {
     io.writeStderr(
-      `${pc.red('error')}: log file ${logPath} does not exist. The ${validService} daemon may not have started yet — try \`contextos start\`.\n`,
+      `${pc.red('error')}: log file ${logPath} does not exist. The ${validService} daemon may not have started yet — try \`coodra start\`.\n`,
     );
     io.exit(EXIT_USER_ACTION_REQUIRED);
     return;

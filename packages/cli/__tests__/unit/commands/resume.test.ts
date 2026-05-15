@@ -2,15 +2,15 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, type DbHandle, insertKillSwitch, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, type DbHandle, insertKillSwitch, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { type ResumeIO, type ResumeOptions, runResumeCommand } from '../../../src/commands/resume.js';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../../../src/exit-codes.js';
-import { resolveContextosDataDb } from '../../../src/lib/contextos-home.js';
+import { resolveCoodraDataDb } from '../../../src/lib/coodra-home.js';
 
 /**
- * Module 08b S3 — `contextos resume` unit tests (4 fixtures).
+ * Module 08b S3 — `coodra resume` unit tests (4 fixtures).
  */
 
 interface IoCapture {
@@ -35,7 +35,7 @@ function makeIo(homePath: string): IoCapture {
       exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: homePath,
+    coodraHome: homePath,
   };
   return { io, stdout, stderr, getExitCode: () => exitCode };
 }
@@ -57,9 +57,9 @@ let handle: DbHandle;
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-resume-test-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   mkdirSync(homePath, { recursive: true });
-  const opened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+  const opened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
   if (opened.kind !== 'sqlite') throw new Error('expected sqlite');
   handle = opened;
   migrateSqlite(handle.db);
@@ -127,7 +127,7 @@ describe('runResumeCommand', () => {
     expect(payload.resumed.map((r) => r.id).sort()).toEqual([t1.id, t2.id].sort());
 
     // Re-open and confirm global stayed active.
-    const reopened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+    const reopened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
     if (reopened.kind !== 'sqlite') throw new Error('expected sqlite');
     const stillActive = reopened.raw
       .prepare('SELECT scope FROM kill_switches WHERE resumed_at IS NULL')

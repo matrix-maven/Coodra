@@ -9,7 +9,7 @@ import {
   generateFeaturesIndex,
   parseFeatureMd,
   renderFeatureMd,
-} from '@coodra/contextos-shared/features';
+} from '@coodra/shared/features';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -148,7 +148,7 @@ const CREATE_SCHEMA = z.object({
 export async function createFeatureAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
@@ -251,7 +251,7 @@ const UPLOAD_FILE_SCHEMA = z.object({
 export async function uploadFeatureFileAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
@@ -340,7 +340,7 @@ const EDIT_META_SCHEMA = z.object({
 export async function editFeatureMetaAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
@@ -445,7 +445,7 @@ const REMOVE_SCHEMA = z.object({
 export async function removeFeatureAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
@@ -548,7 +548,7 @@ const IMPORT_ITEM_SCHEMA = z.array(
 export async function importFeaturesAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
@@ -651,7 +651,7 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
 export async function reindexFeaturesAction(formData: FormData): Promise<void> {
   // Features write to <repo>/docs/features/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `contextos
+  // Refuse with a redirect; CLI users still scaffold via `coodra
   // feature add`. The Phase 2 invite + Phase 3 deployment plans put
   // feature content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.

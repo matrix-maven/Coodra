@@ -1,13 +1,13 @@
 import { copyFile, rename, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { EXIT_BACKUP_RESTORE_PRECONDITION, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { readPidStatus } from '../lib/pid-status.js';
 import { isSqliteFile } from '../lib/sqlite-magic.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos db restore <path>` — replace `~/.contextos/data.db` with
+ * `coodra db restore <path>` — replace `~/.coodra/data.db` with
  * the SQLite file at `<path>`.
  *
  * Per OQ-4 lock (2026-05-03):
@@ -38,7 +38,7 @@ export interface DbRestoreIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_DB_RESTORE_IO: DbRestoreIO = {
@@ -69,8 +69,8 @@ export async function runDbRestoreCommand(
 ): Promise<void> {
   const io = ioOverride ?? DEFAULT_DB_RESTORE_IO;
   const json = options.json === true;
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const target = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const target = resolveCoodraDataDb(homePath);
   const resolvedSource = resolve(source);
 
   // Refuse if any daemon is alive.
@@ -85,7 +85,7 @@ export async function runDbRestoreCommand(
       source: resolvedSource,
       target,
       daemonsRunning: aliveUnits,
-      error: `${aliveUnits.length} daemon(s) still running: ${aliveUnits.map((u) => `${u.unit} (pid ${u.pid})`).join(', ')}. Run \`contextos stop\` first.`,
+      error: `${aliveUnits.length} daemon(s) still running: ${aliveUnits.map((u) => `${u.unit} (pid ${u.pid})`).join(', ')}. Run \`coodra stop\` first.`,
     });
   }
 
@@ -140,7 +140,7 @@ export async function runDbRestoreCommand(
   }
 
   // Atomic replace: copy source to target.tmp, then rename atop target.
-  const tmpPath = `${target}.contextos-restore.tmp`;
+  const tmpPath = `${target}.coodra-restore.tmp`;
   try {
     await copyFile(resolvedSource, tmpPath);
     await rename(tmpPath, target);

@@ -4,7 +4,7 @@ import { exitCodeForReport, runChecks } from '../../../src/doctor/run.js';
 import type { Check, CheckContext, CheckResult } from '../../../src/doctor/types.js';
 
 function fakeContext(overrides: Partial<CheckContext> = {}): CheckContext {
-  return { ...buildCheckContext({ env: {}, contextosHomeOverride: '/tmp/__doctor-test__' }), ...overrides };
+  return { ...buildCheckContext({ env: {}, coodraHomeOverride: '/tmp/__doctor-test__' }), ...overrides };
 }
 
 const greenCheck = (id: number): Check => ({
@@ -80,7 +80,7 @@ describe('exitCodeForReport', () => {
   it('returns 2 when there are reds', () => {
     const report = {
       version: 'x',
-      contextosHome: '/x',
+      coodraHome: '/x',
       cwd: '/x',
       checks: [],
       summary: { ok: 0, warn: 1, fail: 1, skipped: 0 },
@@ -90,7 +90,7 @@ describe('exitCodeForReport', () => {
   it('returns 1 when there are yellows but no reds', () => {
     const report = {
       version: 'x',
-      contextosHome: '/x',
+      coodraHome: '/x',
       cwd: '/x',
       checks: [],
       summary: { ok: 5, warn: 1, fail: 0, skipped: 0 },
@@ -100,7 +100,7 @@ describe('exitCodeForReport', () => {
   it('returns 0 when all green', () => {
     const report = {
       version: 'x',
-      contextosHome: '/x',
+      coodraHome: '/x',
       cwd: '/x',
       checks: [],
       summary: { ok: 5, warn: 0, fail: 0, skipped: 2 },

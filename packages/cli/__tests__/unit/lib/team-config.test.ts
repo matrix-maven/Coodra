@@ -169,10 +169,10 @@ describe('writeTeamHomeEnv + readTeamHomeEnv + clearTeamHomeEnv', () => {
     writeTeamHomeEnv(sampleInput, { homeOverride: homeDir });
     const envPath = join(homeDir, '.env');
     const content = readFileSync(envPath, 'utf8');
-    expect(content).toContain('CONTEXTOS_MODE=team');
+    expect(content).toContain('COODRA_MODE=team');
     expect(content).toContain(`DATABASE_URL=${sampleInput.databaseUrl}`);
     expect(content).toContain(`LOCAL_HOOK_SECRET=${sampleInput.localHookSecret}`);
-    expect(content).toContain(`CONTEXTOS_TEAM_ORG_ID=${sampleInput.clerkOrgId}`);
+    expect(content).toContain(`COODRA_TEAM_ORG_ID=${sampleInput.clerkOrgId}`);
   });
 
   it('readTeamHomeEnv round-trips the values', () => {
@@ -191,7 +191,7 @@ describe('writeTeamHomeEnv + readTeamHomeEnv + clearTeamHomeEnv', () => {
     const content = readFileSync(envPath, 'utf8');
     expect(content).toContain('MY_CUSTOM_VAR=hello');
     expect(content).toContain('ANOTHER=world');
-    expect(content).toContain('CONTEXTOS_MODE=team');
+    expect(content).toContain('COODRA_MODE=team');
   });
 
   it('overwrites prior values for managed keys (re-run idempotent)', () => {
@@ -205,15 +205,15 @@ describe('writeTeamHomeEnv + readTeamHomeEnv + clearTeamHomeEnv', () => {
     expect(lhsMatches).toHaveLength(1);
   });
 
-  it('readTeamHomeEnv returns null when CONTEXTOS_MODE!=team', () => {
+  it('readTeamHomeEnv returns null when COODRA_MODE!=team', () => {
     const envPath = join(homeDir, '.env');
-    writeFileSync(envPath, 'CONTEXTOS_MODE=solo\nDATABASE_URL=postgres://x\n', 'utf8');
+    writeFileSync(envPath, 'COODRA_MODE=solo\nDATABASE_URL=postgres://x\n', 'utf8');
     expect(readTeamHomeEnv({ homeOverride: homeDir })).toBeNull();
   });
 
   it('readTeamHomeEnv returns null when DATABASE_URL is missing even if mode=team', () => {
     const envPath = join(homeDir, '.env');
-    writeFileSync(envPath, 'CONTEXTOS_MODE=team\n', 'utf8');
+    writeFileSync(envPath, 'COODRA_MODE=team\n', 'utf8');
     expect(readTeamHomeEnv({ homeOverride: homeDir })).toBeNull();
   });
 
@@ -224,13 +224,13 @@ describe('writeTeamHomeEnv + readTeamHomeEnv + clearTeamHomeEnv', () => {
     clearTeamHomeEnv({ homeOverride: homeDir });
     const content = readFileSync(envPath, 'utf8');
     expect(content).toContain('MY_CUSTOM_VAR=hello');
-    expect(content).not.toContain('CONTEXTOS_MODE');
+    expect(content).not.toContain('COODRA_MODE');
     expect(content).not.toContain('DATABASE_URL');
     expect(content).not.toContain('LOCAL_HOOK_SECRET');
     expect(readTeamHomeEnv({ homeOverride: homeDir })).toBeNull();
   });
 
-  it('clearTeamHomeEnv is a no-op when ~/.contextos/.env is missing', () => {
+  it('clearTeamHomeEnv is a no-op when ~/.coodra/.env is missing', () => {
     expect(() => clearTeamHomeEnv({ homeOverride: homeDir })).not.toThrow();
   });
 });

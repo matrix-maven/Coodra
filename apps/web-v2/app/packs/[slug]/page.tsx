@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { eq } from 'drizzle-orm';
 
-import { sqliteSchema } from '@coodra/contextos-db';
+import { sqliteSchema } from '@coodra/db';
 
 import { Topbar } from '@/components/Topbar';
 import { deletePackAction, regeneratePackAction, togglePackStatusAction } from '@/lib/actions/packs';
@@ -63,7 +63,7 @@ export default async function PackDetailPage({
 
   return (
     <>
-      <Topbar crumb={pack.slug} crumbPrefix="contextos / packs" />
+      <Topbar crumb={pack.slug} crumbPrefix="coodra / packs" />
       <section className="screen">
         <div className="head">
           <div>

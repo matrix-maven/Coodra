@@ -2,9 +2,9 @@
  * `packages/cli/src/lib/team-migrate/` — Module 04 Phase 4.
  *
  * The team-migration engine. Consumed by:
- *   - `contextos team migrate` — solo → team data move.
- *   - `contextos team join`    — full cloud pull seed (uses planner counts).
- *   - `contextos team leave`   — local team cleanup (rollback for already-
+ *   - `coodra team migrate` — solo → team data move.
+ *   - `coodra team join`    — full cloud pull seed (uses planner counts).
+ *   - `coodra team leave`   — local team cleanup (rollback for already-
  *                                migrated state is out of scope; this is
  *                                local-side only).
  *

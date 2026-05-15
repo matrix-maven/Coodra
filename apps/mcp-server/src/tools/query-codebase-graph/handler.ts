@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import {
@@ -9,7 +9,7 @@ import {
 } from './schema.js';
 
 /**
- * Handler factory for `contextos__query_codebase_graph` (§24.4, S15).
+ * Handler factory for `coodra__query_codebase_graph` (§24.4, S15).
  *
  * S15 is the first caller of `GraphifyClient.getIndexStatus` (S7c
  * additive-method landed for exactly this slice — user directive Q9
@@ -28,7 +28,7 @@ import {
  *   1. Resolve `projectSlug → projects.id`. Missing → structured
  *      `{ ok: false, error: 'project_not_found', howToFix }` per
  *      §9.1.2. No graphify call — projects-table miss is caller-
- *      addressable via `contextos init`, distinct from a missing
+ *      addressable via `coodra init`, distinct from a missing
  *      graph.json (different remediation string, different error
  *      code).
  *   2. Call `ctx.graphify.getIndexStatus(projectSlug)` BEFORE
@@ -115,7 +115,7 @@ export function createQueryCodebaseGraphHandler(deps: QueryCodebaseGraphHandlerD
         ok: false,
         error: 'project_not_found',
         howToFix:
-          'Register the project via the CLI (`contextos init`) or verify the slug matches an existing entry in the projects table.',
+          'Register the project via the CLI (`coodra init`) or verify the slug matches an existing entry in the projects table.',
       };
     }
 

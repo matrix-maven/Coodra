@@ -3,11 +3,11 @@ import { z } from 'zod';
 import { ValidationError } from './errors/index.js';
 
 /**
- * Cross-cutting env variables defined by the ContextOS architecture
+ * Cross-cutting env variables defined by the Coodra architecture
  * (`system-architecture.md` §1, §19) and referenced by every service:
  *
  * - `NODE_ENV`  — standard Node runtime marker; defaults to `development`.
- * - `CONTEXTOS_MODE` — `solo` (SQLite, local loopback) or `team` (Postgres +
+ * - `COODRA_MODE` — `solo` (SQLite, local loopback) or `team` (Postgres +
  *   Clerk JWT). Defaults to `solo`; a service that needs team-only env
  *   (e.g. `DATABASE_URL`) declares that requirement in its own schema
  *   via `.extend(...)` and feeds the combined schema to `parseEnv`.
@@ -15,7 +15,7 @@ import { ValidationError } from './errors/index.js';
  */
 export const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  CONTEXTOS_MODE: z.enum(['solo', 'team']).default('solo'),
+  COODRA_MODE: z.enum(['solo', 'team']).default('solo'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
 });
 

@@ -1,10 +1,10 @@
 # 00 — Project Identity & Canonical Documents
 
-> **This is NOT a prototype.** ContextOS v2 is built linearly, start to finish, as a production-grade system. There are no placeholder surfaces, no mocked endpoints to make the UI render, no "we'll come back to this later." Every module ships complete or is not merged.
+> **This is NOT a prototype.** Coodra v2 is built linearly, start to finish, as a production-grade system. There are no placeholder surfaces, no mocked endpoints to make the UI render, no "we'll come back to this later." Every module ships complete or is not merged.
 
-## What ContextOS is
+## What Coodra is
 
-ContextOS is an MCP (Model Context Protocol) server platform that provides **Feature Packs**, **Context Packs**, and **policy enforcement** for AI coding agents. It is the coordination layer between human architects and AI agents — ensuring agents receive project context before coding, follow policies during coding, and produce traceable records after coding.
+Coodra is an MCP (Model Context Protocol) server platform that provides **Feature Packs**, **Context Packs**, and **policy enforcement** for AI coding agents. It is the coordination layer between human architects and AI agents — ensuring agents receive project context before coding, follow policies during coding, and produce traceable records after coding.
 
 The system has five layers:
 
@@ -47,7 +47,7 @@ There are exactly **two** source-of-truth documents in this repo. Learn the diff
 
 ### `system-architecture.md` — *HOW the system is built*
 
-**Contains:** the complete architectural specification of ContextOS v2 — the two-mode model (solo vs team), data-in-motion wire formats, data-at-rest schemas, CAP analysis, design patterns (currently 19), Graphify, NL Assembly, Policy Engine, JIRA (§22), GitHub (§23), and the MCP tool manifest + agent discovery contract (§24).
+**Contains:** the complete architectural specification of Coodra v2 — the two-mode model (solo vs team), data-in-motion wire formats, data-at-rest schemas, CAP analysis, design patterns (currently 19), Graphify, NL Assembly, Policy Engine, JIRA (§22), GitHub (§23), and the MCP tool manifest + agent discovery contract (§24).
 
 **Use it when:** touching a service boundary, data flow, wire format, cross-cutting concern, adding/changing an integration, introducing a new policy condition or hook event, or deciding whether something belongs in solo mode, team mode, or both.
 
@@ -59,7 +59,7 @@ There are exactly **two** source-of-truth documents in this repo. Learn the diff
 
 **Contains:** concrete API, library, and wire-format references for every third-party dependency — SQLite, Postgres, Drizzle, BullMQ, Redis, Express/Hono/Next.js/FastAPI, MCP/JSON-RPC/SSE, Ollama/Anthropic/Gemini, Clerk/Zod, cockatiel/Pino, Vitest/Biome/Turborepo, Atlassian/jira.js, Octokit (all 6 plugins)/GitHub App/CODEOWNERS/rulesets, Railway/Fly.io. Each library has a "Gotchas" subsection.
 
-**Use it when:** adding a new external dependency, calling any external API, wiring auth/retries/rate limits/signature verification, needing the canonical code snippet for a library in ContextOS, or checking known gotchas.
+**Use it when:** adding a new external dependency, calling any external API, wiring auth/retries/rate limits/signature verification, needing the canonical code snippet for a library in Coodra, or checking known gotchas.
 
 **Authority:** use the versions and patterns pinned here. If a version looks stale, verify online per `04-when-in-doubt.md` and update the reference in the same change. Never silently upgrade or downgrade.
 

@@ -1,12 +1,12 @@
 /**
- * `@coodra/contextos-shared/test-utils` — assertion helpers + fixtures
- * shared across every ContextOS test suite that needs them. Kept
+ * `@coodra/shared/test-utils` — assertion helpers + fixtures
+ * shared across every Coodra test suite that needs them. Kept
  * under a dedicated subpath (not re-exported from the package root)
- * so production consumers of `@coodra/contextos-shared` do not transitively
+ * so production consumers of `@coodra/shared` do not transitively
  * pick up test-only code in their bundle graph.
  *
  * Subpath contract (see `packages/shared/package.json`):
- *   import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+ *   import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
  */
 
 export {

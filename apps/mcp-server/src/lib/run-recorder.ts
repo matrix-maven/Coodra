@@ -1,6 +1,6 @@
-import type { RunEventPayloadV1, RunIdResolution } from '@coodra/contextos-cli/lib/outbox';
-import { type DbHandle, scheduleAuditWriteWithSync } from '@coodra/contextos-db';
-import { type Logger, ValidationError } from '@coodra/contextos-shared';
+import type { RunEventPayloadV1, RunIdResolution } from '@coodra/cli/lib/outbox';
+import { type DbHandle, scheduleAuditWriteWithSync } from '@coodra/db';
+import { type Logger, ValidationError } from '@coodra/shared';
 
 import type { RunRecorder } from '../framework/tool-context.js';
 import { createMcpLogger } from './logger.js';
@@ -11,7 +11,7 @@ import { createMcpLogger } from './logger.js';
  *
  * Module 03.1: every audit write goes through `pending_jobs` via
  * `scheduleDurableWrite` (the durable outbox). The OutboxWorker
- * (`@coodra/contextos-cli/lib/outbox`) drains the queue and applies each
+ * (`@coodra/cli/lib/outbox`) drains the queue and applies each
  * row to the destination via the canonical dispatcher. The
  * recorder's only job is to build the queue payload and enqueue
  * durably.
@@ -65,7 +65,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
     throw new TypeError('createRunRecorder requires an options object');
   }
   if (!deps.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
-    throw new TypeError('createRunRecorder: deps.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createRunRecorder: deps.db must be a DbHandle from @coodra/db');
   }
   const log = deps.logger ?? recorderLogger;
   const kick = deps.kick;

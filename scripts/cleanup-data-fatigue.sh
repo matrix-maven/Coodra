@@ -1,5 +1,5 @@
 #!/bin/bash
-# Cleanup script for ContextOS data fatigue.
+# Cleanup script for Coodra data fatigue.
 #
 # What this fixes (root causes documented inline):
 #   1. Stuck `in_progress` runs > 30 min old (SessionEnd hook missed)
@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-DB="${1:-$HOME/.contextos/data.db}"
+DB="${1:-$HOME/.coodra/data.db}"
 
 if [[ ! -f "$DB" ]]; then
   echo "ERROR: db not found at $DB"
@@ -18,7 +18,7 @@ if [[ ! -f "$DB" ]]; then
 fi
 
 echo "========================================"
-echo "ContextOS data-fatigue cleanup"
+echo "Coodra data-fatigue cleanup"
 echo "DB: $DB"
 echo "========================================"
 
@@ -27,7 +27,7 @@ echo "BEFORE:"
 sqlite3 "$DB" "
 SELECT '  runs by status:        ' || status || ' = ' || COUNT(*) FROM runs GROUP BY status;
 SELECT '  orphan run_events:     ' || COUNT(*) FROM run_events WHERE run_id IS NULL;
-SELECT '  doctor-synthetic runs: ' || COUNT(*) FROM runs WHERE session_id LIKE '__contextos_synthetic__%';
+SELECT '  doctor-synthetic runs: ' || COUNT(*) FROM runs WHERE session_id LIKE '__coodra_synthetic__%';
 "
 
 # ---------------------------------------------------------------------------
@@ -68,14 +68,14 @@ RETURNING id;
 
 # ---------------------------------------------------------------------------
 # Fix 3 — Hard-delete doctor-synthetic abandoned runs.
-# Root cause: `contextos doctor` opens probe runs that never close; they
+# Root cause: `coodra doctor` opens probe runs that never close; they
 # accumulate as 'abandoned' on every doctor invocation. They have no audit
 # value (no events, no decisions, no packs).
 # ---------------------------------------------------------------------------
 
 DELETED_DOCTOR=$(sqlite3 "$DB" "
 DELETE FROM runs
-WHERE session_id LIKE '__contextos_synthetic__%'
+WHERE session_id LIKE '__coodra_synthetic__%'
   AND status = 'abandoned'
   AND id NOT IN (SELECT DISTINCT run_id FROM run_events WHERE run_id IS NOT NULL)
   AND id NOT IN (SELECT DISTINCT run_id FROM context_packs WHERE run_id IS NOT NULL)
@@ -103,7 +103,7 @@ echo "AFTER:"
 sqlite3 "$DB" "
 SELECT '  runs by status:        ' || status || ' = ' || COUNT(*) FROM runs GROUP BY status;
 SELECT '  orphan run_events:     ' || COUNT(*) FROM run_events WHERE run_id IS NULL;
-SELECT '  doctor-synthetic runs: ' || COUNT(*) FROM runs WHERE session_id LIKE '__contextos_synthetic__%';
+SELECT '  doctor-synthetic runs: ' || COUNT(*) FROM runs WHERE session_id LIKE '__coodra_synthetic__%';
 "
 
 echo

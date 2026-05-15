@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 
 import type { DbHandle } from './client.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';

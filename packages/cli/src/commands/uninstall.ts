@@ -1,6 +1,6 @@
 import { rm, stat } from 'node:fs/promises';
 import { EXIT_OK } from '../exit-codes.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
@@ -9,30 +9,30 @@ import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos uninstall` — reverse `contextos init` writes.
+ * `coodra uninstall` — reverse `coodra init` writes.
  *
  * Per OQ-5 lock (2026-05-03) the default is conservative: preserve
  * data + config + feature/context packs by default. `--purge` adds
- * removal of `~/.contextos/`. Always prints the
- * `npm uninstall -g @coodra/contextos-cli` command for the user — the
+ * removal of `~/.coodra/`. Always prints the
+ * `npm uninstall -g @coodra/cli` command for the user — the
  * CLI does NOT execute it (the binary is mid-execution).
  *
  * Order of operations (best-effort each step; one failure doesn't
  * block the rest):
  *
- *   1. Drop `__contextos__`-matcher / URL-owned entries from
+ *   1. Drop `__coodra__`-matcher / URL-owned entries from
  *      `~/.claude/settings.json`.
- *   2. Drop the `contextos` server from `<cwd>/.mcp.json`.
- *   3. With `--purge`: remove `~/.contextos/` entirely.
- *   4. Always: print the `npm uninstall -g @coodra/contextos-cli`
+ *   2. Drop the `coodra` server from `<cwd>/.mcp.json`.
+ *   3. With `--purge`: remove `~/.coodra/` entirely.
+ *   4. Always: print the `npm uninstall -g @coodra/cli`
  *      command.
  *
- * Idempotent: re-running on a clean install (no contextos entries
+ * Idempotent: re-running on a clean install (no coodra entries
  * anywhere) is exit-0 with "nothing to remove" notes for each step.
  *
- * NOT removed (default-safe): `~/.contextos/data.db`,
- * `~/.contextos/config.json`, every `docs/feature-packs/<slug>/`,
- * every `docs/context-packs/`. The user can re-run `contextos init`
+ * NOT removed (default-safe): `~/.coodra/data.db`,
+ * `~/.coodra/config.json`, every `docs/feature-packs/<slug>/`,
+ * every `docs/context-packs/`. The user can re-run `coodra init`
  * after `npm i -g` and pick up where they left off.
  */
 
@@ -48,7 +48,7 @@ export interface UninstallIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   readonly cwd?: string;
   readonly bridgePort?: number;
   readonly settingsPath?: string;
@@ -85,7 +85,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   const json = options.json === true;
   const purge = options.purge === true;
   const dryRun = options.dryRun === true;
-  const homePath = io.contextosHome ?? resolveContextosHome();
+  const homePath = io.coodraHome ?? resolveCoodraHome();
   const cwd = io.cwd ?? process.cwd();
   const bridgePort = io.bridgePort ?? 3101;
 
@@ -147,7 +147,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
 
-  // Step 3: ~/.contextos/ purge (only on --purge)
+  // Step 3: ~/.coodra/ purge (only on --purge)
   if (purge) {
     try {
       try {
@@ -172,7 +172,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
 
-  const npmUninstallCommand = 'npm uninstall -g @coodra/contextos-cli';
+  const npmUninstallCommand = 'npm uninstall -g @coodra/cli';
   const preserved = purge
     ? []
     : [`${homePath}/data.db`, `${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/'];
@@ -187,7 +187,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     };
     io.writeStdout(`${JSON.stringify(payload, null, 2)}\n`);
   } else {
-    io.writeStdout(`${pc.green('✓')} contextos uninstall ${dryRun ? '(dry-run) ' : ''}complete:\n`);
+    io.writeStdout(`${pc.green('✓')} coodra uninstall ${dryRun ? '(dry-run) ' : ''}complete:\n`);
     for (const s of steps) {
       const symbol = s.action === 'failed' ? pc.red('✗') : s.action === 'unchanged' ? pc.dim('—') : pc.green('•');
       io.writeStdout(`  ${symbol} ${s.step}: ${s.action} (${s.notes})\n`);
@@ -200,7 +200,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
     if (options.skipNpmHint !== true) {
       io.writeStdout(
-        `\n  ${pc.cyan('Final step:')} run ${pc.bold(npmUninstallCommand)} to remove the @coodra/contextos-cli binary.\n`,
+        `\n  ${pc.cyan('Final step:')} run ${pc.bold(npmUninstallCommand)} to remove the @coodra/cli binary.\n`,
       );
     }
   }

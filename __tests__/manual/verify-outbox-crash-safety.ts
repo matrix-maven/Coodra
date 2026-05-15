@@ -38,7 +38,7 @@ const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, '..', '..');
 const BRIDGE_BIN = resolve(ROOT, 'apps/hooks-bridge/dist/index.js');
 
-const HOME_ROOT = '/tmp/contextos-verify-outbox-crash';
+const HOME_ROOT = '/tmp/coodra-verify-outbox-crash';
 const BRIDGE_PORT = 3211;
 const BRIDGE_URL = `http://127.0.0.1:${BRIDGE_PORT}`;
 const PROJECT_SLUG = 'outbox-crash-safety';
@@ -52,9 +52,9 @@ function bridgeEnv(home: string): NodeJS.ProcessEnv {
     PATH: process.env.PATH ?? '',
     HOME: process.env.HOME ?? '',
     NODE_ENV: 'production',
-    CONTEXTOS_HOME: home,
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
-    CONTEXTOS_MODE: 'solo',
+    COODRA_HOME: home,
+    COODRA_LOG_DESTINATION: 'stderr',
+    COODRA_MODE: 'solo',
     HOOKS_BRIDGE_HOST: '127.0.0.1',
     HOOKS_BRIDGE_PORT: String(BRIDGE_PORT),
     LOCAL_HOOK_SECRET: SECRET,
@@ -147,9 +147,9 @@ async function seedFixture(home: string): Promise<void> {
   const child = await spawnBridge(home);
   await killAndWait(child, 'SIGTERM');
 
-  // Insert the test project so the bridge resolves it (no .contextos.json in the home).
-  // The path resolver in the bridge looks at cwd's .contextos.json — we send cwd=HOME_ROOT
-  // but no .contextos.json is there, so without this row, the bridge falls back to
+  // Insert the test project so the bridge resolves it (no .coodra.json in the home).
+  // The path resolver in the bridge looks at cwd's .coodra.json — we send cwd=HOME_ROOT
+  // but no .coodra.json is there, so without this row, the bridge falls back to
   // __global__. We INSERT a project row so we have something deterministic to filter on.
   // Also seed a permissive rule so check_policy returns 'allow' (any decision lands an
   // audit row; we just need the row to exist).

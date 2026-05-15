@@ -1,6 +1,6 @@
 # 11 — Architectural Decision Records (ADRs)
 
-These are the 12 load-bearing technology/design decisions that future sessions must not silently overturn. New decisions are recorded via `contextos__record_decision` (see `05-agent-trigger-contract.md` §5.4) and appended to `context_memory/decisions-log.md` — the latter accumulates; this file only lists the foundational set.
+These are the 12 load-bearing technology/design decisions that future sessions must not silently overturn. New decisions are recorded via `coodra__record_decision` (see `05-agent-trigger-contract.md` §5.4) and appended to `context_memory/decisions-log.md` — the latter accumulates; this file only lists the foundational set.
 
 ## ADR-001 — TypeScript MCP SDK over Python
 
@@ -36,21 +36,21 @@ The VS Code extension uses SQLite (`better-sqlite3` + `sqlite-vec`) as the **pri
 
 ## ADR-009 — Cursor hook adapter
 
-Cursor hooks are command-based (stdin/stdout JSON) while Claude Code supports HTTP hooks. ContextOS uses a single adapter script (`.cursor/hooks/contextos.sh`) that reads Cursor's JSON from stdin, normalizes field names (e.g., `conversation_id` → `session_id`), POSTs to the hooks-bridge, and translates the response back to Cursor's stdout format. Same semantics, different transport. See `system-architecture.md` §15 for full adapter specification.
+Cursor hooks are command-based (stdin/stdout JSON) while Claude Code supports HTTP hooks. Coodra uses a single adapter script (`.cursor/hooks/coodra.sh`) that reads Cursor's JSON from stdin, normalizes field names (e.g., `conversation_id` → `session_id`), POSTs to the hooks-bridge, and translates the response back to Cursor's stdout format. Same semantics, different transport. See `system-architecture.md` §15 for full adapter specification.
 
 ## ADR-010 — Graphify import for cold-start
 
-Graphify (`safishamsi/graphify`, MIT license) produces a `graph.json` with tree-sitter AST nodes clustered by Leiden community detection. ContextOS imports this output to seed initial Feature Pack content — each community becomes a Feature Pack section. Solves the cold-start problem (first session runs without context) without requiring manual Feature Pack authoring.
+Graphify (`safishamsi/graphify`, MIT license) produces a `graph.json` with tree-sitter AST nodes clustered by Leiden community detection. Coodra imports this output to seed initial Feature Pack content — each community becomes a Feature Pack section. Solves the cold-start problem (first session runs without context) without requiring manual Feature Pack authoring.
 
 **Status (2026-05-03 audit §13 — Slice 11 option b):**
-- **Reader: implemented in M02.** `apps/mcp-server/src/lib/graphify.ts` reads `~/.contextos/graphify/<projectSlug>/graph.json` and the MCP tool `query_codebase_graph` exposes the result with a fail-open soft-failure shape (`codebase_graph_not_indexed` when the file is absent).
+- **Reader: implemented in M02.** `apps/mcp-server/src/lib/graphify.ts` reads `~/.coodra/graphify/<projectSlug>/graph.json` and the MCP tool `query_codebase_graph` exposes the result with a fail-open soft-failure shape (`codebase_graph_not_indexed` when the file is absent).
 - **Producer: deferred — depends on external `graphify` CLI** (https://github.com/safishamsi/graphify) until an in-repo producer ships. No current owning module.
 - **Seeding flow (the original ADR-010 promise — "import to seed initial Feature Pack content"): not yet implemented.** `createFeaturePackStore.upsert()` accepts pre-authored markdown; it does not generate structure from a `graph.json`. A future module will own the import-to-Feature-Pack pipeline.
-- **What this means in practice:** users who want `query_codebase_graph` to return real data must `npm i -g graphify` (or equivalent) and run `graphify scan` at the repo root before opening a ContextOS session. The audit observed that the demo had no graphify index and the tool was permanently in soft-failure; that's by design until the producer story is resolved. Slice 10 (manifest description polish) adds an inline recovery hint so agents surface the install step to users.
+- **What this means in practice:** users who want `query_codebase_graph` to return real data must `npm i -g graphify` (or equivalent) and run `graphify scan` at the repo root before opening a Coodra session. The audit observed that the demo had no graphify index and the tool was permanently in soft-failure; that's by design until the producer story is resolved. Slice 10 (manifest description polish) adds an inline recovery hint so agents surface the install step to users.
 
 ## ADR-011 — Policy Engine as Non-Human Identity (NHI) infrastructure
 
-The policy engine treats AI coding agents as distinct non-human identities. Policy rules include an `agent_type` field (`claude_code`, `cursor`, `copilot`, `*`) enabling per-agent permission scoping. Combined with the `policy_decisions` audit table, this positions ContextOS as enterprise access governance for AI agents — not just a context injection tool.
+The policy engine treats AI coding agents as distinct non-human identities. Policy rules include an `agent_type` field (`claude_code`, `cursor`, `copilot`, `*`) enabling per-agent permission scoping. Combined with the `policy_decisions` audit table, this positions Coodra as enterprise access governance for AI agents — not just a context injection tool.
 
 ## ADR-012 — Bridge-mediated autonomous coordination defaults (2026-05-02, decision `dec_83ba10c1`)
 

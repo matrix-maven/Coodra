@@ -2,13 +2,13 @@ import { spawn } from 'node:child_process';
 import { openSync } from 'node:fs';
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { resolveContextosPidsDir } from '../contextos-home.js';
+import { resolveCoodraPidsDir } from '../coodra-home.js';
 import { isProcessAlive } from '../pid-status.js';
 import type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
 export interface FallbackDaemonManagerOptions {
-  /** Resolved ~/.contextos/ — used to find pids/. */
-  readonly contextosHome: string;
+  /** Resolved ~/.coodra/ — used to find pids/. */
+  readonly coodraHome: string;
   /** Override for tests — defaults to Node's `child_process.spawn`. */
   readonly spawn?: typeof spawn;
 }
@@ -24,13 +24,13 @@ interface UnitRecord {
 }
 
 /**
- * Universal fallback: detached child process + PID file under ~/.contextos/pids/.
+ * Universal fallback: detached child process + PID file under ~/.coodra/pids/.
  * Works on every platform but does not survive reboot — for that, prefer the
  * launchd / systemd implementations on macOS / Linux respectively.
  *
  * Each unit gets two on-disk artifacts:
- *   - `~/.contextos/pids/<name>.unit.json` — install record (cmd + args + env).
- *   - `~/.contextos/pids/<name>.pid`       — running PID, written at start().
+ *   - `~/.coodra/pids/<name>.unit.json` — install record (cmd + args + env).
+ *   - `~/.coodra/pids/<name>.pid`       — running PID, written at start().
  */
 export class FallbackDaemonManager implements DaemonManager {
   readonly kind = 'fallback' as const;
@@ -38,7 +38,7 @@ export class FallbackDaemonManager implements DaemonManager {
   private readonly spawnFn: typeof spawn;
 
   constructor(options: FallbackDaemonManagerOptions) {
-    this.pidsDir = resolveContextosPidsDir(options.contextosHome);
+    this.pidsDir = resolveCoodraPidsDir(options.coodraHome);
     this.spawnFn = options.spawn ?? spawn;
   }
 
@@ -69,8 +69,8 @@ export class FallbackDaemonManager implements DaemonManager {
   async start(unitName: string): Promise<void> {
     // Same hazard as the launchd manager: short-circuiting on "already
     // running" leaves the previously-spawned process serving the OLD
-    // env even when `contextos start` was re-invoked with a different
-    // CONTEXTOS_HOME (or other plist-equivalent change). Always tear
+    // env even when `coodra start` was re-invoked with a different
+    // COODRA_HOME (or other plist-equivalent change). Always tear
     // down first, then spawn fresh against the latest installed unit.
     const status = await this.status(unitName);
     if (status.state === 'running') {
@@ -82,7 +82,7 @@ export class FallbackDaemonManager implements DaemonManager {
     }
     // Open log files synchronously so we can pass numeric fds to spawn().
     // openSync('a') creates the file if missing; mkdir parent dirs first
-    // so an unprovisioned ~/.contextos/logs/ doesn't break start().
+    // so an unprovisioned ~/.coodra/logs/ doesn't break start().
     let stdoutFd: number | 'ignore' = 'ignore';
     let stderrFd: number | 'ignore' = 'ignore';
     if (record.stdoutPath !== undefined) {

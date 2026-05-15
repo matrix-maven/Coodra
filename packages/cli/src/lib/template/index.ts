@@ -1,6 +1,6 @@
 /**
  * `packages/cli/src/lib/template/index.ts` — library promotion of the
- * `contextos template install` command for in-process consumption by
+ * `coodra template install` command for in-process consumption by
  * the M04 Phase 2 S13 web action.
  *
  * Same wrapping pattern as the other lib promotions: capture

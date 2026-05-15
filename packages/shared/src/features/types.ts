@@ -1,12 +1,12 @@
 /**
- * @coodra/contextos-shared/features — types
+ * @coodra/shared/features — types
  *
- * `features/` is ContextOS's skill-style knowledge layer. Each feature is
+ * `features/` is Coodra's skill-style knowledge layer. Each feature is
  * a self-contained directory under `<project-root>/docs/features/<slug>/`
  * with one mandatory `feature.md` (frontmatter + body) plus any number
  * of supporting files. The skill-pattern insight: agents read the
  * generated INDEX (cheap — names + descriptions only) on every session
- * start, then call `contextos__get_feature(slug)` to load a body on
+ * start, then call `coodra__get_feature(slug)` to load a body on
  * demand when a relevant prompt arrives.
  *
  * This module is the canonical source of truth for the feature shape.

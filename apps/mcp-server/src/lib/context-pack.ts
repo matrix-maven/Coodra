@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/contextos-db';
-import { type Logger, ValidationError } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
+import { type Logger, ValidationError } from '@coodra/shared';
 import {
   contextPackFilename as sharedContextPackFilename,
   defaultContextPacksRoot as sharedDefaultContextPacksRoot,
-} from '@coodra/contextos-shared/context-pack-paths';
+} from '@coodra/shared/context-pack-paths';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -241,7 +241,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
     throw new TypeError('createContextPackStore requires an options object');
   }
   if (!deps.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
-    throw new TypeError('createContextPackStore: deps.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createContextPackStore: deps.db must be a DbHandle from @coodra/db');
   }
   const log = deps.logger ?? contextPackLogger;
   const contextPacksRoot = deps.contextPacksRoot ?? defaultContextPacksRoot();
@@ -352,7 +352,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
       // sync-daemon pushes the context pack to cloud Postgres. Without
       // this, the row only ever lives in local SQLite and teammates
       // never see it via the team-rows-puller. Solo mode skips.
-      if (process.env.CONTEXTOS_MODE === 'team') {
+      if (process.env.COODRA_MODE === 'team') {
         try {
           await scheduleDurableWrite(deps.db, {
             queue: 'sync_to_cloud',

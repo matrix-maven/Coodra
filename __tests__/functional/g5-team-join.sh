@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # __tests__/functional/g5-team-join.sh
 #
-# Phase G.5 functional test — `contextos team join <invite-url>`.
+# Phase G.5 functional test — `coodra team join <invite-url>`.
 #
 # What it proves (without a live cloud Postgres):
 #   1. Missing invite URL → clean refusal with usage hint.
 #   2. Malformed invite URL → clean refusal.
-#   3. Bare token without CONTEXTOS_WEB_URL → clean refusal.
+#   3. Bare token without COODRA_WEB_URL → clean refusal.
 #   4. Help text describes the Phase G browser-handoff flow.
 #
 # Mode B (INTERACTIVE=1) would exercise the full two-machine flow
@@ -22,7 +22,7 @@ set -uo pipefail
 SLICE="G.5"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 PASS=0
@@ -38,8 +38,8 @@ assert_pass() { green "  ✓ PASS — $*"; PASS=$((PASS + 1)); }
 assert_fail() { red "  ✗ FAIL — $*"; FAIL=$((FAIL + 1)); }
 assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 
-contextos() {
-  CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
+coodra() {
+  COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -48,7 +48,7 @@ hdr "Precondition"
 
 if [ ! -f "$CLI_BIN" ]; then
   yel "Building CLI..."
-  (cd "$REPO_ROOT" && pnpm --filter @coodra/contextos-cli build 2>&1 | tail -3) || exit 1
+  (cd "$REPO_ROOT" && pnpm --filter @coodra/cli build 2>&1 | tail -3) || exit 1
 fi
 green "  ✓ CLI bundle present"
 
@@ -57,7 +57,7 @@ hdr "Section 1 — input validation"
 # ---------------------------------------------------------------------------
 
 # 1.1: no argument
-OUT=$(contextos team join 2>&1 || true)
+OUT=$(coodra team join 2>&1 || true)
 if echo "$OUT" | grep -q "missing invite URL"; then
   assert_pass "1.1 — missing invite URL refused with usage"
 else
@@ -65,7 +65,7 @@ else
 fi
 
 # 1.2: malformed URL (no scheme + no dot — neither URL nor bare token)
-OUT=$(contextos team join "garbage" 2>&1 || true)
+OUT=$(coodra team join "garbage" 2>&1 || true)
 if echo "$OUT" | grep -q "Invalid invite"; then
   assert_pass "1.2 — malformed input refused"
 else
@@ -73,16 +73,16 @@ else
 fi
 
 # 1.3: invalid URL shape
-OUT=$(contextos team join "http://bad.url/no/install/path" 2>&1 || true)
+OUT=$(coodra team join "http://bad.url/no/install/path" 2>&1 || true)
 if echo "$OUT" | grep -q "Could not extract token"; then
   assert_pass "1.3 — URL without /install/<token> path refused"
 else
   assert_fail "1.3 — got: $(echo "$OUT" | head -3)"
 fi
 
-# 1.4: bare token (with dot, like a JWT) but no CONTEXTOS_WEB_URL
-OUT=$(contextos team join "abc.def" 2>&1 || true)
-if echo "$OUT" | grep -q "CONTEXTOS_WEB_URL"; then
+# 1.4: bare token (with dot, like a JWT) but no COODRA_WEB_URL
+OUT=$(coodra team join "abc.def" 2>&1 || true)
+if echo "$OUT" | grep -q "COODRA_WEB_URL"; then
   assert_pass "1.4 — bare token without web URL refused with helpful message"
 else
   assert_fail "1.4 — got: $(echo "$OUT" | head -3)"
@@ -122,7 +122,7 @@ elif [ -z "${INVITE_URL:-}" ]; then
   assert_skip "INTERACTIVE=1 but INVITE_URL=<url> not provided"
 else
   yel "Browser-handoff flow — sign in as the invited teammate."
-  if CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 \
+  if COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 \
       node "$CLI_BIN" team join "$INVITE_URL" --timeout-ms 240000; then
     if [ -f "$STUB_HOME/clerk-token.json" ] && [ -f "$STUB_HOME/config.json" ] && [ -f "$STUB_HOME/.env" ]; then
       assert_pass "3.1 — team join wrote all three files"

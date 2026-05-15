@@ -137,15 +137,15 @@ describe('<TimelineRow>', () => {
 describe('<CommandRow>', () => {
   it('shows the cursor + bold name when active', () => {
     const active = plain(
-      render(<CommandRow active name="contextos init" description="Set up ContextOS" />).lastFrame(),
+      render(<CommandRow active name="coodra init" description="Set up Coodra" />).lastFrame(),
     );
     expect(active).toContain('▸');
-    expect(active).toContain('contextos init');
+    expect(active).toContain('coodra init');
     const idle = plain(
-      render(<CommandRow active={false} name="contextos stop" description="Stop daemons" />).lastFrame(),
+      render(<CommandRow active={false} name="coodra stop" description="Stop daemons" />).lastFrame(),
     );
     expect(idle).not.toContain('▸');
-    expect(idle).toContain('contextos stop');
+    expect(idle).toContain('coodra stop');
   });
 });
 
@@ -174,7 +174,7 @@ describe('<Prompt>', () => {
   it('renders the axis prompt with role and optional command echo', () => {
     // Ink trims trailing whitespace from a frame, so the bare prompt has no trailing space.
     expect(plain(render(<Prompt />).lastFrame())).toBe('·──●  you ›');
-    expect(plain(render(<Prompt command="contextos status" />).lastFrame())).toBe('·──●  you › contextos status');
+    expect(plain(render(<Prompt command="coodra status" />).lastFrame())).toBe('·──●  you › coodra status');
   });
 });
 

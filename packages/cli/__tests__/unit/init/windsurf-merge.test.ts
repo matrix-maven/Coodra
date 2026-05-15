@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ContextosMcpEntry } from '../../../src/lib/init/mcp-merge.js';
+import type { CoodraMcpEntry } from '../../../src/lib/init/mcp-merge.js';
 import {
   defaultWindsurfMcpConfigPath,
   mergeWindsurfMcpConfig,
@@ -18,20 +18,20 @@ import {
  *   3. Merge-don't-clobber — other mcpServers entries survive.
  *   4. Drift preserved without --force; overwritten with --force.
  *   5. Dry-run writes nothing.
- *   6. removeWindsurfMcpConfig strips only the contextos entry.
+ *   6. removeWindsurfMcpConfig strips only the coodra entry.
  */
 
-const ENTRY: ContextosMcpEntry = {
+const ENTRY: CoodraMcpEntry = {
   command: 'node',
   args: ['/abs/path/runtime/mcp-server/index.js', '--transport', 'stdio'],
-  env: { CONTEXTOS_LOG_DESTINATION: 'stderr' },
+  env: { COODRA_LOG_DESTINATION: 'stderr' },
 };
 
 describe('mergeWindsurfMcpConfig — ~/.codeium/windsurf/mcp_config.json writer', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-windsurf-merge-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-windsurf-merge-'));
   });
   afterEach(() => {
     /* tmp cleaned by OS */
@@ -41,7 +41,7 @@ describe('mergeWindsurfMcpConfig — ~/.codeium/windsurf/mcp_config.json writer'
     const result = await mergeWindsurfMcpConfig({ entry: ENTRY, force: false, dryRun: false, userHome: home });
     expect(result.action).toBe('wrote');
     const parsed = JSON.parse(await readFile(defaultWindsurfMcpConfigPath(home), 'utf8'));
-    expect(parsed.mcpServers.contextos.command).toBe('node');
+    expect(parsed.mcpServers.coodra.command).toBe('node');
   });
 
   it('is idempotent — a second identical merge is unchanged', async () => {
@@ -58,25 +58,25 @@ describe('mergeWindsurfMcpConfig — ~/.codeium/windsurf/mcp_config.json writer'
     expect(result.action).toBe('merged');
     const parsed = JSON.parse(await readFile(path, 'utf8'));
     expect(parsed.mcpServers.memory.command).toBe('npx');
-    expect(parsed.mcpServers.contextos.command).toBe('node');
+    expect(parsed.mcpServers.coodra.command).toBe('node');
   });
 
-  it('preserves a drifted contextos entry without --force', async () => {
+  it('preserves a drifted coodra entry without --force', async () => {
     const path = defaultWindsurfMcpConfigPath(home);
     await mkdir(join(home, '.codeium', 'windsurf'), { recursive: true });
-    await writeFile(path, JSON.stringify({ mcpServers: { contextos: { command: 'custom' } } }, null, 2), 'utf8');
+    await writeFile(path, JSON.stringify({ mcpServers: { coodra: { command: 'custom' } } }, null, 2), 'utf8');
     const result = await mergeWindsurfMcpConfig({ entry: ENTRY, force: false, dryRun: false, userHome: home });
     expect(result.action).toBe('unchanged');
-    expect(JSON.parse(await readFile(path, 'utf8')).mcpServers.contextos.command).toBe('custom');
+    expect(JSON.parse(await readFile(path, 'utf8')).mcpServers.coodra.command).toBe('custom');
   });
 
-  it('--force overwrites a drifted contextos entry', async () => {
+  it('--force overwrites a drifted coodra entry', async () => {
     const path = defaultWindsurfMcpConfigPath(home);
     await mkdir(join(home, '.codeium', 'windsurf'), { recursive: true });
-    await writeFile(path, JSON.stringify({ mcpServers: { contextos: { command: 'custom' } } }, null, 2), 'utf8');
+    await writeFile(path, JSON.stringify({ mcpServers: { coodra: { command: 'custom' } } }, null, 2), 'utf8');
     const result = await mergeWindsurfMcpConfig({ entry: ENTRY, force: true, dryRun: false, userHome: home });
     expect(result.action).toBe('forced');
-    expect(JSON.parse(await readFile(path, 'utf8')).mcpServers.contextos.command).toBe('node');
+    expect(JSON.parse(await readFile(path, 'utf8')).mcpServers.coodra.command).toBe('node');
   });
 
   it('dry-run writes nothing to disk', async () => {
@@ -85,7 +85,7 @@ describe('mergeWindsurfMcpConfig — ~/.codeium/windsurf/mcp_config.json writer'
     await expect(readFile(defaultWindsurfMcpConfigPath(home), 'utf8')).rejects.toThrow();
   });
 
-  it('removeWindsurfMcpConfig strips only the contextos entry', async () => {
+  it('removeWindsurfMcpConfig strips only the coodra entry', async () => {
     const path = defaultWindsurfMcpConfigPath(home);
     await mkdir(join(home, '.codeium', 'windsurf'), { recursive: true });
     await writeFile(path, JSON.stringify({ mcpServers: { memory: { command: 'npx' } } }, null, 2), 'utf8');
@@ -93,7 +93,7 @@ describe('mergeWindsurfMcpConfig — ~/.codeium/windsurf/mcp_config.json writer'
     const result = await removeWindsurfMcpConfig({ dryRun: false, userHome: home });
     expect(result.action).toBe('merged');
     const parsed = JSON.parse(await readFile(path, 'utf8'));
-    expect(parsed.mcpServers.contextos).toBeUndefined();
+    expect(parsed.mcpServers.coodra).toBeUndefined();
     expect(parsed.mcpServers.memory.command).toBe('npx');
   });
 

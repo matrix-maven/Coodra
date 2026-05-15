@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildContextosHookSpec, mergeClaudeSettings } from '../../src/lib/init/claude-settings-merge.js';
+import { buildCoodraHookSpec, mergeClaudeSettings } from '../../src/lib/init/claude-settings-merge.js';
 
 /**
  * Locks the hook-merger contract across Phase-3 dec_83ba10c1,
@@ -10,7 +10,7 @@ import { buildContextosHookSpec, mergeClaudeSettings } from '../../src/lib/init/
  * 2026-05-03 audit — SessionEnd added):
  *
  *   1. Greenfield write — absent settings.json → baseline file with
- *      all five ContextOS hook entries (SessionStart, PreToolUse,
+ *      all five Coodra hook entries (SessionStart, PreToolUse,
  *      PostToolUse, Stop, SessionEnd).
  *   2. Idempotent merge — twice with identical inputs is a no-op.
  *   3. User entries preserved — entries with no bridge URL survive.
@@ -22,18 +22,18 @@ import { buildContextosHookSpec, mergeClaudeSettings } from '../../src/lib/init/
  *      SessionStart and Stop omit `matcher` entirely.
  *   8. **Phase 4 Fix F: URL-based ownership** — entries are
  *      identified by hook URL pointing at the bridge, not by the
- *      old `matcher === '__contextos__'` sentinel. User entries
+ *      old `matcher === '__coodra__'` sentinel. User entries
  *      with `matcher: 'Write'` or any other tool-name regex are
- *      preserved as long as they don't POST to the ContextOS bridge.
+ *      preserved as long as they don't POST to the Coodra bridge.
  *   9. **Phase 4 Fix F: legacy migration** — pre-Fix-F entries
- *      (matcher='__contextos__' + bridge URL) are recognised and
+ *      (matcher='__coodra__' + bridge URL) are recognised and
  *      replaced with the new shape on next merge.
  */
 describe('mergeClaudeSettings — write contract', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-claude-merge-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-claude-merge-'));
   });
   afterEach(() => {
     /* tmp cleaned by OS */
@@ -95,7 +95,7 @@ describe('mergeClaudeSettings — write contract', () => {
 
     // Non-tool events: matcher is OMITTED — Claude Code's hook spec
     // doesn't use matcher for SessionStart/Stop/SessionEnd, and the
-    // legacy `__contextos__` sentinel value made tool events
+    // legacy `__coodra__` sentinel value made tool events
     // functionally inert. SessionEnd follows the same shape.
     expect(body.hooks.SessionStart[0].matcher).toBeUndefined();
     expect(body.hooks.Stop[0].matcher).toBeUndefined();
@@ -157,7 +157,7 @@ describe('mergeClaudeSettings — write contract', () => {
     const body = JSON.parse(await readFile(settingsPath, 'utf8'));
     expect(body.theme).toBe('dark');
     // The user's PreToolUse + SessionStart entries survived alongside the
-    // newly-appended ContextOS entry.
+    // newly-appended Coodra entry.
     expect(body.hooks.PreToolUse).toHaveLength(2);
     expect(body.hooks.SessionStart).toHaveLength(2);
     const userPreToolUse = (
@@ -165,22 +165,22 @@ describe('mergeClaudeSettings — write contract', () => {
     ).find((e) => e.hooks?.[0]?.type === 'command');
     expect(userPreToolUse).toBeDefined();
     expect(userPreToolUse?.matcher).toBe('Write');
-    // ContextOS entry is the one with the bridge URL.
+    // Coodra entry is the one with the bridge URL.
     const ctxPreToolUse = (body.hooks.PreToolUse as Array<{ matcher?: string; hooks: Array<{ url?: string }> }>).find(
       (e) => e.hooks?.[0]?.url?.includes('/v1/hooks/claude-code'),
     );
     expect(ctxPreToolUse?.matcher).toBe('Write|Edit|MultiEdit|NotebookEdit|Bash');
   });
 
-  it('Phase 4 Fix F: legacy entry (matcher=__contextos__ + bridge URL) is migrated to the new shape', async () => {
+  it('Phase 4 Fix F: legacy entry (matcher=__coodra__ + bridge URL) is migrated to the new shape', async () => {
     const settingsPath = join(home, 'settings.json');
-    // Pre-Fix-F shape: matcher='__contextos__' on every event, including
+    // Pre-Fix-F shape: matcher='__coodra__' on every event, including
     // PreToolUse where the literal sentinel never matched any tool.
     const legacy = {
       hooks: {
         SessionStart: [
           {
-            matcher: '__contextos__',
+            matcher: '__coodra__',
             hooks: [
               {
                 type: 'http',
@@ -194,7 +194,7 @@ describe('mergeClaudeSettings — write contract', () => {
         ],
         PreToolUse: [
           {
-            matcher: '__contextos__',
+            matcher: '__coodra__',
             hooks: [
               {
                 type: 'http',
@@ -219,7 +219,7 @@ describe('mergeClaudeSettings — write contract', () => {
     expect(result.outcome.action).toBe('merged');
 
     const body = JSON.parse(await readFile(settingsPath, 'utf8'));
-    // Exactly one ContextOS entry per event after migration — the legacy
+    // Exactly one Coodra entry per event after migration — the legacy
     // entry was identified by URL and replaced, not duplicated.
     expect(body.hooks.SessionStart).toHaveLength(1);
     expect(body.hooks.PreToolUse).toHaveLength(1);
@@ -236,18 +236,18 @@ describe('mergeClaudeSettings — write contract', () => {
     await mergeClaudeSettings({ settingsPath, bridgePort: 3101, force: false, dryRun: false });
 
     const entries = await readdir(home);
-    const backups = entries.filter((e) => e.startsWith('settings.json.contextos-backup-'));
+    const backups = entries.filter((e) => e.startsWith('settings.json.coodra-backup-'));
     expect(backups.length).toBe(1);
     const backupBody = JSON.parse(await readFile(join(home, backups[0] as string), 'utf8'));
     expect(backupBody.theme).toBe('dark');
   });
 
-  it('force flag overwrites a custom-URL entry that is NOT contextos-owned (different URL → user-owned, only --force replaces it)', async () => {
+  it('force flag overwrites a custom-URL entry that is NOT coodra-owned (different URL → user-owned, only --force replaces it)', async () => {
     const settingsPath = join(home, 'settings.json');
     // A user has a custom HTTP hook pointing at THEIR server (NOT the
     // bridge). Without --force, it's preserved as a user entry. With
     // --force, baseline is re-asserted (the user entry stays — it's
-    // user-owned by URL — and a contextos entry is added).
+    // user-owned by URL — and a coodra entry is added).
     const custom = {
       hooks: {
         SessionStart: [
@@ -275,7 +275,7 @@ describe('mergeClaudeSettings — write contract', () => {
       (e) => e.hooks[0]?.url === 'http://9.9.9.9:9999/wrong',
     );
     expect(userEntry).toBeDefined();
-    // The ContextOS entry is the bridge-URL one.
+    // The Coodra entry is the bridge-URL one.
     const ctxEntry = (body.hooks.SessionStart as Array<{ hooks: Array<{ url: string }> }>).find((e) =>
       e.hooks[0]?.url.includes('/v1/hooks/claude-code'),
     );
@@ -290,9 +290,9 @@ describe('mergeClaudeSettings — write contract', () => {
   });
 });
 
-describe('buildContextosHookSpec', () => {
+describe('buildCoodraHookSpec', () => {
   it('honours custom bridgeHost + timeout', () => {
-    const spec = buildContextosHookSpec({
+    const spec = buildCoodraHookSpec({
       bridgePort: 5555,
       bridgeHost: 'localhost',
       timeoutSec: 30,

@@ -35,7 +35,7 @@ export default async function EditFeaturePage({
     <>
       <Topbar
         crumb={`${project.slug} / features / ${row.slug} / edit`}
-        crumbPrefix="contextos / projects"
+        crumbPrefix="coodra / projects"
       />
       <section className="screen">
         <div className="head">
@@ -144,7 +144,7 @@ export default async function EditFeaturePage({
                 style={textareaStyle}
               />
               <p style={hintStyle}>
-                Free-form markdown. Loaded by <code style={mono}>contextos__get_feature</code>. The frontmatter is
+                Free-form markdown. Loaded by <code style={mono}>coodra__get_feature</code>. The frontmatter is
                 emitted deterministically by the server action — your edits round-trip without diff noise.
               </p>
             </div>

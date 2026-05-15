@@ -1,14 +1,14 @@
 {
-  "_comment": "ContextOS MCP server (Module 02) + Hooks Bridge (Module 03). The MCP server is a stdio subprocess; the Hooks Bridge listens on http://127.0.0.1:3101 and Claude Code POSTs to it for PreToolUse / PostToolUse / SessionStart / Stop / UserPromptSubmit events. The X-Local-Hook-Secret header authenticates each POST against LOCAL_HOOK_SECRET in the bridge's env. CONTEXTOS_LOG_DESTINATION=stderr is load-bearing for the MCP stdio transport — a single stray log byte on stdout corrupts the protocol.",
+  "_comment": "Coodra MCP server (Module 02) + Hooks Bridge (Module 03). The MCP server is a stdio subprocess; the Hooks Bridge listens on http://127.0.0.1:3101 and Claude Code POSTs to it for PreToolUse / PostToolUse / SessionStart / Stop / UserPromptSubmit events. The X-Local-Hook-Secret header authenticates each POST against LOCAL_HOOK_SECRET in the bridge's env. COODRA_LOG_DESTINATION=stderr is load-bearing for the MCP stdio transport — a single stray log byte on stdout corrupts the protocol.",
   "_implementedBy": "Modules 02 + 03 (see docs/feature-packs/{02-mcp-server,03-hooks-bridge}/)",
   "mcpServers": {
-    "contextos": {
+    "coodra": {
       "type": "stdio",
       "command": "node",
       "args": ["apps/mcp-server/dist/index.js"],
       "env": {
-        "CONTEXTOS_LOG_DESTINATION": "stderr",
-        "CONTEXTOS_MODE": "solo"
+        "COODRA_LOG_DESTINATION": "stderr",
+        "COODRA_MODE": "solo"
       }
     }
   },

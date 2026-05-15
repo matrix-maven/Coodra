@@ -1,6 +1,6 @@
 import { access } from 'node:fs/promises';
 
-import { createPostgresDb } from '@coodra/contextos-db';
+import { createPostgresDb } from '@coodra/db';
 
 import { openLocalDb } from '../../lib/open-local-db.js';
 import type { Check } from '../types.js';
@@ -28,8 +28,8 @@ export const syncLagCheck: Check = {
   name: 'sync lag (Module 04a sync-daemon)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    if (ctx.env.CONTEXTOS_MODE !== 'team') {
-      return { status: 'skipped', detail: 'CONTEXTOS_MODE != team' };
+    if (ctx.env.COODRA_MODE !== 'team') {
+      return { status: 'skipped', detail: 'COODRA_MODE != team' };
     }
     const databaseUrl = ctx.env.DATABASE_URL;
     if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
@@ -94,16 +94,16 @@ export const syncLagCheck: Check = {
         // distinguishing two real scenarios:
         //   1. Fresh team setup: local has solo-mode history that
         //      hasn't been migrated yet → run `team migrate`.
-        //   2. Sync hasn't run yet: a `contextos start` will begin
+        //   2. Sync hasn't run yet: a `coodra start` will begin
         //      draining the outbox.
         return {
           status: 'yellow',
           detail: 'cloud has no runs rows yet; local has historical data',
           remediation:
             'Two paths: (a) if this is your first team-mode session and local has solo data, run ' +
-            '`contextos team migrate` to push it up; (b) if you just ran `team setup` and have not yet ' +
-            'started services, run `contextos start` to launch the sync-daemon — new writes will flow ' +
-            'within ~10s. This check will re-run green on the next `contextos doctor` once cloud has rows.',
+            '`coodra team migrate` to push it up; (b) if you just ran `team setup` and have not yet ' +
+            'started services, run `coodra start` to launch the sync-daemon — new writes will flow ' +
+            'within ~10s. This check will re-run green on the next `coodra doctor` once cloud has rows.',
         };
       }
 

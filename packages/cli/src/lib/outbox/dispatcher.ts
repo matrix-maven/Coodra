@@ -1,6 +1,6 @@
-import { closeRun, type DbHandle, insertRun, insertRunEvent, lookupRunId } from '@coodra/contextos-db';
-import { recordPolicyDecision } from '@coodra/contextos-policy';
-import { createLogger, type Logger } from '@coodra/contextos-shared';
+import { closeRun, type DbHandle, insertRun, insertRunEvent, lookupRunId } from '@coodra/db';
+import { recordPolicyDecision } from '@coodra/policy';
+import { createLogger, type Logger } from '@coodra/shared';
 
 import type { OutboxDispatchHandler, OutboxDispatchOutcome } from './types.js';
 
@@ -12,8 +12,8 @@ import type { OutboxDispatchHandler, OutboxDispatchOutcome } from './types.js';
  * claimed `pending_jobs` row. The handler validates the payload
  * shape per `pending_jobs.queue`, resolves a `runId` (lookup or
  * pre-supplied), and delegates the destination INSERT to the pure
- * helpers in `@coodra/contextos-db::destinations` (or
- * `@coodra/contextos-policy::recordPolicyDecision` for the audit row).
+ * helpers in `@coodra/db::destinations` (or
+ * `@coodra/policy::recordPolicyDecision` for the audit row).
  *
  * Why central. Both `apps/hooks-bridge` and `apps/mcp-server` enqueue
  * into the same `pending_jobs` table; both run their own
@@ -78,7 +78,7 @@ export interface SessionOpenPayloadV1 {
   readonly mode: string;
   /**
    * Module 04 Phase 4 — optional Clerk user id of the session owner.
-   * Bridge populates from team config when CONTEXTOS_MODE=team. Solo
+   * Bridge populates from team config when COODRA_MODE=team. Solo
    * mode + pre-Phase-4 payloads omit the field (treated as null at
    * the destination).
    */
@@ -130,7 +130,7 @@ async function resolveRunId(db: DbHandle, resolution: RunIdResolution): Promise<
 
 export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDeps): OutboxDispatchHandler {
   if (!deps?.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
-    throw new TypeError('createOutboxDispatchHandler: deps.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createOutboxDispatchHandler: deps.db must be a DbHandle from @coodra/db');
   }
   const log = deps.logger ?? createLogger('outbox.dispatcher');
 

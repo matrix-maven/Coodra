@@ -1,4 +1,4 @@
-import type { ProjectDetailRow } from '@coodra/contextos-db';
+import type { ProjectDetailRow } from '@coodra/db';
 import { notFound } from 'next/navigation';
 
 import { getProject } from '@/lib/queries/projects';
@@ -13,7 +13,7 @@ import { getProject } from '@/lib/queries/projects';
  * not-found page).
  *
  * Why URL-based, not cookie-based: pre-pivot Phase 2 used a
- * `contextos_selected_project` cookie. The IA pivot 2026-05-04 drops
+ * `coodra_selected_project` cookie. The IA pivot 2026-05-04 drops
  * the cookie — every project-scoped URL carries the slug, which
  * makes deep-links scope correctly without cross-tab leakage and
  * lets browser back/forward act as project switching. See

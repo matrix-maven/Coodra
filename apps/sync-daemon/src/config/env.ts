@@ -1,4 +1,4 @@
-import { ValidationError } from '@coodra/contextos-shared';
+import { ValidationError } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
@@ -6,9 +6,9 @@ import { z } from 'zod';
  *
  * - `DATABASE_URL` is required (the daemon has no purpose without a
  *   cloud Postgres to push to).
- * - `CONTEXTOS_HOME` and `CONTEXTOS_SQLITE_PATH` are read by `@coodra/contextos-db`'s
+ * - `COODRA_HOME` and `COODRA_SQLITE_PATH` are read by `@coodra/db`'s
  *   `resolveSqlitePath` directly; we don't re-validate them here.
- * - `CONTEXTOS_SYNC_TICK_MS` and `CONTEXTOS_SYNC_LEASE_MS` let operators
+ * - `COODRA_SYNC_TICK_MS` and `COODRA_SYNC_LEASE_MS` let operators
  *   tune the worker without code changes. Defaults match M03.1's
  *   audit-write OutboxWorker so there is one number to remember.
  */
@@ -16,8 +16,8 @@ const envSchema = z.object({
   DATABASE_URL: z
     .string()
     .min(1, 'DATABASE_URL is required (sync-daemon has no purpose without a cloud Postgres target)'),
-  CONTEXTOS_SYNC_TICK_MS: z.coerce.number().int().positive().default(1000),
-  CONTEXTOS_SYNC_LEASE_MS: z.coerce.number().int().positive().default(30_000),
+  COODRA_SYNC_TICK_MS: z.coerce.number().int().positive().default(1000),
+  COODRA_SYNC_LEASE_MS: z.coerce.number().int().positive().default(30_000),
 });
 
 export type SyncDaemonEnv = z.infer<typeof envSchema>;

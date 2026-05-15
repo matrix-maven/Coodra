@@ -15,8 +15,8 @@
 - **Commits landed this session (newest first):**
   - `77057e1` docs(foundation): DEVELOPMENT.md onboarding page and context-pack template
   - `fce4a5b` ci(foundation): GitHub Actions workflow with verify + Postgres integration jobs
-  - `42a166b` feat(db): @coodra/contextos-db — dual Drizzle schemas, createDb factory, initial migrations
-  - `d9f878c` feat(shared): @coodra/contextos-shared — logger, errors, zod env loader, idempotency helpers
+  - `42a166b` feat(db): @coodra/db — dual Drizzle schemas, createDb factory, initial migrations
+  - `d9f878c` feat(shared): @coodra/shared — logger, errors, zod env loader, idempotency helpers
   - `203f2d0` feat(foundation): .mcp.json stub pointing to Module 02's MCP server endpoint
   - `702b5c7` feat(foundation): docker-compose for postgres (pgvector pg16) + redis 7
   - `6c7cd6c` feat(foundation): monorepo scaffold (pnpm, turbo, tsconfig, biome) and pin tooling
@@ -27,10 +27,10 @@
 
 ## Outcome
 
-ContextOS v2 now has a runnable foundation: a pnpm workspaces monorepo
+Coodra v2 now has a runnable foundation: a pnpm workspaces monorepo
 managed by Turborepo, shipping two workspace packages
-(`@coodra/contextos-shared` — logger + typed errors + Zod env loader +
-idempotency-key helpers; `@coodra/contextos-db` — dual-dialect Drizzle
+(`@coodra/shared` — logger + typed errors + Zod env loader +
+idempotency-key helpers; `@coodra/db` — dual-dialect Drizzle
 schemas for the 5-table core, a mode-dispatching `createDb()`
 factory, and generated initial migrations for both SQLite and
 Postgres). A GitHub Actions workflow runs `lint + typecheck +
@@ -39,7 +39,7 @@ test:unit` on every push and PR and a second job that stands up
 migrations. Onboarding is consolidated in `docs/DEVELOPMENT.md` and
 every future session is expected to write a Context Pack from
 `docs/context-packs/template.md`. 88 unit tests pass (58 in
-`@coodra/contextos-shared`, 30 in `@coodra/contextos-db`) and the integration suite
+`@coodra/shared`, 30 in `@coodra/db`) and the integration suite
 runs cleanly once `DATABASE_URL` is set.
 
 ## Scope boundary
@@ -52,11 +52,11 @@ In scope (maps to `docs/feature-packs/01-foundation/spec.md`):
 - **AC-2 (context memory):** `context_memory/README.md`,
   `current-session.md`, `decisions-log.md`, `open-questions.md`,
   `pending-user-actions.md`, `blockers.md`, `sessions/.gitkeep`.
-- **AC-3 (shared primitives):** `@coodra/contextos-shared` with pino-based
+- **AC-3 (shared primitives):** `@coodra/shared` with pino-based
   logger, `AppError` hierarchy, Zod `baseEnvSchema` + `parseEnv`,
   `generateRunKey` + `generateRunEventKey` whose shapes match
   `system-architecture.md` §4.3 exactly.
-- **AC-4 (dual schemas + migrations):** `@coodra/contextos-db` with the 5
+- **AC-4 (dual schemas + migrations):** `@coodra/db` with the 5
   tables (`projects`, `runs`, `run_events`, `context_packs`,
   `pending_jobs`) defined for both SQLite and Postgres, generated
   migrations committed under `packages/db/drizzle/{sqlite,postgres}`,
@@ -94,7 +94,7 @@ Explicitly deferred:
   `src + __tests__ + vitest.config.ts + drizzle.*.config.ts`, `noEmit`).
   - **Rationale:** With a flat build `rootDir: src`, `dist/index.js`
     lands where `package.json#main` points (critical for workspace
-    consumers resolving `@coodra/contextos-shared`), while the typecheck
+    consumers resolving `@coodra/shared`), while the typecheck
     config still gives tsc visibility over test code.
   - **Alternatives considered:** A single `tsconfig.json` with
     `rootDir: .` — emits to `dist/src/*.js`, forcing either ugly
@@ -105,7 +105,7 @@ Explicitly deferred:
 
 - **Decision:** Pin Pino to `^10.3.1` (major bump from the reference's
   `9.9.5`) and Zod to `^4.3.6` in the same commit that introduced
-  `@coodra/contextos-shared`. Updated `External api and library reference.md`
+  `@coodra/shared`. Updated `External api and library reference.md`
   in that commit with an ESM-only gotcha for Pino 10.
   - **Rationale:** Amendment B of the bootstrap plan: reference pins
     change in lockstep with the code that requires them. Pino 10 is
@@ -135,9 +135,9 @@ Explicitly deferred:
   - **Cross-reference:**
     `packages/db/__tests__/unit/schema-parity.test.ts:30-33`.
 
-- **Decision:** CI integration job builds `@coodra/contextos-shared` before
+- **Decision:** CI integration job builds `@coodra/shared` before
   running `pnpm test:integration`.
-  - **Rationale:** `@coodra/contextos-db` imports `@coodra/contextos-shared` via its
+  - **Rationale:** `@coodra/db` imports `@coodra/shared` via its
     `dist/index.js`; without a prior build step CI would fail with
     "Cannot find module".
   - **Alternatives considered:** Adding a root-level `prepare` script
@@ -162,7 +162,7 @@ graph moved from `pipeline` → `tasks` in 2.x).
 
 `packages/shared/`
 
-- `package.json` — created (`@coodra/contextos-shared`, ESM, pino 10 + zod 4)
+- `package.json` — created (`@coodra/shared`, ESM, pino 10 + zod 4)
 - `tsconfig.json` — created (build, `rootDir: src`)
 - `tsconfig.typecheck.json` — created (src + tests, `noEmit`)
 - `vitest.config.ts` — created
@@ -271,7 +271,7 @@ Context memory
   pnpm lint
   pnpm typecheck
   pnpm test:unit          # 88/88 passing
-  pnpm --filter @coodra/contextos-db test:integration   # skips cleanly without DATABASE_URL
+  pnpm --filter @coodra/db test:integration   # skips cleanly without DATABASE_URL
   ```
 
 - **CI status at session end:** not yet pushed to GitHub at the time
@@ -318,7 +318,7 @@ happen **in this session** once this Pack is committed:
 - **Next concrete step.** Begin Module 02 per
   `module-wise plan.md` (the MCP Server + Policy Engine + Context
   Pack persistence). First change lands in a new workspace
-  `packages/mcp-server/` and extends `@coodra/contextos-db` with the
+  `packages/mcp-server/` and extends `@coodra/db` with the
   `policies`, `policy_decisions`, and `context_packs` embedding
   wiring via sqlite-vec. Start by producing the Module 02 Feature
   Pack at `docs/feature-packs/02-mcp-server/` and getting explicit

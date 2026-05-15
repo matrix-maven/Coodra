@@ -43,7 +43,7 @@ The single load-bearing acceptance criterion: **a SIGTERM mid-PreToolUse with a 
 ### 3.1 In scope
 
 1. **Schema migration 0004** — add `picked_at`, `failed_at`, `last_error` columns to `pending_jobs` (sqlite + postgres dialects, `@preserve`-block-locked migration parity per M01 discipline). Existing columns (`id`, `queue`, `payload`, `attempts`, `status`, `run_after`, `created_at`) stay as-is.
-2. **`scheduleDurableWrite(handle, job)` helper** in `@coodra/contextos-db` — synchronous (from caller's POV) INSERT into `pending_jobs`. Wraps the canonical envelope: `{ id, queue, payload (JSON-serialized), attempts: 0, status: 'pending', run_after: now }`.
+2. **`scheduleDurableWrite(handle, job)` helper** in `@coodra/db` — synchronous (from caller's POV) INSERT into `pending_jobs`. Wraps the canonical envelope: `{ id, queue, payload (JSON-serialized), attempts: 0, status: 'pending', run_after: now }`.
 3. **`OutboxWorker` class** in `packages/cli/src/lib/outbox/` (one helper, two consumers). Owns the drain loop:
    - **Pickup:** `UPDATE pending_jobs SET status='picked', picked_at=now() WHERE status='pending' AND run_after <= now() RETURNING *` (single-row pickup; SQLite + postgres support RETURNING).
    - **Lease recovery:** rows with `status='picked' AND picked_at < now() - lease_timeout` are re-eligible (treated as orphans — the picking worker died).
@@ -162,7 +162,7 @@ Workers compete for rows via the lease mechanism. SQLite WAL serializes writes a
 
 **Give-up state.** `status='dead'`, `failed_at=now()`, `last_error` retained for forensic review. The row stays in `pending_jobs` (no separate `failed_jobs` table — single source of truth for queue state). Doctor check 23 surfaces the count.
 
-**Doctor severity for dead-letter rows:** YELLOW with remediation. RED would block fresh-install scripts that run `contextos doctor && contextos start` after a transient DB error during a previous run. The agent has already proceeded based on the (advisory) policy decision; a forensic gap is uncomfortable but not blocking.
+**Doctor severity for dead-letter rows:** YELLOW with remediation. RED would block fresh-install scripts that run `coodra doctor && coodra start` after a transient DB error during a previous run. The agent has already proceeded based on the (advisory) policy decision; a forensic gap is uncomfortable but not blocking.
 
 ## 8. Lease timeout
 
@@ -208,8 +208,8 @@ Five questions. Each has a recommendation in §11; the user signs off (or amends
 
 - **Recommendation:** **each service owns its own drain worker** (bridge + mcp-server, both pulling from the same `pending_jobs` table; lease serializes pickup).
 - **Why this answer:** the bridge is the source of most audit events but not all of them — `check_policy` on the MCP server has its own audit write. If only the bridge drains, MCP-originated audits become bridge-availability-coupled. If only MCP drains, bridge audits couple the other way. Independent workers mean each service's audit trail is durable as long as ANY worker is running. The lease mechanism (`status='picked' AND picked_at >= now()-30s`) prevents double-dispatch; idempotency at the destination handles the rare overlap.
-- **Alternative:** single worker — choose bridge (the dominant source) and accept that MCP-only deployments aren't supported. Trade-off: simpler concurrency model, but couples MCP audit durability to bridge uptime. Not chosen because solo-mode dev workflows can run mcp-server without the bridge (e.g., via `pnpm --filter @coodra/contextos-mcp-server dev` for tooling smoke-tests).
-- **What this constrains:** `OutboxWorker` is a generic class with a `dispatch(queue, payload)` map; both services compose it with their own dispatch handlers (the bridge handler and mcp-server handler can dispatch the same `queue` types — they share the same destination insert functions from `@coodra/contextos-db`).
+- **Alternative:** single worker — choose bridge (the dominant source) and accept that MCP-only deployments aren't supported. Trade-off: simpler concurrency model, but couples MCP audit durability to bridge uptime. Not chosen because solo-mode dev workflows can run mcp-server without the bridge (e.g., via `pnpm --filter @coodra/mcp-server dev` for tooling smoke-tests).
+- **What this constrains:** `OutboxWorker` is a generic class with a `dispatch(queue, payload)` map; both services compose it with their own dispatch handlers (the bridge handler and mcp-server handler can dispatch the same `queue` types — they share the same destination insert functions from `@coodra/db`).
 
 ### OQ3 — Failure policy specifics
 
@@ -219,7 +219,7 @@ Five questions. Each has a recommendation in §11; the user signs off (or amends
   - **"Give up" semantics:** mark `status='dead'`, `failed_at=now()`, retain `last_error`. Row stays in `pending_jobs` (no separate `failed_jobs` table). Doctor check 23 surfaces the count.
 - **Why this answer:**
   - Retry curve covers transient (lock contention, brief hiccup, short outage) and longer auto-recoverable cases without thrashing. After 35 min, something is genuinely broken — re-trying every minute thereafter just churns log lines.
-  - YELLOW (not RED) for dead-letter: the policy decision was advisory; the agent already proceeded. A forensic gap is uncomfortable but not blocking. RED would surface as "doctor failed" in scripted setups (`contextos doctor && contextos start`) after a transient error during a prior run, breaking install flows.
+  - YELLOW (not RED) for dead-letter: the policy decision was advisory; the agent already proceeded. A forensic gap is uncomfortable but not blocking. RED would surface as "doctor failed" in scripted setups (`coodra doctor && coodra start`) after a transient error during a prior run, breaking install flows.
   - Single-table dead-letter: simpler schema, single source of truth for queue state, and `WHERE failed_at IS NOT NULL` is the dead-letter view that doctor + future M04 audit UI can read directly.
 - **Alternative:** exponential capped at 5min permanently (no give-up) — keeps retrying forever. Trade-off: avoids forensic gaps, but unbounded queue growth on persistent failure (e.g., DB schema mismatch). Not chosen — the give-up signal is what tells the operator something needs attention.
 - **What this constrains:** `OutboxWorker.computeBackoff(attempts)` returns the schedule above. Doctor checks 21/22/23 use these severity thresholds.
@@ -245,7 +245,7 @@ Five questions. Each has a recommendation in §11; the user signs off (or amends
 
 | Slice | Title                                                                                  |
 |-------|----------------------------------------------------------------------------------------|
-| S0    | Schema migration 0004 + `scheduleDurableWrite` helper in `@coodra/contextos-db`               |
+| S0    | Schema migration 0004 + `scheduleDurableWrite` helper in `@coodra/db`               |
 | S1    | `OutboxWorker` class — pickup, lease, dispatch, retry, give-up                         |
 | S2    | Replace 7 audit-write `setImmediate` callsites with `scheduleDurableWrite`             |
 | S3    | Worker lifecycle wiring in `apps/hooks-bridge/src/index.ts` + mcp-server `index.ts`    |

@@ -24,7 +24,7 @@ interface SearchParams {
   readonly packUploaded?: string;
   readonly linked?: string;
   readonly templateInstalled?: string;
-  /** "stub" when the upload replaced a `contextos init` template stub. */
+  /** "stub" when the upload replaced a `coodra init` template stub. */
   readonly replaced?: string;
 }
 
@@ -61,7 +61,7 @@ export default async function ProjectHomePage({
 
   return (
     <>
-      <Topbar crumb={project.slug} crumbPrefix="contextos / projects" />
+      <Topbar crumb={project.slug} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
@@ -122,7 +122,7 @@ export default async function ProjectHomePage({
         {sp.packUploaded !== undefined ? (
           <Banner tone="ok">
             Pack <code style={packCodeStyle}>{sp.packUploaded}</code> uploaded
-            {sp.replaced === 'stub' ? <> · replaced the <code style={packCodeStyle}>contextos init</code> template stub</> : null}
+            {sp.replaced === 'stub' ? <> · replaced the <code style={packCodeStyle}>coodra init</code> template stub</> : null}
             {sp.linked === '1' ? (
               <>
                 {' · linked as parent of '}
@@ -603,7 +603,7 @@ function FeaturePackPanel({
           server&apos;s working directory (<code style={packCodeStyle}>{pack.packsRoot}</code>), which may not be the
           project&apos;s real folder. Open a Claude Code session inside the project root once to register it (the bridge
           writes <code style={packCodeStyle}>projects.cwd</code> on first SessionStart), or re-run{' '}
-          <code style={packCodeStyle}>contextos init</code>.
+          <code style={packCodeStyle}>coodra init</code>.
         </Banner>
       ) : null}
 
@@ -622,9 +622,9 @@ function FeaturePackPanel({
 
       {pack.primary?.isTemplateStub === true ? (
         <Banner tone="ok">
-          Primary pack is a <code style={packCodeStyle}>contextos init</code> template stub — uploading via{' '}
+          Primary pack is a <code style={packCodeStyle}>coodra init</code> template stub — uploading via{' '}
           <strong>+ Upload pack</strong> below will silently replace it (no force-overwrite needed). Tip: next time, run{' '}
-          <code style={packCodeStyle}>contextos init --feature-pack=empty</code> to skip the template scaffold and
+          <code style={packCodeStyle}>coodra init --feature-pack=empty</code> to skip the template scaffold and
           upload your own <code style={packCodeStyle}>.md</code> from the start.
         </Banner>
       ) : null}

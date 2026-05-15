@@ -1,5 +1,5 @@
 /**
- * `src/ui/theme.ts` — ContextOS terminal design system tokens.
+ * `src/ui/theme.ts` — Coodra terminal design system tokens.
  *
  * The single source of truth for the look specified in
  * `Terminal Redesign Preview.html`, made **terminal-adaptive** so it
@@ -19,14 +19,14 @@
  *     → a fixed mid-grey that stays legible on white and black alike.
  *   - **accents** (`phosphor`, `crimson`, `amber`, `blue`, `purple`,
  *     `pink`) → three tuned 24-bit sets. The background is detected
- *     (`CONTEXTOS_THEME` override → `COLORFGBG` → unknown); a confident
+ *     (`COODRA_THEME` override → `COLORFGBG` → unknown); a confident
  *     `dark`/`light` reading gets the vivid/deep set, and `unknown`
  *     (the common case — most terminals expose no hint) gets a
  *     mid-luminance set that clears ~3:1 contrast on both extremes.
  *
  * Net effect: the text that *must* be readable needs no detection at
  * all, and the worst a missed accent detection can do is make a colour
- * slightly less vivid — never invisible. `CONTEXTOS_THEME=light|dark`
+ * slightly less vivid — never invisible. `COODRA_THEME=light|dark`
  * forces the accent set; `NO_COLOR` drops colour entirely.
  *
  * Two consumers pull from here so they never drift: one-shot command
@@ -47,14 +47,14 @@ export const colorEnabled: boolean = pc.isColorSupported;
 /**
  * Synchronous background detection, run once at module load.
  *
- *   1. `CONTEXTOS_THEME=light|dark` — explicit override, always wins.
+ *   1. `COODRA_THEME=light|dark` — explicit override, always wins.
  *   2. `COLORFGBG` — the de-facto env hint (`fg;bg` or `fg;def;bg`);
  *      the trailing index is the background colour (`0-6,8` → dark,
  *      `7,9-15` → light).
  *   3. otherwise `unknown` — handled by the mid-luminance accent set.
  */
 function detectColorScheme(): ColorScheme {
-  const override = process.env.CONTEXTOS_THEME?.trim().toLowerCase();
+  const override = process.env.COODRA_THEME?.trim().toLowerCase();
   if (override === 'dark' || override === 'light') return override;
 
   const colorFgBg = process.env.COLORFGBG;

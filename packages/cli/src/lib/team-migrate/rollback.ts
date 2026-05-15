@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync } from 'node:fs';
 
-import { type PostgresHandle, postgresSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type PostgresHandle, postgresSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { eq, inArray } from 'drizzle-orm';
 
 /**

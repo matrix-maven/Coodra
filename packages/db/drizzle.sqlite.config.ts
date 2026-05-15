@@ -12,7 +12,7 @@ export default defineConfig({
   schema: './src/schema/sqlite.ts',
   out: './drizzle/sqlite',
   dbCredentials: {
-    url: process.env.CONTEXTOS_SQLITE_PATH ?? './drizzle/.tmp/contextos.db',
+    url: process.env.COODRA_SQLITE_PATH ?? './drizzle/.tmp/coodra.db',
   },
   verbose: true,
   strict: true,

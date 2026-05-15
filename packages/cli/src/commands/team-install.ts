@@ -8,7 +8,7 @@ import { DEFAULT_TEAM_IO } from './team.js';
 /**
  * `packages/cli/src/commands/team-install.ts` — Module 04 Phase 2.
  *
- * `contextos team install --bootstrap-url <URL>` — teammate-side
+ * `coodra team install --bootstrap-url <URL>` — teammate-side
  * counterpart to `team setup`.
  *
  * Where `team setup` is the admin minting a new team, `team install`
@@ -19,11 +19,11 @@ import { DEFAULT_TEAM_IO } from './team.js';
  *      admin's deployed web).
  *   2. Receives a JSON bundle: { userId, orgId, orgSlug?, databaseUrl,
  *      localHookSecret, cloudApiBaseUrl, role, invitedEmail }.
- *   3. Writes `~/.contextos/config.json::team` with the identity +
+ *   3. Writes `~/.coodra/config.json::team` with the identity +
  *      hook secret.
- *   4. Writes `~/.contextos/.env` with the env vars `contextos start`
+ *   4. Writes `~/.coodra/.env` with the env vars `coodra start`
  *      spawns daemons against.
- *   5. Prints the next-step ("run `contextos init` in your project").
+ *   5. Prints the next-step ("run `coodra init` in your project").
  *
  * The signed token lives in the bootstrap URL itself. The server side
  * verifies the signature, expiry, single-use jti, AND the redeemer's
@@ -98,10 +98,10 @@ export async function runTeamInstallCommand(
   options: TeamInstallOptions = {},
   io: TeamCommandIO = DEFAULT_TEAM_IO,
 ): Promise<never> {
-  const bootstrapUrl = options.bootstrapUrl ?? process.env.CONTEXTOS_BOOTSTRAP_URL;
+  const bootstrapUrl = options.bootstrapUrl ?? process.env.COODRA_BOOTSTRAP_URL;
   if (typeof bootstrapUrl !== 'string' || bootstrapUrl.length === 0) {
     io.writeStderr(
-      `${pc.red('contextos team install')}: missing --bootstrap-url (or CONTEXTOS_BOOTSTRAP_URL).\n` +
+      `${pc.red('coodra team install')}: missing --bootstrap-url (or COODRA_BOOTSTRAP_URL).\n` +
         '  This URL is the `/api/install/<token>` endpoint your team admin shared with you. Open the invite\n' +
         '  email or the /install/<token> landing page to copy it.\n',
     );
@@ -112,12 +112,12 @@ export async function runTeamInstallCommand(
   // installs against http://localhost should still work.
   if (!/^https?:\/\//i.test(bootstrapUrl)) {
     io.writeStderr(
-      `${pc.red('contextos team install')}: --bootstrap-url must be a full http(s) URL, got "${bootstrapUrl}".\n`,
+      `${pc.red('coodra team install')}: --bootstrap-url must be a full http(s) URL, got "${bootstrapUrl}".\n`,
     );
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
 
-  io.writeStdout(pc.cyan(`contextos team install — redeeming invite at ${maskBootstrapUrl(bootstrapUrl)}\n`));
+  io.writeStdout(pc.cyan(`coodra team install — redeeming invite at ${maskBootstrapUrl(bootstrapUrl)}\n`));
 
   let response: Response;
   try {
@@ -178,7 +178,7 @@ export async function runTeamInstallCommand(
   const bundle: InstallBundle = body;
   io.writeStdout(pc.green('  ✓ invite redeemed — bundle received\n'));
 
-  // Write ~/.contextos/config.json (team block).
+  // Write ~/.coodra/config.json (team block).
   try {
     upgradeToTeamConfig({
       clerkUserId: bundle.userId,
@@ -189,15 +189,15 @@ export async function runTeamInstallCommand(
     });
   } catch (err) {
     io.writeStderr(
-      `${pc.red('install failed')}: writing ~/.contextos/config.json threw — ${
+      `${pc.red('install failed')}: writing ~/.coodra/config.json threw — ${
         err instanceof Error ? err.message : String(err)
       }\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
-  io.writeStdout(pc.green('  ✓ ~/.contextos/config.json promoted to team mode\n'));
+  io.writeStdout(pc.green('  ✓ ~/.coodra/config.json promoted to team mode\n'));
 
-  // Write ~/.contextos/.env so daemons spawned by `contextos start` see
+  // Write ~/.coodra/.env so daemons spawned by `coodra start` see
   // the right env. Mirrors what `team setup` does for admins.
   try {
     writeTeamHomeEnv({
@@ -207,13 +207,13 @@ export async function runTeamInstallCommand(
     });
   } catch (err) {
     io.writeStderr(
-      `${pc.red('install failed')}: writing ~/.contextos/.env threw — ${
+      `${pc.red('install failed')}: writing ~/.coodra/.env threw — ${
         err instanceof Error ? err.message : String(err)
       }\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
-  io.writeStdout(pc.green('  ✓ ~/.contextos/.env updated (CONTEXTOS_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET)\n'));
+  io.writeStdout(pc.green('  ✓ ~/.coodra/.env updated (COODRA_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET)\n'));
 
   if (options.json === true) {
     io.writeStdout(
@@ -239,8 +239,8 @@ export async function runTeamInstallCommand(
         `  role  · ${bundle.role}\n\n` +
         `${pc.bold('Next steps')}\n` +
         `  1. ${pc.cyan('cd <your-project-repo>')}\n` +
-        `  2. ${pc.cyan('contextos init')}\n` +
-        `  3. ${pc.cyan('contextos start')}\n\n`,
+        `  2. ${pc.cyan('coodra init')}\n` +
+        `  3. ${pc.cyan('coodra start')}\n\n`,
     );
   }
 

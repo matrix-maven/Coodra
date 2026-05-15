@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# ContextOS MCP Server — Module 02 image.
-# Build from repo root: docker build -f deploy/Dockerfile.mcp-server -t contextos/mcp-server:dev .
+# Coodra MCP Server — Module 02 image.
+# Build from repo root: docker build -f deploy/Dockerfile.mcp-server -t coodra/mcp-server:dev .
 
 FROM node:22-alpine AS build
 RUN apk add --no-cache python3 make g++ libc6-compat
@@ -12,7 +12,7 @@ COPY pnpm-lock.yaml package.json pnpm-workspace.yaml turbo.json tsconfig.base.js
 COPY apps ./apps
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile
-RUN pnpm exec turbo run build --filter=@coodra/contextos-mcp-server
+RUN pnpm exec turbo run build --filter=@coodra/mcp-server
 
 # ──────────────────────────────────────────────────────────────────────
 # Runtime image
@@ -25,7 +25,7 @@ RUN apk add --no-cache libstdc++ libc6-compat
 # Drop privileges. The default `node` user (UID 1000) ships in node:22-alpine.
 WORKDIR /app
 ENV NODE_ENV=production
-ENV CONTEXTOS_LOG_DESTINATION=stderr
+ENV COODRA_LOG_DESTINATION=stderr
 ENV MCP_SERVER_HOST=0.0.0.0
 ENV MCP_SERVER_PORT=3100
 ENV MCP_SERVER_TRANSPORT=http

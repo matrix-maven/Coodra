@@ -21,21 +21,21 @@ import { NextResponse } from 'next/server';
  *           distinction is implementation detail.
  *
  * Mode resolves once at module load (env doesn't change mid-process)
- * via the `CONTEXTOS_MODE` env var (production deploys + tests set
+ * via the `COODRA_MODE` env var (production deploys + tests set
  * this explicitly).
  */
 
-// Phase G — mode resolves from CONTEXTOS_MODE env. The env-bootstrap
-// shim in next.config.ts ensures this is populated from ~/.contextos/.env
+// Phase G — mode resolves from COODRA_MODE env. The env-bootstrap
+// shim in next.config.ts ensures this is populated from ~/.coodra/.env
 // when the web runs on a laptop.
-const mode = (process.env.CONTEXTOS_MODE ?? 'solo').toLowerCase();
+const mode = (process.env.COODRA_MODE ?? 'solo').toLowerCase();
 const requiresClerk = mode === 'team';
-// EXPECTED_ORG_ID resolves from CONTEXTOS_EXPECTED_ORG_ID (the explicit
-// deployment-env pin) OR from CONTEXTOS_TEAM_ORG_ID (the team-mode
+// EXPECTED_ORG_ID resolves from COODRA_EXPECTED_ORG_ID (the explicit
+// deployment-env pin) OR from COODRA_TEAM_ORG_ID (the team-mode
 // machine-config value written by the wizard / team-install). Either
 // is acceptable; team-hosted deployments use the former, local-team
 // laptops inherit from the latter.
-const EXPECTED_ORG_ID = process.env.CONTEXTOS_EXPECTED_ORG_ID ?? process.env.CONTEXTOS_TEAM_ORG_ID;
+const EXPECTED_ORG_ID = process.env.COODRA_EXPECTED_ORG_ID ?? process.env.COODRA_TEAM_ORG_ID;
 
 /**
  * Boot-time invariant. Without an EXPECTED_ORG_ID pin, a deployed
@@ -48,15 +48,15 @@ const EXPECTED_ORG_ID = process.env.CONTEXTOS_EXPECTED_ORG_ID ?? process.env.CON
  *   1. Open your Clerk dashboard.
  *   2. Navigate to your team's Organization.
  *   3. Copy the `org_…` id.
- *   4. Set `CONTEXTOS_EXPECTED_ORG_ID=<that-id>` in your deployment env
+ *   4. Set `COODRA_EXPECTED_ORG_ID=<that-id>` in your deployment env
  *      (Vercel project settings, fly secrets, docker -e, etc.).
  *   5. Redeploy.
  */
 if (requiresClerk && (typeof EXPECTED_ORG_ID !== 'string' || EXPECTED_ORG_ID.length === 0)) {
   throw new Error(
-    'team mode requires CONTEXTOS_EXPECTED_ORG_ID to be set. ' +
+    'team mode requires COODRA_EXPECTED_ORG_ID to be set. ' +
       "Without it, anyone with a Clerk account in this deployment's Clerk app could read your team's data. " +
-      'Set it to your Clerk organization id (org_…) — on a laptop this comes from ~/.contextos/.env (CONTEXTOS_TEAM_ORG_ID); ' +
+      'Set it to your Clerk organization id (org_…) — on a laptop this comes from ~/.coodra/.env (COODRA_TEAM_ORG_ID); ' +
       'on a deployed server set it explicitly in the deployment env (Vercel, fly secrets, docker -e).',
   );
 }

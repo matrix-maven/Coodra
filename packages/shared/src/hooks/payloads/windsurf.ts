@@ -5,7 +5,7 @@ import { z } from 'zod';
  *
  * Windsurf fires hooks as **shell commands** (not HTTP). The hook
  * receives JSON on stdin. The adapter shell script (`scripts/hook-
- * adapters/windsurf-contextos.sh`, S11) curls the payload to
+ * adapters/windsurf-coodra.sh`, S11) curls the payload to
  * `POST /v1/hooks/windsurf` and translates the response back to
  * exit-code-based allow/deny.
  *
@@ -24,7 +24,7 @@ import { z } from 'zod';
  *     }
  *
  * `trajectory_id` = session ID. `execution_id` = turn ID. The 12 event
- * types Windsurf supports map to ContextOS's normalized eventPhase per
+ * types Windsurf supports map to Coodra's normalized eventPhase per
  * §3.3 — the adapter handles the mapping.
  *
  * `tool_info` is intentionally `z.unknown()` because its shape varies

@@ -23,7 +23,7 @@ function plain(s: string | undefined): string {
 const FAKE_CTX: TuiContext = {
   version: '0.1.0-beta.8',
   cwd: '/tmp/my-awesome-app',
-  contextosHome: '/tmp/.contextos',
+  coodraHome: '/tmp/.coodra',
   mode: 'solo',
   orgSlug: null,
   projectSlug: 'my-awesome-app',
@@ -70,11 +70,11 @@ describe('command catalog', () => {
   });
 
   it('parses + resolves typed input, and recognises interactive / known commands', () => {
-    expect(parseCommandInput('  contextos   run   list  ')).toEqual(['run', 'list']);
+    expect(parseCommandInput('  coodra   run   list  ')).toEqual(['run', 'list']);
     expect(parseCommandInput('status')).toEqual(['status']);
     expect(resolveCatalogCommand('status')?.id).toBe('status');
-    expect(resolveCatalogCommand('contextos run list')?.id).toBe('run-list');
-    expect(resolveCatalogCommand('contextos export run_abc')?.id).toBe('export');
+    expect(resolveCatalogCommand('coodra run list')?.id).toBe('run-list');
+    expect(resolveCatalogCommand('coodra export run_abc')?.id).toBe('export');
     expect(resolveCatalogCommand('not-a-command')).toBeNull();
 
     expect(isInteractiveCommand(['team', 'init'])).toBe(true);
@@ -144,7 +144,7 @@ describe('<App>', () => {
     // The catalog is a scroll window; the top of it shows from the
     // initial selection (index 0, in /01 lifecycle).
     expect(frame).toContain('/01  LIFECYCLE');
-    expect(frame).toContain('contextos init');
+    expect(frame).toContain('coodra init');
     expect(frame).toContain('insert in terminal');
   });
 });

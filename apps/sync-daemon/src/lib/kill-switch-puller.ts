@@ -1,5 +1,5 @@
-import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger, type Logger } from '@coodra/contextos-shared';
+import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { createLogger, type Logger } from '@coodra/shared';
 import { gt, sql } from 'drizzle-orm';
 
 /**

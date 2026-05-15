@@ -1,5 +1,5 @@
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
-import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
+import { readVerifiedToken } from '@coodra/shared/auth';
+import { readTeamConfig } from '@coodra/cli/lib/team-config';
 
 /**
  * `apps/mcp-server/src/lib/actor-identity.ts` — Phase G slice G.6.
@@ -10,18 +10,18 @@ import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
  * config.json::team.clerkUserId block as a deprecation fallback.
  *
  * Phase G change (2026-05-12): Pre-fix, this function read
- * `~/.contextos/config.json::team.clerkUserId` directly — a trust-
+ * `~/.coodra/config.json::team.clerkUserId` directly — a trust-
  * based identity model where any process with write access to
- * `~/.contextos/` could forge attribution. Phase G adds Clerk-signed
+ * `~/.coodra/` could forge attribution. Phase G adds Clerk-signed
  * JWT verification via `readVerifiedToken` (from shared/auth) as the
  * primary path. The legacy config.json read is preserved as a
  * fallback so existing installs don't break overnight, but a
  * forthcoming Phase H removes it entirely.
  *
  * Trust hierarchy (highest first):
- *   1. `~/.contextos/clerk-token.json` (Phase G) — Clerk-signed,
+ *   1. `~/.coodra/clerk-token.json` (Phase G) — Clerk-signed,
  *      verified, unforgeable. `result.source === 'clerk'`.
- *   2. `~/.contextos/config.json::team` (legacy, deprecated) —
+ *   2. `~/.coodra/config.json::team` (legacy, deprecated) —
  *      trusted-but-unverified. `result.source === 'config'`. Removed
  *      in Phase H.
  *   3. None — solo mode, or team mode with no usable credential.
@@ -38,7 +38,7 @@ import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
  *     (`getActorIdentity`) is what callers use when null-fallback is
  *     acceptable (read-only paths).
  *
- * Reads happen on every call (not cached at boot) so a `contextos
+ * Reads happen on every call (not cached at boot) so a `coodra
  * login` mid-session picks up the new identity without an MCP server
  * restart. The shared `readVerifiedToken` has its own 30s JWT cache,
  * so repeat reads inside a session don't hammer Clerk.
@@ -63,7 +63,7 @@ export interface ActorIdentity {
  * Team mode + no Clerk token, legacy config.json present: returns
  * the config.json values with `source: 'config'` (deprecation
  * fallback). Logged at warn level by callers that want to nudge
- * users toward `contextos login`.
+ * users toward `coodra login`.
  *
  * Team mode + no credential at all: returns null. Callers must
  * decide whether to refuse the operation or proceed with NULL
@@ -106,7 +106,7 @@ export async function getActorIdentity(): Promise<ActorIdentity | null> {
  *
  * The "auth_required" path's howToFix is consistent across MCP /
  * bridge / web so the agent surfaces the same remediation message
- * everywhere: "Run `contextos login` to authenticate."
+ * everywhere: "Run `coodra login` to authenticate."
  *
  * Solo mode: short-circuits to `{ kind: 'identity', actor: solo }`.
  * No Clerk token needed; the write column gets NULL.
@@ -142,6 +142,6 @@ export async function requireActorIdentityForTeamMode(): Promise<RequireActorRes
   return {
     kind: 'auth_required',
     howToFix:
-      'Run `contextos login` in your terminal to authenticate with Clerk. Phase G requires a verified Clerk session for all mutating MCP tool calls in team mode.',
+      'Run `coodra login` in your terminal to authenticate with Clerk. Phase G requires a verified Clerk session for all mutating MCP tool calls in team mode.',
   };
 }

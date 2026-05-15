@@ -10,9 +10,9 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
   const sp = await searchParams;
   const projects = await listProjects();
   const slug = sp.project ?? projects[0]?.slug ?? '';
-  // The Graphify index lives under ~/.contextos/graphify/<slug>/graph.json
+  // The Graphify index lives under ~/.coodra/graphify/<slug>/graph.json
   // on each developer's laptop. In `team-hosted` mode there is no
-  // ~/.contextos on the deployment server, so loadGraph would always
+  // ~/.coodra on the deployment server, so loadGraph would always
   // return a missing-index sentinel. Surface that as a deployment-aware
   // copy change rather than a confusing "no graph" with a misleading
   // local-only path in the lede.
@@ -35,7 +35,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
                 <>
                   A graph of files touched, the order they were touched, and the runs that touched them. The
                   Graphify index is per-laptop (each developer runs <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>graphify scan</code> against
-                  their local checkout, producing <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>~/.contextos/graphify/&lt;slug&gt;/graph.json</code>),
+                  their local checkout, producing <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>~/.coodra/graphify/&lt;slug&gt;/graph.json</code>),
                   so this view is empty on the hosted web. Open the same project's web app on your laptop
                   (local-team mode) to see your graph. Cross-team graph aggregation is a future enhancement.
                 </>
@@ -44,7 +44,7 @@ export default async function GraphPage({ searchParams }: { searchParams: Promis
                   A graph of files touched, the order they were touched, and the runs that touched them. Loaded
                   from{' '}
                   <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-                    ~/.contextos/graphify/&lt;slug&gt;/graph.json
+                    ~/.coodra/graphify/&lt;slug&gt;/graph.json
                   </span>{' '}
                   per ADR-010.
                 </>

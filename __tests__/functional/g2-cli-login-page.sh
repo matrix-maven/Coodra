@@ -51,7 +51,7 @@ hdr "Precondition: web reachable at $WEB_URL"
 # ---------------------------------------------------------------------------
 
 if ! curl -fsS -m 3 "$WEB_URL/api/healthz" > /dev/null 2>&1; then
-  assert_skip "$WEB_URL/api/healthz unreachable. Start web with \`pnpm --filter @coodra/contextos-web-v2 dev\` and re-run."
+  assert_skip "$WEB_URL/api/healthz unreachable. Start web with \`pnpm --filter @coodra/web-v2 dev\` and re-run."
   echo ""
   echo "Summary: PASS=$PASS SKIP=$SKIP FAIL=$FAIL"
   green "✓ $SLICE PASS ($PASS passed, $SKIP skipped — web not running)"
@@ -160,7 +160,7 @@ else
       assert_fail "B.1 — redirected but state not echoed back"
     fi
   elif grep -q "template_missing" /tmp/g2-body.txt; then
-    assert_fail "B.1 — JWT template 'contextos_cli' not configured in Clerk dashboard. Create it and re-run."
+    assert_fail "B.1 — JWT template 'coodra_cli' not configured in Clerk dashboard. Create it and re-run."
   else
     assert_fail "B.1 — unexpected: $RESP"
   fi

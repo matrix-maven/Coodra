@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Cursor hook adapter for ContextOS — per ADR-009.
+# Cursor hook adapter for Coodra — per ADR-009.
 #
 # Cursor invokes hook scripts as commands with JSON on stdin and
 # expects exit-code-based decisions. Same shape as the Windsurf
 # adapter; only the URL differs (server-side adapter routes to the
 # Cursor-specific normalizer).
 #
-# Install: copy this file to .cursor/hooks/contextos.sh and chmod +x.
+# Install: copy this file to .cursor/hooks/coodra.sh and chmod +x.
 # The hooks-bridge install script (S15) does this for you.
 
 set -eu
@@ -22,7 +22,7 @@ if [ -n "$SECRET" ]; then
 fi
 
 RESPONSE=$(printf '%s' "$PAYLOAD" | curl "${CURL_ARGS[@]}" 2>/dev/null) || {
-  printf 'contextos-cursor-adapter: bridge unreachable; failing open\n' >&2
+  printf 'coodra-cursor-adapter: bridge unreachable; failing open\n' >&2
   exit 0
 }
 
@@ -40,9 +40,9 @@ if [ "$DECISION" = "deny" ]; then
 import sys, json
 try:
     d = json.load(sys.stdin)
-    print(d.get("reason", "Blocked by ContextOS policy"))
+    print(d.get("reason", "Blocked by Coodra policy"))
 except Exception:
-    print("Blocked by ContextOS policy")
+    print("Blocked by Coodra policy")
 ')
   printf '%s\n' "$REASON" >&2
   exit 2

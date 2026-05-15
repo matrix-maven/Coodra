@@ -1,13 +1,13 @@
 {
-  "name": "@coodra/contextos-sync-daemon",
+  "name": "@coodra/sync-daemon",
   "version": "0.0.0",
   "private": true,
-  "description": "ContextOS Sync Daemon — third managed process in team mode. Drains pending_jobs sync_to_cloud rows from local SQLite and pushes the referenced row into cloud Postgres. Module 04a.",
+  "description": "Coodra Sync Daemon — third managed process in team mode. Drains pending_jobs sync_to_cloud rows from local SQLite and pushes the referenced row into cloud Postgres. Module 04a.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "contextos-sync-daemon": "./dist/index.js"
+    "coodra-sync-daemon": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "biome check .",
-    "dev": "CONTEXTOS_LOG_DESTINATION=stderr tsx watch src/index.ts",
+    "dev": "COODRA_LOG_DESTINATION=stderr tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test:unit": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -24,9 +24,9 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@coodra/contextos-cli": "workspace:*",
-    "@coodra/contextos-db": "workspace:*",
-    "@coodra/contextos-shared": "workspace:*",
+    "@coodra/cli": "workspace:*",
+    "@coodra/db": "workspace:*",
+    "@coodra/shared": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.3.6"
   },

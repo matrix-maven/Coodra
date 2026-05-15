@@ -19,19 +19,19 @@
 
 ---
 
-## `contextos start` says "already running"
+## `coodra start` says "already running"
 
 **Cause:** Daemons from a prior demo are still up.
 
 **Fix:**
 ```bash
-contextos stop
-contextos start
+coodra stop
+coodra start
 ```
 
 ---
 
-## `contextos doctor` shows red checks
+## `coodra doctor` shows red checks
 
 **Most common red:** `__global__ sentinel project missing` or `data.db not at head`.
 
@@ -39,17 +39,17 @@ contextos start
 ```bash
 # Re-run init from inside the project dir — idempotent, fixes both
 cd ~/taskforge-demo
-contextos init
-contextos doctor
+coodra init
+coodra doctor
 ```
 
 ---
 
-## `contextos doctor` shows a yellow on `~/.contextos/` permissions
+## `coodra doctor` shows a yellow on `~/.coodra/` permissions
 
 **Fix:**
 ```bash
-chmod 0700 ~/.contextos
+chmod 0700 ~/.coodra
 ```
 
 This is cosmetic — not blocking the demo. You can skip the fix and just say *"yellow is informational, not blocking — proceed."*
@@ -62,13 +62,13 @@ This is cosmetic — not blocking the demo. You can skip the fix and just say *"
 
 **Check:**
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM policy_rules;"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM policy_rules;"
 ```
 
 Should return 9. If it returns 0:
 ```bash
 cd ~/taskforge-demo
-contextos init   # idempotent, re-seeds the default policy
+coodra init   # idempotent, re-seeds the default policy
 ```
 
 **Cause 2:** The Hooks Bridge isn't intercepting.
@@ -77,9 +77,9 @@ contextos init   # idempotent, re-seeds the default policy
 
 **Fix:**
 ```bash
-contextos stop
-contextos start
-contextos doctor
+coodra stop
+coodra start
+coodra doctor
 ```
 
 If still broken, restart Claude Code (Cmd+Q + reopen).
@@ -102,17 +102,17 @@ The audience won't know the difference. Ship it.
 
 **Check:**
 ```bash
-ls -la ~/.contextos/logs/
+ls -la ~/.coodra/logs/
 ```
 
-Should show `hooks-bridge.log` and `mcp-server.log`. If missing, the daemons aren't writing — `contextos stop && contextos start`.
+Should show `hooks-bridge.log` and `mcp-server.log`. If missing, the daemons aren't writing — `coodra stop && coodra start`.
 
 **Cause 2:** `--follow` is reading from the wrong file.
 
 **Fix:**
 ```bash
 # Manual tail as fallback:
-tail -f ~/.contextos/logs/hooks-bridge.log
+tail -f ~/.coodra/logs/hooks-bridge.log
 ```
 
 ---
@@ -128,7 +128,7 @@ ls -la ~/taskforge-demo/docs/context-packs/
 
 Should have a recent file. If empty:
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT title, created_at FROM context_packs ORDER BY created_at DESC LIMIT 3;"
+sqlite3 ~/.coodra/data.db "SELECT title, created_at FROM context_packs ORDER BY created_at DESC LIMIT 3;"
 ```
 
 If both are empty, the SessionEnd hook didn't fire. Workaround: in Session 2, ask Claude *"Use the query_run_history tool to look up recent runs and decisions on this project."* — `query_run_history` reads from `runs` + `decisions` tables which DO populate even without an explicit pack save.
@@ -149,7 +149,7 @@ If both are empty, the SessionEnd hook didn't fire. Workaround: in Session 2, as
 
 ## Audience asks "what's the storage backend?"
 
-**Honest answer:** *"SQLite locally — every developer's machine has its own primary store at `~/.contextos/data.db`. Even in team mode, your code and your audit data stay on your machine; the cloud Postgres is a sync target for cross-team visibility, not a primary store. That's the local-first architecture — the answer to every CISO who'll ask 'where does my code go?'."*
+**Honest answer:** *"SQLite locally — every developer's machine has its own primary store at `~/.coodra/data.db`. Even in team mode, your code and your audit data stay on your machine; the cloud Postgres is a sync target for cross-team visibility, not a primary store. That's the local-first architecture — the answer to every CISO who'll ask 'where does my code go?'."*
 
 ---
 
@@ -165,7 +165,7 @@ If both are empty, the SessionEnd hook didn't fire. Workaround: in Session 2, as
 
 - Open `~/taskforge-demo/docs/feature-packs/taskforge-demo/spec.md` — *"This is what Claude reads at session start."*
 - Open `~/taskforge-demo/.mcp.json` — *"This is how Claude Code finds the MCP server."*
-- Run `sqlite3 ~/.contextos/data.db ".tables"` — *"This is the data plane: 11 tables, append-only audit, sqlite-vec for semantic search."*
+- Run `sqlite3 ~/.coodra/data.db ".tables"` — *"This is the data plane: 11 tables, append-only audit, sqlite-vec for semantic search."*
 - Show the open Coodra repo on GitHub — *"And this is the architecture, fully open."*
 
 The architecture itself is the demo even if live agent activity fails.

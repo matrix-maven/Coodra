@@ -1,7 +1,7 @@
 /**
  * `src/doctor/output.ts` — human + JSON renderers for the doctor report.
  *
- * The human renderer speaks the ContextOS terminal design system
+ * The human renderer speaks the Coodra terminal design system
  * (`src/ui/`): a command title, a styled check list where each row
  * carries a tone glyph, faint `↳` sub-detail lines, and a summary bar.
  * The doctor's checks are a flat registry, so this is a styled flat
@@ -35,8 +35,8 @@ export function formatHuman(report: DoctorReport): string {
   const width = terminalWidth();
   const lines: string[] = [];
 
-  lines.push(commandTitle('Doctor', `health report · @coodra/contextos-cli ${report.version}`, { width, indent: 0 }));
-  lines.push(kvRow({ key: 'contextos home', value: report.contextosHome }, { keyWidth: 16 }));
+  lines.push(commandTitle('Doctor', `health report · @coodra/cli ${report.version}`, { width, indent: 0 }));
+  lines.push(kvRow({ key: 'coodra home', value: report.coodraHome }, { keyWidth: 16 }));
   lines.push(kvRow({ key: 'cwd', value: report.cwd }, { keyWidth: 16 }));
   lines.push('');
 

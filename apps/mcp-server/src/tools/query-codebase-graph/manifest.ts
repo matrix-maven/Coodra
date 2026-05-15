@@ -9,7 +9,7 @@ import {
 } from './schema.js';
 
 /**
- * Registration factory for `contextos__query_codebase_graph` (§24.4, S15).
+ * Registration factory for `coodra__query_codebase_graph` (§24.4, S15).
  *
  * Factory shape (user Q1 sign-off 2026-04-24) closes over `DbHandle`
  * for projects-slug resolution — needed to distinguish the two
@@ -24,7 +24,7 @@ import {
  * dedupe on readonly keys.
  *
  * §24.3 description anatomy (five-part recipe + 40–80 word band) is
- * enforced by `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`.
+ * enforced by `@coodra/shared/test-utils::assertManifestDescriptionValid`.
  */
 
 const queryCodebaseGraphIdempotencyKey: IdempotencyKeyBuilder<QueryCodebaseGraphInput> = (input, _ctx) => {
@@ -41,7 +41,7 @@ export function createQueryCodebaseGraphToolRegistration(
 ): ToolRegistration<typeof queryCodebaseGraphInputSchema, typeof queryCodebaseGraphOutputSchema> {
   return {
     name: 'query_codebase_graph',
-    title: 'ContextOS: query_codebase_graph',
+    title: 'Coodra: query_codebase_graph',
     description:
       "Call this BEFORE making significant structural changes to understand the code's dependency graph. " +
       'Returns the project subgraph (nodes + edges) from the Graphify-indexed codebase. Apply your own filtering by reasoning over the result — ' +

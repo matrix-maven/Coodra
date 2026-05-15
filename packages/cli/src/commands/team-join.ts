@@ -1,10 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { writeToken } from '@coodra/contextos-shared/auth';
+import { writeToken } from '@coodra/shared/auth';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { BrowserHandoffError, openBrowser, startLoopbackListener } from '../lib/browser-handoff.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { upgradeToTeamConfig, writeTeamHomeEnv } from '../lib/team-config.js';
 import { pc } from '../ui/index.js';
 
@@ -13,7 +13,7 @@ import { pc } from '../ui/index.js';
  *
  * Canonical teammate onboarding command:
  *
- *     contextos team join <invite-url>
+ *     coodra team join <invite-url>
  *
  * Where `<invite-url>` is the URL the admin pasted to the teammate
  * (something like `http://team.example.com/install/<token>` or the
@@ -35,10 +35,10 @@ import { pc } from '../ui/index.js';
  *      (single-use) and fetch the install bundle (DATABASE_URL,
  *      LOCAL_HOOK_SECRET, CLERK_PUBLISHABLE_KEY, etc.).
  *   6. CLI writes:
- *        - `~/.contextos/config.json` (mode=team, team block from bundle)
- *        - `~/.contextos/.env` (DATABASE_URL, LOCAL_HOOK_SECRET, CLERK_PUBLISHABLE_KEY)
- *        - `~/.contextos/clerk-token.json` (verified JWT, mode 0600)
- *   7. Prints next-step (run `contextos start` or `contextos init` in a project).
+ *        - `~/.coodra/config.json` (mode=team, team block from bundle)
+ *        - `~/.coodra/.env` (DATABASE_URL, LOCAL_HOOK_SECRET, CLERK_PUBLISHABLE_KEY)
+ *        - `~/.coodra/clerk-token.json` (verified JWT, mode 0600)
+ *   7. Prints next-step (run `coodra start` or `coodra init` in a project).
  *
  * Why this replaces `team install --bootstrap-url`:
  *   - The legacy flow had no proof the redeemer was actually the
@@ -175,9 +175,9 @@ export async function runTeamJoinInviteCommand(
   const inviteUrl = options.inviteUrl?.trim();
   if (inviteUrl === undefined || inviteUrl.length === 0) {
     io.writeStderr(
-      `${pc.red('contextos team join')}: missing invite URL.\n` +
+      `${pc.red('coodra team join')}: missing invite URL.\n` +
         `\n` +
-        `  Usage: contextos team join <invite-url>\n` +
+        `  Usage: coodra team join <invite-url>\n` +
         `\n` +
         `  The admin should have shared a URL like:\n` +
         `    https://team.example.com/install/<token>\n` +
@@ -189,28 +189,28 @@ export async function runTeamJoinInviteCommand(
 
   const parsed = parseInviteUrl(inviteUrl);
   if ('error' in parsed) {
-    io.writeStderr(`${pc.red('contextos team join')}: ${parsed.error}\n`);
+    io.writeStderr(`${pc.red('coodra team join')}: ${parsed.error}\n`);
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
   let { baseUrl, token } = parsed;
   if (baseUrl.length === 0) {
     // Bare token mode — require explicit --web-url via env
-    const envWebUrl = (options.env ?? process.env).CONTEXTOS_WEB_URL;
+    const envWebUrl = (options.env ?? process.env).COODRA_WEB_URL;
     if (typeof envWebUrl !== 'string' || envWebUrl.length === 0) {
       io.writeStderr(
-        `${pc.red('contextos team join')}: bare-token input requires CONTEXTOS_WEB_URL to be set, OR pass the full https URL.\n`,
+        `${pc.red('coodra team join')}: bare-token input requires COODRA_WEB_URL to be set, OR pass the full https URL.\n`,
       );
       return io.exit(EXIT_USER_ACTION_REQUIRED);
     }
     baseUrl = envWebUrl.replace(/\/$/, '');
   }
 
-  const home = resolveContextosHome({
+  const home = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env: options.env ?? process.env,
   });
 
-  io.writeStdout(pc.cyan(`contextos team join — base=${baseUrl} token=${token.slice(0, 16)}…\n`));
+  io.writeStdout(pc.cyan(`coodra team join — base=${baseUrl} token=${token.slice(0, 16)}…\n`));
 
   // Generate state, start loopback listener
   const { randomBytes } = await import('node:crypto');
@@ -222,7 +222,7 @@ export async function runTeamJoinInviteCommand(
       timeoutMs: options.timeoutMs ?? TIMEOUT_MS,
     });
   } catch (err) {
-    io.writeStderr(`${pc.red('contextos team join')}: could not start local listener: ${(err as Error).message}\n`);
+    io.writeStderr(`${pc.red('coodra team join')}: could not start local listener: ${(err as Error).message}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
@@ -248,7 +248,7 @@ export async function runTeamJoinInviteCommand(
     jwt = await listener.tokenPromise;
   } catch (err) {
     if (err instanceof BrowserHandoffError) {
-      io.writeStderr(`${pc.red('contextos team join')}: ${err.message}\n`);
+      io.writeStderr(`${pc.red('coodra team join')}: ${err.message}\n`);
       return io.exit(EXIT_USER_RECOVERABLE);
     }
     throw err;
@@ -275,7 +275,7 @@ export async function runTeamJoinInviteCommand(
     });
   } catch (err) {
     io.writeStderr(
-      `${pc.red('contextos team join')}: bundle fetch failed (network error): ${(err as Error).message}\n` +
+      `${pc.red('coodra team join')}: bundle fetch failed (network error): ${(err as Error).message}\n` +
         `  Confirm ${baseUrl} is reachable from this machine.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
@@ -286,7 +286,7 @@ export async function runTeamJoinInviteCommand(
     body = await response.json();
   } catch (err) {
     io.writeStderr(
-      `${pc.red('contextos team join')}: bundle endpoint returned non-JSON (HTTP ${response.status}). ${(err as Error).message}\n`,
+      `${pc.red('coodra team join')}: bundle endpoint returned non-JSON (HTTP ${response.status}). ${(err as Error).message}\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -294,16 +294,16 @@ export async function runTeamJoinInviteCommand(
   if (!response.ok) {
     if (isInstallError(body)) {
       io.writeStderr(
-        `${pc.red('contextos team join')}: server rejected (${response.status} ${body.error})\n  ${pc.yellow(body.howToFix)}\n`,
+        `${pc.red('coodra team join')}: server rejected (${response.status} ${body.error})\n  ${pc.yellow(body.howToFix)}\n`,
       );
       return io.exit(EXIT_USER_ACTION_REQUIRED);
     }
-    io.writeStderr(`${pc.red('contextos team join')}: server returned HTTP ${response.status}\n`);
+    io.writeStderr(`${pc.red('coodra team join')}: server returned HTTP ${response.status}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
   if (!isInstallBundle(body)) {
-    io.writeStderr(`${pc.red('contextos team join')}: bundle shape unexpected. Refusing to write partial config.\n`);
+    io.writeStderr(`${pc.red('coodra team join')}: bundle shape unexpected. Refusing to write partial config.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const bundle = body;
@@ -343,8 +343,8 @@ export async function runTeamJoinInviteCommand(
     await writeToken(jwt, baseUrl, { homeOverride: home });
   } catch (err) {
     io.writeStderr(
-      `${pc.red('contextos team join')}: JWT verification failed after capturing it: ${(err as Error).message}\n` +
-        `  Bundle was already written; you can re-run \`contextos login\` to retry the auth round-trip.\n`,
+      `${pc.red('coodra team join')}: JWT verification failed after capturing it: ${(err as Error).message}\n` +
+        `  Bundle was already written; you can re-run \`coodra login\` to retry the auth round-trip.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -352,13 +352,13 @@ export async function runTeamJoinInviteCommand(
   io.writeStdout(
     `\n${pc.green('✓')} Joined team as ${pc.cyan(bundle.invitedEmail)} (${pc.gray(bundle.role)})\n` +
       `  Org: ${pc.gray(bundle.orgSlug ?? bundle.orgId)}\n` +
-      `  Next: \`contextos init\` in a project directory, then \`contextos start\`.\n`,
+      `  Next: \`coodra init\` in a project directory, then \`coodra start\`.\n`,
   );
   return io.exit(EXIT_OK);
 }
 
 /**
- * Append a key=value pair to ~/.contextos/.env, preserving existing
+ * Append a key=value pair to ~/.coodra/.env, preserving existing
  * lines. If the key already exists, updates in place. Used for the
  * non-team-mode-managed keys (CLERK_PUBLISHABLE_KEY) that
  * `writeTeamHomeEnv` doesn't handle.

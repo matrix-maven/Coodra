@@ -14,9 +14,9 @@ import { probeHealthz } from './10-mcp-healthz.js';
  * Reuses `probeHealthz` so PID-state-aware diagnostics work the same
  * way as the mcp-server / hooks-bridge checks: if the PID file exists
  * but the process is dead the result is RED with a clean recovery
- * remediation, otherwise YELLOW with `contextos start`.
+ * remediation, otherwise YELLOW with `coodra start`.
  *
- * Non-essential — opt-in via `contextos doctor --full`. Web is
+ * Non-essential — opt-in via `coodra doctor --full`. Web is
  * support-tier infrastructure for the dashboard; an MCP-only Claude
  * Code session doesn't depend on it. Promote to essential when we
  * make the web the discoverability hub for solo onboarding.
@@ -30,7 +30,7 @@ export const webHealthzCheck: Check = {
       url: `http://127.0.0.1:${ctx.webPort}/api/healthz`,
       timeoutMs: ctx.timeoutMs - 200,
       label: 'Web Dashboard',
-      contextosHome: ctx.contextosHome,
+      coodraHome: ctx.coodraHome,
       unitName: 'web',
     });
   },

@@ -1,4 +1,4 @@
-# ContextOS v2 — System Architecture
+# Coodra v2 — System Architecture
 
 > Ground-up design. Built on the 18 proven decisions from the prototype. Every trade-off named, every decision reasoned. No cargo-culted cloud patterns.
 
@@ -7,7 +7,7 @@
 - Team mode = cloud sync as optional add-on (Postgres + pgvector + Redis)
 - Same service codebase, different storage adapters per mode
 - Agents: Claude Code + Windsurf (full hooks) + any MCP-capable agent (read path only)
-- Graphify: external CLI, orchestrated as a subprocess by ContextOS CLI
+- Graphify: external CLI, orchestrated as a subprocess by Coodra CLI
 - LLM enrichment: Ollama local (default) + user API key override
 - Auth: no auth in solo mode, Clerk JWT in team mode
 - Cloud sync: REST batch (periodic HTTP POST)
@@ -45,7 +45,7 @@ The previous AI plan was designed for a public SaaS at scale. Wrong mental model
 │  Windsurf    ──shell adapter──► Hooks Bridge (:3101)     │
 │  Browser     ──HTTP──► Web App (:3000)                   │
 │                                                           │
-│  All services → SQLite WAL (~/.contextos/data.db)        │
+│  All services → SQLite WAL (~/.coodra/data.db)        │
 │                 + sqlite-vec (cosine KNN, optional ANN)  │
 │                 + in-process SQLite worker queue         │
 │                                                           │
@@ -69,9 +69,9 @@ The previous AI plan was designed for a public SaaS at scale. Wrong mental model
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Mode detection:** Each service reads `CONTEXTOS_MODE` from `.env` or `~/.contextos/config.json`. In both solo and team modes, **local services always write to local SQLite** — the storage adapter returned by `createDb()` is always `better-sqlite3` on the developer's machine. `team` mode adds the Sync Daemon (which has its own Postgres connection for pushing unsynced records to the cloud) and switches the **cloud-deployed services** (cloud API, BullMQ workers) to use Postgres. All local service logic is identical across modes; only the cloud services differ.
+**Mode detection:** Each service reads `COODRA_MODE` from `.env` or `~/.coodra/config.json`. In both solo and team modes, **local services always write to local SQLite** — the storage adapter returned by `createDb()` is always `better-sqlite3` on the developer's machine. `team` mode adds the Sync Daemon (which has its own Postgres connection for pushing unsynced records to the cloud) and switches the **cloud-deployed services** (cloud API, BullMQ workers) to use Postgres. All local service logic is identical across modes; only the cloud services differ.
 
-**What "local services always write to local SQLite" means in code (Module 03 S4 / verification F11):** `apps/mcp-server/src/lib/db.ts` and `apps/hooks-bridge/src/lib/db.ts` both pass `kind: 'local'` to `@coodra/contextos-db::createDb` unconditionally. There is **no env knob, no flag, no boot path** that gives either binary a Postgres handle. The Module 02 stop-gap `CONTEXTOS_DB_OVERRIDE_MODE` was removed in M03 S4. Cloud writes are owned exclusively by the future Sync Daemon and Module 05 NL Assembly's embeddings-ingest worker — services that don't exist yet. If a future verification brief or test asks to "boot the binary against Postgres," that's a category error: the binaries are SQLite-only by design, and the integration is exercised through `@coodra/contextos-db`'s own `kind: 'cloud'` test path (`packages/db/__tests__/integration/cloud-mode-write.test.ts`).
+**What "local services always write to local SQLite" means in code (Module 03 S4 / verification F11):** `apps/mcp-server/src/lib/db.ts` and `apps/hooks-bridge/src/lib/db.ts` both pass `kind: 'local'` to `@coodra/db::createDb` unconditionally. There is **no env knob, no flag, no boot path** that gives either binary a Postgres handle. The Module 02 stop-gap `COODRA_DB_OVERRIDE_MODE` was removed in M03 S4. Cloud writes are owned exclusively by the future Sync Daemon and Module 05 NL Assembly's embeddings-ingest worker — services that don't exist yet. If a future verification brief or test asks to "boot the binary against Postgres," that's a category error: the binaries are SQLite-only by design, and the integration is exercised through `@coodra/db`'s own `kind: 'cloud'` test path (`packages/db/__tests__/integration/cloud-mode-write.test.ts`).
 
 ---
 
@@ -92,7 +92,7 @@ The previous AI plan was designed for a public SaaS at scale. Wrong mental model
 
 **Key change from prototype:** In solo mode, workers run in-process within the Hooks Bridge using a SQLite-backed job queue. In team mode, the queue backend switches to BullMQ + Redis. The same processor function signatures are used in both modes — only the queue driver changes.
 
-**Web App in team mode:** Developers can still open `http://localhost:3000` against their local SQLite (offline-first), and tech leads use `https://app.contextos.dev` backed by cloud Postgres. Both instances run the same Next.js build; the storage adapter (solo SQLite vs. team Postgres) is selected by `CONTEXTOS_MODE` + environment.
+**Web App in team mode:** Developers can still open `http://localhost:3000` against their local SQLite (offline-first), and tech leads use `https://app.coodra.dev` backed by cloud Postgres. Both instances run the same Next.js build; the storage adapter (solo SQLite vs. team Postgres) is selected by `COODRA_MODE` + environment.
 
 ---
 
@@ -125,9 +125,9 @@ To **allow**: respond with `{ "hookSpecificOutput": { "hookEventName": "PreToolU
 
 ### 3.3 Windsurf Cascade Hook Payload Shape
 
-Windsurf fires hooks as **shell commands** (not HTTP). The hook receives JSON on stdin. Windsurf exposes 12 hook events total; ContextOS maps the 9 that carry information about tool-use and session boundaries. The remaining 3 (`post_read_code`, `post_user_prompt`, `pre_cascade_response`) are ignored by default because they add noise without changing the run record — you can wire them later if you need finer traces.
+Windsurf fires hooks as **shell commands** (not HTTP). The hook receives JSON on stdin. Windsurf exposes 12 hook events total; Coodra maps the 9 that carry information about tool-use and session boundaries. The remaining 3 (`post_read_code`, `post_user_prompt`, `pre_cascade_response`) are ignored by default because they add noise without changing the run record — you can wire them later if you need finer traces.
 
-| Windsurf event | Maps to ContextOS event | Blockable? |
+| Windsurf event | Maps to Coodra event | Blockable? |
 |---|---|---|
 | `pre_write_code` | `pre_tool_use` (tool: Edit/Write) | Yes — exit code 2 ¹ |
 | `pre_run_command` | `pre_tool_use` (tool: Bash) | Yes — exit code 2 ¹ |
@@ -160,7 +160,7 @@ Windsurf hook payload structure:
 `trajectory_id` = session ID (maps to Claude Code's `session_id`).
 `execution_id` = turn ID (maps to Claude Code's `tool_use_id`).
 
-**Windsurf adapter shell script** (`~/.windsurf/hooks/contextos.sh`):
+**Windsurf adapter shell script** (`~/.windsurf/hooks/coodra.sh`):
 ```bash
 #!/bin/bash
 PAYLOAD=$(cat)
@@ -194,7 +194,7 @@ interface HookEvent {
   filePath?: string;        // extracted from tool_info
   toolInput: unknown;
   cwd?: string;
-  projectSlug?: string;     // from .contextos.json if present
+  projectSlug?: string;     // from .coodra.json if present
 }
 ```
 
@@ -204,7 +204,7 @@ interface HookEvent {
 
 ```
 stdio (Claude Code):
-  Agent spawns: node ~/.contextos/bin/mcp-server.js
+  Agent spawns: node ~/.coodra/bin/mcp-server.js
   Communication: JSON-RPC 2.0 over stdin/stdout
   Framing: Content-Length header + \r\n\r\n (LSP-style, exact spec)
   Critical: NO stray output on stdout — any non-JSON-RPC bytes corrupt the stream
@@ -222,12 +222,12 @@ Streamable HTTP :3100 (Windsurf, VS Code Copilot, any HTTP MCP client):
 
 Claude Code config (`.mcp.json` in project root):
 ```json
-{ "mcpServers": { "contextos": { "type": "stdio", "command": "node", "args": ["~/.contextos/bin/mcp-server.js"] } } }
+{ "mcpServers": { "coodra": { "type": "stdio", "command": "node", "args": ["~/.coodra/bin/mcp-server.js"] } } }
 ```
 
 Windsurf config (`~/.windsurf/mcp_config.json`):
 ```json
-{ "mcpServers": { "contextos": { "serverUrl": "http://localhost:3100" } } }
+{ "mcpServers": { "coodra": { "serverUrl": "http://localhost:3100" } } }
 ```
 
 The MCP server process serves both simultaneously: a stdio handler (one goroutine per Claude Code spawn) and a persistent HTTP server on :3100.
@@ -269,7 +269,7 @@ Sync direction:
 
 ### 4.1 Solo Mode: SQLite WAL + sqlite-vec
 
-**Storage file:** `~/.contextos/data.db`
+**Storage file:** `~/.coodra/data.db`
 
 ```sql
 PRAGMA journal_mode = WAL;      -- concurrent readers + 1 writer
@@ -323,7 +323,7 @@ A lightweight worker loop (`setInterval`, 500ms) polls this table, picks up pend
 ### 4.2 Team / Cloud Mode: Postgres + pgvector
 
 **Same Drizzle schema.** The `createDb()` factory exists in two contexts:
-- **Local services** (`hooks-bridge`, `mcp-server`, `web-app` in team mode on the developer's machine): always returns the `better-sqlite3` driver pointing to `~/.contextos/data.db`. Local services write to local SQLite in both solo and team modes.
+- **Local services** (`hooks-bridge`, `mcp-server`, `web-app` in team mode on the developer's machine): always returns the `better-sqlite3` driver pointing to `~/.coodra/data.db`. Local services write to local SQLite in both solo and team modes.
 - **Cloud services** (`cloud-api`, `bullmq-workers` deployed on Railway/Fly.io): returns the `postgres` driver pointing to Supabase. The cloud tier never touches local SQLite.
 
 The Sync Daemon is a third context: it holds **two** connections simultaneously — `better-sqlite3` (to read unsynced records from local SQLite) and `postgres` (to write them to cloud Postgres). It is the only process that holds both.
@@ -565,9 +565,9 @@ Hooks Bridge  → 127.0.0.1:3200  (NL Assembly, internal call)
 ### Team Cloud Mode: HTTPS, No CDN
 
 Services exposed publicly:
-- `https://hooks.contextos.dev` → Hooks Bridge
-- `https://mcp.contextos.dev` → MCP Server (remote MCP, optional)
-- `https://app.contextos.dev` → Web App
+- `https://hooks.coodra.dev` → Hooks Bridge
+- `https://mcp.coodra.dev` → MCP Server (remote MCP, optional)
+- `https://app.coodra.dev` → Web App
 
 TLS terminated at the platform load balancer (Railway/Fly.io, Let's Encrypt, managed). No certificate management needed.
 
@@ -622,7 +622,7 @@ POST /v1/webhooks/github                            ← inbound GitHub App webho
 
 MCP tools versioned implicitly through MCP protocol capability negotiation. Tool names are stable identifiers for the lifetime of the major version.
 
-**Why path versioning, not subdomain:** `v1.api.contextos.dev` requires DNS changes per version. `/v1/...` is a routing change. Path versioning is operationally simpler.
+**Why path versioning, not subdomain:** `v1.api.coodra.dev` requires DNS changes per version. `/v1/...` is a routing change. Path versioning is operationally simpler.
 
 ### Hook Payload Versioning
 
@@ -671,7 +671,7 @@ If you ever add a browser-side `fetch` that directly calls port 3101 or 3100, CO
 
 ```typescript
 const ALLOWED_ORIGINS = [
-  'https://app.contextos.dev',
+  'https://app.coodra.dev',
   ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000'] : []),
 ];
 
@@ -724,22 +724,22 @@ No query-level caching layer. The DB buffer cache is sufficient at this scale.
 
 ## 13. Server Setup and Infrastructure
 
-### Solo Mode: `contextos start`
+### Solo Mode: `coodra start`
 
 ```bash
-$ contextos start
-→ Ensures SQLite DB exists at ~/.contextos/data.db
+$ coodra start
+→ Ensures SQLite DB exists at ~/.coodra/data.db
 → Starts MCP Server (stdio handler + HTTP :3100)
 → Starts Hooks Bridge (HTTP :3101 + in-process workers)
 → Starts Web App (Next.js :3000)
 → Starts Semantic Diff (:3201, Python)
 → Starts NL Assembly (:3200, Python, optional — skips if Ollama absent)
-→ Writes hook scripts to ~/.claude/settings.json + ~/.windsurf/hooks/contextos.sh
+→ Writes hook scripts to ~/.claude/settings.json + ~/.windsurf/hooks/coodra.sh
 → Writes MCP configs to ~/.mcp.json + ~/.windsurf/mcp_config.json
-→ Prints: "ContextOS running at http://localhost:3000"
+→ Prints: "Coodra running at http://localhost:3000"
 ```
 
-Process management: PIDs written to `~/.contextos/pids`. `contextos stop` kills them. No Docker, no Compose, no daemon manager needed for solo mode.
+Process management: PIDs written to `~/.coodra/pids`. `coodra stop` kills them. No Docker, no Compose, no daemon manager needed for solo mode.
 
 ### Team Cloud Mode: Two Deployment Groups
 
@@ -840,7 +840,7 @@ Not a scaling problem. One developer, one machine. Design for correctness.
 3. **Outbox pattern** — Queue as outbox. Worker drains to DB. Response returned before DB write.
 4. **Fail-open** — Every error path returns allow/continue.
 5. **Dependency injection at construction** — Handlers are factories. Tests inject mocks.
-6. **Zod at every external boundary** — Invalid payloads fail-open. Shared schemas in `@coodra/contextos-shared`.
+6. **Zod at every external boundary** — Invalid payloads fail-open. Shared schemas in `@coodra/shared`.
 7. **Schema as canonical type source** — Drizzle schema → Drizzle types. Zod schemas → TS types.
 8. **Polymorphic knowledge graph** — `knowledge_edges` table: (sourceType, sourceId) → (targetType, targetId).
 9. **Feature pack inheritance** — Scalar override + array concatenation, root → leaf, with cycle detection.
@@ -863,7 +863,7 @@ interface StorageAdapter {
 `LocalStorageAdapter` for solo. `CloudStorageAdapter` for team. Services receive via DI. No `if (mode === 'solo')` in business logic.
 
 **14. CLI subprocess orchestration:**
-The ContextOS CLI can invoke external tools (Graphify, Ollama, git) as subprocesses and pipe their output to local API endpoints. This is how Graphify integration works without requiring the developer to manually handle files.
+The Coodra CLI can invoke external tools (Graphify, Ollama, git) as subprocesses and pipe their output to local API endpoints. This is how Graphify integration works without requiring the developer to manually handle files.
 
 **15. Rate limiting (team mode only):**
 Redis sliding window per org. Lua script: atomic `ZREMRANGEBYSCORE` + `ZADD` + `ZCARD`. Prevents one org's runaway agent from flooding the cloud API. Not needed in solo mode.
@@ -884,7 +884,7 @@ Every MCP tool exposed by the server is, at runtime, a standing line in the agen
 The two coordination acts that must happen on every session — Feature Pack injection at session start, and Context Pack save at session end — fire from the **hooks-bridge** by default, not from the agent's MCP tool calls. Pattern 19 (tool descriptions as agent prompts) makes the surface *callable*; this pattern makes the defaults *firing without agent cooperation*.
 
 Mechanics:
-- **SessionStart hook** → bridge resolves the project's Feature Pack via the same `featurePack` store the MCP server uses, then returns `{ permissionDecision: 'allow', additionalContext: <pack body> }`. Claude Code's hook spec injects `additionalContext` directly into the agent's turn-zero context. Result: a stranger who runs `npx @coodra/contextos-cli init` and restarts Claude Code gets the Feature Pack on turn zero with zero agent action.
+- **SessionStart hook** → bridge resolves the project's Feature Pack via the same `featurePack` store the MCP server uses, then returns `{ permissionDecision: 'allow', additionalContext: <pack body> }`. Claude Code's hook spec injects `additionalContext` directly into the agent's turn-zero context. Result: a stranger who runs `npx @coodra/cli init` and restarts Claude Code gets the Feature Pack on turn zero with zero agent action.
 - **SessionEnd / Stop hook** → bridge generates a structured summary from `run_events` + decisions for the closing run, then calls `contextPack.save(...)` against the same store the MCP `save_context_pack` tool uses. The hook responds `allow` synchronously; the save runs through the durable outbox (Pattern 3). Result: every session produces a Context Pack, even when the agent forgets to ask.
 
 Why this lives in the bridge, not in the agent:
@@ -901,9 +901,9 @@ Solo-mode v1 scope: this pattern fires only for Claude Code's hook envelope (whi
 
 ### What Graphify Is
 
-Graphify is a separate static analysis CLI tool (not built by ContextOS). It parses a codebase, builds a dependency graph (nodes = symbols, edges = dependencies), and uses Leiden community detection to cluster symbols into logical modules. Output: `graph.json` with `nodes`, `edges`, `communities`.
+Graphify is a separate static analysis CLI tool (not built by Coodra). It parses a codebase, builds a dependency graph (nodes = symbols, edges = dependencies), and uses Leiden community detection to cluster symbols into logical modules. Output: `graph.json` with `nodes`, `edges`, `communities`.
 
-ContextOS does not own Graphify's analysis logic. It consumes the output.
+Coodra does not own Graphify's analysis logic. It consumes the output.
 
 ### The Two Import Paths (Both Already Implemented)
 
@@ -940,10 +940,10 @@ Graphify packs start as **inactive drafts** — they never reach agents until a 
 
 **Update mode:** On re-import, compare `graphifyCommunityHash` (SHA-256 of sorted file list + symbol list). Hash unchanged → skip. Hash changed → update pack, increment version. Community disappeared → mark old pack `isStale = true`.
 
-### ContextOS CLI Orchestration
+### Coodra CLI Orchestration
 
 ```bash
-$ contextos graphify analyze ./my-project
+$ coodra graphify analyze ./my-project
 
 → Check: which graphify || prompt to install
 → Run: graphify analyze ./my-project --output /tmp/ctx-graph.json
@@ -1073,7 +1073,7 @@ Three-mode middleware:
 2. `Authorization: Bearer {LOCAL_HOOK_SECRET}` → **sync daemon → cloud-API authentication** (NOT bridge — see Module 04 Phase 4 Caveat 2 fix below)
 3. Full Clerk JWT → production web app authentication
 
-The `LOCAL_HOOK_SECRET` is generated on first `contextos team join` (Module 04 Phase 4; replaces the older `team login` plan) and stored in `~/.contextos/config.json::team.localHookSecret`. The sync daemon's cloud-push uses it as the bearer token when calling cloud Postgres-fronted REST endpoints.
+The `LOCAL_HOOK_SECRET` is generated on first `coodra team join` (Module 04 Phase 4; replaces the older `team login` plan) and stored in `~/.coodra/config.json::team.localHookSecret`. The sync daemon's cloud-push uses it as the bearer token when calling cloud Postgres-fronted REST endpoints.
 
 #### Caveat 2 fix (Module 04 Phase 4, 2026-05-09): Hooks Bridge is local-only in both modes
 
@@ -1101,7 +1101,7 @@ ADR-007 append-only semantics make the pull conflict-free: `INSERT ... ON CONFLI
 
 ### Solo Mode
 
-No CI/CD. Developer runs `pnpm build && contextos start`. Local development.
+No CI/CD. Developer runs `pnpm build && coodra start`. Local development.
 
 ### Team Cloud Mode
 
@@ -1145,9 +1145,9 @@ These are deliberate gaps — not omissions. Each requires new information befor
 | Decision | Resolution (2026-04-24) |
 |---|---|
 | Hosted vs BYO-cloud team service | **Hosted by us only in v1.** Single managed Supabase Postgres + Upstash Redis + Railway/Fly.io stack. BYO-cloud is a post-launch Enterprise variant. Per user directive — "make the team service hosted by us." |
-| Security: RLS and local secret permissions | **Closed in favor of single Postgres + RLS:** every team-scoped table carries `org_id`; Supabase Row-Level Security policies (`WHERE org_id = (auth.jwt()->>'org_id')::text`) enforce isolation at the DB layer. Local-mode secret-permission half stays open — `~/.contextos/config.json` MUST be `chmod 600` and the CLI (Module 08a) writes it with that mode. |
+| Security: RLS and local secret permissions | **Closed in favor of single Postgres + RLS:** every team-scoped table carries `org_id`; Supabase Row-Level Security policies (`WHERE org_id = (auth.jwt()->>'org_id')::text`) enforce isolation at the DB layer. Local-mode secret-permission half stays open — `~/.coodra/config.json` MUST be `chmod 600` and the CLI (Module 08a) writes it with that mode. |
 | Pricing / monetization | **Out of scope for v1.** No Stripe, no `subscriptions` / `usage_quotas` tables, no metering. Per user directive 2026-04-24 — "forget about monetary setup, only focus on building the working product." |
-| Marketing / distribution site | **Out of scope.** No `contextos.dev` HTML or landing page in this repo. Module 08b removed. CLI is the only install surface in scope (Module 08a). |
+| Marketing / distribution site | **Out of scope.** No `coodra.dev` HTML or landing page in this repo. Module 08b removed. CLI is the only install surface in scope (Module 08a). |
 | Solo-mode feature gating | **No gating.** Solo has full feature parity for everything technically possible without a hosted backend. Per user directive 2026-04-24 — "no restrictions." |
 
 ### Still open
@@ -1162,10 +1162,10 @@ These are deliberate gaps — not omissions. Each requires new information befor
 | MCP remote transport (future) | When remote MCP over HTTP becomes important for team setups, the MCP server needs HTTPS + Clerk auth on the `/mcp` endpoint. Design deferred until team mode reaches GA. |
 | Sync table subset | Explicitly define which tables are synced local → cloud: `runs`, `run_events`, `context_packs`, `policy_decisions` (append-only, safe to replicate). Not synced: `feature_packs`, `policy_rules` (cloud is the single writer for these in team mode; local is a pull-only cache). If the sync scope expands, consider a change-data-capture (CDC) or logical-replication-driven approach instead of polling `WHERE synced_at IS NULL`. |
 | Aggregated metrics / observability | The event log captures raw data but there is no plan for aggregated metrics (policy violation rates, enrichment failure rates, pack assembly latency distributions). Reserve a `usage_aggregates` table or a Prometheus `/metrics` endpoint now — even if unpopulated — so the slot exists when monitoring becomes important. |
-| JIRA OAuth token encryption at rest | `integration_tokens.access_token` and `refresh_token` must not be stored as plaintext. Options: (a) Supabase `pgcrypto` `pgp_sym_encrypt` with a key from a secrets manager, (b) application-level AES-256-GCM with a `CONTEXTOS_TOKEN_KEY` env var rotated quarterly, (c) store only a handle and keep tokens in a KMS/Vault. Decision deferred until team mode ships; until then, dev-only tokens use (b) with a random key per environment. |
+| JIRA OAuth token encryption at rest | `integration_tokens.access_token` and `refresh_token` must not be stored as plaintext. Options: (a) Supabase `pgcrypto` `pgp_sym_encrypt` with a key from a secrets manager, (b) application-level AES-256-GCM with a `COODRA_TOKEN_KEY` env var rotated quarterly, (c) store only a handle and keep tokens in a KMS/Vault. Decision deferred until team mode ships; until then, dev-only tokens use (b) with a random key per environment. |
 | JIRA state sync — webhook-derived vs. poll-derived | Webhook delivery is best-effort (Atlassian retries but can drop). A nightly reconciliation job that calls `jira_search_issues` for every active integration and reconciles against `integration_events` closes the gap. Not needed for v1 if webhooks stay reliable; instrument webhook delivery rate first and add reconciliation only if drift is observed. |
 | Multi-site Atlassian access | A single Atlassian user may have access to multiple Atlassian sites (`cloudid`s). The OAuth token is global; each API call must include the right `cloudid` in the URL. The `integrations` table stores one row per (org, cloudid) pair so teams can connect multiple sites; the UI picks the right site per project via `feature_packs.content.jiraSiteId`. |
-| Solo-mode JIRA credentials | Solo mode cannot complete a 3LO OAuth flow without a public callback URL. Solo mode uses email + API token (the same pattern as the `jira_test` prototype), stored in `~/.contextos/config.json` alongside `local_hook_secret`, `chmod 600`. Upgrading from solo to team migrates the API-token-based integration to a freshly-OAuthed one (the old token is discarded, not replayed into the cloud DB). |
+| Solo-mode JIRA credentials | Solo mode cannot complete a 3LO OAuth flow without a public callback URL. Solo mode uses email + API token (the same pattern as the `jira_test` prototype), stored in `~/.coodra/config.json` alongside `local_hook_secret`, `chmod 600`. Upgrading from solo to team migrates the API-token-based integration to a freshly-OAuthed one (the old token is discarded, not replayed into the cloud DB). |
 | Issue-tracker scope expansion | GitHub Issues, Linear, and Asana would reuse the `integrations` + `integration_tokens` + `integration_events` scaffolding. Tool names become `jira_*`, `github_*`, `linear_*` and share a common `IntegrationClient` interface. **Status:** JIRA shipped in §22; GitHub designed in §23 (richer — adds CODEOWNERS + branch protection as first-class policy inputs, not just ticket reads). Linear/Asana remain future work; design them on whichever provider's semantics they most resemble. |
 | GitHub App webhook secret rotation | The GitHub App webhook secret is App-level (not per-installation). Rotation requires updating the App's setting on github.com + the `GITHUB_WEBHOOK_SECRET` env var atomically. Runbook: generate a new secret, update the env var on all webhook-receiving instances, then update github.com. Old secret continues to verify for ~60 s during rollover (acceptable drift). |
 | GitHub App private key storage | The App's RSA private key (PEM) is required to mint installation tokens. Store in a secrets manager (not an env var on disk). Key rotation: generate a second active key on github.com, deploy the new key, remove the first key. GitHub supports up to two active keys per App precisely for this flow. |
@@ -1184,7 +1184,7 @@ These are deliberate gaps — not omissions. Each requires new information befor
 1. The agent reaches a session already knowing which JIRA issue it is working on and what that issue says — without the developer pasting the ticket into the prompt.
 2. The agent can read, search, create, update, transition, and comment on issues via MCP tools that mirror the prototype in `jira_test/`.
 3. Every Context Pack that is linked to a JIRA issue posts a summary comment back to that issue, automatically, at session end.
-4. When a JIRA issue changes status (e.g., moved to Done), the linked runs and context packs in ContextOS reflect that change within one minute.
+4. When a JIRA issue changes status (e.g., moved to Done), the linked runs and context packs in Coodra reflect that change within one minute.
 5. Tech leads can connect a JIRA cloud site once at the org level; projects opt in per-project via a Feature Pack field.
 6. The integration fails open on every axis: JIRA down → agent continues, webhook dropped → next webhook reconciles, token expired → user is prompted to re-auth without interrupting the active session.
 
@@ -1261,10 +1261,10 @@ External issues are not given their own table — we use the polymorphic `knowle
 `runs.issueRef` and `context_packs.issueRef` already exist (see `packages/db/src/schema.ts:144,171`). What was missing is a resolution pipeline. On `SessionStart` the Hooks Bridge runs this pipeline in priority order, first hit wins:
 
 1. **Explicit adapter payload** — the Windsurf adapter script or Claude Code hook can pass `"issue_ref": "KAN-123"` in the JSON payload. Used by the VSCode extension's `Trigger Run` command (already present at `apps/vscode/src/commands/index.ts:125`).
-2. **`.contextos.json` in cwd** — new optional field `"issueRef": "KAN-123"` lets a developer pin a working ticket to a branch checkout.
+2. **`.coodra.json` in cwd** — new optional field `"issueRef": "KAN-123"` lets a developer pin a working ticket to a branch checkout.
 3. **Git branch regex** — default pattern `^(feature|bugfix|hotfix|chore)\/([A-Z][A-Z0-9_]+-\d+)` captures `KAN-123` from a branch like `feature/KAN-123-add-oauth`. Configurable via `feature_packs.content.issueRefBranchPattern`.
 4. **Last commit message trailer** — looks for `Jira-Issue: KAN-123` or `Refs: KAN-123` in the HEAD commit message.
-5. **Env var** — `CONTEXTOS_ISSUE_REF=KAN-123` for ad-hoc one-off tracking.
+5. **Env var** — `COODRA_ISSUE_REF=KAN-123` for ad-hoc one-off tracking.
 
 If none match, `runs.issueRef = null` and the JIRA integration is inactive for that run. No error, no prompt — session proceeds normally. This is the fail-open principle applied upstream of any JIRA call.
 
@@ -1276,7 +1276,7 @@ The resolved `issueRef` is:
 
 ### 22.4 MCP Tools (Agent-Facing, 8 tools)
 
-The JIRA tools mirror the `jira_test/` prototype 1:1 — the prototype is the de-facto behavioural spec. All 8 tools are registered in `apps/mcp-server/src/tools/index.ts` alongside the existing eight ContextOS tools. Each JIRA tool is an `IntegrationClient`-wrapped Drizzle-aware handler that returns a uniform shape.
+The JIRA tools mirror the `jira_test/` prototype 1:1 — the prototype is the de-facto behavioural spec. All 8 tools are registered in `apps/mcp-server/src/tools/index.ts` alongside the existing eight Coodra tools. Each JIRA tool is an `IntegrationClient`-wrapped Drizzle-aware handler that returns a uniform shape.
 
 | MCP tool | Wraps REST endpoint | Purpose |
 |---|---|---|
@@ -1291,13 +1291,13 @@ The JIRA tools mirror the `jira_test/` prototype 1:1 — the prototype is the de
 
 **Input schema convention.** All tools take `projectSlug` as their first arg, look up the active `integration` for that project's org, and fail fast with `{ error: "no_integration" }` if none is configured. No tool throws — callers get a typed result.
 
-**Auth context.** In solo mode the integration row points to an API-token credential stored in `~/.contextos/config.json`. In team mode it points to an OAuth access token fetched from `integration_tokens`, refreshed on 401. The tool handlers are identical in both modes — the `IntegrationClient` hides the auth shape.
+**Auth context.** In solo mode the integration row points to an API-token credential stored in `~/.coodra/config.json`. In team mode it points to an OAuth access token fetched from `integration_tokens`, refreshed on 401. The tool handlers are identical in both modes — the `IntegrationClient` hides the auth shape.
 
 **Policy integration.** `check_policy` already supports per-tool rules. New tools get new names (e.g., `MCP:jira_create_issue`) so tech leads can selectively deny write operations per agent type: "Allow Windsurf to call `jira_search_issues` but deny `jira_transition_issue`."
 
 ### 22.5 OAuth 2.0 (3LO) Flow — Team Mode
 
-Team mode uses Atlassian's three-legged OAuth (aka 3LO) authorization code grant. The Atlassian developer app is a single ContextOS-owned app (one `client_id`, one `client_secret`) and tech leads complete the consent flow per Atlassian site.
+Team mode uses Atlassian's three-legged OAuth (aka 3LO) authorization code grant. The Atlassian developer app is a single Coodra-owned app (one `client_id`, one `client_secret`) and tech leads complete the consent flow per Atlassian site.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1308,7 +1308,7 @@ Team mode uses Atlassian's three-legged OAuth (aka 3LO) authorization code grant
 │       audience=api.atlassian.com                                 │
 │       client_id=<env.ATLASSIAN_CLIENT_ID>                        │
 │       scope=<scopes list>                                        │
-│       redirect_uri=https://app.contextos.dev/api/integrations/   │
+│       redirect_uri=https://app.coodra.dev/api/integrations/   │
 │                    atlassian/oauth/callback                      │
 │       state=<HMAC(orgId + nonce + projectSlug)>  ← CSRF + ties   │
 │       response_type=code                                         │
@@ -1347,7 +1347,7 @@ offline_access         ← required to receive a refresh_token
 
 ### 22.6 Inbound Webhooks
 
-When an integration is created, ContextOS registers a webhook with Atlassian for events the agent cares about:
+When an integration is created, Coodra registers a webhook with Atlassian for events the agent cares about:
 
 ```
 POST https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/webhook
@@ -1361,7 +1361,7 @@ POST https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/webhook
       "comment_updated"
     ],
     "jqlFilter": "project in (KAN, PROJ)",   ← scoped to integrations.projects
-    "url": "https://hooks.contextos.dev/v1/webhooks/atlassian?integration={integrationId}"
+    "url": "https://hooks.coodra.dev/v1/webhooks/atlassian?integration={integrationId}"
   }]
 }
 ```
@@ -1377,7 +1377,7 @@ POST https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3/webhook
 
 **Worker (`atlassian-webhook-event`):**
 - `jira:issue_updated` + status change → look up `runs` by `issueRef = <issue key>` and `projects.id = <mapped project>`; insert a `run_events` row of type `external_status_change`; insert a knowledge edge `external_issue → tracks_issue`; bust any caches keyed on that issue.
-- `comment_created` → if the comment's `author.accountId` is the ContextOS bot account (recorded at integration setup), skip — this is our own `jira_add_comment` echo. Otherwise insert a `run_event` of type `external_comment` so the web app can show it on the run timeline.
+- `comment_created` → if the comment's `author.accountId` is the Coodra bot account (recorded at integration setup), skip — this is our own `jira_add_comment` echo. Otherwise insert a `run_event` of type `external_comment` so the web app can show it on the run timeline.
 - `jira:issue_deleted` → mark linked context packs with `metadata.issueDeleted = true` but do not delete them. The record of work done survives the ticket disappearing.
 
 **Webhook renewal.** Atlassian webhooks registered via REST expire after 30 days. A cron job on the Hooks Bridge (`sweep-webhook-renewals`, daily) calls `PUT /rest/api/3/webhook/refresh` for any webhook whose `expirationDate` is within 7 days. The job is idempotent — calling it on a freshly refreshed webhook is a no-op.
@@ -1447,16 +1447,16 @@ if (run.issueRef && integration.status === 'active')
 jira-post-context-summary worker:
   - render markdown summary from contextPack.content
   - convert to ADF (three-level structure: paragraph → content → text/mention/link)
-  - include a link back to https://app.contextos.dev/dashboard/{project}/runs/{runId}
+  - include a link back to https://app.coodra.dev/dashboard/{project}/runs/{runId}
   - call jira_add_comment via IntegrationClient (idempotent)
   - on 200: INSERT knowledge_edge context_pack →resolves_issue→ external_issue
   - on error: the integration_events row records it; the worker retries 3 times with backoff,
     then moves to jira-post-context-summary-dead. Context pack is NOT marked failed.
 ```
 
-**Comment shape (agent-authored, ContextOS-signed):**
+**Comment shape (agent-authored, Coodra-signed):**
 ```
-[ContextOS] Session summary for {issueRef}
+[Coodra] Session summary for {issueRef}
 
 {title}
 
@@ -1465,10 +1465,10 @@ jira-post-context-summary worker:
 Files changed: {n} (see link for full list)
 Key decisions: {top-3-decision-descriptions}
 
-View full details: https://app.contextos.dev/dashboard/{project}/runs/{runId}
+View full details: https://app.coodra.dev/dashboard/{project}/runs/{runId}
 
 ---
-_Posted automatically by ContextOS. To disable, unlink this project in settings._
+_Posted automatically by Coodra. To disable, unlink this project in settings._
 ```
 
 **Opt-out.** `feature_packs.content.jiraAutoComment = false` disables this worker for that feature pack's runs. The feature pack is the canonical place to configure per-project JIRA behaviour.
@@ -1519,7 +1519,7 @@ Fetched data is merged into the feature pack's `content` under a new `jira` name
 Solo mode cannot complete OAuth (no public redirect URI). Solo mode uses the same pattern as `jira_test/`:
 
 ```json
-// ~/.contextos/config.json
+// ~/.coodra/config.json
 {
   "local_hook_secret": "...",
   "integrations": {
@@ -1593,14 +1593,14 @@ These invariants are verified by the existing hooks-bridge integration tests plu
 3. Every context pack assembly invocation of **NL Assembly** receives relevant GitHub context (PR diff summary, review comment excerpts, check statuses) alongside the run's own events and semantic diff, so enrichment output is *framed by what reviewers have been saying*.
 4. The agent can query GitHub via MCP tools (`github_*`) to search PRs, read review comments, check blame, and list codeowners for a path.
 5. When a context pack lands on a run with an associated PR, a summary comment is posted to that PR (symmetric to §22.8's JIRA comment).
-6. Tech leads install a single ContextOS GitHub App at the org level; per-project config selects which repos are in scope.
+6. Tech leads install a single Coodra GitHub App at the org level; per-project config selects which repos are in scope.
 7. The integration is fail-open on every axis: GitHub down → agent continues, webhook dropped → next push/PR event reconciles, installation expired → banner but no hard stop.
 
 **Non-goals (explicitly deferred).**
-- **GitHub Actions orchestration.** ContextOS does not trigger, cancel, or reconfigure workflow runs. It reads check statuses only.
+- **GitHub Actions orchestration.** Coodra does not trigger, cancel, or reconfigure workflow runs. It reads check statuses only.
 - **GitHub Enterprise Server (self-hosted).** v1 is GitHub.com (cloud) + GitHub Enterprise Cloud only. GHES support is an optional later addition because the only difference is the base URL and the GitHub App installation mechanics.
 - **Rewriting code via GitHub.** The agent edits files locally — `github_*` tools do not include "edit file via REST". PR creation from an agent session is a stretch goal behind a feature pack flag, default off.
-- **Replacing the policy engine.** GitHub's branch protection is *consumed by* ContextOS's policy engine, not the other way around. A branch rule like "requires 2 reviewers" becomes a ContextOS condition; a ContextOS deny policy is not pushed to GitHub.
+- **Replacing the policy engine.** GitHub's branch protection is *consumed by* Coodra's policy engine, not the other way around. A branch rule like "requires 2 reviewers" becomes a Coodra condition; a Coodra deny policy is not pushed to GitHub.
 - **Full issue tracker parity with JIRA.** `github_get_issue` exists for reading, but GitHub Issues' creation/update/transition surface is not mirrored 1:1 — teams that need that should use the JIRA integration.
 
 ### 23.2 GitHub App vs OAuth — the Authentication Split
@@ -1620,11 +1620,11 @@ The authentication story is the **single biggest structural difference** from th
 **Why GitHub App for team mode, not an OAuth App:**
 - Installation tokens are **server-to-server** — BullMQ workers refresh them on a schedule without requiring a user to be logged in.
 - Rate limit pool is per-installation, not per-user. A team with many agents does not burn through one developer's budget.
-- A GitHub App is **identified in the UI** as a distinct actor — review comments and status checks posted by the App show up as "ContextOS Bot" rather than as a confused mirror of the connecting user.
+- A GitHub App is **identified in the UI** as a distinct actor — review comments and status checks posted by the App show up as "Coodra Bot" rather than as a confused mirror of the connecting user.
 - Permissions can be *reduced* without re-installing (GitHub prompts the org owner to approve the diff).
 
 **Why PAT for solo mode:**
-- Solo mode has no public callback URL. The GitHub App OAuth flow needs one. Fine-grained PAT requires zero network callback — the user generates it at [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens) and pastes it into `~/.contextos/config.json`.
+- Solo mode has no public callback URL. The GitHub App OAuth flow needs one. Fine-grained PAT requires zero network callback — the user generates it at [github.com/settings/personal-access-tokens](https://github.com/settings/personal-access-tokens) and pastes it into `~/.coodra/config.json`.
 - Solo mode has no webhooks (no public ingress). Outbound-only read-heavy usage is fine at single-developer scale.
 
 **Consequence for the architecture:**
@@ -1736,17 +1736,17 @@ All three are served from Postgres in <10 ms (solo: SQLite, same shape). No GitH
 5. Nested CODEOWNERS files (e.g., `apps/web/.github/CODEOWNERS`) are not supported by GitHub and not parsed.
 6. Parser surfaces invalid lines (e.g., unresolvable team) as warnings attached to the integration's health panel.
 
-The parser is a standalone pure function in `@coodra/contextos-shared/codeowners.ts`, fully unit-tested with fixtures from the official docs, and reused by both the web app (to render the "who owns this file?" panel) and the policy engine.
+The parser is a standalone pure function in `@coodra/shared/codeowners.ts`, fully unit-tested with fixtures from the official docs, and reused by both the web app (to render the "who owns this file?" panel) and the policy engine.
 
 ### 23.5 PR Context Resolution
 
 Analogous to §22.3's `issueRef` resolution. On `SessionStart` the Hooks Bridge attempts to find the PR associated with the current branch, using this priority:
 
 1. **Explicit adapter payload** — `"pr_ref": "owner/repo#123"` in the hook JSON (VSCode extension uses this when the user picks a PR explicitly).
-2. **`.contextos.json`** — optional `"prRef": "owner/repo#123"`.
+2. **`.coodra.json`** — optional `"prRef": "owner/repo#123"`.
 3. **Git branch → PR lookup** — `GET /repos/{owner}/{repo}/pulls?head={org}:{branch}&state=open` using the cached repository metadata. If exactly one match, use it.
 4. **Commit trailer** — `GitHub-PR: owner/repo#123` in the HEAD commit message.
-5. **Env var** — `CONTEXTOS_PR_REF=owner/repo#123`.
+5. **Env var** — `COODRA_PR_REF=owner/repo#123`.
 
 If none match, `runs.prRef = null` and GitHub governance features are silently reduced to repo-level (CODEOWNERS and branch protection still apply to the target branch; PR-specific context is simply absent).
 
@@ -1786,7 +1786,7 @@ GitHub's surface is larger than JIRA's, so the tool list is larger. All 10 tools
 │ Tech lead opens /dashboard/[project]/settings → clicks "Install GitHub"│
 │                                                                        │
 │ Web app → redirect to                                                  │
-│   https://github.com/apps/contextos/installations/new?state=<HMAC>     │
+│   https://github.com/apps/coodra/installations/new?state=<HMAC>     │
 │   ← state carries orgId + projectSlug + nonce, HMAC-signed             │
 │                                                                        │
 │ User picks org + repos on GitHub → GitHub redirects back to            │
@@ -2066,7 +2066,7 @@ github-post-context-summary worker:
 
 **Comment body template:**
 ```markdown
-### ContextOS — session summary for #{prNumber}
+### Coodra — session summary for #{prNumber}
 
 **{title}**
 
@@ -2078,10 +2078,10 @@ github-post-context-summary worker:
 - {decision-2}
 - {decision-3}
 
-[View full run details →](https://app.contextos.dev/dashboard/{project}/runs/{runId})
+[View full run details →](https://app.coodra.dev/dashboard/{project}/runs/{runId})
 
 ---
-_Posted automatically by ContextOS. Disable in `feature-pack.content.githubAutoComment = false`._
+_Posted automatically by Coodra. Disable in `feature-pack.content.githubAutoComment = false`._
 ```
 
 **Opt-out** per feature pack via `githubAutoComment: false`. When both JIRA and GitHub integrations are active and a run has both `issueRef` and `prRef`, both comments are posted (they are independent workers).
@@ -2089,7 +2089,7 @@ _Posted automatically by ContextOS. Disable in `feature-pack.content.githubAutoC
 ### 23.12 Solo Mode — Fine-Grained PAT
 
 ```json
-// ~/.contextos/config.json
+// ~/.coodra/config.json
 {
   "local_hook_secret": "...",
   "integrations": {
@@ -2105,11 +2105,11 @@ _Posted automatically by ContextOS. Disable in `feature-pack.content.githubAutoC
 **Capabilities in solo mode:**
 - All read tools work (`github_get_pr_context`, `github_list_pr_comments`, `github_get_codeowners`, etc.).
 - `github_post_pr_comment` works (PAT has `pull_requests: write`).
-- Repository Graph Index is built locally on `contextos github refresh` or on `github_get_pr_context` first call. No webhooks → manual or periodic refresh only.
+- Repository Graph Index is built locally on `coodra github refresh` or on `github_get_pr_context` first call. No webhooks → manual or periodic refresh only.
 - Policy engine GitHub conditions work against the locally built index.
 
 **What solo mode loses:**
-- Webhook-driven live updates. CODEOWNERS changes require a manual `contextos github refresh` or a nightly cron.
+- Webhook-driven live updates. CODEOWNERS changes require a manual `coodra github refresh` or a nightly cron.
 - Post-context-pack PR comments still post, but bidirectional timeline updates (when a teammate leaves a review) are absent until the next `github_get_pr_context` call.
 
 Solo → team migration: the PAT is discarded when the team-mode GitHub App installation completes. The migration script ensures the App has access to the same repos the PAT did (comparing `owner/repo` lists), and warns on any gap.
@@ -2177,7 +2177,7 @@ const octokit = new Octokit({
 
 ### 23.17 What This Unlocks (Summary for the Reader)
 
-With `§23` in place, every ContextOS run answers these questions that were previously opaque to the agent:
+With `§23` in place, every Coodra run answers these questions that were previously opaque to the agent:
 
 - *"Who owns the files I'm about to edit?"* — CODEOWNERS hit, served from the graph index in <10 ms.
 - *"Is the branch I'm on protected? By what rule?"* — Branch protection lookup, same path.
@@ -2192,7 +2192,7 @@ All of it flows into the NL Assembly LLM during context pack enrichment, so the 
 
 ## 24. MCP Tool Manifest & Agent Discovery Contract
 
-> Everything until now has described what happens once ContextOS is invoked. This section addresses a prior question: **how does the agent decide to invoke ContextOS in the first place?** Without a good answer here, the rest of the architecture is unreachable — hooks fire on events the agent triggers, but the agent never triggers a tool it doesn't know exists or doesn't see a reason to call.
+> Everything until now has described what happens once Coodra is invoked. This section addresses a prior question: **how does the agent decide to invoke Coodra in the first place?** Without a good answer here, the rest of the architecture is unreachable — hooks fire on events the agent triggers, but the agent never triggers a tool it doesn't know exists or doesn't see a reason to call.
 
 ### 24.1 The Gap This Section Closes
 
@@ -2208,7 +2208,7 @@ This produces three hard requirements that previous sections left implicit:
 
 ```
 ┌─────────────┐                                       ┌───────────────────┐
-│ Agent       │                                       │ ContextOS MCP     │
+│ Agent       │                                       │ Coodra MCP     │
 │ (Claude     │                                       │ Server            │
 │  Code, etc.)│                                       │                   │
 └──────┬──────┘                                       └─────────┬─────────┘
@@ -2266,13 +2266,13 @@ This produces three hard requirements that previous sections left implicit:
 
 ### 24.3 Anatomy of a Good Description
 
-Every ContextOS tool description follows this five-part recipe. Deviation must be justified.
+Every Coodra tool description follows this five-part recipe. Deviation must be justified.
 
 1. **Trigger phrase at the start.** *"Call this BEFORE editing any file..."*, *"Call this IMMEDIATELY after choosing a library..."*, *"Call this when the user asks 'what was done?'..."*. The first six words should tell the planner whether this tool is relevant to the turn at hand.
 2. **What it returns, in one sentence.** The planner needs to model the response shape to decide if it answers the current question.
 3. **Why the agent needs it.** One clause on consequence — *"without this, your edits will probably violate conventions the team has already decided"*.
 4. **When NOT to call it (if ambiguity is likely).** Prevents the planner from firing the tool at every turn.
-5. **Lowercase naming**, snake_case, no vendor prefix inside the name (we rely on the MCP `contextos__` server prefix for disambiguation).
+5. **Lowercase naming**, snake_case, no vendor prefix inside the name (we rely on the MCP `coodra__` server prefix for disambiguation).
 
 Anti-patterns banned:
 - *"Returns a feature pack."* — no trigger, no consequence.
@@ -2280,11 +2280,11 @@ Anti-patterns banned:
 - *"Useful for..."* — hedging. If it's useful, say when.
 - Descriptions outside the word-count envelope — **40–80 words is the soft target, 120 is the hard maximum** (amended 2026-04-23 per Q-02-6; the old ~80-word cap was too tight for tools with structured outputs that need an extra sentence of shape documentation). Character length is additionally capped at < 800 as a belt-and-braces defence against the system-prompt budget.
 
-### 24.4 Core Tool Manifest — 10 ContextOS Tools
+### 24.4 Core Tool Manifest — 10 Coodra Tools
 
 > Slice 4 (2026-05-03 audit) added the 10th tool, `query_decisions` — see entry below `query_codebase_graph`. Pre-Slice-4 the manifest was 9 tools (Phase 4 Fix F's `ping` + the original 8); Slice 4 adds `query_decisions` to close the cross-session memory gap (audit §3.5: `record_decision` writes were unreadable from the agent surface). Section header retained as-is for git history; canonical count is 10.
 
-These are the tools every project using ContextOS exposes. They bind the agent to the Feature Pack / Context Pack / Policy / Decision lifecycle described in §2 and §18.
+These are the tools every project using Coodra exposes. They bind the agent to the Feature Pack / Context Pack / Policy / Decision lifecycle described in §2 and §18.
 
 #### `get_feature_pack`
 > Call this BEFORE editing, creating, or refactoring any file in this project. Returns the Feature Pack for the module that owns the given path: architectural constraints, coding conventions, permitted files, known gotchas, and the tech lead's guidelines. Always call on the first tool use of a session and whenever switching to a new area of the codebase. Without this, your changes will probably violate conventions the team has already recorded.
@@ -2376,7 +2376,7 @@ These are the tools every project using ContextOS exposes. They bind the agent t
 - `notice: 'query_filtering_deferred_to_m05'` is present whenever M02 returns the full subgraph without applying `query` filtering — same advisory-marker pattern as `search_packs_nl`'s `no_embeddings_yet`. Module 05 drops this marker when it lands typed filtering.
 **Mechanism:** reads `graph.json` nodes/edges loaded by §17. At M02 the handler calls `ctx.graphify.getIndexStatus(slug)` BEFORE `ctx.graphify.expandContextBySlug(slug)`; the ordering is load-bearing — without the status probe, a missing index would silently fall through to `{ nodes: [], edges: [] }` and callers could not distinguish "no results" from "no index".
 **Soft-failures (two distinct shapes — distinct remediations):**
-- `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered in the `projects` table. Remediation: `contextos init`.
+- `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered in the `projects` table. Remediation: `coodra init`.
 - `{ ok: false, error: 'codebase_graph_not_indexed', howToFix: string }` — the project exists but no `graph.json` is present on disk at `<graphifyRoot>/<slug>/graph.json`. Remediation: ``run `graphify scan` at repo root``.
 **Empty result** (index present, graph.json parses to `{ nodes: [], edges: [] }`) → `{ ok: true, nodes: [], edges: [], indexed: true, notice: 'query_filtering_deferred_to_m05' }` — NOT a soft-failure. Same rule as `search_packs_nl` / `query_run_history`.
 **Fail-open (§7):** lib-internal read / parse failures (graph.json exists but is truncated or malformed) collapse to `{ nodes: [], edges: [] }` at the lib layer with `indexed` still `true` — distinct from `codebase_graph_not_indexed` which is caller-addressable.
@@ -2395,7 +2395,7 @@ These are the tools every project using ContextOS exposes. They bind the agent t
 **Returns (success):** `{ ok: true, decisions: Array<{ id, runId, description, rationale, alternatives: string[], createdAt: ISO 8601 }> }`
 **Mechanism:** SELECT decisions.* INNER JOIN runs ON decisions.run_id = runs.id WHERE runs.project_id = ? [AND decisions.run_id = ?] [AND (description LIKE %query% OR rationale LIKE %query%)] ORDER BY decisions.created_at DESC LIMIT ?. The INNER JOIN excludes orphan decisions (run_id NULL after a run deletion — see schema docblock); these survive in the DB for permanent history per ADR-007 but are unreachable from this tool by design. `alternatives` is parsed from JSON-encoded string[]; pre-JSON plain-text rows surface as a single-element array.
 **Soft-failures:**
-- `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered. Remediation: `contextos init`.
+- `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered. Remediation: `coodra init`.
 **Empty result** (project exists, zero decisions in scope) → `{ ok: true, decisions: [] }` — NOT a soft-failure. Same rule as `query_run_history`.
 
 ### 24.5 Integration Tool Manifests — JIRA (8) + GitHub (10)
@@ -2481,7 +2481,7 @@ The `tools/list` handler in `apps/mcp-server/src/handlers/tools-list.ts` is a pu
 
 Descriptions drift. The following safeguards exist:
 
-1. **Manifest unit tests.** Each `manifest.test.ts` asserts the description via `assertManifestDescriptionValid` from `@coodra/contextos-shared/test-utils` — starts with an imperative trigger phrase ("Call this"), word count in 40–120 (soft target 40–80, hard max 120 per Q-02-6), char length in `[200, 800)`, mentions the return shape, and the manifest `name` matches the MCP pattern (and the folder name when supplied). Single helper, single source of truth for §24.3 — used by every ContextOS tool manifest in `apps/mcp-server/` and future `@coodra/contextos-tools-*` packages.
+1. **Manifest unit tests.** Each `manifest.test.ts` asserts the description via `assertManifestDescriptionValid` from `@coodra/shared/test-utils` — starts with an imperative trigger phrase ("Call this"), word count in 40–120 (soft target 40–80, hard max 120 per Q-02-6), char length in `[200, 800)`, mentions the return shape, and the manifest `name` matches the MCP pattern (and the folder name when supplied). Single helper, single source of truth for §24.3 — used by every Coodra tool manifest in `apps/mcp-server/` and future `@coodra/tools-*` packages.
 2. **`tools/list` snapshot test.** `apps/mcp-server/__tests__/tools-list.snapshot.test.ts` snapshots the full `tools/list` response. A diff forces human review of every manifest change.
 3. **Description-PR checklist.** Any PR that changes a `manifest.ts` file triggers a CI bot comment asking the author to confirm `CLAUDE.md §5` is still correct. See `.github/workflows/tool-manifest-check.yml`.
 4. **Version stability.** Within a major version, descriptions may be clarified but not weakened. A tool's trigger phrase (the first sentence) is frozen for the major version. Adding a tool is always allowed; removing or renaming requires a major version bump.

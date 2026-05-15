@@ -13,7 +13,7 @@ This document maps every variable, every route, every data connection, and every
 Configures Next.js 15 App Router. Key decisions:
 
 - **No global `runtime` declaration**. Every route defaults to Node.js. This is required because `better-sqlite3` is a native module — it cannot run on Vercel's edge runtime. Any future edge route must explicitly opt out via `export const runtime = 'edge'`.
-- **`transpilePackages`**: includes `@coodra/contextos-db` and `@coodra/contextos-shared` (workspace packages shipped as TypeScript source, not compiled `dist`). Next.js transpiles them on demand.
+- **`transpilePackages`**: includes `@coodra/db` and `@coodra/shared` (workspace packages shipped as TypeScript source, not compiled `dist`). Next.js transpiles them on demand.
 - **`serverExternalPackages`**: pins `better-sqlite3` as Node.js-only. Prevents bundler errors.
 - **`typedRoutes: true`**: enables type-safe Next.js URL routing. Catches broken `href` props at compile time.
 
@@ -21,13 +21,13 @@ Configures Next.js 15 App Router. Key decisions:
 
 The **critical routing fork** between solo and team modes.
 
-**Solo mode** (`CONTEXTOS_MODE=solo`, default):
+**Solo mode** (`COODRA_MODE=solo`, default):
 - Clerk middleware is completely short-circuited; no JWT validation.
 - `/auth/*` and `/settings/team` routes are rewritten to `/not-found` (return 404).
 - Every other route renders with the synthetic `__solo__` user (resolved by `getActor()` in `lib/auth.ts`).
 - Middleware just checks `isSoloOnly404` and returns early if matched.
 
-**Team mode** (`CONTEXTOS_MODE=team`):
+**Team mode** (`COODRA_MODE=team`):
 - Wraps entire middleware stack in `clerkMiddleware()` for JWT validation.
 - Public routes: `/api/healthz`, `/auth/sign-in`, `/auth/sign-up`.
 - Unauthenticated requests to protected routes → `302 /auth/sign-in?redirect_url=...`.
@@ -35,7 +35,7 @@ The **critical routing fork** between solo and team modes.
 
 **Both modes**: `/api/healthz` is always public (needed for process supervisors to health-check).
 
-The `isSolo` const reads `process.env.CONTEXTOS_MODE` and drives the entire fork.
+The `isSolo` const reads `process.env.COODRA_MODE` and drives the entire fork.
 
 ### `tsconfig.json` (~34 lines)
 
@@ -132,8 +132,8 @@ Every file in `lib/` is server-only (no `'use client'`); imported by Server Comp
 - `function _clearWebDbCache(): void` — test-only helper.
 
 **Behaviour**:
-- **Solo** (`CONTEXTOS_MODE !== 'team'`): calls `createDb({ kind: 'local', sqlite: { path: ~/.contextos/data.db } })` (respects `CONTEXTOS_HOME`).
-- **Team** (`CONTEXTOS_MODE === 'team'`): calls `createDb({ kind: 'cloud', postgres: { databaseUrl: process.env.DATABASE_URL } })`. Throws if `DATABASE_URL` is missing.
+- **Solo** (`COODRA_MODE !== 'team'`): calls `createDb({ kind: 'local', sqlite: { path: ~/.coodra/data.db } })` (respects `COODRA_HOME`).
+- **Team** (`COODRA_MODE === 'team'`): calls `createDb({ kind: 'cloud', postgres: { databaseUrl: process.env.DATABASE_URL } })`. Throws if `DATABASE_URL` is missing.
 
 **Module cache**: once created, the handle is cached in a module-level variable (`cached`). Every route in the same Node.js worker reuses the same handle (one Drizzle pool per worker, `max=10`).
 
@@ -207,7 +207,7 @@ Every file in `lib/` is server-only (no `'use client'`); imported by Server Comp
 
 ### `lib/queries/` Directory — Read-Only Queries
 
-Every file is a thin wrapper around helpers from `@coodra/contextos-db`. They centralize storage-adapter selection (SQLite vs Postgres).
+Every file is a thin wrapper around helpers from `@coodra/db`. They centralize storage-adapter selection (SQLite vs Postgres).
 
 #### `lib/queries/dashboard.ts` (~131 lines)
 
@@ -245,12 +245,12 @@ Every file is a thin wrapper around helpers from `@coodra/contextos-db`. They ce
 
 **Callers**: `/runs`, `/runs/[id]`, `/runs/[id]/live` pages.
 
-**Contract**: thin wrapper around `@coodra/contextos-db` functions; caller provides filter object and optional DbHandle.
+**Contract**: thin wrapper around `@coodra/db` functions; caller provides filter object and optional DbHandle.
 
 #### `lib/queries/kill-switches.ts` (~88 lines)
 
 **Exports**:
-- `const SCOPES, MODES` (re-exported from `@coodra/contextos-db`)
+- `const SCOPES, MODES` (re-exported from `@coodra/db`)
 - `type Scope`
 - `async function listActive(): Promise<KillSwitchRecord[]>`
 - `async function insertKillSwitchWithSync(input): Promise<KillSwitchRecord>`
@@ -277,7 +277,7 @@ Every file is a thin wrapper around helpers from `@coodra/contextos-db`. They ce
 
 **Callers**: `/policies`, `/policies/[id]` pages; server actions (`lib/actions/policies.ts`).
 
-**Contract**: wrappers around `@coodra/contextos-db` policy helpers; no sync-queue logic (policies are written by CLI first; web edits are secondary).
+**Contract**: wrappers around `@coodra/db` policy helpers; no sync-queue logic (policies are written by CLI first; web edits are secondary).
 
 #### `lib/queries/projects.ts` (~37 lines)
 
@@ -300,7 +300,7 @@ Every file is a thin wrapper around helpers from `@coodra/contextos-db`. They ce
 - `function listPacks(cwd?): PackListRow[]`
 - `function getPack(slug: string, cwd?): PackDetail | null`
 
-**Data source**: **filesystem only** (not DB). Scans `docs/feature-packs/` under repo root (walks up from `process.cwd()` up to 6 levels). Respects `CONTEXTOS_PACKS_ROOT` env override.
+**Data source**: **filesystem only** (not DB). Scans `docs/feature-packs/` under repo root (walks up from `process.cwd()` up to 6 levels). Respects `COODRA_PACKS_ROOT` env override.
 
 **File-scanning logic**:
 - Walks each pack directory looking for: `meta.json`, `spec.md`, `implementation.md`, `techstack.md`.
@@ -319,8 +319,8 @@ Every file is a thin wrapper around helpers from `@coodra/contextos-db`. They ce
 - `function listTemplates(): TemplateRow[]`
 
 **Data source**: **filesystem only** (two-tier). Scans:
-1. User templates: `~/.contextos/templates/` (respects `CONTEXTOS_HOME`)
-2. Bundled templates: `node_modules/@coodra/contextos-cli/templates/` or workspace `packages/cli/templates/`
+1. User templates: `~/.coodra/templates/` (respects `COODRA_HOME`)
+2. Bundled templates: `node_modules/@coodra/cli/templates/` or workspace `packages/cli/templates/`
 
 User templates shadow bundled ones with the same name. Each template must have a `template.json` file.
 
@@ -411,10 +411,10 @@ Every `process.env.*` reference in the web app:
 
 | Variable | Type | Mode | Scope | Purpose | Default |
 |----------|------|------|-------|---------|---------|
-| `CONTEXTOS_MODE` | string | Both | Server | Controls solo/team fork; read in middleware, auth.ts, db.ts, dashboard.ts, pages | `'solo'` |
-| `CONTEXTOS_HOME` | string | Solo | Server | Path to solo user's data dir; used for SQLite location + template dir | `~/.contextos` (via `homedir()`) |
+| `COODRA_MODE` | string | Both | Server | Controls solo/team fork; read in middleware, auth.ts, db.ts, dashboard.ts, pages | `'solo'` |
+| `COODRA_HOME` | string | Solo | Server | Path to solo user's data dir; used for SQLite location + template dir | `~/.coodra` (via `homedir()`) |
 | `DATABASE_URL` | string | Team | Server | Postgres connection string; required in team mode, throws if missing | (none; throws if team mode) |
-| `CONTEXTOS_PACKS_ROOT` | string | Both | Server | Override pack directory location | (auto-walk up to find `docs/feature-packs`) |
+| `COODRA_PACKS_ROOT` | string | Both | Server | Override pack directory location | (auto-walk up to find `docs/feature-packs`) |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | string (`NEXT_PUBLIC_`) | Team | Client + Server | Clerk publishable key; used by `@clerk/nextjs` library | (none; required in team mode) |
 | `CLERK_SECRET_KEY` | string | Team | Server (hidden from client) | Clerk secret key; used by `@clerk/nextjs/server` | (none; required in team mode) |
 | `CLERK_JWT_ISSUER` | string | Team | Server | Optional override for JWT issuer URL (normally auto-discovered from publishable key) | (auto-discovered via `resolveClerkIssuer()`) |
@@ -423,9 +423,9 @@ Every `process.env.*` reference in the web app:
 
 **`NEXT_PUBLIC_` prefix** = visible in browser (included in JS bundle). Used only for `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Clerk SDK needs it client-side for UI components).
 
-**Server-only** (redacted from client): `CONTEXTOS_MODE`, `CONTEXTOS_HOME`, `DATABASE_URL`, `CONTEXTOS_PACKS_ROOT`, `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER`.
+**Server-only** (redacted from client): `COODRA_MODE`, `COODRA_HOME`, `DATABASE_URL`, `COODRA_PACKS_ROOT`, `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER`.
 
-**Solo-only**: `CONTEXTOS_HOME`.
+**Solo-only**: `COODRA_HOME`.
 
 **Team-only**: `DATABASE_URL`, `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`.
 
@@ -497,7 +497,7 @@ app/page.tsx (DashboardPage, server component)
    └─ browser renders HTML
 ```
 
-**Solo divergence**: no Clerk init, direct SQLite queries against `~/.contextos/data.db`.
+**Solo divergence**: no Clerk init, direct SQLite queries against `~/.coodra/data.db`.
 **Team divergence**: Clerk JWT validation, Postgres queries via `DATABASE_URL`.
 **Cache**: RootLayout calls `getActor()` once per request (server-side only; client doesn't know about it).
 
@@ -624,7 +624,7 @@ lib/actions/kill-switches.ts::pauseAction(formData)
    │   }) →
    │     ├─ createWebDb()
    │     ├─ INSERT INTO kill_switches (scope, target, mode, reason, pausedBySessionId, expiresAt, pausedAt=NOW)
-   │     ├─ if (CONTEXTOS_MODE === 'team') INSERT INTO durable_writes (queue='sync_to_cloud', payload={table: 'kill_switches', ...})
+   │     ├─ if (COODRA_MODE === 'team') INSERT INTO durable_writes (queue='sync_to_cloud', payload={table: 'kill_switches', ...})
    │     │     [sync-daemon's puller will pick this up ~10s; fans out to all developers]
    │     └─ return inserted row
    ├─ revalidatePath('/kill-switches')
@@ -642,7 +642,7 @@ lib/actions/kill-switches.ts::resumeAction(formData)
    ├─ actor = getActor()
    ├─ row = softResumeWithSync({ id, resumedBySessionId: `web:${actor.userId}` }) →
    │     ├─ UPDATE kill_switches SET resumedAt=NOW WHERE id=<id>
-   │     ├─ if (CONTEXTOS_MODE === 'team') enqueue sync_to_cloud
+   │     ├─ if (COODRA_MODE === 'team') enqueue sync_to_cloud
    │     └─ return updated row
    ├─ revalidatePath('/kill-switches')
    ├─ revalidatePath('/')
@@ -722,14 +722,14 @@ Tailwind v4 allows `className="bg-(--color-brand)"` syntax (arbitrary value with
 
 ---
 
-## 8. The Mode Switch: `CONTEXTOS_MODE`
+## 8. The Mode Switch: `COODRA_MODE`
 
-Every concrete code branch controlled by `process.env.CONTEXTOS_MODE`:
+Every concrete code branch controlled by `process.env.COODRA_MODE`:
 
 ### Middleware (`middleware.ts`, lines 25–52)
 
 ```typescript
-const isSolo = (process.env.CONTEXTOS_MODE ?? 'solo') === 'solo';
+const isSolo = (process.env.COODRA_MODE ?? 'solo') === 'solo';
 export default isSolo ? soloMiddleware : clerkMiddleware(...)
 ```
 
@@ -739,7 +739,7 @@ export default isSolo ? soloMiddleware : clerkMiddleware(...)
 ### Auth resolution (`lib/auth.ts`, lines 20–38)
 
 ```typescript
-const mode = (process.env.CONTEXTOS_MODE ?? 'solo') as 'solo' | 'team';
+const mode = (process.env.COODRA_MODE ?? 'solo') as 'solo' | 'team';
 if (mode === 'solo') return SOLO_ACTOR;
 const { auth } = await import('@clerk/nextjs/server'); // lazy import (solo bundles don't pull Clerk)
 const session = await auth();
@@ -752,24 +752,24 @@ return { userId: session.userId, orgId: session.orgId ?? 'no-org', mode: 'team' 
 ### DB adapter (`lib/db.ts`, lines 27–42)
 
 ```typescript
-const mode = process.env.CONTEXTOS_MODE ?? 'solo';
+const mode = process.env.COODRA_MODE ?? 'solo';
 if (mode === 'team') {
   const url = process.env.DATABASE_URL; // throws if missing
   cached = createDb({ kind: 'cloud', postgres: { databaseUrl: url } });
 } else {
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const path = resolve(home, 'data.db');
   cached = createDb({ kind: 'local', sqlite: { path } });
 }
 ```
 
-- **Solo**: SQLite at `~/.contextos/data.db` (or `${CONTEXTOS_HOME}/data.db`).
+- **Solo**: SQLite at `~/.coodra/data.db` (or `${COODRA_HOME}/data.db`).
 - **Team**: Postgres via `DATABASE_URL`.
 
 ### Dashboard snapshot (`lib/queries/dashboard.ts`, line 35)
 
 ```typescript
-const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
 return { ..., mode, ... };
 ```
 
@@ -779,7 +779,7 @@ Snapshot includes mode flag so dashboard can render mode-specific UI hints.
 
 ```typescript
 function isTeamMode(): boolean {
-  return process.env.CONTEXTOS_MODE === 'team';
+  return process.env.COODRA_MODE === 'team';
 }
 // Then in insertKillSwitchWithSync() + softResumeWithSync():
 if (isTeamMode()) {
@@ -795,7 +795,7 @@ if (isTeamMode()) {
 ```typescript
 // app/auth/sign-in/page.tsx, app/auth/sign-up/page.tsx,
 // app/settings/account/page.tsx, app/settings/team/page.tsx
-if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
+if ((process.env.COODRA_MODE ?? 'solo') === 'solo') notFound();
 ```
 
 - **Solo**: `notFound()` renders `/not-found` page (404 visual).
@@ -804,7 +804,7 @@ if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
 ### API health check (`app/api/healthz/route.ts`, line 19)
 
 ```typescript
-mode: process.env.CONTEXTOS_MODE ?? 'solo',
+mode: process.env.COODRA_MODE ?? 'solo',
 ```
 
 Returned in JSON response for monitoring/debugging.
@@ -842,8 +842,8 @@ browser request
    │
    ▼
 middleware.ts
-   ├─ if CONTEXTOS_MODE=solo: soloMiddleware (404 auth routes)
-   └─ if CONTEXTOS_MODE=team: clerkMiddleware (JWT validation)
+   ├─ if COODRA_MODE=solo: soloMiddleware (404 auth routes)
+   └─ if COODRA_MODE=team: clerkMiddleware (JWT validation)
    │
    ▼
 RootLayout

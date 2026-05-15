@@ -1,7 +1,7 @@
 /**
  * `packages/cli/src/lib/team-init/clerk-jwt-template.ts` — Phase H.12.
  *
- * Auto-create the `contextos_cli` JWT template in the admin's Clerk
+ * Auto-create the `coodra_cli` JWT template in the admin's Clerk
  * instance via the Backend API. Replaces the previous manual step where
  * the admin had to go into the Clerk dashboard → JWT Templates → "New
  * template" → fill in claims by hand (and got it wrong roughly every
@@ -9,7 +9,7 @@
  * `org_id missing`).
  *
  * The template the CLI needs:
- *   - name: `contextos_cli`
+ *   - name: `coodra_cli`
  *   - claims: `org_id`, `org_role`, `email` (the three fields
  *     `verify-clerk-jwt.ts::extractClaims` reads)
  *   - lifetime: 86400s (24h) — long-lived for a CLI session token
@@ -35,7 +35,7 @@
  * and pick the right remediation copy.
  */
 
-export const CONTEXTOS_CLI_TEMPLATE_NAME = 'contextos_cli';
+export const COODRA_CLI_TEMPLATE_NAME = 'coodra_cli';
 
 export interface EnsureJwtTemplateInput {
   readonly secretKey: string;
@@ -72,14 +72,14 @@ const DEFAULT_LIFETIME_SECONDS = 86400;
 const DEFAULT_API_BASE = 'https://api.clerk.com/v1';
 
 /**
- * Idempotently ensure the `contextos_cli` JWT template exists in the
+ * Idempotently ensure the `coodra_cli` JWT template exists in the
  * Clerk instance the secret key authenticates to.
  */
-export async function ensureContextosCliJwtTemplate(input: EnsureJwtTemplateInput): Promise<EnsureJwtTemplateResult> {
+export async function ensureCoodraCliJwtTemplate(input: EnsureJwtTemplateInput): Promise<EnsureJwtTemplateResult> {
   const apiBase = (input.apiBase ?? DEFAULT_API_BASE).replace(/\/$/, '');
   const lifetime = input.lifetimeSeconds ?? DEFAULT_LIFETIME_SECONDS;
 
-  // Step 1 — list existing templates. Look for `name === 'contextos_cli'`.
+  // Step 1 — list existing templates. Look for `name === 'coodra_cli'`.
   let listResponse: Response;
   try {
     listResponse = await fetch(`${apiBase}/jwt_templates`, {
@@ -104,7 +104,7 @@ export async function ensureContextosCliJwtTemplate(input: EnsureJwtTemplateInpu
       error: 'unauthorized',
       howToFix:
         'Clerk Backend API rejected the Secret Key. Re-check the key value (must start with `sk_test_` or `sk_live_`) ' +
-        'and that it belongs to the same Clerk instance you intend to use for ContextOS.',
+        'and that it belongs to the same Clerk instance you intend to use for Coodra.',
       underlyingError: `HTTP 401 from GET ${apiBase}/jwt_templates`,
     };
   }
@@ -142,7 +142,7 @@ export async function ensureContextosCliJwtTemplate(input: EnsureJwtTemplateInpu
     };
   }
 
-  const existing = (listJson.data ?? []).find((t) => t.name === CONTEXTOS_CLI_TEMPLATE_NAME);
+  const existing = (listJson.data ?? []).find((t) => t.name === COODRA_CLI_TEMPLATE_NAME);
   if (existing !== undefined) {
     return { ok: true, status: 'already_exists', templateId: existing.id };
   }
@@ -151,7 +151,7 @@ export async function ensureContextosCliJwtTemplate(input: EnsureJwtTemplateInpu
   // syntax (`{{org.id}}` etc.) so the signed claim reflects the
   // requesting session at sign time.
   const body = {
-    name: CONTEXTOS_CLI_TEMPLATE_NAME,
+    name: COODRA_CLI_TEMPLATE_NAME,
     claims: {
       org_id: '{{org.id}}',
       org_role: '{{org.role}}',
@@ -218,7 +218,7 @@ export async function ensureContextosCliJwtTemplate(input: EnsureJwtTemplateInpu
         `Clerk rejected the JWT template POST with HTTP ${createResponse.status}. ` +
         (detail.length > 0 ? `Detail: ${detail}. ` : '') +
         'You can create the template manually via Clerk dashboard → JWT Templates → New template, with name ' +
-        `"${CONTEXTOS_CLI_TEMPLATE_NAME}" and claims org_id={{org.id}}, org_role={{org.role}}, email={{user.primary_email_address}}.`,
+        `"${COODRA_CLI_TEMPLATE_NAME}" and claims org_id={{org.id}}, org_role={{org.role}}, email={{user.primary_email_address}}.`,
       underlyingError: `HTTP ${createResponse.status} from POST ${apiBase}/jwt_templates${detail.length > 0 ? ` — ${detail}` : ''}`,
     };
   }

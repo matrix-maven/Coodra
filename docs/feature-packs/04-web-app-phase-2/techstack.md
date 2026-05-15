@@ -70,7 +70,7 @@ The XSS gate. Runs after parse, removes `<script>`, javascript: URLs, on*= handl
 
 #### `remark-gfm` ^4
 
-Adds GitHub-flavored markdown to react-markdown's CommonMark base: tables, task lists, strikethrough, autolinks. Most ContextOS docs (system-architecture.md, feature-pack specs) use GFM tables extensively, so this is mandatory not optional.
+Adds GitHub-flavored markdown to react-markdown's CommonMark base: tables, task lists, strikethrough, autolinks. Most Coodra docs (system-architecture.md, feature-pack specs) use GFM tables extensively, so this is mandatory not optional.
 
 #### `reactflow` ^11.11.4
 

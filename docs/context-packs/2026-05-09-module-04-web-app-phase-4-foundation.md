@@ -24,7 +24,7 @@ Running the team migration / sync / RBAC layer through tests + production code p
 
 ### Team-config reader/writer
 
-- [packages/cli/src/lib/team-config.ts](../../packages/cli/src/lib/team-config.ts) — atomic file I/O for `~/.contextos/config.json::team` block. `readTeamConfig`, `writeTeamConfig`, `upgradeToTeamConfig`, `demoteToSoloConfig`, `updateLastPulledAt`.
+- [packages/cli/src/lib/team-config.ts](../../packages/cli/src/lib/team-config.ts) — atomic file I/O for `~/.coodra/config.json::team` block. `readTeamConfig`, `writeTeamConfig`, `upgradeToTeamConfig`, `demoteToSoloConfig`, `updateLastPulledAt`.
 - 14 unit tests covering missing-file / corrupt-JSON / partial-team-block tolerance + atomic-write contract.
 
 ### Actor identity wiring
@@ -44,8 +44,8 @@ Running the team migration / sync / RBAC layer through tests + production code p
 - [packages/cli/src/lib/team-migrate/](../../packages/cli/src/lib/team-migrate/) — engine: `types.ts`, `planner.ts`, `executor.ts` (12-phase pipeline), `rollback.ts`, `index.ts` barrel.
 - [packages/cli/src/commands/team-setup-cmd.ts](../../packages/cli/src/commands/team-setup-cmd.ts) — **`runTeamSetupCommand`** (admin bootstrap: connectivity check → pgvector install → migrations → schema verify → local config → credentials block). The first command an admin runs.
 - [packages/cli/src/commands/team-migrate-cmd.ts](../../packages/cli/src/commands/team-migrate-cmd.ts) — `runTeamMigrateCommand`, `runTeamJoinCommand`, `runTeamLeaveCommand`.
-- Wired into `program.ts`: `contextos team setup / migrate / join / leave` subcommands.
-- [packages/cli/src/doctor/checks/36-team-config.ts](../../packages/cli/src/doctor/checks/36-team-config.ts) — doctor check that surfaces team-config drift (CONTEXTOS_MODE=team but config still solo, partial team blocks, weak hook secrets).
+- Wired into `program.ts`: `coodra team setup / migrate / join / leave` subcommands.
+- [packages/cli/src/doctor/checks/36-team-config.ts](../../packages/cli/src/doctor/checks/36-team-config.ts) — doctor check that surfaces team-config drift (COODRA_MODE=team but config still solo, partial team blocks, weak hook secrets).
 - [packages/cli/src/commands/cloud-migrate.ts](../../packages/cli/src/commands/cloud-migrate.ts) — `EXPECTED_PUBLIC_TABLES` updated for the post-M06 + M04 Phase 4 14-table schema.
 - 4 integration tests in [packages/cli/__tests__/integration/team-migrate.test.ts](../../packages/cli/__tests__/integration/team-migrate.test.ts) covering plan correctness / preserved run_ids / idempotent re-run / slug-conflict detection / rollback + snapshot restore.
 - 1 end-to-end smoke test in [packages/cli/__tests__/integration/team-end-to-end.test.ts](../../packages/cli/__tests__/integration/team-end-to-end.test.ts) — admin setup → solo work → migrate → member joins → cross-team-member visibility verified against a real Postgres.
@@ -58,9 +58,9 @@ Running the team migration / sync / RBAC layer through tests + production code p
 
 The smoke test was run against a real Supabase project and surfaced **five critical production bugs** that would have hit real users on day one. Every fix is robust, not a workaround:
 
-1. **WAL-mode snapshot bug** ([executor.ts::snapshotLocalDb](../../packages/cli/src/lib/team-migrate/executor.ts)). ContextOS local SQLite runs in WAL mode (per packages/db/src/client.ts:88). The original `snapshotLocalDb` was a plain `copyFileSync` which captured only the main file, missing recent writes still in `<src>-wal`. **Real-world impact:** every `team migrate --rollback` would have restored an effectively-empty DB — total data loss on the recovery path. **Fix:** `PRAGMA wal_checkpoint(TRUNCATE)` before copy, forcing WAL into the main file.
+1. **WAL-mode snapshot bug** ([executor.ts::snapshotLocalDb](../../packages/cli/src/lib/team-migrate/executor.ts)). Coodra local SQLite runs in WAL mode (per packages/db/src/client.ts:88). The original `snapshotLocalDb` was a plain `copyFileSync` which captured only the main file, missing recent writes still in `<src>-wal`. **Real-world impact:** every `team migrate --rollback` would have restored an effectively-empty DB — total data loss on the recovery path. **Fix:** `PRAGMA wal_checkpoint(TRUNCATE)` before copy, forcing WAL into the main file.
 
-2. **FK violation in `rewriteLocalProjectIds`** ([executor.ts](../../packages/cli/src/lib/team-migrate/executor.ts)). With `foreign_keys=ON` (the SQLite default in ContextOS), updating `projects.id` first orphaned the runs/context_packs/policies/policy_decisions FKs, and updating children first pointed them at non-existent projects. **Real-world impact:** every `team migrate --yes` against any local DB with project data would fail at phase 10 with `FOREIGN KEY constraint failed`. **Fix:** wrap the rewrite in a better-sqlite3 transaction with `PRAGMA defer_foreign_keys = ON` so FK validation is deferred to COMMIT.
+2. **FK violation in `rewriteLocalProjectIds`** ([executor.ts](../../packages/cli/src/lib/team-migrate/executor.ts)). With `foreign_keys=ON` (the SQLite default in Coodra), updating `projects.id` first orphaned the runs/context_packs/policies/policy_decisions FKs, and updating children first pointed them at non-existent projects. **Real-world impact:** every `team migrate --yes` against any local DB with project data would fail at phase 10 with `FOREIGN KEY constraint failed`. **Fix:** wrap the rewrite in a better-sqlite3 transaction with `PRAGMA defer_foreign_keys = ON` so FK validation is deferred to COMMIT.
 
 3. **Idempotency check missing in planner** ([planner.ts](../../packages/cli/src/lib/team-migrate/planner.ts)). Re-running `team migrate` on already-migrated state minted fresh uuids for projects whose ids already matched cloud, then auto-renamed them with hex suffixes (creating duplicates) or hit slug-uniqueness violations. **Real-world impact:** documented "idempotent + resumable" contract was silently broken. **Fix:** identity-match check in `buildProjectIdMap` (preserves id when local.id already exists in cloud) + matching skip in `detectSlugConflicts`.
 
@@ -77,9 +77,9 @@ Plus three quality-of-life fixes:
 
 - `pnpm -r typecheck` → **all 9 packages clean**
 - `pnpm -r test:unit` → **868/868 tests pass**
-- `pnpm --filter @coodra/contextos-cli test:integration` (with `DATABASE_URL` set against the real Supabase at `gyopozvfmggumidptmjr.supabase.co`) → **60/60 tests pass**, including the team-end-to-end smoke test that exercises admin setup → solo seed → migrate → member joins → cross-team-member visibility.
+- `pnpm --filter @coodra/cli test:integration` (with `DATABASE_URL` set against the real Supabase at `gyopozvfmggumidptmjr.supabase.co`) → **60/60 tests pass**, including the team-end-to-end smoke test that exercises admin setup → solo seed → migrate → member joins → cross-team-member visibility.
 
-This means a real user running `contextos team setup` followed by `contextos team migrate` followed by `contextos team migrate --rollback` against their own Supabase will see all three commands work as documented. No reverts, no "this only runs in our environment" workarounds.
+This means a real user running `coodra team setup` followed by `coodra team migrate` followed by `coodra team migrate --rollback` against their own Supabase will see all three commands work as documented. No reverts, no "this only runs in our environment" workarounds.
 
 ### Architecture docs
 
@@ -95,7 +95,7 @@ This means a real user running `contextos team setup` followed by `contextos tea
 - **Decision (2026-05-09): Pull-sync is mandatory in team mode (Caveat 1).** Rationale: M05 SessionStart recent-decisions injection silently broke without it — member A's decision invisible to member B's local MCP. The fix ships with team-mode foundation, not after. Alternatives: ship team mode without pull-sync (rejected — silent feature regression).
 - **Decision (2026-05-09): Migration is solo→team only at the data layer.** Rationale: `team leave` clears local config but doesn't delete team-tagged local rows — that's a destructive operation deferred to a future `clean-team-data` command. Cloud data untouched on leave. Alternatives: team→solo data move (rejected — not a real use case; users who leave can re-join with the same Clerk identity and the data flows back via pull-sync).
 - **Decision (2026-05-09): `run_id` preserved across migration.** Rationale: per the original plan §3.4, run_ids are decorative strings (the FK is what enforces integrity). Preserving them keeps grep-based audit cross-refs intact even when the project_id portion of the run_id encodes the original solo project_id. Alternatives: regenerate run_ids on migration (rejected — adds risk for zero benefit).
-- **Decision (2026-05-09): Team mode is bring-your-own-database.** Rationale: each team owns their data; ContextOS does not host or proxy a cloud DB on the team's behalf. The admin connects to their own Supabase / Postgres via `contextos team setup`, which validates connectivity, installs pgvector, applies migrations, and prints credentials for teammates. Alternatives considered: multi-tenant cloud hosted by ContextOS (rejected — operational scope outside this product, conflicts with ADR-008 local-first thesis, and adds compliance / data-residency obligations a self-hosted model avoids).
+- **Decision (2026-05-09): Team mode is bring-your-own-database.** Rationale: each team owns their data; Coodra does not host or proxy a cloud DB on the team's behalf. The admin connects to their own Supabase / Postgres via `coodra team setup`, which validates connectivity, installs pgvector, applies migrations, and prints credentials for teammates. Alternatives considered: multi-tenant cloud hosted by Coodra (rejected — operational scope outside this product, conflicts with ADR-008 local-first thesis, and adds compliance / data-residency obligations a self-hosted model avoids).
 
 ## Files modified / created
 
@@ -165,5 +165,5 @@ Integration tests (skipped without DATABASE_URL; verified via testcontainers):
 3. **Vitest port** — apps/web/ → apps/web-v2/ (16 test files).
 4. **Cutover** — rm apps/web/, mv apps/web-v2 apps/web, update workspace globs.
 5. **Multi-org user support** — actor-identity assumes one active org per machine. Future: org-switcher → team-config update.
-6. **`contextos clean-team-data`** CLI command — `team leave` doesn't delete team-tagged local rows; future scrubbing command.
+6. **`coodra clean-team-data`** CLI command — `team leave` doesn't delete team-tagged local rows; future scrubbing command.
 7. **Real Clerk OAuth** for `team join` — v1 accepts credentials via flags; future versions will exchange a one-time code.

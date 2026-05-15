@@ -12,7 +12,7 @@ import {
   readProjectExport as readProjectExportDb,
   renameProject as renameProjectDb,
   resetProject as resetProjectDb,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 

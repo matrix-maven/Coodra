@@ -1,6 +1,6 @@
-# `@coodra/contextos-web` — Module 04 Web App
+# `@coodra/web` — Module 04 Web App
 
-Next.js 15 admin + audit-trail UI for ContextOS. Same build in solo (against `~/.contextos/data.db` via `better-sqlite3`) and team (against Supabase Postgres + Clerk JWT). Brand fidelity per `docs/brand/`.
+Next.js 15 admin + audit-trail UI for Coodra. Same build in solo (against `~/.coodra/data.db` via `better-sqlite3`) and team (against Supabase Postgres + Clerk JWT). Brand fidelity per `docs/brand/`.
 
 Spec, slice plan, and per-route wireframes live at [`docs/feature-packs/04-web-app/`](../../docs/feature-packs/04-web-app/).
 
@@ -11,18 +11,18 @@ Spec, slice plan, and per-route wireframes live at [`docs/feature-packs/04-web-a
 cp ../../.env apps/web/.env.local
 
 # Dev server on :3000
-pnpm --filter @coodra/contextos-web dev
+pnpm --filter @coodra/web dev
 ```
 
-Solo mode (default) reads from `~/.contextos/data.db`. Team mode reads from the cloud Postgres at `DATABASE_URL`.
+Solo mode (default) reads from `~/.coodra/data.db`. Team mode reads from the cloud Postgres at `DATABASE_URL`.
 
 ## Verification
 
 ```sh
-pnpm --filter @coodra/contextos-web typecheck
-pnpm --filter @coodra/contextos-web lint
-pnpm --filter @coodra/contextos-web test:unit
-pnpm --filter @coodra/contextos-web build
+pnpm --filter @coodra/web typecheck
+pnpm --filter @coodra/web lint
+pnpm --filter @coodra/web test:unit
+pnpm --filter @coodra/web build
 ```
 
 ## What's in S1 (this commit)

@@ -1,25 +1,25 @@
 import { existsSync, statSync } from 'node:fs';
 
-import { lookupProjectBySlug, type DbHandle } from '@coodra/contextos-db';
-import { featuresRoot, generateFeaturesIndex } from '@coodra/contextos-shared/features';
-import { createLogger } from '@coodra/contextos-shared';
+import { lookupProjectBySlug, type DbHandle } from '@coodra/db';
+import { featuresRoot, generateFeaturesIndex } from '@coodra/shared/features';
+import { createLogger } from '@coodra/shared';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { ListFeaturesInput, ListFeaturesOutput } from './schema.js';
 
 /**
- * Handler for `contextos__list_features`.
+ * Handler for `coodra__list_features`.
  *
  * Resolution order:
  *   1. `projectSlug` → `projects.cwd` via `lookupProjectBySlug`. The cwd
  *      is the absolute project root (the directory containing
- *      `.contextos.json`). Recorded by the bridge / CLI on first
+ *      `.coodra.json`). Recorded by the bridge / CLI on first
  *      registration; always populated for projects created post the
  *      2026-05-08 schema bump.
  *
  *   2. `<cwd>/docs/features/` must exist on disk. Otherwise return
  *      `features_dir_missing` so the agent can prompt the user to add a
- *      first feature via the web wizard or `contextos feature add`.
+ *      first feature via the web wizard or `coodra feature add`.
  *
  *   3. Run `generateFeaturesIndex` (idempotent regen-on-read — same
  *      pattern the bridge SessionStart loader uses; the generator
@@ -54,8 +54,8 @@ export function createListFeaturesHandler(
         ok: false,
         error: 'project_not_found',
         howToFix:
-          `No projects row for slug "${input.projectSlug}". Run \`contextos init\` from the project root to register it, ` +
-          'or pass the slug exactly as it appears in `.contextos.json`.',
+          `No projects row for slug "${input.projectSlug}". Run \`coodra init\` from the project root to register it, ` +
+          'or pass the slug exactly as it appears in `.coodra.json`.',
       };
     }
     if (project.cwd === null) {
@@ -67,7 +67,7 @@ export function createListFeaturesHandler(
         ok: false,
         error: 'project_cwd_unknown',
         howToFix:
-          'This project has no recorded cwd (legacy row from before 2026-05-08). Open Claude Code inside the project root once — the bridge backfills `projects.cwd` on first SessionStart — or re-run `contextos init`.',
+          'This project has no recorded cwd (legacy row from before 2026-05-08). Open Claude Code inside the project root once — the bridge backfills `projects.cwd` on first SessionStart — or re-run `coodra init`.',
       };
     }
     const root = featuresRoot(project.cwd);
@@ -80,7 +80,7 @@ export function createListFeaturesHandler(
         ok: false,
         error: 'features_dir_missing',
         howToFix:
-          `No \`docs/features/\` directory in this project. Add a first feature via the web UI (Project home → Features → + Add feature) or run \`contextos feature add <slug>\` from inside the project root.`,
+          `No \`docs/features/\` directory in this project. Add a first feature via the web UI (Project home → Features → + Add feature) or run \`coodra feature add <slug>\` from inside the project root.`,
       };
     }
 

@@ -111,7 +111,7 @@ export function ProjectsHub({ projects, mode, fetchedAt, systemStatus }: Project
   return (
     <>
       <Topbar
-        crumbs={[{ label: 'contextos' }, { label: 'Projects' }]}
+        crumbs={[{ label: 'coodra' }, { label: 'Projects' }]}
         search={<SearchInput query={query} onQueryChange={setQuery} inputRef={inputRef} />}
         actions={
           <>
@@ -168,9 +168,9 @@ export function ProjectsHub({ projects, mode, fetchedAt, systemStatus }: Project
             }
             body={
               <>
-                ContextOS organises everything around projects. Create one from the web wizard, or run{' '}
+                Coodra organises everything around projects. Create one from the web wizard, or run{' '}
                 <span className="font-mono text-accent">
-                  contextos init --project-slug X --no-graphify --ide claude
+                  coodra init --project-slug X --no-graphify --ide claude
                 </span>{' '}
                 in a project root.
               </>

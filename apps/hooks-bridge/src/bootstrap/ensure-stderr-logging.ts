@@ -4,7 +4,7 @@
  * Hooks Bridge is HTTP-only — there is no stdout-purity requirement
  * like there is for the mcp-server's stdio transport. But routing pino
  * to stderr keeps the operator log convention identical across the two
- * services: `journalctl -u contextos-mcp-server -u contextos-hooks-bridge -f`
+ * services: `journalctl -u coodra-mcp-server -u coodra-hooks-bridge -f`
  * shows interleaved JSON, not a stdout/stderr split that the IDE
  * launcher might or might not pipe consistently.
  *
@@ -16,19 +16,19 @@
  *     deviation. We do NOT exit 1 the way mcp-server does — there
  *     is no transport that would break.
  *
- * Once this module has run, any subsequent `import '@coodra/contextos-shared'`
+ * Once this module has run, any subsequent `import '@coodra/shared'`
  * call resolves the shared logger pointed at the configured destination.
  */
 
-const configured = process.env.CONTEXTOS_LOG_DESTINATION;
+const configured = process.env.COODRA_LOG_DESTINATION;
 const normalized = configured?.toLowerCase();
 
 if (normalized === undefined || normalized === '') {
-  process.env.CONTEXTOS_LOG_DESTINATION = 'stderr';
+  process.env.COODRA_LOG_DESTINATION = 'stderr';
 } else if (normalized === 'stderr' || normalized === 'stdout') {
-  process.env.CONTEXTOS_LOG_DESTINATION = normalized;
+  process.env.COODRA_LOG_DESTINATION = normalized;
 } else {
-  const msg = `@coodra/contextos-hooks-bridge: refusing to start — CONTEXTOS_LOG_DESTINATION is '${configured}', must be 'stderr' or 'stdout'.\n`;
+  const msg = `@coodra/hooks-bridge: refusing to start — COODRA_LOG_DESTINATION is '${configured}', must be 'stderr' or 'stdout'.\n`;
   process.stderr.write(msg);
   process.exit(1);
 }

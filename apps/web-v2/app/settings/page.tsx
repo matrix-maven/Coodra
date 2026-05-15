@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function SettingsPage() {
   const actor = await getActor();
   const mode = actor.mode;
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
 
   return (
     <>
@@ -48,7 +48,7 @@ export default async function SettingsPage() {
                   marginTop: 14,
                 }}
               >
-                Switch by setting <strong style={{ color: 'var(--ink)' }}>CONTEXTOS_MODE</strong> in{' '}
+                Switch by setting <strong style={{ color: 'var(--ink)' }}>COODRA_MODE</strong> in{' '}
                 <span style={{ color: 'var(--ink)' }}>.env.local</span> and restarting the dev server.
               </div>
             </div>
@@ -87,7 +87,7 @@ export default async function SettingsPage() {
               <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
                 Storage
               </h3>
-              <KV k="CONTEXTOS_HOME" v={home} />
+              <KV k="COODRA_HOME" v={home} />
               <KV k="LOG_LEVEL" v={process.env.LOG_LEVEL ?? 'info'} />
               <KV k="MCP port" v={process.env.MCP_SERVER_PORT ?? '3100'} />
               <KV k="Bridge port" v={process.env.HOOKS_BRIDGE_PORT ?? '3101'} />

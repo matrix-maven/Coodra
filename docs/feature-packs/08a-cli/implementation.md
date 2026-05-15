@@ -6,7 +6,7 @@
 
 > **Integration-harness invariant.** The M03 closeout established two manual integration harnesses under `__tests__/manual/` (`verify-f5-live.ts`, `verify-phase5-closed-loop.ts` — see `__tests__/manual/README.md`). Every CLI slice that touches the DB, the bridge config files, or the auto-migrate path must leave both harnesses green. Each slice's "Tests" section names the harness call it ran.
 
-> **Status — 2026-05-02 reconciliation.** Every slice in the original 10-slice plan (S0–S9) landed. The bulk landed in PR #2 (squashed merge `93736f6`, 2026-04-27); five same-merge integration-walk fixes followed the user-visible S9. Standalone post-merge commits (`64e4067`, `313d6f0`, `6d16b2c`, `6bc0cad`, `0c0768a`, `d7a3238`, `907db6a`) extended the CLI surface as Module 03.1 / functest-cleanup / Module 04a landed. Every landed slice below is rewritten in "what landed" style following the convention M02 used for §S7a/§S7b/§S7c/§S8. **No remaining surface in the original M08a slice plan.** Cross-cutting work post-M08a (Phase 2 autonomy defaults `dec_83ba10c1`, Phase 3 `@contextos/*` → `@coodra/contextos-*` rename + Fixes A–E) is uncommitted at HEAD `907db6a` and lives in M02/M03/cross-cutting scope, not as new M08a slices.
+> **Status — 2026-05-02 reconciliation.** Every slice in the original 10-slice plan (S0–S9) landed. The bulk landed in PR #2 (squashed merge `93736f6`, 2026-04-27); five same-merge integration-walk fixes followed the user-visible S9. Standalone post-merge commits (`64e4067`, `313d6f0`, `6d16b2c`, `6bc0cad`, `0c0768a`, `d7a3238`, `907db6a`) extended the CLI surface as Module 03.1 / functest-cleanup / Module 04a landed. Every landed slice below is rewritten in "what landed" style following the convention M02 used for §S7a/§S7b/§S7c/§S8. **No remaining surface in the original M08a slice plan.** Cross-cutting work post-M08a (Phase 2 autonomy defaults `dec_83ba10c1`, Phase 3 `@coodra/*` → `@coodra/*` rename + Fixes A–E) is uncommitted at HEAD `907db6a` and lives in M02/M03/cross-cutting scope, not as new M08a slices.
 
 The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one logical commit on `feat/08a-cli`; the branch squash-merged to `main` as PR #2 (`93736f6`).
 
@@ -16,12 +16,12 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 **What landed:**
 
-- `docs/feature-packs/08a-cli/spec.md` — 11 sections covering the 7-command surface, auto-migrate semantics, `~/.contextos/` layout, the agent-vs-human boundary callouts, and the five OQ resolutions baked in as Decisions 1–5.
+- `docs/feature-packs/08a-cli/spec.md` — 11 sections covering the 7-command surface, auto-migrate semantics, `~/.coodra/` layout, the agent-vs-human boundary callouts, and the five OQ resolutions baked in as Decisions 1–5.
 - `docs/feature-packs/08a-cli/implementation.md` — the 10-slice plan (this file, pre-rewrite).
-- `docs/feature-packs/08a-cli/techstack.md` — pinned libraries: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `tmp-promise@3.0.3`, `glob@11.0.4`, plus workspace deps on `@coodra/contextos-{shared,db}`.
+- `docs/feature-packs/08a-cli/techstack.md` — pinned libraries: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `tmp-promise@3.0.3`, `glob@11.0.4`, plus workspace deps on `@coodra/{shared,db}`.
 - `docs/feature-packs/08a-cli/meta.json` — `{ slug, parentSlug: '01-foundation', sourceFiles, isActive: true }`.
 - `system-architecture.md` §13 amendment — PID location + native daemon-manager registration.
-- `system-architecture.md` §1 amendment — XDG resolution for `~/.contextos/`.
+- `system-architecture.md` §1 amendment — XDG resolution for `~/.coodra/`.
 - `essentialsforclaude/08-implementation-order.md` — confirms M08a slot between Modules 03 and 04 and lists the four out-of-every-module scope items (no billing, no marketing site, hosted-only team, Gemini-not-Anthropic).
 - `DEVELOPMENT.md` — new "Iterating on the CLI (Module 08a)" subsection for contributor dev-loop without `npm i -g`.
 
@@ -33,11 +33,11 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 ## S1 — Package scaffold (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** Create `packages/cli/` workspace package with the commander surface and stub command bodies (each subcommand exits 99 with "not yet implemented"). Pinned deps per techstack.md, workspace deps on `@coodra/contextos-{shared,db}`.
+**Scope:** Create `packages/cli/` workspace package with the commander surface and stub command bodies (each subcommand exits 99 with "not yet implemented"). Pinned deps per techstack.md, workspace deps on `@coodra/{shared,db}`.
 
 **What landed:**
 
-- `packages/cli/package.json` — `name: "@coodra/contextos-cli"`, `bin: { "contextos": "./dist/index.js" }`, `type: "module"`, `engines.node: ">=22.16.0 <23"`. Pinned: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `glob@11.0.4`, `tmp-promise@3.0.3`. Workspace: `@coodra/contextos-db`, `@coodra/contextos-shared`.
+- `packages/cli/package.json` — `name: "@coodra/cli"`, `bin: { "coodra": "./dist/index.js" }`, `type: "module"`, `engines.node: ">=22.16.0 <23"`. Pinned: `commander@13.1.0`, `env-paths@3.0.0`, `picocolors@1.1.1`, `glob@11.0.4`, `tmp-promise@3.0.3`. Workspace: `@coodra/db`, `@coodra/shared`.
 - `packages/cli/tsconfig.json` — extends repo base, `rootDir=src`, `outDir=dist`. `tsconfig.typecheck.json` includes `__tests__/`.
 - `packages/cli/vitest.config.ts` + `packages/cli/vitest.integration.config.ts` — v8 coverage, 80% line-threshold; integration variant boots testcontainers.
 - `packages/cli/src/{index,program}.ts` — `#!/usr/bin/env node` shebang, top-level commander program with the 7 subcommands wired (`init`, `start`, `stop`, `status`, `doctor`, `cloud-migrate`, `team {login,logout}`), each handler stubbed via the `runXxxCommand` factories in `src/commands/*.ts`.
@@ -47,9 +47,9 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 - `__tests__/unit/program.test.ts` — asserts each subcommand registers, `--help` lists 7 commands.
 - Per-command stub tests later replaced wholesale as bodies landed in S3–S8.
 
-**Gate:** `pnpm install --frozen-lockfile` clean, `pnpm --filter @coodra/contextos-cli typecheck`, `pnpm --filter @coodra/contextos-cli build` produces `dist/index.js`, `node dist/index.js --help` enumerates the 7 commands.
+**Gate:** `pnpm install --frozen-lockfile` clean, `pnpm --filter @coodra/cli typecheck`, `pnpm --filter @coodra/cli build` produces `dist/index.js`, `node dist/index.js --help` enumerates the 7 commands.
 
-**Squashed merge:** `feat(cli): scaffold @coodra/contextos-cli — workspace package + commander surface` (in `93736f6`).
+**Squashed merge:** `feat(cli): scaffold @coodra/cli — workspace package + commander surface` (in `93736f6`).
 
 ## S2 — `--help` and `--version` surfaces (landed 2026-04-27, squashed in `93736f6`)
 
@@ -70,7 +70,7 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 **Squashed merge:** `feat(cli): --help and --version surfaces with snapshot-locked text` (in `93736f6`).
 
-## S3 — `contextos doctor` — diagnostic engine + 20 checks (landed 2026-04-27, squashed in `93736f6`)
+## S3 — `coodra doctor` — diagnostic engine + 20 checks (landed 2026-04-27, squashed in `93736f6`)
 
 **Scope:** Implement `doctor` as a `Check` registry + parallel runner with per-check timeout (default 2s, `--timeout-ms` configurable). Land the 20 checks specified in `spec.md` §4.5, including six post-M03 invariant checks (5/6/7/8/12/13).
 
@@ -82,7 +82,7 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
   - **Check 6** — recent `policy_decisions` rows have the F14 4-segment idempotency key shape.
   - **Check 7** — recent `run_events` rows have `run_id NOT NULL` when their session has a `runs` row (F8). Severity bumped to RED in the same-merge post-S9 fix below.
   - **Check 8** — bridge `pre_tool_use_decision` log lines from the last 24h include `runId` (F15).
-  - **Check 12** — project registered for cwd (`.contextos.json` resolves) — F7 governance pre-condition.
+  - **Check 12** — project registered for cwd (`.coodra.json` resolves) — F7 governance pre-condition.
   - **Check 13** — Audit-write durability YELLOW until M03.1 lands; permanent-yellow severity is what flips to GREEN automatically when `313d6f0` arrives.
 - `packages/cli/src/doctor/registry.ts` — `ALL_CHECKS` registration. Output: numbered list with green ✓ / yellow ⚠ / red ✗ glyphs, one-line remediation per non-green. `--json` emits `{ checks, summary, version }`. Reds → exit 2; yellows-only → exit 1; all-green → exit 0.
 
@@ -110,24 +110,24 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 **Squashed merge:** `feat(cli): detect — project root, languages, IDE, existing .mcp.json` (in `93736f6`).
 
-## S5 — `contextos init` (landed 2026-04-27, squashed in `93736f6`)
+## S5 — `coodra init` (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** First-time setup command per spec.md §11 Decision 3 (idempotent merge default; `--force` overrides to baseline). Wires S4 detection into a 13-step flow that lays down `~/.contextos/`, `.contextos.json`, `.mcp.json`, `.env`, `~/.claude/settings.json`, the seeded Feature Pack folder, and (unless `--dry-run`) calls `start` internally.
+**Scope:** First-time setup command per spec.md §11 Decision 3 (idempotent merge default; `--force` overrides to baseline). Wires S4 detection into a 13-step flow that lays down `~/.coodra/`, `.coodra.json`, `.mcp.json`, `.env`, `~/.claude/settings.json`, the seeded Feature Pack folder, and (unless `--dry-run`) calls `start` internally.
 
 **What landed:**
 
 - `packages/cli/src/commands/init.ts` — full flow.
-- `packages/cli/src/lib/init/{contextos-json,mcp-merge,env-merge,claude-settings-merge,feature-pack-seed,types}.ts` — one writer per file; each returns a `WriteOutcome` of `'wrote' | 'merged' | 'unchanged' | 'forced'` so CI consumers can read progress from `--json` output.
-- `packages/cli/src/lib/contextos-home.ts` + `runtime-paths.ts` — XDG-aware `~/.contextos/` resolver (Linux uses `$XDG_CONFIG_HOME` when set), bundled-mcp-server runtime path resolution.
+- `packages/cli/src/lib/init/{coodra-json,mcp-merge,env-merge,claude-settings-merge,feature-pack-seed,types}.ts` — one writer per file; each returns a `WriteOutcome` of `'wrote' | 'merged' | 'unchanged' | 'forced'` so CI consumers can read progress from `--json` output.
+- `packages/cli/src/lib/coodra-home.ts` + `runtime-paths.ts` — XDG-aware `~/.coodra/` resolver (Linux uses `$XDG_CONFIG_HOME` when set), bundled-mcp-server runtime path resolution.
 - `packages/cli/src/lib/open-local-db.ts` — opens `data.db` with the sqlite-vec extension loaded.
-- Auto-migrate via `@coodra/contextos-db::migrateSqlite`. Calls `ensureGlobalProject(handle)` for the F7 sentinel + `ensureProject(handle, { slug })` for the user's slug (the latter wired by the in-PR cleanup commit `fix(cli,db): seed projects row in init` inside the squashed merge — see §Post-S9 below).
+- Auto-migrate via `@coodra/db::migrateSqlite`. Calls `ensureGlobalProject(handle)` for the F7 sentinel + `ensureProject(handle, { slug })` for the user's slug (the latter wired by the in-PR cleanup commit `fix(cli,db): seed projects row in init` inside the squashed merge — see §Post-S9 below).
 - Generates a fresh `LOCAL_HOOK_SECRET` via `crypto.randomBytes(32).toString('hex')` per `essentialsforclaude/02-agent-human-boundary.md` §2.4 — never a literal sentinel string.
 - Feature Pack seeded with `meta.json` + `spec.md` skeleton (200-line template with TODO markers).
 - Optional Graphify scan (skipped if `--no-graphify` or absent on PATH); logs YELLOW on absence, never fails the run.
 
 **Tests added:**
 
-- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.contextos.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run (`action: 'unchanged'`), `--force` re-run (`action: 'forced'`).
+- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.coodra.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run (`action: 'unchanged'`), `--force` re-run (`action: 'forced'`).
 - `__tests__/integration/init.test.ts` — greenfield + idempotent + `--force` + `.mcp.json` preservation + `--dry-run` + secrets-leak invariant + `EXIT_USER_RECOVERABLE` on no-marker.
 - The `init`-writes-sentinels-only assertion: parses the written `.env` and fails if any of the disallowed keys (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `GITHUB_APP_*`, `ATLASSIAN_*`, `SUPABASE_*`, `UPSTASH_*`) appears with a non-empty value. Per spec §6 agent-human boundary.
 
@@ -145,23 +145,23 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 - `launchd.ts` — macOS, drives `launchctl` via execa.
 - `systemd.ts` — Linux, drives `systemctl --user` via execa.
 - `taskscheduler.ts` — Windows, drives `schtasks` via execa.
-- `fallback.ts` — detached child process + PID file under `~/.contextos/pids/`. Used on Windows in 08a (Task Scheduler integration is a stub) and as the universal fallback.
+- `fallback.ts` — detached child process + PID file under `~/.coodra/pids/`. Used on Windows in 08a (Task Scheduler integration is a stub) and as the universal fallback.
 - `selectDaemonManager()` picks the right one for `process.platform`, falling back to `fallback.ts` when the native manager is unreachable.
 
 **Tests added:**
 
 - Unit tests for each implementation (mocking the underlying CLI: `launchctl`, `systemctl`, `schtasks`).
-- Opt-in integration test gated behind `CONTEXTOS_TEST_DAEMON=1` that runs against the actual native manager — only enabled in CI on the matching OS runner.
+- Opt-in integration test gated behind `COODRA_TEST_DAEMON=1` that runs against the actual native manager — only enabled in CI on the matching OS runner.
 
 **Squashed merge:** `feat(cli): daemon — launchd / systemd / Task-Scheduler / fallback abstraction` (in `93736f6`).
 
-## S7 — `contextos start` and `contextos stop` (landed 2026-04-27, squashed in `93736f6`)
+## S7 — `coodra start` and `coodra stop` (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** Daemon lifecycle for MCP server + Hooks Bridge. `start` walks: select daemon manager → install both units → start both → wait for `/healthz` to return ok within 10s. `stop` lists installed ContextOS units → stops each → optionally uninstalls (`--uninstall`).
+**Scope:** Daemon lifecycle for MCP server + Hooks Bridge. `start` walks: select daemon manager → install both units → start both → wait for `/healthz` to return ok within 10s. `stop` lists installed Coodra units → stops each → optionally uninstalls (`--uninstall`).
 
 **What landed:**
 
-- `packages/cli/src/commands/{start,stop}.ts` — full flows. Health-check polling uses `@coodra/contextos-shared`'s logger and an exponential backoff capped at 1s.
+- `packages/cli/src/commands/{start,stop}.ts` — full flows. Health-check polling uses `@coodra/shared`'s logger and an exponential backoff capped at 1s.
 - `packages/cli/src/lib/services.ts` — service registry (mcp-server / hooks-bridge / sync-daemon-when-team) + spawn env composition.
 - `packages/cli/src/lib/wait-for-health.ts` — polled probe.
 
@@ -169,14 +169,14 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 **Squashed merge:** `feat(cli): start + stop — daemon lifecycle for MCP server and Hooks Bridge` (in `93736f6`).
 
-## S8 — `contextos status` + `team login` / `team logout` stubs (landed 2026-04-27, squashed in `93736f6`)
+## S8 — `coodra status` + `team login` / `team logout` stubs (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** Unified state probe per `spec.md §4.6` merging project state (read `<cwd>/.contextos.json`, latest `runs` + recent decisions + non-empty `context_memory/blockers.md`) and service state (live HTTP `/healthz` probe; no daemon-manager `list()` reliance, that path is fragile per the M02 finding around stale subprocess state). `team login` / `team logout` ship as stubs that exit 2 with a deferred-body message per spec.md §11 Decision 1.
+**Scope:** Unified state probe per `spec.md §4.6` merging project state (read `<cwd>/.coodra.json`, latest `runs` + recent decisions + non-empty `context_memory/blockers.md`) and service state (live HTTP `/healthz` probe; no daemon-manager `list()` reliance, that path is fragile per the M02 finding around stale subprocess state). `team login` / `team logout` ship as stubs that exit 2 with a deferred-body message per spec.md §11 Decision 1.
 
 **What landed:**
 
 - `packages/cli/src/commands/status.ts` + `team.ts` — full implementations. `status --json` emits a Zod-validated structured object; sub-200ms target on the live probe path.
-- `team {login,logout}` commands have the full flag set per `spec.md` §4 + each subcommand's `--help` text. Bodies print "team mode not yet generally available — the OAuth round-trip + `~/.contextos/config.json` write land when team mode is reachable end-to-end (post-Module 04). Track via `pending-user-actions.md`." and exit 2.
+- `team {login,logout}` commands have the full flag set per `spec.md` §4 + each subcommand's `--help` text. Bodies print "team mode not yet generally available — the OAuth round-trip + `~/.coodra/config.json` write land when team mode is reachable end-to-end (post-Module 04). Track via `pending-user-actions.md`." and exit 2.
 
 **Tests added:**
 
@@ -205,10 +205,10 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 Five fixes surfaced by walking the M02 + M03 + M08a integration immediately after S9 finished. Squashed into the same merge so main remained green.
 
 - `fix(cli,db): seed projects row in init for the user's slug` — `ensureProject` was added to `init.ts` after S5 closed; pre-fix the bridge resolver fell back to `__global__` for every per-project audit. Closes the post-08a integration walk's first finding.
-- `fix(cli): default CONTEXTOS_LOG_DESTINATION=stderr in the CLI binary` — without this the spawned mcp-server inherited stdout-as-protocol-channel and corrupted its own stdio output.
+- `fix(cli): default COODRA_LOG_DESTINATION=stderr in the CLI binary` — without this the spawned mcp-server inherited stdout-as-protocol-channel and corrupted its own stdio output.
 - `fix(cli): keep typecheck tsbuildinfo out of dist/` — `npm-pack-lock` test caught the leak; `tsconfig.typecheck.json` redirected to write `.tsbuildinfo` outside `dist/`.
 - `fix(cli): doctor check 7 (F8 invariant) reports RED on orphan run_events` — original check returned YELLOW; severity bumped to RED per the post-walk register.
-- `fix(cli): route daemon stdout/stderr to ~/.contextos/logs/` — `doctor check 8 (F15)` now has logs to read.
+- `fix(cli): route daemon stdout/stderr to ~/.coodra/logs/` — `doctor check 8 (F15)` now has logs to read.
 
 ## Post-merge cleanup (separate commits)
 
@@ -244,9 +244,9 @@ The next seven commits extended the CLI surface as Module 03.1 / functest-cleanu
 
 **What landed in `packages/cli/`:**
 
-- `packages/cli/src/lib/services.ts` — layered `.env` reading (`<cwd>/.env` + `<contextos-home>/.env` overlays); spawn env composition order pinned.
+- `packages/cli/src/lib/services.ts` — layered `.env` reading (`<cwd>/.env` + `<coodra-home>/.env` overlays); spawn env composition order pinned.
 - `packages/cli/__tests__/unit/services.test.ts` — env-layering test suite (cwd-mocked so it doesn't read the runner's repo-root `.env`).
-- Bridge solo-bypass treats `CONTEXTOS_MODE=solo` the same as the sentinel CLERK key (lands inside `apps/hooks-bridge`, mentioned here for the cwd-CLI repo-root resolution side-effect).
+- Bridge solo-bypass treats `COODRA_MODE=solo` the same as the sentinel CLERK key (lands inside `apps/hooks-bridge`, mentioned here for the cwd-CLI repo-root resolution side-effect).
 
 **Commits:**
 
@@ -256,7 +256,7 @@ The next seven commits extended the CLI surface as Module 03.1 / functest-cleanu
 
 ### Post-S9.4 — Pipefail-safe doctor + biome template lit (landed 2026-04-28, commit `d7a3238`)
 
-**Scope:** Two quality fixes from `verify-full-functionality.sh` running on a real ContextOS checkout. Step 9's negative-controls used `if contextos doctor 2>&1 | grep -qE "..."` which under `set -o pipefail` masked nonzero exits behind `grep -q`'s success; switched to a temp-file capture pattern. Biome template-literal hint in a doctor output formatter cleaned up.
+**Scope:** Two quality fixes from `verify-full-functionality.sh` running on a real Coodra checkout. Step 9's negative-controls used `if coodra doctor 2>&1 | grep -qE "..."` which under `set -o pipefail` masked nonzero exits behind `grep -q`'s success; switched to a temp-file capture pattern. Biome template-literal hint in a doctor output formatter cleaned up.
 
 **Commit:** `chore(verify-full-functionality): pipefail-safe doctor checks + biome template lit` (`d7a3238`).
 
@@ -276,9 +276,9 @@ The next seven commits extended the CLI surface as Module 03.1 / functest-cleanu
 
 ## After M08a — what gets unblocked
 
-- Module 04 (Web App) can build its onboarding flow knowing the CLI exists. The web app's "Get Started" page reduces to "run `npx @coodra/contextos-cli init` then `contextos team login <invite-token>` (when team mode opens)" — exact CLI name locked per spec §11 Decision 1.
-- Module 07 (VS Code Extension) can shell out to `contextos start` / `stop` / `status` for service control without re-implementing daemon management.
-- The `pending-user-actions.md` entry "LOCAL_HOOK_SECRET config-file reads via a future contextos team login CLI" updates to "command surface lives in 08a as stub; OAuth round-trip + secret-write body land when team mode opens" — fully closes when team mode launches.
+- Module 04 (Web App) can build its onboarding flow knowing the CLI exists. The web app's "Get Started" page reduces to "run `npx @coodra/cli init` then `coodra team login <invite-token>` (when team mode opens)" — exact CLI name locked per spec §11 Decision 1.
+- Module 07 (VS Code Extension) can shell out to `coodra start` / `stop` / `status` for service control without re-implementing daemon management.
+- The `pending-user-actions.md` entry "LOCAL_HOOK_SECRET config-file reads via a future coodra team login CLI" updates to "command surface lives in 08a as stub; OAuth round-trip + secret-write body land when team mode opens" — fully closes when team mode launches.
 
 ## Per-slice integration-harness gate (recap)
 
@@ -287,7 +287,7 @@ Slices that touch DB / bridge config / auto-migrate paths must leave both manual
 | Slice | Touches | Harness must pass after slice |
 |---|---|---|
 | S3 (doctor) | reads DB, reads bridge logs | `verify-f5-live.ts` (no impact expected) |
-| S5 (init) | writes DB, writes `.contextos.json`, writes `.mcp.json`, writes `.env` | `verify-phase5-closed-loop.ts` against the just-init'd project |
+| S5 (init) | writes DB, writes `.coodra.json`, writes `.mcp.json`, writes `.env` | `verify-phase5-closed-loop.ts` against the just-init'd project |
 | S7 (start/stop) | starts/stops bridge + MCP | `verify-phase5-closed-loop.ts` end-to-end |
 | S8 (status) | reads bridge + MCP via /healthz | both harnesses |
 
@@ -295,8 +295,8 @@ If a harness regresses, the slice does not commit. Fix-or-revert before proceedi
 
 ## Doc reconciliations applied in this module's commits
 
-- `system-architecture.md §13` "Process management: PIDs written to `~/.contextos/pids`" expanded to "PIDs written to `~/.contextos/pids/`; on macOS / Linux the daemon is also registered with the platform's native manager (launchd / systemd) so it survives reboot." Same-commit edit per amendment B at S6 / S7.
-- `system-architecture.md §1` amended at S5 per spec §11 Decision 2 ("`~/.contextos/` may resolve to `$XDG_CONFIG_HOME/contextos/` on Linux when set; defaults to `$HOME/.contextos/` everywhere otherwise").
+- `system-architecture.md §13` "Process management: PIDs written to `~/.coodra/pids`" expanded to "PIDs written to `~/.coodra/pids/`; on macOS / Linux the daemon is also registered with the platform's native manager (launchd / systemd) so it survives reboot." Same-commit edit per amendment B at S6 / S7.
+- `system-architecture.md §1` amended at S5 per spec §11 Decision 2 ("`~/.coodra/` may resolve to `$XDG_CONFIG_HOME/coodra/` on Linux when set; defaults to `$HOME/.coodra/` everywhere otherwise").
 - `essentialsforclaude/08-implementation-order.md` §8.1 inserts Module 08a between 03 and 04 — confirmed during S0 that this stayed correct after the M03.1 placeholder landed.
 
 ## Remaining slice surface
@@ -306,14 +306,14 @@ If a harness regresses, the slice does not commit. Fix-or-revert before proceedi
 Cross-cutting work that touched `packages/cli/` after `907db6a` (uncommitted at the time of this 2026-05-02 reconciliation) is **not** new M08a slice surface — it lives in M02/M03 / cross-cutting-fix scope:
 
 - **Phase 2 (decision `dec_83ba10c1`, 2026-05-02)** — bridge-mediated autonomous Feature Pack injection at SessionStart and Context Pack auto-save at SessionEnd. Bulk of the work is in `apps/hooks-bridge/`; `packages/cli/` touches limited to wiring `~/.claude/settings.json` writes through `init`. Saved as MCP context pack `cp_715762ac`.
-- **Phase 3 (rename + Fixes A–E, 2026-05-02)** — workspace-wide `@contextos/*` → `@coodra/contextos-*` rename (252 files), `.strict()` → `.passthrough()` payload schema fix (M02/shared), `~/.claude` gate drop in `init`, `implementation.md` + `techstack.md` seeded by `seedFeaturePack` (M08a), default policy rules seeded after `ensureProject` (M08a wires `ensureDefaultPolicy` from M01-db), drop cyclic devDependencies. Saved as MCP context pack `cp_c21520f2`.
+- **Phase 3 (rename + Fixes A–E, 2026-05-02)** — workspace-wide `@coodra/*` → `@coodra/*` rename (252 files), `.strict()` → `.passthrough()` payload schema fix (M02/shared), `~/.claude` gate drop in `init`, `implementation.md` + `techstack.md` seeded by `seedFeaturePack` (M08a), default policy rules seeded after `ensureProject` (M08a wires `ensureDefaultPolicy` from M01-db), drop cyclic devDependencies. Saved as MCP context pack `cp_c21520f2`.
 
-- **Phase 4 Fix F (2026-05-02 — caught during demo rehearsal)** — the Phase 3 Fix D `ensureDefaultPolicy` rule list covered only Write+Edit and root-level globs, leaving MultiEdit/NotebookEdit and nested `.git/`/`node_modules/` paths unenforced; the Phase 3 `claude-settings-merge` matcher used the literal sentinel `__contextos__` which never matched any real Claude Code tool name, making PreToolUse hooks functionally inert for that agent. Fix F:
+- **Phase 4 Fix F (2026-05-02 — caught during demo rehearsal)** — the Phase 3 Fix D `ensureDefaultPolicy` rule list covered only Write+Edit and root-level globs, leaving MultiEdit/NotebookEdit and nested `.git/`/`node_modules/` paths unenforced; the Phase 3 `claude-settings-merge` matcher used the literal sentinel `__coodra__` which never matched any real Claude Code tool name, making PreToolUse hooks functionally inert for that agent. Fix F:
   - Expanded `DEFAULT_RULES` to 25 entries (24 deny + 1 ask) covering the cross-product of {Write, Edit, MultiEdit, NotebookEdit} × {.env, **/.env, .git/**, **/.git/**, node_modules/**, **/node_modules/**}.
   - Made `ensureDefaultPolicy` self-healing on re-run: existing-install repair detects missing-from-baseline rules by `(priority, eventType, toolName, pathGlob)` 4-tuple and additively inserts only the missing ones; user customizations preserved.
-  - Switched the Claude Code matcher to per-event values: `Write|Edit|MultiEdit|NotebookEdit|Bash` for PreToolUse/PostToolUse, omitted for SessionStart/Stop. Ownership detection moved from matcher-by-sentinel to URL-by-bridge-endpoint; legacy `__contextos__`-matcher entries with the bridge URL get migrated to the new shape on next merge.
+  - Switched the Claude Code matcher to per-event values: `Write|Edit|MultiEdit|NotebookEdit|Bash` for PreToolUse/PostToolUse, omitted for SessionStart/Stop. Ownership detection moved from matcher-by-sentinel to URL-by-bridge-endpoint; legacy `__coodra__`-matcher entries with the bridge URL get migrated to the new shape on next merge.
   - Added regression test `apps/hooks-bridge/__tests__/integration/handlers/default-policy-tool-coverage.test.ts` (4 tools × 6 paths + 1 sanity = 25 cases). Pre-fix: 16 failed / 9 passed. Post-fix: 25 passed / 0 failed.
   - Extended `__tests__/manual/verify-f5-live.ts` with Edit/MultiEdit/NotebookEdit live MCP-stdio cases.
   - Decision logged in `context_memory/decisions-log.md` 2026-05-02 23:30.
 
-When that cross-cutting work commits, it lands as `feat(workspace): rename @contextos/* → @coodra/contextos-*` + per-fix commits — not as new M08a slices.
+When that cross-cutting work commits, it lands as `feat(workspace): rename @coodra/* → @coodra/*` + per-fix commits — not as new M08a slices.

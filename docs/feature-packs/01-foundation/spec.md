@@ -12,7 +12,7 @@ Foundation is the shared substrate every downstream module depends on. It is **n
 - The monorepo layout (pnpm workspaces + Turborepo) that all subsequent modules plug into.
 - The strict-TypeScript baseline (`tsconfig.base.json`), the single lint/format toolchain (Biome), and the single test runner (Vitest).
 - The shared TypeScript library (`packages/shared`) that every service imports: structured logging (pino), typed error hierarchy, Zod-based env validation, and idempotency-key helpers whose shapes match `system-architecture.md` §4.3 exactly.
-- The database package (`packages/db`) with Drizzle schemas for both dialects (SQLite for solo, Postgres for team), a `createDb()` factory that selects the driver by `CONTEXTOS_MODE`, the initial numbered migrations for a 5-table append-only core (`projects`, `runs`, `run_events`, `context_packs`, `pending_jobs`), and a CI-enforced schema-parity test between the two dialects.
+- The database package (`packages/db`) with Drizzle schemas for both dialects (SQLite for solo, Postgres for team), a `createDb()` factory that selects the driver by `COODRA_MODE`, the initial numbered migrations for a 5-table append-only core (`projects`, `runs`, `run_events`, `context_packs`, `pending_jobs`), and a CI-enforced schema-parity test between the two dialects.
 - The local docker-compose stack (pgvector + Redis) used from Module 02 onward for integration tests.
 - The CI pipeline (`.github/workflows/ci.yml`) with lint, typecheck, unit, and integration jobs.
 - A stub `.mcp.json` so Claude Code / Cursor / Windsurf pick up a valid MCP entry now; it will fail to connect until Module 02 ships the server.
@@ -53,7 +53,7 @@ These tables ship in Module 01's `packages/db/src/schema/{sqlite,postgres}.ts` a
 
 | Table | Purpose | Append-only? | Primary source in architecture |
 |---|---|---|---|
-| `projects` | One row per ContextOS-managed project. Carries `slug`, `orgId`, `createdAt`. Referenced by every other table's `project_id` FK. | No (projects can be updated) | §2 Service Inventory, §4 |
+| `projects` | One row per Coodra-managed project. Carries `slug`, `orgId`, `createdAt`. Referenced by every other table's `project_id` FK. | No (projects can be updated) | §2 Service Inventory, §4 |
 | `runs` | One row per AI-agent session. Carries `runId`, `projectId`, `sessionId`, `agentType`, `mode` (solo/team), `status`, timestamps, `issueRef` (nullable), `prRef` (nullable). Idempotency key: `run:{projectId}:{sessionId}:{uuid}`. | No (status transitions) | §4.3, §22.5, §23 |
 | `run_events` | Immutable tool-use trace entries. Carries `eventId`, `runId`, `phase` (`pre`/`post`), `toolName`, `toolInput` (JSON), `outcome`, `createdAt`. Idempotency key: `{sessionId}-{toolUseId}-{phase}`. | **Yes** (no UPDATE/DELETE) | §4.3 |
 | `context_packs` | One row per completed run's Context Pack. Carries `packId`, `runId`, `projectId`, `title`, `content`, `createdAt`, `summaryEmbedding` (Postgres only, `vector(384)`; SQLite stores the same vector in the `pack_embeddings` sqlite-vec virtual table added by Module 02). | **Yes** | §4.3, §17 |
@@ -63,7 +63,7 @@ pgvector types live only in `schema/postgres.ts`; SQLite uses `text` for vector 
 
 ## 5. Mode detection contract
 
-`packages/shared/src/config.ts` exposes a `CONTEXTOS_MODE` env value validated as `z.enum(['solo', 'team'])`, defaulting to `'solo'`. `packages/db/src/client.ts`'s `createDb()` factory reads the same env; in solo mode it returns a `better-sqlite3` Drizzle client pointed at `~/.contextos/data.db` (creating the directory if missing). In team mode it returns a `postgres-js` Drizzle client using `DATABASE_URL`. Both code paths are exercised by unit tests; the Postgres path uses a mocked connection in Module 01 and is replaced by a real testcontainers-backed integration test in Module 02.
+`packages/shared/src/config.ts` exposes a `COODRA_MODE` env value validated as `z.enum(['solo', 'team'])`, defaulting to `'solo'`. `packages/db/src/client.ts`'s `createDb()` factory reads the same env; in solo mode it returns a `better-sqlite3` Drizzle client pointed at `~/.coodra/data.db` (creating the directory if missing). In team mode it returns a `postgres-js` Drizzle client using `DATABASE_URL`. Both code paths are exercised by unit tests; the Postgres path uses a mocked connection in Module 01 and is replaced by a real testcontainers-backed integration test in Module 02.
 
 ## 6. Out-of-scope documentation stance
 
@@ -75,7 +75,7 @@ Next.js 16.2.4 + React 19.2.5 is recorded in `context_memory/decisions-log.md` a
 
 - A clean `main` pointing at the squash-merged Foundation commit.
 - The 5-table core schema with generated migrations that Module 02 can extend by adding `policy_rules`, `policy_decisions`, `feature_packs`, `integrations`, `integration_tokens`, `integration_events`, `knowledge_edges` in a new numbered migration (`0001_mcp_server_tables.sql`).
-- `@coodra/contextos-shared` exporting `logger`, error types, `config`, `generateRunKey`, `generateRunEventKey`.
-- `@coodra/contextos-db` exporting `createDb`, `schema` (dialect-selected), and Drizzle query primitives.
+- `@coodra/shared` exporting `logger`, error types, `config`, `generateRunKey`, `generateRunEventKey`.
+- `@coodra/db` exporting `createDb`, `schema` (dialect-selected), and Drizzle query primitives.
 - A working `pnpm test:unit` harness so Module 02 inherits CI green.
 - A Context Pack describing everything above.

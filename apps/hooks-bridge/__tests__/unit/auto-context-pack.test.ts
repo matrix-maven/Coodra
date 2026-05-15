@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createDb, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
+import { createDb, migrateSqlite, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
 import { buildAutoSummary, saveAutoContextPack } from '../../src/lib/auto-context-pack.js';

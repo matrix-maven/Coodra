@@ -3,8 +3,8 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { runInit } from '@coodra/contextos-cli/lib/init';
-import { runPackDelete, runPackRegenerate } from '@coodra/contextos-cli/lib/pack';
+import { runInit } from '@coodra/cli/lib/init';
+import { runPackDelete, runPackRegenerate } from '@coodra/cli/lib/pack';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 

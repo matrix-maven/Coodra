@@ -48,7 +48,7 @@ export default async function SignInPage() {
             lineHeight: 1,
           }}
         >
-          ContextOS
+          Coodra
         </h1>
         <p
           style={{

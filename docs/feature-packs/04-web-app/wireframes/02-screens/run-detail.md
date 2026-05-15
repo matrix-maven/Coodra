@@ -1,6 +1,6 @@
 # `/runs/[id]` — Run detail (S3)
 
-HTML port of `contextos run show` + `contextos export <runId> --format markdown --include-audit`. Audit always visible (web is human-reading; nothing dropped to fit a Slack post).
+HTML port of `coodra run show` + `coodra export <runId> --format markdown --include-audit`. Audit always visible (web is human-reading; nothing dropped to fit a Slack post).
 
 ## Desktop layout
 
@@ -35,7 +35,7 @@ HTML port of `contextos run show` + `contextos export <runId> --format markdown 
 │                                                                                         │
 │  This run executed 2 tool-use events and recorded 1 decision. 1 event was               │
 │  denied; 0 were allowed-with-audit; 1 was allowed pass-through. Final status:           │
-│  cancelled (operator-initiated via contextos run cancel).                                │
+│  cancelled (operator-initiated via coodra run cancel).                                │
 │                                                                                         │
 │  EVENTS (tab)                                                                           │
 │  ─────────                                                                              │

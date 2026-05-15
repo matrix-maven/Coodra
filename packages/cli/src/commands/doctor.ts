@@ -1,9 +1,9 @@
-import { listProjects } from '@coodra/contextos-db';
+import { listProjects } from '@coodra/db';
 import { buildCheckContext } from '../doctor/context.js';
 import { formatHuman, formatJson } from '../doctor/output.js';
 import { ALL_CHECKS, ESSENTIAL_CHECKS } from '../doctor/registry.js';
 import { exitCodeForReport, runChecks } from '../doctor/run.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { scanProjectEnvForStaleMode, stripStaleModeFromProjectEnv } from '../lib/project-env-scan.js';
 import { checkGlyph, hintLine, paint, style } from '../ui/index.js';
@@ -13,19 +13,19 @@ export interface DoctorOptions {
   readonly timeoutMs?: string;
   /**
    * Run every check in the registry, not just the 9 essentials.
-   * Decision dec_83ba10c1 (2026-05-02). Default false — `contextos
+   * Decision dec_83ba10c1 (2026-05-02). Default false — `coodra
    * doctor` runs the trimmed essential surface and `--full` opts in
    * to debug / team-mode / outbox observability checks.
    */
   readonly full?: boolean;
   /**
    * After running checks, repair safe drift conditions. Currently:
-   * strip stale `CONTEXTOS_MODE` lines from every registered
+   * strip stale `COODRA_MODE` lines from every registered
    * project's `.env` file (Phase A, clarity-pass-plan 2026-05-11).
    *
    * Idempotent — re-running on an already-clean machine reports
    * "no drift detected" and exits 0. Touches `<projectCwd>/.env`
-   * only; never modifies `~/.contextos/.env` or `<cwd>/.contextos.json`.
+   * only; never modifies `~/.coodra/.env` or `<cwd>/.coodra.json`.
    */
   readonly fix?: boolean;
 }
@@ -94,7 +94,7 @@ export async function runDoctorCommand(options: DoctorOptions = {}, io: DoctorIO
     io.writeStdout(`${formatHuman(report)}\n`);
     if (options.full !== true) {
       io.writeStdout(
-        `${hintLine(`(${ESSENTIAL_CHECKS.length} essential checks shown. Run \`contextos doctor --full\` for the complete ${ALL_CHECKS.length}-check registry.)`)}\n`,
+        `${hintLine(`(${ESSENTIAL_CHECKS.length} essential checks shown. Run \`coodra doctor --full\` for the complete ${ALL_CHECKS.length}-check registry.)`)}\n`,
       );
     }
     if (fixReport !== null) {
@@ -110,10 +110,10 @@ export async function runDoctorCommand(options: DoctorOptions = {}, io: DoctorIO
 /**
  * Phase A — `--fix` pass. Read-mostly: opens the local SQLite DB,
  * iterates every registered project, scans `<cwd>/.env` for stale
- * `CONTEXTOS_MODE` lines, and strips them. Idempotent — a project
+ * `COODRA_MODE` lines, and strips them. Idempotent — a project
  * with no stale line contributes a clean entry; nothing is rewritten.
  *
- * Why scope this narrow: the project `.env` `CONTEXTOS_MODE` line is
+ * Why scope this narrow: the project `.env` `COODRA_MODE` line is
  * the single best-known drift condition (pre-Phase-A, it silently
  * demoted team-mode machines to solo via `loadHomeEnv`; the Phase A
  * carve-out neutralised the runtime effect but the stale line itself
@@ -124,8 +124,8 @@ export async function runDoctorCommand(options: DoctorOptions = {}, io: DoctorIO
  * operation that belongs in `team setup` / `team join` proper.
  */
 async function runFixPass(): Promise<FixReport> {
-  const home = resolveContextosHome();
-  const dataDb = resolveContextosDataDb(home);
+  const home = resolveCoodraHome();
+  const dataDb = resolveCoodraDataDb(home);
   let handle: Awaited<ReturnType<typeof openLocalDb>>;
   try {
     handle = await openLocalDb(dataDb);
@@ -148,7 +148,7 @@ async function runFixPass(): Promise<FixReport> {
         continue;
       }
       if (scan.staleModeValue === null) {
-        // .env exists but has no CONTEXTOS_MODE line — clean.
+        // .env exists but has no COODRA_MODE line — clean.
         continue;
       }
       const result = stripStaleModeFromProjectEnv(scan.envPath);
@@ -176,12 +176,12 @@ function formatFixReportHuman(fix: FixReport): string {
     return `${lines.join('\n')}\n`;
   }
   if (fix.stripped.length === 0) {
-    lines.push(`  ${checkGlyph('ok')} Scanned ${fix.scanned} project(s). No stale CONTEXTOS_MODE lines found.`);
+    lines.push(`  ${checkGlyph('ok')} Scanned ${fix.scanned} project(s). No stale COODRA_MODE lines found.`);
     lines.push('');
     return `${lines.join('\n')}\n`;
   }
   lines.push(
-    `  ${paint.blue('✎')} Scanned ${fix.scanned} project(s); stripped stale CONTEXTOS_MODE from ${fix.stripped.length}:`,
+    `  ${paint.blue('✎')} Scanned ${fix.scanned} project(s); stripped stale COODRA_MODE from ${fix.stripped.length}:`,
   );
   for (const s of fix.stripped) {
     lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(s.envPath)}`);

@@ -89,7 +89,7 @@ run_adapter() {
   local adapter="$1"
   local stdin_payload="$2"
   set +e
-  printf '%s' "$stdin_payload" | "$adapter" 2>/tmp/contextos-adapter-stderr
+  printf '%s' "$stdin_payload" | "$adapter" 2>/tmp/coodra-adapter-stderr
   local code=$?
   set -e
   echo "$code"
@@ -97,7 +97,7 @@ run_adapter() {
 
 # --- Windsurf adapter -------------------------------------------------
 printf 'WINDSURF\n'
-WINDSURF="$ADAPTERS_DIR/windsurf-contextos.sh"
+WINDSURF="$ADAPTERS_DIR/windsurf-coodra.sh"
 assert_exit_code "allow" 0 "$(run_adapter "$WINDSURF" '{"agent_action_name":"pre_write_code","trajectory_id":"traj-allow"}')"
 assert_exit_code "deny"  2 "$(run_adapter "$WINDSURF" '{"agent_action_name":"pre_write_code","trajectory_id":"traj-deny-me"}')"
 
@@ -106,7 +106,7 @@ HOOKS_BRIDGE_PORT=1 assert_exit_code "bridge-down (fail-open)" 0 "$(HOOKS_BRIDGE
 
 # --- Cursor adapter ---------------------------------------------------
 printf 'CURSOR\n'
-CURSOR="$ADAPTERS_DIR/cursor-contextos.sh"
+CURSOR="$ADAPTERS_DIR/cursor-coodra.sh"
 assert_exit_code "allow" 0 "$(run_adapter "$CURSOR" '{"conversation_id":"conv-allow","event_type":"pre_tool_use"}')"
 assert_exit_code "deny"  2 "$(run_adapter "$CURSOR" '{"conversation_id":"conv-deny-me","event_type":"pre_tool_use"}')"
 HOOKS_BRIDGE_PORT=1 assert_exit_code "bridge-down (fail-open)" 0 "$(HOOKS_BRIDGE_PORT=1 run_adapter "$CURSOR" '{"conversation_id":"conv-1","event_type":"pre_tool_use"}')"

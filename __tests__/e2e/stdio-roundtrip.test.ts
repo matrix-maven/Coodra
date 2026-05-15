@@ -6,7 +6,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /**
- * stdio roundtrip — spawns the @coodra/contextos-mcp-server binary as a
+ * stdio roundtrip — spawns the @coodra/mcp-server binary as a
  * subprocess via stdio and exercises the MCP wire end-to-end through
  * the SDK's StdioClientTransport. Proves:
  *
@@ -51,9 +51,9 @@ beforeAll(async () => {
       ...process.env,
       NODE_ENV: 'test',
       LOG_LEVEL: 'error',
-      CONTEXTOS_MODE: 'solo',
-      CONTEXTOS_LOG_DESTINATION: 'stderr',
-      CONTEXTOS_SQLITE_PATH: sqlitePath,
+      COODRA_MODE: 'solo',
+      COODRA_LOG_DESTINATION: 'stderr',
+      COODRA_SQLITE_PATH: sqlitePath,
       CLERK_SECRET_KEY: 'sk_test_replace_me',
       MCP_SERVER_TRANSPORT: 'stdio',
     } as Record<string, string>,
@@ -76,7 +76,7 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
   it('initialize handshake completes and serverInfo is populated', async () => {
     // Connection already happened in beforeAll; check serverInfo.
     const info = h.client.getServerVersion();
-    expect(info?.name).toBe('@coodra/contextos-mcp-server');
+    expect(info?.name).toBe('@coodra/mcp-server');
   });
 
   it('tools/list returns exactly the 9 expected tools', async () => {

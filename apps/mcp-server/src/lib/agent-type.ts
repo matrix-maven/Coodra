@@ -10,7 +10,7 @@
  * Stdio + HTTP transports both carry this field; a future SSE or WS
  * transport can reuse the same mapping. Hardcoding `'unknown'` at the
  * write site would bake bad data into every row; reading
- * `process.env.CONTEXTOS_AGENT_TYPE` would break for HTTP where many
+ * `process.env.COODRA_AGENT_TYPE` would break for HTTP where many
  * clients share one process.
  *
  * Interface growth (decisions-log 2026-04-24 14:30): the additive

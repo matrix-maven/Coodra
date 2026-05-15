@@ -12,7 +12,7 @@ import type { AuthEnv } from '../../../src/auth/types.js';
  * Strategy:
  *   - Use a temp dir as `homeOverride` for each test. Clean up in afterEach.
  *   - Mock `@clerk/backend::verifyToken` so the verifier is deterministic.
- *   - Provide `envOverride` so we don't depend on `~/.contextos/.env`.
+ *   - Provide `envOverride` so we don't depend on `~/.coodra/.env`.
  */
 
 const mockVerifyToken = vi.hoisted(() => vi.fn());
@@ -35,7 +35,7 @@ const FAKE_WEB_URL = 'http://localhost:3001';
 
 function envFixture(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'team',
+    COODRA_MODE: 'team',
     CLERK_SECRET_KEY: 'sk_test_realkey',
     CLERK_PUBLISHABLE_KEY: 'pk_test_realkey',
   };
@@ -57,7 +57,7 @@ function payloadFor(opts: { exp?: number; sub?: string; orgId?: string; role?: s
 let tmpHome: string;
 
 beforeEach(() => {
-  tmpHome = mkdtempSync(resolve(tmpdir(), 'contextos-token-test-'));
+  tmpHome = mkdtempSync(resolve(tmpdir(), 'coodra-token-test-'));
   clearVerifyClerkJwtCache();
   mockVerifyToken.mockReset();
 });
@@ -267,9 +267,9 @@ describe('hasStoredToken', () => {
 // ---------------------------------------------------------------------------
 
 describe('loadHomeEnvForVerify', () => {
-  it('returns process.env when ~/.contextos/.env missing', () => {
+  it('returns process.env when ~/.coodra/.env missing', () => {
     const env = loadHomeEnvForVerify(tmpHome);
-    // CONTEXTOS_MODE may or may not be set in the test process — just check shape
+    // COODRA_MODE may or may not be set in the test process — just check shape
     expect('CLERK_SECRET_KEY' in env || env.CLERK_SECRET_KEY === undefined).toBe(true);
   });
 
@@ -279,7 +279,7 @@ describe('loadHomeEnvForVerify', () => {
       [
         'CLERK_SECRET_KEY=sk_test_from_file',
         'CLERK_PUBLISHABLE_KEY=pk_test_from_file',
-        'CONTEXTOS_MODE=team',
+        'COODRA_MODE=team',
         '',
       ].join('\n'),
     );
@@ -289,8 +289,8 @@ describe('loadHomeEnvForVerify', () => {
     if (process.env.CLERK_SECRET_KEY === undefined) {
       expect(env.CLERK_SECRET_KEY).toBe('sk_test_from_file');
     }
-    if (process.env.CONTEXTOS_MODE === undefined) {
-      expect(env.CONTEXTOS_MODE).toBe('team');
+    if (process.env.COODRA_MODE === undefined) {
+      expect(env.COODRA_MODE).toBe('team');
     }
   });
 
@@ -325,10 +325,10 @@ describe('loadHomeEnvForVerify', () => {
   });
 
   // Phase H.6 regression — Test 6 (tamper safety) was breaking because
-  // `contextos init` writes the solo-bypass sentinels into every project
+  // `coodra init` writes the solo-bypass sentinels into every project
   // `.env`. When the CLI's env-bootstrap shim loaded a sentinel-stamped
   // project `.env`, the sentinels masked the real Clerk keys from
-  // `~/.contextos/.env`, JWT verification threw, and `feature-db.ts`
+  // `~/.coodra/.env`, JWT verification threw, and `feature-db.ts`
   // fell back to the (forgeable) `teamConfig.team.clerkUserId`. This
   // test pins the fix: the file's real key wins over the process.env
   // sentinel.
@@ -338,7 +338,7 @@ describe('loadHomeEnvForVerify', () => {
       [
         'CLERK_SECRET_KEY=sk_test_REAL_HOME_VALUE',
         'CLERK_PUBLISHABLE_KEY=pk_test_REAL_HOME_VALUE',
-        'CONTEXTOS_MODE=team',
+        'COODRA_MODE=team',
         '',
       ].join('\n'),
     );

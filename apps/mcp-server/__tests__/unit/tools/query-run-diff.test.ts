@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createQueryRunDiffToolRegistration } from '../../../src/tools/query-run-diff/manifest.js';
 import { queryRunDiffInputSchema } from '../../../src/tools/query-run-diff/schema.js';
 
 /**
- * Unit tests for `contextos__query_run_diff` (Module 06) — manifest
+ * Unit tests for `coodra__query_run_diff` (Module 06) — manifest
  * contract + input schema boundaries + idempotency-key shape + factory
  * construction. DB behaviour (run-not-found, analysis-pending, error-
  * code routing, success-branch shape) lives in the integration suite

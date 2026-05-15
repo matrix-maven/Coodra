@@ -1,4 +1,4 @@
-import { createLogger, InternalError } from '@coodra/contextos-shared';
+import { createLogger, InternalError } from '@coodra/shared';
 import picomatch from 'picomatch';
 
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -6,7 +6,7 @@ import type { FeaturePackGetReturn, FeaturePackReturn } from '../../lib/feature-
 import type { FeaturePackShape, GetFeaturePackInput, GetFeaturePackOutput } from './schema.js';
 
 /**
- * Handler for `contextos__get_feature_pack`.
+ * Handler for `coodra__get_feature_pack`.
  *
  * Delegates to `ctx.featurePack.get(...)` (the S7c FS-first store)
  * then maps the result into the §24.4 external shape:

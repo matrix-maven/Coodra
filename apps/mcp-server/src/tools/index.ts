@@ -1,4 +1,4 @@
-import type { DbHandle } from '@coodra/contextos-db';
+import type { DbHandle } from '@coodra/db';
 
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
@@ -30,7 +30,7 @@ import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.
  * rather than a runtime surprise.
  *
  * Tools whose handlers need process-level config (e.g. `get_run_id`
- * needs the DB handle and `CONTEXTOS_MODE`) are exported from their
+ * needs the DB handle and `COODRA_MODE`) are exported from their
  * `manifest.ts` as `createXxxToolRegistration(deps)` factories; this
  * barrel is the single place those factories are called.
  *

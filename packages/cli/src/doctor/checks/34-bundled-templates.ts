@@ -54,7 +54,7 @@ export const bundledTemplatesCheck: Check = {
         status: 'red',
         detail: `bundled templates dir not found (looked at ${candidates.join(', ')})`,
         remediation:
-          'Reinstall: `npm i -g @coodra/contextos-cli`. The templates dir ships inside the npm tarball; if missing, the install is corrupted.',
+          'Reinstall: `npm i -g @coodra/cli`. The templates dir ships inside the npm tarball; if missing, the install is corrupted.',
       };
     }
     const present = new Set(readdirSync(bundledDir));

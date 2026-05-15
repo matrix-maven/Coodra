@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { postgresSchema } from '@coodra/contextos-db';
+import { postgresSchema } from '@coodra/db';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { createWebCloudDb } from '@/lib/db';

@@ -9,13 +9,13 @@ import {
 } from './schema.js';
 
 /**
- * Registration factory for `contextos__list_context_packs` (M05 §5.1).
+ * Registration factory for `coodra__list_context_packs` (M05 §5.1).
  *
  * Read-only tool — idempotency key kind `readonly`. Different
  * (slug, limit, cursor) tuples emit distinct log keys.
  *
  * §24.3 description anatomy enforced by
- * `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`.
+ * `@coodra/shared/test-utils::assertManifestDescriptionValid`.
  */
 
 const listContextPacksIdempotencyKey: IdempotencyKeyBuilder<ListContextPacksInput> = (input, _ctx) => {
@@ -33,7 +33,7 @@ export function createListContextPacksToolRegistration(
 ): ToolRegistration<typeof listContextPacksInputSchema, typeof listContextPacksOutputSchema> {
   return {
     name: 'list_context_packs',
-    title: 'ContextOS: list_context_packs',
+    title: 'Coodra: list_context_packs',
     description:
       'Call this when you need to enumerate Context Packs for a project — answering "what work has happened here recently" or "have we tackled this kind of problem before". ' +
       'Returns a paginated list ordered by save time newest-first, with title, excerpt, runId, savedAt, and source. ' +

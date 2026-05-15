@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import { createDb, type DbHandle } from '@coodra/contextos-db';
+import { createDb, type DbHandle } from '@coodra/db';
 
 import { resolveDeploymentMode, resolveIdentityMode } from '@/lib/deployment-mode';
 
@@ -10,13 +10,13 @@ import { resolveDeploymentMode, resolveIdentityMode } from '@/lib/deployment-mod
  * deployment mode:
  *
  *   - `local-solo` / `local-team`:
- *       Open `<CONTEXTOS_HOME>/data.db` via better-sqlite3 (local SQLite
+ *       Open `<COODRA_HOME>/data.db` via better-sqlite3 (local SQLite
  *       primary store). The Sync Daemon mirrors to cloud Postgres async
  *       when in team mode.
  *
  *   - `team-hosted`:
  *       Open the cloud Postgres directly via the postgres-js driver.
- *       The web app is running on a server with no ~/.contextos at all —
+ *       The web app is running on a server with no ~/.coodra at all —
  *       everything reads + writes from cloud. Throws if DATABASE_URL is
  *       missing because that's an unrecoverable misconfig in this mode.
  *
@@ -40,7 +40,7 @@ export function createWebDb(): DbHandle {
     const url = process.env.DATABASE_URL;
     if (typeof url !== 'string' || url.length === 0) {
       throw new Error(
-        'createWebDb: CONTEXTOS_DEPLOYMENT=team-hosted requires DATABASE_URL. Set it in deployment env (Vercel project settings, fly secrets, docker -e, etc).',
+        'createWebDb: COODRA_DEPLOYMENT=team-hosted requires DATABASE_URL. Set it in deployment env (Vercel project settings, fly secrets, docker -e, etc).',
       );
     }
     // Cap the postgres-js pool at 5 connections per Next.js worker.
@@ -49,8 +49,8 @@ export function createWebDb(): DbHandle {
     // (~60 connection cap shared across project), the default `max: 10`
     // gets exhausted after a few reloads. 5 is enough headroom for SSR
     // page renders + the server-action bursts; production deployments
-    // override via `CONTEXTOS_PG_MAX` if they need more.
-    const max = Number.parseInt(process.env.CONTEXTOS_PG_MAX ?? '5', 10);
+    // override via `COODRA_PG_MAX` if they need more.
+    const max = Number.parseInt(process.env.COODRA_PG_MAX ?? '5', 10);
     const handle = createDb({
       kind: 'cloud',
       postgres: { databaseUrl: url, max: Number.isFinite(max) && max > 0 ? max : 5 },
@@ -60,7 +60,7 @@ export function createWebDb(): DbHandle {
   }
 
   // local-solo / local-team: SQLite-primary.
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const path = resolve(home, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path } });
   cached = { handle, mode };
@@ -93,17 +93,17 @@ export function createWebCloudDb(): Extract<DbHandle, { kind: 'postgres' }> {
 
   if (resolveIdentityMode() !== 'team') {
     throw new Error(
-      'createWebCloudDb: requires team mode. Run `contextos team init` to set up cloud Postgres, or `contextos login` to refresh your team session.',
+      'createWebCloudDb: requires team mode. Run `coodra team init` to set up cloud Postgres, or `coodra login` to refresh your team session.',
     );
   }
   const url = process.env.DATABASE_URL;
   if (typeof url !== 'string' || url.length === 0) {
     throw new Error(
       'createWebCloudDb: DATABASE_URL is unset. In team mode the web needs cloud Postgres for invite operations. ' +
-        'Set DATABASE_URL in ~/.contextos/.env (laptop) or the deployment env (cloud).',
+        'Set DATABASE_URL in ~/.coodra/.env (laptop) or the deployment env (cloud).',
     );
   }
-  const max = Number.parseInt(process.env.CONTEXTOS_PG_MAX ?? '5', 10);
+  const max = Number.parseInt(process.env.COODRA_PG_MAX ?? '5', 10);
   const handle = createDb({
     kind: 'cloud',
     postgres: { databaseUrl: url, max: Number.isFinite(max) && max > 0 ? max : 5 },

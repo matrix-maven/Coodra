@@ -7,8 +7,8 @@ import { createLogger } from '../logger.js';
 import type { AuthClient, AuthEnv, Identity } from './types.js';
 
 /**
- * `@coodra/contextos-shared/auth` — three-layer auth chain shared by every
- * ContextOS HTTP transport (Module 02 mcp-server, Module 03 hooks-
+ * `@coodra/shared/auth` — three-layer auth chain shared by every
+ * Coodra HTTP transport (Module 02 mcp-server, Module 03 hooks-
  * bridge, future Module 04 web). The three layers are evaluated in
  * the order locked by `system-architecture.md` §19 and Module 02
  * decisions-log 2026-04-22 Q-02-1:
@@ -93,7 +93,7 @@ export function verifyLocalHookSecret(presented: unknown, expected: string): boo
 
 /**
  * Verify a Clerk JWT Bearer token and translate its payload into the
- * ContextOS `Identity` shape. Throws `UnauthorizedError` on any
+ * Coodra `Identity` shape. Throws `UnauthorizedError` on any
  * failure — malformed token, expired, signed by a different tenant,
  * missing `sub`, etc. Callers at the HTTP middleware boundary
  * translate this into a `401`.
@@ -192,7 +192,7 @@ export function createClerkAuthClient(env: AuthEnv): AuthClient {
  */
 export function createAuthClient(env: AuthEnv): AuthClient {
   const isSolo =
-    env.CONTEXTOS_MODE === 'solo' || !env.CLERK_SECRET_KEY || env.CLERK_SECRET_KEY === SOLO_BYPASS_CLERK_SENTINEL;
+    env.COODRA_MODE === 'solo' || !env.CLERK_SECRET_KEY || env.CLERK_SECRET_KEY === SOLO_BYPASS_CLERK_SENTINEL;
   if (isSolo) return createSoloAuthClient();
   return createClerkAuthClient(env);
 }

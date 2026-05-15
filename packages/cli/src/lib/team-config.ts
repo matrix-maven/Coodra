@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { resolveContextosConfigJson, resolveContextosHome } from './contextos-home.js';
+import { resolveCoodraConfigJson, resolveCoodraHome } from './coodra-home.js';
 
 /**
  * `packages/cli/src/lib/team-config.ts` — Module 04 Phase 4. Reader +
- * writer for `~/.contextos/config.json::team` block. Used by:
+ * writer for `~/.coodra/config.json::team` block. Used by:
  *
  *   - `apps/hooks-bridge` at boot: reads the active user/org so it can
  *     stamp `created_by_user_id` on writes (the actor identity layer).
@@ -62,18 +62,18 @@ export interface ResolveTeamConfigOptions {
 }
 
 /**
- * Read + parse `~/.contextos/config.json`. Returns SOLO_CONFIG when the
+ * Read + parse `~/.coodra/config.json`. Returns SOLO_CONFIG when the
  * file is absent, unreadable, malformed, or mode is not 'team'. Never
  * throws — callers branch on the result.
  *
  * Validation is permissive — unknown top-level keys are dropped, and a
  * `team` block missing required fields downgrades to solo (logged at
- * caller's discretion). This keeps `contextos team migrate` interruption
+ * caller's discretion). This keeps `coodra team migrate` interruption
  * scenarios from leaving the bridge in a half-broken state.
  */
 export function readTeamConfig(opts: ResolveTeamConfigOptions = {}): TeamConfig {
-  const path = resolveContextosConfigJson(
-    resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {}),
+  const path = resolveCoodraConfigJson(
+    resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {}),
   );
   if (!existsSync(path)) return SOLO_CONFIG;
   let raw: string;
@@ -129,8 +129,8 @@ function isLastPulledAtMap(v: unknown): v is Record<string, number> {
  * mutation patterns.
  */
 export function writeTeamConfig(config: TeamConfig, opts: ResolveTeamConfigOptions = {}): void {
-  const path = resolveContextosConfigJson(
-    resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {}),
+  const path = resolveCoodraConfigJson(
+    resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {}),
   );
   const dir = dirname(path);
   mkdirSync(dir, { recursive: true });
@@ -153,7 +153,7 @@ export function upgradeToTeamConfig(team: TeamBlock, opts: ResolveTeamConfigOpti
 
 /**
  * Demote to solo. Writes `mode='solo'` with no team block. Used by
- * `contextos team leave`. The local SQLite cleanup is the caller's
+ * `coodra team leave`. The local SQLite cleanup is the caller's
  * responsibility.
  */
 export function demoteToSoloConfig(opts: ResolveTeamConfigOptions = {}): void {
@@ -176,29 +176,29 @@ export function updateLastPulledAt(table: string, ts: number, opts: ResolveTeamC
 }
 
 // ---------------------------------------------------------------------------
-// `~/.contextos/.env` writer / reader (Phase G+H, 2026-05-09).
+// `~/.coodra/.env` writer / reader (Phase G+H, 2026-05-09).
 // ---------------------------------------------------------------------------
 //
 // The team-config block in `config.json` is the source of truth for the
-// CLI's own internal use (`team-config.ts` readers). But `contextos
+// CLI's own internal use (`team-config.ts` readers). But `coodra
 // start` spawns the daemons (mcp-server, hooks-bridge, sync-daemon) by
-// reading env from `~/.contextos/.env` via `loadHomeEnv` (per
+// reading env from `~/.coodra/.env` via `loadHomeEnv` (per
 // `packages/cli/src/lib/load-home-env.ts`). The daemons themselves
-// validate `process.env.DATABASE_URL` / `CONTEXTOS_MODE` etc. via Zod
+// validate `process.env.DATABASE_URL` / `COODRA_MODE` etc. via Zod
 // schemas at boot.
 //
-// Without writing the team-mode env vars to `~/.contextos/.env` after
-// `team setup` / `team join`, the next `contextos start` would see
-// `CONTEXTOS_MODE=solo` (default) and refuse to launch sync-daemon, OR
-// see `CONTEXTOS_MODE=team` (from a stale .env) but no DATABASE_URL and
+// Without writing the team-mode env vars to `~/.coodra/.env` after
+// `team setup` / `team join`, the next `coodra start` would see
+// `COODRA_MODE=solo` (default) and refuse to launch sync-daemon, OR
+// see `COODRA_MODE=team` (from a stale .env) but no DATABASE_URL and
 // crash sync-daemon at boot. Either way the user is stuck.
 //
 // `writeTeamHomeEnv` does an idempotent merge — preserves existing
 // non-team keys (so a developer's manual customizations stay), updates
 // our four keys, atomic-renames the file.
 
-/** The four env vars team mode requires for `contextos start` to launch the full stack. */
-const TEAM_ENV_KEYS = ['CONTEXTOS_MODE', 'DATABASE_URL', 'LOCAL_HOOK_SECRET', 'CONTEXTOS_TEAM_ORG_ID'] as const;
+/** The four env vars team mode requires for `coodra start` to launch the full stack. */
+const TEAM_ENV_KEYS = ['COODRA_MODE', 'DATABASE_URL', 'LOCAL_HOOK_SECRET', 'COODRA_TEAM_ORG_ID'] as const;
 
 export interface TeamHomeEnvInput {
   readonly databaseUrl: string;
@@ -238,19 +238,19 @@ function quoteIfNeeded(value: string): string {
 
 /**
  * Atomic, idempotent merge of team-mode env vars into
- * `<contextosHome>/.env`. Preserves any existing keys we don't manage.
+ * `<coodraHome>/.env`. Preserves any existing keys we don't manage.
  * Updates / inserts the four team keys.
  */
 export function writeTeamHomeEnv(input: TeamHomeEnvInput, opts: ResolveTeamConfigOptions = {}): void {
-  const home = resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
+  const home = resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
   const envPath = join(home, '.env');
   mkdirSync(home, { recursive: true });
 
   const desired: Record<string, string> = {
-    CONTEXTOS_MODE: 'team',
+    COODRA_MODE: 'team',
     DATABASE_URL: input.databaseUrl,
     LOCAL_HOOK_SECRET: input.localHookSecret,
-    CONTEXTOS_TEAM_ORG_ID: input.clerkOrgId,
+    COODRA_TEAM_ORG_ID: input.clerkOrgId,
   };
 
   const existing = readEnvFileLines(envPath);
@@ -285,13 +285,13 @@ export function writeTeamHomeEnv(input: TeamHomeEnvInput, opts: ResolveTeamConfi
 }
 
 /**
- * Reverse of `writeTeamHomeEnv`. Used by `contextos team leave` to
+ * Reverse of `writeTeamHomeEnv`. Used by `coodra team leave` to
  * remove the four team env keys, leaving any user-managed entries
  * intact. The file itself stays even if it ends up empty (so users
  * who put other vars there don't lose them).
  */
 export function clearTeamHomeEnv(opts: ResolveTeamConfigOptions = {}): void {
-  const home = resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
+  const home = resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
   const envPath = join(home, '.env');
   if (!existsSync(envPath)) return;
   const existing = readEnvFileLines(envPath);
@@ -313,12 +313,12 @@ export function clearTeamHomeEnv(opts: ResolveTeamConfigOptions = {}): void {
 }
 
 /**
- * Read the four team env keys from `~/.contextos/.env`. Returns null
+ * Read the four team env keys from `~/.coodra/.env`. Returns null
  * when the file is missing or doesn't contain a complete team block.
  * Used by doctor check 36 to verify env-vs-config sync.
  */
 export function readTeamHomeEnv(opts: ResolveTeamConfigOptions = {}): TeamHomeEnvInput | null {
-  const home = resolveContextosHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
+  const home = resolveCoodraHome(opts.homeOverride !== undefined ? { override: opts.homeOverride } : {});
   const envPath = join(home, '.env');
   if (!existsSync(envPath)) return null;
   const lines = readEnvFileLines(envPath);
@@ -327,10 +327,10 @@ export function readTeamHomeEnv(opts: ResolveTeamConfigOptions = {}): TeamHomeEn
     const parsed = parseEnvLine(line);
     if (parsed !== null) map.set(parsed.key, parsed.value);
   }
-  if (map.get('CONTEXTOS_MODE') !== 'team') return null;
+  if (map.get('COODRA_MODE') !== 'team') return null;
   const databaseUrl = map.get('DATABASE_URL');
   const localHookSecret = map.get('LOCAL_HOOK_SECRET');
-  const clerkOrgId = map.get('CONTEXTOS_TEAM_ORG_ID');
+  const clerkOrgId = map.get('COODRA_TEAM_ORG_ID');
   if (
     typeof databaseUrl !== 'string' ||
     databaseUrl.length === 0 ||

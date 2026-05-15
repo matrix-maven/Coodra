@@ -37,19 +37,19 @@ const EXPECTED_TABLES = [
 ] as const;
 
 describeIfLive('apps/web storage adapter against live Supabase (LIVE_SUPABASE_TEST=1)', () => {
-  const originalMode = process.env.CONTEXTOS_MODE;
+  const originalMode = process.env.COODRA_MODE;
 
   beforeEach(() => {
     _clearWebDbCache();
-    process.env.CONTEXTOS_MODE = 'team';
+    process.env.COODRA_MODE = 'team';
     if (process.env.DATABASE_URL === undefined) {
       throw new Error('LIVE_SUPABASE_TEST requires DATABASE_URL to be set in the test env');
     }
   });
 
   afterEach(() => {
-    if (originalMode !== undefined) process.env.CONTEXTOS_MODE = originalMode;
-    else delete process.env.CONTEXTOS_MODE;
+    if (originalMode !== undefined) process.env.COODRA_MODE = originalMode;
+    else delete process.env.COODRA_MODE;
     _clearWebDbCache();
   });
 

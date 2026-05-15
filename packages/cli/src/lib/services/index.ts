@@ -1,6 +1,6 @@
 /**
  * `packages/cli/src/lib/services/index.ts` — library promotion of the
- * `contextos start / stop / status` commands for in-process consumption
+ * `coodra start / stop / status` commands for in-process consumption
  * by the web app's /settings/workspace page (M04 Phase 2 S12).
  *
  * Same wrapping pattern as `lib/init/index.ts` and `lib/pack/index.ts`:
@@ -11,7 +11,7 @@
  * spawn/kill daemons on the host machine. In team mode the web app is
  * deployed remotely and has no business managing the operator's local
  * processes — the page that calls these helpers gates on
- * `CONTEXTOS_MODE === 'solo'` and refuses to render otherwise.
+ * `COODRA_MODE === 'solo'` and refuses to render otherwise.
  */
 
 import { runStartCommand, type StartIO, type StartOptions } from '../../commands/start.js';
@@ -120,7 +120,7 @@ export async function runStart(input: RunStartInput = {}): Promise<RunStartResul
     ok: false,
     error: exitCode === 70 ? 'startup_failed' : 'unknown_failure',
     howToFix:
-      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Service start failed; check ~/.contextos/logs/.',
+      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Service start failed; check ~/.coodra/logs/.',
     exitCode,
     stdout,
     stderr,
@@ -165,7 +165,7 @@ export async function runStop(input: RunStopInput = {}): Promise<RunStopResult |
     ok: false,
     error: 'unknown_failure',
     howToFix:
-      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Service stop failed; check ~/.contextos/logs/.',
+      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Service stop failed; check ~/.coodra/logs/.',
     exitCode,
     stdout,
     stderr,
@@ -240,7 +240,7 @@ export async function runStatus(): Promise<RunStatusResult> {
     ok: false,
     error: 'status_failed',
     howToFix:
-      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Status check failed; check ~/.contextos/logs/.',
+      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Status check failed; check ~/.coodra/logs/.',
     stdout,
     stderr,
     exitCode,

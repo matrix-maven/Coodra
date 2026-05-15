@@ -5,7 +5,7 @@ import { createQueryDecisionsHandler, type QueryDecisionsHandlerDeps } from './h
 import { type QueryDecisionsInput, queryDecisionsInputSchema, queryDecisionsOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__query_decisions` (Slice 4 — 2026-05-03 audit).
+ * Registration factory for `coodra__query_decisions` (Slice 4 — 2026-05-03 audit).
  *
  * Factory shape because the handler closes over a `DbHandle` for the
  * projects-slug resolution + the decisions SELECT joined to runs.
@@ -14,7 +14,7 @@ import { type QueryDecisionsInput, queryDecisionsInputSchema, queryDecisionsOutp
  * so retries can be correlated without collapsing two distinct reads.
  *
  * §24.3 description anatomy (five-part recipe + 40–120 word band) is
- * enforced by `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`
+ * enforced by `@coodra/shared/test-utils::assertManifestDescriptionValid`
  * in the unit suite.
  */
 
@@ -34,7 +34,7 @@ export function createQueryDecisionsToolRegistration(
 ): ToolRegistration<typeof queryDecisionsInputSchema, typeof queryDecisionsOutputSchema> {
   return {
     name: 'query_decisions',
-    title: 'ContextOS: query_decisions',
+    title: 'Coodra: query_decisions',
     description:
       'Call this when the user asks "what did we decide about X?" or "any prior decisions on Y?" or you need to reconcile your current approach against decisions recorded in earlier sessions. ' +
       'Returns the chronological (most-recent-first) list of decisions logged via record_decision for this project, optionally narrowed by a substring against description+rationale or by an exact runId. ' +

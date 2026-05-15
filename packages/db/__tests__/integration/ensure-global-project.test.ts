@@ -17,7 +17,7 @@ import {
 /**
  * Locks F7 closure (verification 2026-04-27) — the `__global__` sentinel
  * project is seeded at boot so the bridge can audit decisions made in
- * unregistered cwds (no `.contextos.json`) without violating
+ * unregistered cwds (no `.coodra.json`) without violating
  * `policy_decisions.project_id` NOT NULL FK.
  */
 
@@ -37,7 +37,7 @@ afterAll(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('@coodra/contextos-db::ensureGlobalProject', () => {
+describe('@coodra/db::ensureGlobalProject', () => {
   it('inserts the __global__ row on a fresh DB', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     await ensureGlobalProject(handle);

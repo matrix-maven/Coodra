@@ -37,9 +37,9 @@ describe('runInitCommand — integration', () => {
   let userHome: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-init-cwd-'));
-    home = await mkdtemp(join(tmpdir(), 'contextos-init-home-'));
-    userHome = await mkdtemp(join(tmpdir(), 'contextos-init-userhome-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-init-cwd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-init-home-'));
+    userHome = await mkdtemp(join(tmpdir(), 'coodra-init-userhome-'));
     // Need a marker so detectProjectRoot succeeds.
     await writeFile(join(cwd, 'package.json'), JSON.stringify({ name: 'sample-app' }));
   });
@@ -48,47 +48,47 @@ describe('runInitCommand — integration', () => {
     /* tmp cleaned by OS */
   });
 
-  it('greenfield: writes data.db, .contextos.json, .mcp.json, .env, feature-pack', async () => {
+  it('greenfield: writes data.db, .coodra.json, .mcp.json, .env, feature-pack', async () => {
     const { io, captured } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
     expect(captured.exit).toBe(0);
 
-    // ~/.contextos/ artifacts
+    // ~/.coodra/ artifacts
     expect((await stat(join(home, 'data.db'))).isFile()).toBe(true);
     expect((await stat(join(home, 'logs'))).isDirectory()).toBe(true);
     expect((await stat(join(home, 'pids'))).isDirectory()).toBe(true);
 
     // Project artifacts
-    const contextosJson = JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8'));
-    expect(contextosJson.projectSlug).toBeDefined();
+    const coodraJson = JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8'));
+    expect(coodraJson.projectSlug).toBeDefined();
     const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(mcpJson.mcpServers.contextos).toBeDefined();
+    expect(mcpJson.mcpServers.coodra).toBeDefined();
 
     const envBody = await readFile(join(cwd, '.env'), 'utf8');
-    // Phase 4 H5: CONTEXTOS_MODE intentionally NOT in project .env —
-    // mode lives in ~/.contextos/.env (per-machine), which the
+    // Phase 4 H5: COODRA_MODE intentionally NOT in project .env —
+    // mode lives in ~/.coodra/.env (per-machine), which the
     // daemon-spawn path layers UNDER project .env. If we wrote
-    // CONTEXTOS_MODE=solo here, it would override `team setup`'s
-    // home-level CONTEXTOS_MODE=team and silently break team mode.
-    expect(envBody).not.toContain('CONTEXTOS_MODE=');
+    // COODRA_MODE=solo here, it would override `team setup`'s
+    // home-level COODRA_MODE=team and silently break team mode.
+    expect(envBody).not.toContain('COODRA_MODE=');
     expect(envBody).toContain('CLERK_SECRET_KEY=sk_test_replace_me');
     expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
     expect(envBody).toContain('MCP_SERVER_PORT=3100');
 
     // Feature pack seed (Phase 3 Fix C: all four files present so MCP
     // get_feature_pack's Promise.all-on-read does not throw ENOENT).
-    const featurePackDir = join(cwd, 'docs/feature-packs', contextosJson.projectSlug);
+    const featurePackDir = join(cwd, 'docs/feature-packs', coodraJson.projectSlug);
     const meta = JSON.parse(await readFile(join(featurePackDir, 'meta.json'), 'utf8'));
-    expect(meta.slug).toBe(contextosJson.projectSlug);
+    expect(meta.slug).toBe(coodraJson.projectSlug);
     expect(meta.parentSlug).toBeNull();
     expect(Array.isArray(meta.sourceFiles)).toBe(true);
     expect((await stat(join(featurePackDir, 'spec.md'))).isFile()).toBe(true);
     expect((await stat(join(featurePackDir, 'implementation.md'))).isFile()).toBe(true);
     expect((await stat(join(featurePackDir, 'techstack.md'))).isFile()).toBe(true);
 
-    // Stdout includes the "ContextOS is ready" banner.
+    // Stdout includes the "Coodra is ready" banner.
     const stdout = captured.stdout.join('');
-    expect(stdout).toContain('ContextOS is ready');
+    expect(stdout).toContain('Coodra is ready');
   });
 
   it('idempotent re-run: no destructive writes (action: unchanged)', async () => {
@@ -110,29 +110,29 @@ describe('runInitCommand — integration', () => {
     expect(stdout).toMatch(/already matches baseline|all baseline keys already present|projectSlug already/);
   });
 
-  it('--force overwrites .contextos.json baseline (Decision 3)', async () => {
+  it('--force overwrites .coodra.json baseline (Decision 3)', async () => {
     const { io: io1 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'first' }, io1)).rejects.toThrow(
       '__exit__:0',
     );
-    expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('first');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('first');
 
     // Without --force, providing a different slug preserves the existing value.
     const { io: io2 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second' }, io2)).rejects.toThrow(
       '__exit__:0',
     );
-    expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('first');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('first');
 
     // With --force, baseline overwrites.
     const { io: io3 } = makeIO();
     await expect(
       runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second', force: true }, io3),
     ).rejects.toThrow('__exit__:0');
-    expect(JSON.parse(await readFile(join(cwd, '.contextos.json'), 'utf8')).projectSlug).toBe('second');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('second');
   });
 
-  it('preserves existing .mcp.json entries when adding contextos', async () => {
+  it('preserves existing .mcp.json entries when adding coodra', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       JSON.stringify({ mcpServers: { other: { command: 'npx', args: ['something-else'] } } }),
@@ -141,14 +141,14 @@ describe('runInitCommand — integration', () => {
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
     const merged = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
     expect(merged.mcpServers.other).toEqual({ command: 'npx', args: ['something-else'] });
-    expect(merged.mcpServers.contextos).toBeDefined();
+    expect(merged.mcpServers.coodra).toBeDefined();
   });
 
   it('--dry-run: prints outcomes but writes nothing', async () => {
     const { io, captured } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, dryRun: true }, io)).rejects.toThrow('__exit__:0');
-    // No .contextos.json written
-    await expect(stat(join(cwd, '.contextos.json'))).rejects.toThrow();
+    // No .coodra.json written
+    await expect(stat(join(cwd, '.coodra.json'))).rejects.toThrow();
     // No data.db written
     await expect(stat(join(home, 'data.db'))).rejects.toThrow();
     expect(captured.stdout.join('')).toContain('--dry-run was set');
@@ -168,7 +168,7 @@ describe('runInitCommand — integration', () => {
     }
   });
 
-  it('Phase 3 Fix D: seeds default policy + rules in ~/.contextos/data.db', async () => {
+  it('Phase 3 Fix D: seeds default policy + rules in ~/.coodra/data.db', async () => {
     // Pre-Phase-3 init created the project row but inserted zero
     // policy_rules. The evaluator returned 'allow' for every
     // PreToolUse because no rule ever matched. This test opens the
@@ -177,7 +177,7 @@ describe('runInitCommand — integration', () => {
     const { io } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
 
-    const { createDb, sqliteSchema } = await import('@coodra/contextos-db');
+    const { createDb, sqliteSchema } = await import('@coodra/db');
     const { eq } = await import('drizzle-orm');
     const handle = createDb({ kind: 'local', sqlite: { path: join(home, 'data.db') } });
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
@@ -252,7 +252,7 @@ describe('runInitCommand — integration', () => {
     // runs accumulated as `in_progress` forever in the demo DB.
     expect(settings.hooks.SessionEnd).toHaveLength(1);
     // Phase 4 Fix F: tool events get the file-mutating-tool regex; non-tool
-    // events omit `matcher` entirely. Pre-Fix-F all four had matcher='__contextos__'
+    // events omit `matcher` entirely. Pre-Fix-F all four had matcher='__coodra__'
     // which never matched any real Claude Code tool, so PreToolUse hooks
     // were functionally inert.
     const sessionStart = settings.hooks.SessionStart[0];
@@ -268,7 +268,7 @@ describe('runInitCommand — integration', () => {
   });
 
   it('fails with EXIT_USER_RECOVERABLE when no project root marker is found', async () => {
-    const isolated = await mkdtemp(join(tmpdir(), 'contextos-init-no-root-'));
+    const isolated = await mkdtemp(join(tmpdir(), 'coodra-init-no-root-'));
     const sub = join(isolated, 'a', 'b');
     await mkdir(sub, { recursive: true });
     const { io, captured } = makeIO();

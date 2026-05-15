@@ -1,4 +1,4 @@
-import { type CreateSqliteDbOptions, createDb, type DbHandle } from '@coodra/contextos-db';
+import { type CreateSqliteDbOptions, createDb, type DbHandle } from '@coodra/db';
 
 import type { DbClient } from '../framework/tool-context.js';
 import { createMcpLogger } from './logger.js';
@@ -11,7 +11,7 @@ import { createMcpLogger } from './logger.js';
  *   - The factory is called exactly once at boot in `src/index.ts`.
  *     The returned `DbClient` is handed to `ToolRegistry` inside the
  *     `ContextDeps` bag; every tool invocation receives it through
- *     `ctx.db`. Tools never call `@coodra/contextos-db::createDb` directly.
+ *     `ctx.db`. Tools never call `@coodra/db::createDb` directly.
  *   - `DbClient.db` is typed as `unknown` at the ToolContext
  *     boundary (see `tool-context.ts`) to keep the driver choice out
  *     of the ToolContext interface. This file re-exports the
@@ -52,7 +52,7 @@ export interface CreateDbClientOptions {
   /**
    * Auth-strategy hint. `'solo'` → solo bypass; `'team'` → Clerk JWT.
    * Does NOT change DB routing — local services always run on SQLite.
-   * Defaulted from `CONTEXTOS_MODE` in `src/index.ts`; tests pass it
+   * Defaulted from `COODRA_MODE` in `src/index.ts`; tests pass it
    * explicitly when they want to exercise the team-mode auth path.
    */
   readonly mode?: 'solo' | 'team';

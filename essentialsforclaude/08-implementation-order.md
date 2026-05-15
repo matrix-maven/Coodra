@@ -9,7 +9,7 @@ Modules MUST be implemented in order. Each depends on the previous ones.
 | 01 | Foundation | — | `docs/feature-packs/01-foundation/` |
 | 02 | MCP Server (incl. tool manifest per `system-architecture.md` §24) | 01 | `docs/feature-packs/02-mcp-server/` |
 | 03 | Hooks Bridge | 01, 02 | `docs/feature-packs/03-hooks-bridge/` |
-| 08a | CLI (`@coodra/contextos-cli`) — install + lifecycle | 01, 02, 03 | `docs/feature-packs/08a-cli/` |
+| 08a | CLI (`@coodra/cli`) — install + lifecycle | 01, 02, 03 | `docs/feature-packs/08a-cli/` |
 | 04 | Web App | 01, 02, 08a | `docs/feature-packs/04-web-app/` |
 | 05 | NL Assembly | 01, 02 | `docs/feature-packs/05-nl-assembly/` |
 | 06 | Semantic Diff | 01, 03 | `docs/feature-packs/06-semantic-diff/` |
@@ -17,12 +17,12 @@ Modules MUST be implemented in order. Each depends on the previous ones.
 
 **Why Module 08a is numbered 08a, not 08:** the original "Module 08 Distribution" plan included a marketing site, npm publish automation, and an Anthropic MCP marketplace listing. Per the user directive 2026-04-24, marketing and distribution-channel work is **out of scope** for this project — only the CLI portion remains, hence the `08a` suffix. There is no Module 08b. Future channel work (marketing site, npm publish flag day, marketplace submission) is tracked in `context_memory/pending-user-actions.md` as user-side ops, not in the module sequence.
 
-**Why Module 08a lands between 03 and 04, not at the end:** the Web App (Module 04) onboarding flow assumes a working `contextos init` command exists. The VS Code Extension (Module 07) shells out to `contextos start` / `stop` / `status` for service control. Both modules need 08a to land first or they end up reimplementing daemon-management surfaces.
+**Why Module 08a lands between 03 and 04, not at the end:** the Web App (Module 04) onboarding flow assumes a working `coodra init` command exists. The VS Code Extension (Module 07) shells out to `coodra start` / `stop` / `status` for service control. Both modules need 08a to land first or they end up reimplementing daemon-management surfaces.
 
 **Scope items deliberately out of every module spec:**
 
 - **No billing, Stripe, seat management, or usage metering** in any module. Per user directive 2026-04-24 — "forget about monetary setup, only focus on building the working product." Module 04 is admin / dashboard / team management only.
-- **No marketing site, no `contextos.dev` HTML, no landing page.** Per user directive 2026-04-24 — "we are not making the landing page here, only the system."
+- **No marketing site, no `coodra.dev` HTML, no landing page.** Per user directive 2026-04-24 — "we are not making the landing page here, only the system."
 - **No BYO-cloud team deploy.** Team mode is hosted by us (single managed Postgres + Upstash + Railway/Fly.io stack). BYO-cloud Enterprise variant is post-launch.
 - **Managed LLM in team mode is Gemini, not Anthropic.** Per user directive 2026-04-24. Solo mode continues to support Ollama (local) as the default. Module 05's NL Assembly tier-2 selection logic uses `GEMINI_API_KEY` first; the `ANTHROPIC_API_KEY` branch can be removed when Module 05 ships.
 
@@ -60,6 +60,6 @@ After completing any module or significant feature, you MUST save a Context Pack
 - Known issues or limitations.
 - What should be built next.
 
-**How to save it:** call `contextos__save_context_pack` (see `05-agent-trigger-contract.md` §5.9). That call writes the pack to `docs/context-packs/` AND registers it in the MCP store, so future `contextos__search_packs_nl` calls can find it.
+**How to save it:** call `coodra__save_context_pack` (see `05-agent-trigger-contract.md` §5.9). That call writes the pack to `docs/context-packs/` AND registers it in the MCP store, so future `coodra__search_packs_nl` calls can find it.
 
 **This is not optional.** Context Packs are the memory of the project. Without them, the next agent session starts from zero.

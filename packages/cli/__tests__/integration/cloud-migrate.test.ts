@@ -1,11 +1,11 @@
-import { createPostgresDb, type PostgresHandle } from '@coodra/contextos-db';
+import { createPostgresDb, type PostgresHandle } from '@coodra/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { runCloudMigrateCommand } from '../../src/commands/cloud-migrate.js';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED } from '../../src/exit-codes.js';
 
 /**
- * Integration tests for `contextos cloud-migrate`. Skipped automatically
+ * Integration tests for `coodra cloud-migrate`. Skipped automatically
  * when `DATABASE_URL` is not set (CI provides a service container; locally
  * run `pnpm -w docker:up` and export DATABASE_URL).
  *
@@ -21,7 +21,7 @@ import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED } from '..
 const databaseUrl = process.env.DATABASE_URL;
 const isEnabled = typeof databaseUrl === 'string' && databaseUrl.length > 0;
 
-(isEnabled ? describe : describe.skip)('contextos cloud-migrate', () => {
+(isEnabled ? describe : describe.skip)('coodra cloud-migrate', () => {
   let handle: PostgresHandle;
 
   beforeAll(() => {

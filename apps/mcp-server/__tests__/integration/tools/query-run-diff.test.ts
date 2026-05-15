@@ -1,4 +1,4 @@
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
@@ -9,7 +9,7 @@ import type { QueryRunDiffOutput } from '../../../src/tools/query-run-diff/schem
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__query_run_diff` (Module 06).
+ * Integration test for `coodra__query_run_diff` (Module 06).
  *
  * Real :memory: SQLite migrated to current head + ToolRegistry +
  * ContextDeps. Locks the discriminated-union routing:

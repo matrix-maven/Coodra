@@ -36,7 +36,7 @@ This is distinct from `docs/context-packs/` which holds **finalized, per-feature
 **On a significant architectural or implementation decision:**
 
 - Append to `decisions-log.md` with: timestamp, decision, rationale, alternatives considered.
-- Mirror the decision to the ContextOS MCP via `contextos__record_decision`.
+- Mirror the decision to the Coodra MCP via `coodra__record_decision`.
 
 **On a user action required:**
 
@@ -50,7 +50,7 @@ This is distinct from `docs/context-packs/` which holds **finalized, per-feature
 **At the end of a session** (or before context collapse):
 
 - Update `current-session.md` "Next action" so the next session knows exactly what to do first.
-- Call `contextos__save_context_pack` with a full markdown summary.
+- Call `coodra__save_context_pack` with a full markdown summary.
 - Do NOT archive `current-session.md` at session end — archive it at the next session's start so the next agent always has an authoritative current state to read.
 
 ## 3.3 `current-session.md` template

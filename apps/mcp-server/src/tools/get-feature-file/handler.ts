@@ -1,15 +1,15 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 
-import { lookupProjectBySlug, type DbHandle } from '@coodra/contextos-db';
-import { featuresRoot } from '@coodra/contextos-shared/features';
-import { createLogger } from '@coodra/contextos-shared';
+import { lookupProjectBySlug, type DbHandle } from '@coodra/db';
+import { featuresRoot } from '@coodra/shared/features';
+import { createLogger } from '@coodra/shared';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { GetFeatureFileInput, GetFeatureFileOutput } from './schema.js';
 
 /**
- * Handler for `contextos__get_feature_file`.
+ * Handler for `coodra__get_feature_file`.
  *
  * Returns the raw text contents of a single supporting file inside a
  * feature directory. Three gates protect against abuse:
@@ -79,7 +79,7 @@ export function createGetFeatureFileHandler(
       return {
         ok: false,
         error: 'project_not_found',
-        howToFix: `No projects row for slug "${input.projectSlug}". Run \`contextos init\` from the project root.`,
+        howToFix: `No projects row for slug "${input.projectSlug}". Run \`coodra init\` from the project root.`,
       };
     }
     if (project.cwd === null) {
@@ -96,7 +96,7 @@ export function createGetFeatureFileHandler(
         ok: false,
         error: 'feature_not_found',
         howToFix:
-          `No feature at \`${featureDir}\`. Call \`contextos__list_features\` to see what's available, or scaffold via \`contextos feature add ${input.slug}\`.`,
+          `No feature at \`${featureDir}\`. Call \`coodra__list_features\` to see what's available, or scaffold via \`coodra feature add ${input.slug}\`.`,
       };
     }
 
@@ -136,7 +136,7 @@ export function createGetFeatureFileHandler(
         ok: false,
         error: 'file_not_found',
         howToFix:
-          `No file at \`${candidate}\`. Call \`contextos__get_feature\` to list valid paths under this feature.`,
+          `No file at \`${candidate}\`. Call \`coodra__get_feature\` to list valid paths under this feature.`,
       };
     }
     let stat: ReturnType<typeof statSync>;

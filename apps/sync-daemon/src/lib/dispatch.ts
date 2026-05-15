@@ -3,15 +3,15 @@ import type {
   OutboxDispatchOutcome,
   OutboxJob,
   SyncLookup,
-} from '@coodra/contextos-cli/lib/outbox';
+} from '@coodra/cli/lib/outbox';
 import {
   type DbHandle,
   type PostgresHandle,
   postgresSchema,
   type SqliteHandle,
   sqliteSchema,
-} from '@coodra/contextos-db';
-import { createLogger, type Logger } from '@coodra/contextos-shared';
+} from '@coodra/db';
+import { createLogger, type Logger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 
 /**
@@ -89,7 +89,7 @@ const SYNC_TABLES = [
   // Phase F.1 (2026-05-11) — on-demand skill recipes. Sync the local
   // SQLite `features` row to cloud Postgres so teammates pull it via
   // team-rows-puller and the puller writes the markdown back to disk.
-  // Closes the "knowledge artifacts are git-distributed not ContextOS-
+  // Closes the "knowledge artifacts are git-distributed not Coodra-
   // distributed" gap from Phase E's demo audit.
   'features',
   // Phase F.2 (2026-05-11) — module blueprint cloud sync. Same idea
@@ -233,7 +233,7 @@ const LOCAL_ONLY_ORGS: ReadonlySet<string> = new Set(['__solo__', '__global__'])
  *
  * Used by `syncFeatures` because the order in which projects-vs-features
  * sync jobs are claimed by the daemon worker isn't deterministic. When a
- * user runs `contextos feature add greet` from a freshly init'd project,
+ * user runs `coodra feature add greet` from a freshly init'd project,
  * the projects job + features job land in `pending_jobs` in that order
  * but the OutboxWorker may claim them concurrently. Without this guard,
  * the features INSERT can race ahead of the projects INSERT and fail FK.
@@ -300,7 +300,7 @@ async function getLocalProjectOrgId(localDb: SqliteHandle, projectId: string): P
 /**
  * Phase clarity-pass fix (2026-05-11): suppress sync for writes whose
  * parent project belongs to a local-only sentinel org. The CLI / bridge
- * / MCP server schedule sync jobs based on `process.env.CONTEXTOS_MODE`
+ * / MCP server schedule sync jobs based on `process.env.COODRA_MODE`
  * alone, which is correct at the MACHINE level but doesn't see the
  * per-PROJECT org_id. A solo-era project still tagged `__solo__` would
  * have its writes enqueued for cloud sync after a machine flip to team
@@ -579,7 +579,7 @@ async function syncPolicyDecisions({ localDb, cloudDb, lookup, log, jobId }: Syn
     if (outcome === 'local_only') return true; // parent chain is local-only — skip cloud insert
   }
   // policy_rules (and their parent policy) aren't synced to cloud in
-  // v1 — admins seed them per-project locally via `contextos init`'s
+  // v1 — admins seed them per-project locally via `coodra init`'s
   // 25-rule baseline, and there's no edit UI yet that would justify
   // cross-machine sync. Cloud's policy_decisions table has an FK on
   // matched_rule_id that would block every PreToolUse audit if we

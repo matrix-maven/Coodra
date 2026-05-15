@@ -41,7 +41,7 @@ const {
 
 function baseEnv(overrides: Partial<AuthEnv> = {}): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     ...overrides,
   };
 }
@@ -51,7 +51,7 @@ function baseEnv(overrides: Partial<AuthEnv> = {}): AuthEnv {
 // ---------------------------------------------------------------------------
 
 describe('createAuthClient(env) — mode dispatch', () => {
-  it('returns a solo client when CONTEXTOS_MODE=solo', async () => {
+  it('returns a solo client when COODRA_MODE=solo', async () => {
     const auth = createAuthClient(baseEnv());
     await expect(auth.getIdentity()).resolves.toEqual(SOLO_IDENTITY);
   });
@@ -59,7 +59,7 @@ describe('createAuthClient(env) — mode dispatch', () => {
   it('returns a solo client when CLERK_SECRET_KEY is the solo-bypass sentinel', async () => {
     const auth = createAuthClient(
       baseEnv({
-        CONTEXTOS_MODE: 'team',
+        COODRA_MODE: 'team',
         CLERK_SECRET_KEY: 'sk_test_replace_me',
         CLERK_PUBLISHABLE_KEY: 'pk_test_xxx',
       }),
@@ -70,7 +70,7 @@ describe('createAuthClient(env) — mode dispatch', () => {
   it('returns a Clerk client when team mode has real Clerk keys', async () => {
     const auth = createAuthClient(
       baseEnv({
-        CONTEXTOS_MODE: 'team',
+        COODRA_MODE: 'team',
         CLERK_SECRET_KEY: 'sk_test_real_key',
         CLERK_PUBLISHABLE_KEY: 'pk_test_real_key',
       }),
@@ -154,7 +154,7 @@ describe('verifyClerkJwt', () => {
   it('returns an Identity on valid token with org_id', async () => {
     mockVerifyToken.mockResolvedValueOnce({ sub: 'user_xyz', org_id: 'org_abc' });
     const env = baseEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
     });
@@ -166,7 +166,7 @@ describe('verifyClerkJwt', () => {
   it('maps missing org_id to null', async () => {
     mockVerifyToken.mockResolvedValueOnce({ sub: 'user_solo' });
     const env = baseEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
     });
@@ -177,7 +177,7 @@ describe('verifyClerkJwt', () => {
   it('throws UnauthorizedError when the SDK rejects the token', async () => {
     mockVerifyToken.mockRejectedValueOnce(new Error('JWT expired'));
     const env = baseEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
     });
@@ -187,7 +187,7 @@ describe('verifyClerkJwt', () => {
   it('throws UnauthorizedError when the payload has no sub', async () => {
     mockVerifyToken.mockResolvedValueOnce({});
     const env = baseEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
     });
@@ -196,7 +196,7 @@ describe('verifyClerkJwt', () => {
 
   it('throws UnauthorizedError (not calling the SDK) when token is empty', async () => {
     const env = baseEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
     });

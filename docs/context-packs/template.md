@@ -3,7 +3,7 @@
 > Save a copy of this file as
 > `docs/context-packs/YYYY-MM-DD-module-NN-<short-title>.md` at the
 > end of every session and fill in the placeholders below. Once the
-> markdown body is final, also call `contextos__save_context_pack`
+> markdown body is final, also call `coodra__save_context_pack`
 > with the same body so the MCP server can retrieve it semantically
 > from a future session.
 

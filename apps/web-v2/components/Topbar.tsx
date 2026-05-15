@@ -5,11 +5,11 @@ import { startServicesAction } from '@/lib/actions/services';
 interface TopbarProps {
   readonly crumbPrefix?: string;
   readonly crumb: string;
-  /** When set, the trailing accent button uses this label and target href. Default: "contextos start" → POSTs startServicesAction. */
+  /** When set, the trailing accent button uses this label and target href. Default: "coodra start" → POSTs startServicesAction. */
   readonly primaryAction?: { readonly label: string; readonly href: string };
   /**
-   * Render the laptop-local "contextos start" button? When omitted, the
-   * component infers from `process.env.CONTEXTOS_DEPLOYMENT` (Next
+   * Render the laptop-local "coodra start" button? When omitted, the
+   * component infers from `process.env.COODRA_DEPLOYMENT` (Next
    * inlines this at build time for both server and client bundles).
    * Server-component callers can pass the explicit value resolved via
    * `resolveDeploymentMode()` for the local-solo + local-team split.
@@ -20,7 +20,7 @@ interface TopbarProps {
    *   `'use client'` component (`app/runs/[id]/live/RunLiveClient.tsx`).
    *   A static import of the server-only module crashes the client
    *   build with `"server-only" ... not supported in pages/ directory`.
-   *   Reading `process.env.CONTEXTOS_DEPLOYMENT` works in both contexts
+   *   Reading `process.env.COODRA_DEPLOYMENT` works in both contexts
    *   because Next's webpack plugin inlines NEXT_PUBLIC_* and other
    *   non-secret env tokens at compile time.
    */
@@ -32,25 +32,25 @@ interface TopbarProps {
  * contexts. Trailing buttons branch on `showLocalStartButton`:
  *
  *   - true (local-solo / local-team):
- *       "contextos start" (accent) → POSTs `startServicesAction` to
+ *       "coodra start" (accent) → POSTs `startServicesAction` to
  *       spawn MCP + Hooks Bridge + (team-only) Sync Daemon on the
  *       local laptop.
  *
  *   - false (team-hosted):
  *       The deployment server has no local daemons to spawn, so the
- *       "contextos start" affordance is hidden — clicking it would
+ *       "coodra start" affordance is hidden — clicking it would
  *       redirect to /forbidden?reason=local_only via the action guard,
  *       which is bad UX. Falls back to the Docs link only unless the
  *       page passes its own primaryAction.
  *
  * The Docs link is constant across modes.
  */
-export function Topbar({ crumbPrefix = 'contextos', crumb, primaryAction, showLocalStartButton }: TopbarProps) {
+export function Topbar({ crumbPrefix = 'coodra', crumb, primaryAction, showLocalStartButton }: TopbarProps) {
   // Infer from env when not explicitly passed. process.env access here
   // is safe in client bundles because Next.js webpack inlines string
   // literal env reads at compile time. The fallback `team-hosted` is
   // the safer side (hides the button) when the env isn't set.
-  const inferredShowStart = showLocalStartButton ?? process.env.CONTEXTOS_DEPLOYMENT !== 'team-hosted';
+  const inferredShowStart = showLocalStartButton ?? process.env.COODRA_DEPLOYMENT !== 'team-hosted';
   return (
     <div className="topbar">
       <div className="crumbs">
@@ -81,7 +81,7 @@ export function Topbar({ crumbPrefix = 'contextos', crumb, primaryAction, showLo
       ) : inferredShowStart ? (
         <form action={startServicesAction} style={{ display: 'inline' }}>
           <button className="topbar__btn topbar__btn--accent" type="submit">
-            contextos start
+            coodra start
           </button>
         </form>
       ) : null}

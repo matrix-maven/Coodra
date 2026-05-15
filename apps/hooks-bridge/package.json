@@ -1,13 +1,13 @@
 {
-  "name": "@coodra/contextos-hooks-bridge",
+  "name": "@coodra/hooks-bridge",
   "version": "0.0.0",
   "private": true,
-  "description": "ContextOS Hooks Bridge — Hono service on 127.0.0.1:3101 that ingests Claude Code (HTTP), Windsurf (shell adapter), and Cursor (shell adapter) hook events, normalizes them through per-agent adapters, runs pre-tool policy enforcement, and writes runs + run_events.",
+  "description": "Coodra Hooks Bridge — Hono service on 127.0.0.1:3101 that ingests Claude Code (HTTP), Windsurf (shell adapter), and Cursor (shell adapter) hook events, normalizes them through per-agent adapters, runs pre-tool policy enforcement, and writes runs + run_events.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "contextos-hooks-bridge": "./dist/index.js"
+    "coodra-hooks-bridge": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "biome check .",
-    "dev": "CONTEXTOS_LOG_DESTINATION=stderr tsx watch src/index.ts",
+    "dev": "COODRA_LOG_DESTINATION=stderr tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -24,10 +24,10 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@coodra/contextos-cli": "workspace:*",
-    "@coodra/contextos-db": "workspace:*",
-    "@coodra/contextos-policy": "workspace:*",
-    "@coodra/contextos-shared": "workspace:*",
+    "@coodra/cli": "workspace:*",
+    "@coodra/db": "workspace:*",
+    "@coodra/policy": "workspace:*",
+    "@coodra/shared": "workspace:*",
     "@hono/node-server": "2.0.0",
     "@hono/zod-validator": "^0.7.6",
     "drizzle-orm": "^0.45.2",

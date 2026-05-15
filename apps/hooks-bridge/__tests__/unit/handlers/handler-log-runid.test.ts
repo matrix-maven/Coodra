@@ -1,13 +1,13 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { createPolicyClientFromCheck } from '@coodra/contextos-policy';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import type { DbHandle } from '@coodra/db';
+import { createPolicyClientFromCheck } from '@coodra/policy';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * F15 closure (verification 2026-04-27 — Phase 7 logger correlation).
  *
  * The pre-tool-use and post-tool-use handlers must call
- * `@coodra/contextos-db::lookupRunId` synchronously on the hot path so the
+ * `@coodra/db::lookupRunId` synchronously on the hot path so the
  * INFO log line carries `runId`. The actual log-output assertion is
  * impractical in vitest (pino uses sonic-boom and bypasses
  * process.stdout.write), so this suite mocks `lookupRunId` to verify:
@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const lookupRunIdMock = vi.fn<(db: DbHandle, projectId: string, sessionId: string) => Promise<string | null>>();
 
-vi.mock('@coodra/contextos-db', async (importOriginal) => {
+vi.mock('@coodra/db', async (importOriginal) => {
   const actual = (await importOriginal()) as object;
   return {
     ...actual,

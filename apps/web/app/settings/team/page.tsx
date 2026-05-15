@@ -10,7 +10,7 @@ import { clerkAppearance } from '@/lib/clerk-appearance';
  */
 
 export default function TeamSettingsPage() {
-  if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
+  if ((process.env.COODRA_MODE ?? 'solo') === 'solo') notFound();
   return (
     <PageShell variant="workspace">
       <PageHeader

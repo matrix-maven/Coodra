@@ -67,7 +67,7 @@
 1. Edit both schema files to drop `summaryEmbedding`.
 2. Run `pnpm db:generate`. SQLite produces the rebuild-and-rename pattern (CREATE __new_context_packs → INSERT SELECT → DROP → RENAME). Verify it preserves both indexes (`context_packs_run_idx` UNIQUE, `context_packs_project_created_idx`).
 3. Postgres migration is `DROP INDEX` first, then `DROP COLUMN`. Drizzle generally emits this correctly for `vector(...)` columns. Verify by hand.
-4. Update `migrations.lock.json` — remove the two preserve-block entries. Run `pnpm --filter @coodra/contextos-db check:migration-lock` to confirm clean.
+4. Update `migrations.lock.json` — remove the two preserve-block entries. Run `pnpm --filter @coodra/db check:migration-lock` to confirm clean.
 5. Delete the sqlite-vec integration test file.
 6. (Continue into S3 in the same PR.)
 
@@ -75,7 +75,7 @@
 
 - (Same PR as S3) — `pnpm test:integration` green
 - Fresh DB boot from `0000` → `0011` succeeds
-- `pnpm --filter @coodra/contextos-db check:migration-lock` passes
+- `pnpm --filter @coodra/db check:migration-lock` passes
 
 ### Risk markers
 
@@ -273,8 +273,8 @@
 
 ### Risk markers
 
-- **The session-state map** is per-process. Bridge restart (e.g., `contextos restart`) loses the counters mid-session. That's fine — at worst the agent gets a reminder it already saw. Worth noting in `apps/hooks-bridge/src/lib/session-state.ts`'s file comment.
-- **Mechanism D nag potential.** If N is too low, every session gets the reminder. Default 15 is empirically a "long" session in current ContextOS usage. Make it configurable via `.contextos.json:sessionStart.midSessionReminderAfter`.
+- **The session-state map** is per-process. Bridge restart (e.g., `coodra restart`) loses the counters mid-session. That's fine — at worst the agent gets a reminder it already saw. Worth noting in `apps/hooks-bridge/src/lib/session-state.ts`'s file comment.
+- **Mechanism D nag potential.** If N is too low, every session gets the reminder. Default 15 is empirically a "long" session in current Coodra usage. Make it configurable via `.coodra.json:sessionStart.midSessionReminderAfter`.
 
 ---
 
@@ -291,15 +291,15 @@
 ### Files (edit)
 
 - `apps/hooks-bridge/src/handlers/session-start.ts` — call `loadRecentDecisionsForSession` after the existing Feature Pack load; concatenate to `additionalContext` with a horizontal rule separator
-- `packages/cli/src/lib/init/contextos-json.ts` — extend the `.contextos.json` schema to accept the `sessionStart` object with the four fields (`recentDecisionsLimit`, `recentDecisionsMaxAgeDays`, `contractReminder`, `midSessionReminderAfter`)
-- `apps/hooks-bridge/src/lib/contextos-json.ts` (or wherever the bridge reads project config) — pass the config through to the SessionStart handler
+- `packages/cli/src/lib/init/coodra-json.ts` — extend the `.coodra.json` schema to accept the `sessionStart` object with the four fields (`recentDecisionsLimit`, `recentDecisionsMaxAgeDays`, `contractReminder`, `midSessionReminderAfter`)
+- `apps/hooks-bridge/src/lib/coodra-json.ts` (or wherever the bridge reads project config) — pass the config through to the SessionStart handler
 
 ### Implementation notes
 
 - **Format** per `spec.md` §7.4. Decisions written before M05 (no `context`, `impact`, `confidence`, `reversible`) render gracefully — empty fields omitted.
 - **Confidence-aware ordering** per `spec.md` §7.3 — `ORDER BY (CASE confidence WHEN 'high' THEN 1 ...) , created_at DESC`.
 - **Fail-open** — any DB error logs warn and returns `null`. SessionStart proceeds with Feature Pack only.
-- **Project resolution** — bridge already resolves `projectId` for SessionStart from `.contextos.json` + `runs` row. Reuse that.
+- **Project resolution** — bridge already resolves `projectId` for SessionStart from `.coodra.json` + `runs` row. Reuse that.
 
 ### Verification gate
 
@@ -366,12 +366,12 @@
 
 1. Create `docs/context-packs/2026-MM-DD-module-05-agent-driven-nl-assembly.md` per `essentialsforclaude/08-implementation-order.md §8.4`.
 2. Capture: what was built, decisions made (the OQ table from `spec.md` §10), files modified across all eight slices, test results, known limitations, what should be built next.
-3. Mirror via `contextos__save_context_pack` so the MCP store has the row + the dashboard's coverage stat picks it up.
+3. Mirror via `coodra__save_context_pack` so the MCP store has the row + the dashboard's coverage stat picks it up.
 
 ### Verification gate
 
 - Pack file exists at the expected path
-- `sqlite3 ~/.contextos/data.db "SELECT slug, created_at FROM context_packs WHERE title LIKE '%Module 05%';"` returns the row
+- `sqlite3 ~/.coodra/data.db "SELECT slug, created_at FROM context_packs WHERE title LIKE '%Module 05%';"` returns the row
 - README updated, all checkpoints green
 
 ---

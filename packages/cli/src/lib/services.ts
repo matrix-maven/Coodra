@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { resolveContextosLogsDir } from './contextos-home.js';
+import { resolveCoodraLogsDir } from './coodra-home.js';
 import type { DaemonUnit } from './daemon/index.js';
 import { loadHomeEnv } from './load-home-env.js';
 import { bundledMigrationsDir, resolveRuntimeBinary } from './runtime-paths.js';
@@ -26,7 +26,7 @@ export interface WorkerServiceDescriptor {
   readonly name: ServiceName;
   readonly displayName: string;
   readonly relativeEntry: string;
-  /** Worker only launches when CONTEXTOS_MODE=team (DATABASE_URL set). */
+  /** Worker only launches when COODRA_MODE=team (DATABASE_URL set). */
   readonly requiresTeamMode: true;
 }
 
@@ -36,7 +36,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
   {
     kind: 'http',
     name: 'mcp-server',
-    displayName: 'ContextOS MCP Server',
+    displayName: 'Coodra MCP Server',
     port: 3100,
     defaultPort: 3100,
     relativeEntry: 'apps/mcp-server/dist/index.js',
@@ -45,7 +45,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
   {
     kind: 'http',
     name: 'hooks-bridge',
-    displayName: 'ContextOS Hooks Bridge',
+    displayName: 'Coodra Hooks Bridge',
     port: 3101,
     defaultPort: 3101,
     relativeEntry: 'apps/hooks-bridge/dist/index.js',
@@ -54,7 +54,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
   {
     kind: 'worker',
     name: 'sync-daemon',
-    displayName: 'ContextOS Sync Daemon',
+    displayName: 'Coodra Sync Daemon',
     relativeEntry: 'apps/sync-daemon/dist/index.js',
     requiresTeamMode: true,
   },
@@ -69,7 +69,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
     // `{ ok: true, service: 'web-v2', deploymentMode, timestamp }`.
     kind: 'http',
     name: 'web',
-    displayName: 'ContextOS Web',
+    displayName: 'Coodra Web',
     port: 3001,
     defaultPort: 3001,
     relativeEntry: 'apps/web-v2/.next/standalone/apps/web-v2/server.js',
@@ -78,7 +78,7 @@ export const SERVICES: readonly ServiceDescriptor[] = [
 ];
 
 export interface BuildServiceUnitOptions {
-  readonly contextosHome: string;
+  readonly coodraHome: string;
   readonly env: NodeJS.ProcessEnv;
 }
 
@@ -93,7 +93,7 @@ export interface ResolvedService {
 /**
  * Build the DaemonUnit each service runs as. The mcp-server and
  * hooks-bridge binary paths come from `lib/runtime-paths.ts::
- * resolveRuntimeBinary` — bundled (`@coodra/contextos-cli/dist/runtime/<app>/
+ * resolveRuntimeBinary` — bundled (`@coodra/cli/dist/runtime/<app>/
  * index.js`) when available, monorepo dev path
  * (`apps/<app>/dist/index.js`) as fallback. Pre dec_83ba10c1 this
  * threw outright when no monorepo was detected; bundled artifacts in
@@ -105,25 +105,25 @@ export interface ResolvedService {
  */
 export async function resolveServices(options: BuildServiceUnitOptions): Promise<ResolvedService[]> {
   // Layer the env, low → high precedence:
-  //   1. `<CONTEXTOS_HOME>/.env`  — user-global defaults
+  //   1. `<COODRA_HOME>/.env`  — user-global defaults
   //   2. `<process.cwd()>/.env`   — per-project overrides (this is where
-  //                                 `contextos init` writes)
+  //                                 `coodra init` writes)
   //   3. options.env (process.env) — explicit shell exports always win
   // The two-file split matters because `init` writes (2) but commit
   // 34faa0e's first cut only read (1); the .env init wrote was therefore
   // decorative end-to-end and team-mode setups silently fell back to solo.
   // See `loadHomeEnv` for the layering rationale.
-  const layered = loadHomeEnv(options.contextosHome, process.cwd());
+  const layered = loadHomeEnv(options.coodraHome, process.cwd());
   const env: NodeJS.ProcessEnv = { ...layered, ...options.env };
   const mcpPort = parsePort(env.MCP_SERVER_PORT, 3100);
   const bridgePort = parsePort(env.HOOKS_BRIDGE_PORT, 3101);
-  // CONTEXTOS_WEB_PORT — env override path for the rare case the user
+  // COODRA_WEB_PORT — env override path for the rare case the user
   // already runs something on 3001 (e.g. an unrelated Next.js dev server).
   // Default matches apps/web-v2/package.json's dev port.
-  const webPort = parsePort(env.CONTEXTOS_WEB_PORT, 3001);
+  const webPort = parsePort(env.COODRA_WEB_PORT, 3001);
 
-  const logsDir = resolveContextosLogsDir(options.contextosHome);
-  const isTeamMode = env.CONTEXTOS_MODE === 'team';
+  const logsDir = resolveCoodraLogsDir(options.coodraHome);
+  const isTeamMode = env.COODRA_MODE === 'team';
   const resolved: ResolvedService[] = [];
   for (const descriptor of SERVICES) {
     // Module 04a: skip workers that require team mode when in solo. The
@@ -141,13 +141,13 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
     const entrySource = resolvedBin.source;
     const unitEnv = buildServiceEnv({
       env,
-      contextosHome: options.contextosHome,
+      coodraHome: options.coodraHome,
       port,
       name: descriptor.name,
       entrySource,
     });
-    // pino → stderr per CONTEXTOS_LOG_DESTINATION; both streams routed into
-    // <contextos-home>/logs/<name>.log so doctor check 8 can read them and
+    // pino → stderr per COODRA_LOG_DESTINATION; both streams routed into
+    // <coodra-home>/logs/<name>.log so doctor check 8 can read them and
     // field debugging is possible (vs the pre-fix /dev/null sink).
     const stdoutPath = join(logsDir, `${descriptor.name}.log`);
     const stderrPath = join(logsDir, `${descriptor.name}.log`);
@@ -171,17 +171,17 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
 
 function buildServiceEnv(args: {
   readonly env: NodeJS.ProcessEnv;
-  readonly contextosHome: string;
+  readonly coodraHome: string;
   readonly port: number | null;
   readonly name: ServiceName;
   readonly entrySource: 'bundled' | 'monorepo';
 }): Record<string, string> {
   const env: Record<string, string> = {
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
-    CONTEXTOS_HOME: args.contextosHome,
+    COODRA_LOG_DESTINATION: 'stderr',
+    COODRA_HOME: args.coodraHome,
   };
-  // When the binary is the bundled artifact under @coodra/contextos-cli/dist/
-  // runtime/, the embedded `@coodra/contextos-db::MIGRATIONS_FOLDER` cannot
+  // When the binary is the bundled artifact under @coodra/cli/dist/
+  // runtime/, the embedded `@coodra/db::MIGRATIONS_FOLDER` cannot
   // self-locate the SQL files (workspace-relative `..` walks land
   // outside the bundle). The bundler co-ships drizzle/ next to the
   // app bundles; this env var pins the parent directory so the
@@ -189,14 +189,14 @@ function buildServiceEnv(args: {
   if (args.entrySource === 'bundled') {
     const bundled = bundledMigrationsDir('sqlite');
     if (bundled !== null) {
-      env.CONTEXTOS_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
+      env.COODRA_MIGRATIONS_DIR = bundled.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '');
     }
   }
   const FORWARD_LITERAL = new Set(['LOCAL_HOOK_SECRET', 'DATABASE_URL']);
   const RESERVED = new Set([
-    'CONTEXTOS_LOG_DESTINATION',
-    'CONTEXTOS_HOME',
-    'CONTEXTOS_MIGRATIONS_DIR',
+    'COODRA_LOG_DESTINATION',
+    'COODRA_HOME',
+    'COODRA_MIGRATIONS_DIR',
     'MCP_SERVER_PORT',
     'MCP_SERVER_TRANSPORT',
     'MCP_SERVER_HOST',
@@ -212,7 +212,7 @@ function buildServiceEnv(args: {
   for (const [key, value] of Object.entries(args.env)) {
     if (typeof value !== 'string' || value.length === 0) continue;
     if (RESERVED.has(key)) continue;
-    if (key.startsWith('CONTEXTOS_') || key.startsWith('CLERK_') || FORWARD_LITERAL.has(key)) {
+    if (key.startsWith('COODRA_') || key.startsWith('CLERK_') || FORWARD_LITERAL.has(key)) {
       env[key] = value;
     }
   }
@@ -228,7 +228,7 @@ function buildServiceEnv(args: {
     // both IPv4 and IPv6 loopback, matching the kernel's preferred
     // resolution. W4 (2026-05-13) — discovered that with HOSTNAME=
     // 127.0.0.1, Next.js's team-mode internal proxy (Clerk middleware
-    // path) fails with EADDRNOTAVAIL when CONTEXTOS_PUBLIC_URL=
+    // path) fails with EADDRNOTAVAIL when COODRA_PUBLIC_URL=
     // http://localhost:3001 because `localhost` resolves to ::1 on
     // recent macOS / many Linux distros, but the server only listens
     // on 127.0.0.1 → connect fails → /api/healthz returns 500. Using

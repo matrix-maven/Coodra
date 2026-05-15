@@ -15,7 +15,7 @@
   - `c94883f` feat(cli): supervise sync-daemon as third managed process in team mode (S4)
   - `4ba37a0` feat(sync-daemon): scaffold service with OutboxWorker dispatching to cloud Postgres (S3)
   - `5379f7b` feat(db,bridge,mcp-server,cli): paired sync_to_cloud enqueue + worker queueFilter (S2)
-  - `871cec0` feat(cli): contextos cloud-migrate runs Drizzle pg migrations idempotently (S1)
+  - `871cec0` feat(cli): coodra cloud-migrate runs Drizzle pg migrations idempotently (S1)
   - `734b6c2` docs(feature-pack): Module 04a sync-daemon + self-host packaging — spec/implementation/techstack
   - (S8: this closeout pack itself, run-time verification, no separate code commit)
 
@@ -30,10 +30,10 @@ The single load-bearing AC — *a write to local SQLite must appear in cloud Pos
 ## Scope boundary
 
 **In scope.**
-- `contextos cloud-migrate` CLI command with the OQ4 pre-flight refusal on unknown non-empty tables.
+- `coodra cloud-migrate` CLI command with the OQ4 pre-flight refusal on unknown non-empty tables.
 - `scheduleAuditWriteWithSync` paired-enqueue helper + worker `queueFilter` (OQ7 cross-pollination guard).
 - `apps/sync-daemon` package: dual-handle boot, OutboxWorker filtered to `sync_to_cloud`, per-table SELECT-from-local + INSERT-to-cloud dispatch.
-- `contextos start/stop/status` supervises sync-daemon as a third managed process in team mode (omitted in solo).
+- `coodra start/stop/status` supervises sync-daemon as a third managed process in team mode (omitted in solo).
 - Doctor checks 24/25/26/27 (cloud reachability with time-based escalation, sync queue depth, sync lag, sync dead-letter count).
 - Functest finding #4 fix: port-availability checks suppress yellow when `/healthz` answers OK.
 - Functest finding #9 fix: bridge auto-create-run path uses `generateRunKey` for canonical 4-segment ids; migration 0005 backfills bare-UUID legacy rows.
@@ -56,7 +56,7 @@ The single load-bearing AC — *a write to local SQLite must appear in cloud Pos
   - Rationale: one number for operators; hybrid hot path covers <1s; 30s catchup recovers from daemon-was-down.
 - **OQ3 — cloud unreachability escalation:** GREEN reachable, YELLOW after 5min, RED after 1h.
   - Rationale: mirrors M03.1 OQ3 thresholds; one mental model for ops.
-- **OQ4 — cloud Postgres migration ownership:** separate `contextos cloud-migrate` CLI command. **Constraint:** must refuse to run if there are data rows in tables not in the current migration set (prevents migrate-skip footguns).
+- **OQ4 — cloud Postgres migration ownership:** separate `coodra cloud-migrate` CLI command. **Constraint:** must refuse to run if there are data rows in tables not in the current migration set (prevents migrate-skip footguns).
   - Implementation: pre-flight enumerates `information_schema.tables` in `public`, fails with `EXIT_ENVIRONMENT_PROBLEM` if any unknown table has rows.
 - **OQ5 — self-host deploy happy path:** Docker Compose canonical; Railway/Fly.io as brief mentions.
   - Rationale: vendor-neutral; Compose is the universal substrate any managed platform can derive.
@@ -74,7 +74,7 @@ The single load-bearing AC — *a write to local SQLite must appear in cloud Pos
 - `package.json`, `tsconfig.json`, `tsconfig.typecheck.json`, `vitest.{config,integration.config}.ts`
 - `src/index.ts` — boot entry: dual handles + OutboxWorker filtered to sync_to_cloud + lifecycle
 - `src/bootstrap/ensure-stderr-logging.ts` — pino → stderr default
-- `src/config/env.ts` — Zod env: `DATABASE_URL` required; tunable `CONTEXTOS_SYNC_TICK_MS`/`LEASE_MS`
+- `src/config/env.ts` — Zod env: `DATABASE_URL` required; tunable `COODRA_SYNC_TICK_MS`/`LEASE_MS`
 - `src/lib/dispatch.ts` — per-table SELECT-from-local + INSERT-to-cloud with appropriate ON CONFLICT clauses
 - `__tests__/integration/dispatch.test.ts` — 5 cases against compose pgvector
 
@@ -140,17 +140,17 @@ The single load-bearing AC — *a write to local SQLite must appear in cloud Pos
 - **Verification commands run locally:**
   ```bash
   pnpm exec turbo run typecheck lint test:unit                                    # all green
-  DATABASE_URL='postgres://...' pnpm --filter @coodra/contextos-cli test:integration     # 6/6 (cloud-migrate)
-  pnpm --filter @coodra/contextos-db test:integration                                    # 45/45 (incl. 0005 migration applies on pg)
-  pnpm --filter @coodra/contextos-hooks-bridge test:integration                          # 38/38
-  pnpm --filter @coodra/contextos-mcp-server test:integration                            # 179/179
-  DATABASE_URL='postgres://...' pnpm --filter @coodra/contextos-sync-daemon test:integration  # 5/5
+  DATABASE_URL='postgres://...' pnpm --filter @coodra/cli test:integration     # 6/6 (cloud-migrate)
+  pnpm --filter @coodra/db test:integration                                    # 45/45 (incl. 0005 migration applies on pg)
+  pnpm --filter @coodra/hooks-bridge test:integration                          # 38/38
+  pnpm --filter @coodra/mcp-server test:integration                            # 179/179
+  DATABASE_URL='postgres://...' pnpm --filter @coodra/sync-daemon test:integration  # 5/5
   pnpm test:e2e                                                                   # 32 passed (1 pre-existing skip)
-  CONTEXTOS_MODE=solo pnpm exec tsx __tests__/manual/verify-outbox-crash-safety.ts   # ALL PASS
+  COODRA_MODE=solo pnpm exec tsx __tests__/manual/verify-outbox-crash-safety.ts   # ALL PASS
   pnpm exec tsx __tests__/manual/verify-f5-live.ts                                # PASS
   DATABASE_URL='postgres://...' pnpm exec tsx __tests__/manual/verify-sync-roundtrip.ts  # ALL PASS
-  docker build -f deploy/Dockerfile.cloud-migrate -t contextos/cloud-migrate:dev .     # built clean
-  docker run --rm --network host -e DATABASE_URL='postgres://...' contextos/cloud-migrate:dev  # idempotent re-apply success
+  docker build -f deploy/Dockerfile.cloud-migrate -t coodra/cloud-migrate:dev .     # built clean
+  docker run --rm --network host -e DATABASE_URL='postgres://...' coodra/cloud-migrate:dev  # idempotent re-apply success
   ```
 
 - **CI status at session end:** branch `feat/04a-sync-daemon` ready for squash-merge to `main`. Locally green; CI will validate.

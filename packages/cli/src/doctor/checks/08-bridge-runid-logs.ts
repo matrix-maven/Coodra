@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { resolveContextosLogsDir } from '../../lib/contextos-home.js';
+import { resolveCoodraLogsDir } from '../../lib/coodra-home.js';
 import type { Check } from '../types.js';
 
 const PRE_TOOL_LOG_PATTERN = /"event"\s*:\s*"pre_tool_use_decision"/;
@@ -12,7 +12,7 @@ export const bridgeRunIdLogsCheck: Check = {
   name: 'bridge pre_tool_use_decision logs include runId (F15 spot-check)',
   severity: 'yellow',
   async run(ctx) {
-    const logsDir = resolveContextosLogsDir(ctx.contextosHome);
+    const logsDir = resolveCoodraLogsDir(ctx.coodraHome);
     let entries: string[];
     try {
       entries = await readdir(logsDir);
@@ -68,7 +68,7 @@ export const bridgeRunIdLogsCheck: Check = {
       status: 'yellow',
       detail: `${missing}/${inspected} pre-tool decision lines have no runId field at all`,
       remediation:
-        'Bridge may be running pre-F15 binary. Re-run `pnpm --filter @coodra/contextos-hooks-bridge build` and restart.',
+        'Bridge may be running pre-F15 binary. Re-run `pnpm --filter @coodra/hooks-bridge build` and restart.',
     };
   },
 };

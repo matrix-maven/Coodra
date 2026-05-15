@@ -1,6 +1,6 @@
 /**
  * W4 (2026-05-13) — Cloudflare quick-tunnel orchestration for
- * `contextos start --tunnel`. Quick-tunnels are ephemeral by design:
+ * `coodra start --tunnel`. Quick-tunnels are ephemeral by design:
  * `cloudflared tunnel --url http://localhost:3001` allocates a fresh
  * `https://*.trycloudflare.com` URL with no Cloudflare account, no
  * named-tunnel setup, no DNS. The URL lives for the lifetime of the
@@ -175,33 +175,33 @@ export async function startQuickTunnel(options: StartQuickTunnelOptions): Promis
 }
 
 /**
- * W4 (2026-05-13) — write/remove CONTEXTOS_PUBLIC_URL in `~/.contextos/.env`.
+ * W4 (2026-05-13) — write/remove COODRA_PUBLIC_URL in `~/.coodra/.env`.
  *
- * Why `~/.contextos/.env` and not the cwd `.env`: machine-level config
+ * Why `~/.coodra/.env` and not the cwd `.env`: machine-level config
  * (the tunnel applies to the daemon supervisor on THIS machine, not to
  * a specific project). The same precedence applies as everywhere else
  * in the CLI — home env is the per-machine layer, project env is the
  * per-project layer, shell env wins. See `loadHomeEnv`.
  */
-export function writeTunnelUrlToHomeEnv(contextosHome: string, url: string): void {
-  const envPath = join(contextosHome, '.env');
-  upsertEnvKey(envPath, 'CONTEXTOS_PUBLIC_URL', url);
+export function writeTunnelUrlToHomeEnv(coodraHome: string, url: string): void {
+  const envPath = join(coodraHome, '.env');
+  upsertEnvKey(envPath, 'COODRA_PUBLIC_URL', url);
 }
 
-export function clearTunnelUrlFromHomeEnv(contextosHome: string): void {
-  const envPath = join(contextosHome, '.env');
-  removeEnvKey(envPath, 'CONTEXTOS_PUBLIC_URL');
+export function clearTunnelUrlFromHomeEnv(coodraHome: string): void {
+  const envPath = join(coodraHome, '.env');
+  removeEnvKey(envPath, 'COODRA_PUBLIC_URL');
 }
 
 /**
  * Tunnel state pointer — track the PID of the cloudflared child so
- * `contextos stop` (a different process from the one that spawned
- * `start --tunnel`) can find + kill it. Kept under `~/.contextos/`
+ * `coodra stop` (a different process from the one that spawned
+ * `start --tunnel`) can find + kill it. Kept under `~/.coodra/`
  * alongside the daemon PIDs (which point at launchd-managed children;
  * the tunnel is the only one we own directly).
  */
-export function tunnelStatePath(contextosHome: string): string {
-  return join(contextosHome, 'tunnel.json');
+export function tunnelStatePath(coodraHome: string): string {
+  return join(coodraHome, 'tunnel.json');
 }
 
 export interface TunnelState {
@@ -210,8 +210,8 @@ export interface TunnelState {
   readonly startedAt: number;
 }
 
-export function readTunnelState(contextosHome: string): TunnelState | null {
-  const path = tunnelStatePath(contextosHome);
+export function readTunnelState(coodraHome: string): TunnelState | null {
+  const path = tunnelStatePath(coodraHome);
   if (!existsSync(path)) return null;
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as TunnelState;
@@ -222,16 +222,16 @@ export function readTunnelState(contextosHome: string): TunnelState | null {
   }
 }
 
-export function writeTunnelState(contextosHome: string, state: TunnelState): void {
-  const path = tunnelStatePath(contextosHome);
+export function writeTunnelState(coodraHome: string, state: TunnelState): void {
+  const path = tunnelStatePath(coodraHome);
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
   renameSync(tmp, path);
 }
 
-export function clearTunnelState(contextosHome: string): void {
-  const path = tunnelStatePath(contextosHome);
+export function clearTunnelState(coodraHome: string): void {
+  const path = tunnelStatePath(coodraHome);
   if (!existsSync(path)) return;
   try {
     unlinkSync(path);
@@ -242,15 +242,15 @@ export function clearTunnelState(contextosHome: string): void {
 
 /**
  * W4 (2026-05-13) — kill a previously-started tunnel by reading the
- * persisted PID. `contextos stop` runs in a different process from
- * `contextos start --tunnel`, so we can't share the `QuickTunnel`
+ * persisted PID. `coodra stop` runs in a different process from
+ * `coodra start --tunnel`, so we can't share the `QuickTunnel`
  * object — we go through the filesystem state pointer.
  *
  * Idempotent: missing state file = no-op, dead PID = no-op (cleared
  * the file), kill failure = logged and continues.
  */
-export function stopTunnelByPid(contextosHome: string): { stopped: boolean; pid: number | null; err?: string } {
-  const state = readTunnelState(contextosHome);
+export function stopTunnelByPid(coodraHome: string): { stopped: boolean; pid: number | null; err?: string } {
+  const state = readTunnelState(coodraHome);
   if (state === null) return { stopped: false, pid: null };
   let stopped = false;
   let err: string | undefined;
@@ -262,6 +262,6 @@ export function stopTunnelByPid(contextosHome: string): { stopped: boolean; pid:
     // Either way: state file is stale, clean it up.
     err = (e as Error).message;
   }
-  clearTunnelState(contextosHome);
+  clearTunnelState(coodraHome);
   return err === undefined ? { stopped, pid: state.pid } : { stopped, pid: state.pid, err };
 }

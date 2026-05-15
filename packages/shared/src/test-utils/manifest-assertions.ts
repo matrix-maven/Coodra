@@ -4,17 +4,17 @@
  * These assertions pin the `system-architecture.md` §24.3 description
  * contract — the "Tool descriptions are agent prompts" discipline
  * that makes `tools/list` output agent-directable without a human in
- * the loop. Every tool manifest that lands in the ContextOS monorepo
- * (the eight `contextos__*` tools in Module 02, any future tool in
+ * the loop. Every tool manifest that lands in the Coodra monorepo
+ * (the eight `coodra__*` tools in Module 02, any future tool in
  * downstream packages) should route its manifest test through
  * `assertManifestDescriptionValid` so the §24.3 rules stay uniform
  * across packages and cannot drift per-tool.
  *
  * Consumed from:
  *   - `apps/mcp-server/__tests__/unit/tools/*.test.ts`
- *   - any future `@coodra/contextos-tools-*` package's manifest tests
+ *   - any future `@coodra/tools-*` package's manifest tests
  *
- * Kept in `@coodra/contextos-shared/test-utils` (subpath export) rather than
+ * Kept in `@coodra/shared/test-utils` (subpath export) rather than
  * inlined in the mcp-server because:
  *   1. §24.3 is a protocol rule, not a server-implementation detail.
  *   2. Future tool packages shipped outside `apps/mcp-server/` need the

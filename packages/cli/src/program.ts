@@ -232,9 +232,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
 
   const program = new Command();
   program
-    .name('contextos')
-    .description('ContextOS CLI — install, configure, run, and diagnose ContextOS on your machine.')
-    .version(VERSION, '-v, --version', 'Print the @coodra/contextos-cli version and exit.')
+    .name('coodra')
+    .description('Coodra CLI — install, configure, run, and diagnose Coodra on your machine.')
+    .version(VERSION, '-v, --version', 'Print the @coodra/cli version and exit.')
     .helpOption('-h, --help', 'Show help for a command.')
     .showHelpAfterError(false);
 
@@ -242,7 +242,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('init')
     .description(
-      'Initialise ContextOS in the current project (writes ~/.contextos/, .mcp.json, .contextos.json, .env).',
+      'Initialise Coodra in the current project (writes ~/.coodra/, .mcp.json, .coodra.json, .env).',
     )
     .option('--project-slug <slug>', 'Project slug; derives from path.basename(cwd) when omitted.')
     .option('--ide <ide>', 'IDE to wire ("claude", "cursor", "windsurf", "codex", or "all").')
@@ -297,7 +297,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const stopRunner = options.runStop ?? runStopCommand;
   program
     .command('stop')
-    .description('Stop ContextOS daemons. Idempotent.')
+    .description('Stop Coodra daemons. Idempotent.')
     .option('--service <name>', 'Stop only the named service.')
     .option('--uninstall', 'Also uninstall the daemon-manager units.')
     .action(async (opts: StopOptions) => {
@@ -313,15 +313,15 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await statusRunner(opts, options.statusIO);
     });
 
-  // Phase G slice G.3 — top-level `contextos login` for browser-handoff auth.
+  // Phase G slice G.3 — top-level `coodra login` for browser-handoff auth.
   // The `team login` subcommand is kept as a backward-compat alias.
   const loginRunnerPhaseG = options.runLogin ?? runLoginCommand;
   program
     .command('login')
-    .description('Browser-handoff Clerk login. Writes ~/.contextos/clerk-token.json and switches mode to team.')
+    .description('Browser-handoff Clerk login. Writes ~/.coodra/clerk-token.json and switches mode to team.')
     .option(
       '--web-url <url>',
-      'Override the team-mode web URL (defaults to CONTEXTOS_WEB_URL or http://localhost:3001).',
+      'Override the team-mode web URL (defaults to COODRA_WEB_URL or http://localhost:3001).',
     )
     .option('--no-open', 'Print the sign-in URL instead of opening a browser (useful in headless shells).')
     .option('--timeout-ms <ms>', 'Override the browser-handoff timeout (default 300000 = 5 minutes).', (v) =>
@@ -337,7 +337,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await loginRunnerPhaseG(merged, options.loginIO);
     });
 
-  // Phase G slice G.10 — `contextos org` parent + status/switch.
+  // Phase G slice G.10 — `coodra org` parent + status/switch.
   const orgStatusRunner = options.runOrgStatus ?? runOrgStatusCommand;
   const orgSwitchRunner = options.runOrgSwitch ?? runOrgSwitchCommand;
   const orgCmd = program
@@ -366,7 +366,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await orgSwitchRunner(merged, options.orgIO);
     });
 
-  // Phase G slice G.4 — top-level `contextos logout`.
+  // Phase G slice G.4 — top-level `coodra logout`.
   const logoutRunnerPhaseG = options.runLogout ?? runLogoutCommand;
   program
     .command('logout')
@@ -379,8 +379,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await logoutRunnerPhaseG(merged, options.logoutIO);
     });
 
-  // Phase H.5 — top-level `contextos invite <email>`. Mints a team
-  // invite from the CLI side, signed with CONTEXTOS_INVITE_HMAC_SECRET.
+  // Phase H.5 — top-level `coodra invite <email>`. Mints a team
+  // invite from the CLI side, signed with COODRA_INVITE_HMAC_SECRET.
   // Prints a single shareable URL — the teammate doesn't need a separate
   // Clerk org-invitation email (Phase H.6 changes `/api/install` to
   // auto-add them to the org at redeem time).
@@ -393,7 +393,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--expires-in-days <n>', '1-30 (default: 7)', (v) => Number.parseInt(v, 10))
     .option(
       '--web-url <url>',
-      'Override the deployment URL the invite points at (default: $CONTEXTOS_PUBLIC_URL or http://localhost:3001).',
+      'Override the deployment URL the invite points at (default: $COODRA_PUBLIC_URL or http://localhost:3001).',
     )
     .action(async (email: string, opts: { role?: string; expiresInDays?: number; webUrl?: string }) => {
       const merged: InviteOptions = {
@@ -418,7 +418,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--full', 'Run every check in the registry, not just the essentials (dec_83ba10c1, 2026-05-02).')
     .option(
       '--fix',
-      'After running checks, repair safe drift conditions: strip stale CONTEXTOS_MODE lines ' +
+      'After running checks, repair safe drift conditions: strip stale COODRA_MODE lines ' +
         "from every registered project's `.env` file (Phase A, clarity-pass-plan 2026-05-11). Idempotent.",
     )
     .action(async (opts: DoctorOptions) => {
@@ -446,7 +446,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const dbMigrateRunner = options.runDbMigrate ?? runDbMigrateCommand;
   db.command('migrate')
     .description(
-      'Apply pending Drizzle migrations to ~/.contextos/data.db. Idempotent. Refuses if any daemon is alive (use --with-daemons-running to override).',
+      'Apply pending Drizzle migrations to ~/.coodra/data.db. Idempotent. Refuses if any daemon is alive (use --with-daemons-running to override).',
     )
     .option('--dry-run', 'Report pending count without applying.')
     .option(
@@ -461,9 +461,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const dbBackupRunner = options.runDbBackup ?? runDbBackupCommand;
   db.command('backup')
     .description(
-      'Backup ~/.contextos/data.db. Default = single-file VACUUM INTO snapshot. --include-logs switches to a tarball with logs + config.',
+      'Backup ~/.coodra/data.db. Default = single-file VACUUM INTO snapshot. --include-logs switches to a tarball with logs + config.',
     )
-    .option('--out <path>', 'Destination path (default: ~/.contextos/backups/data.db.bak.<ISO>.sqlite).')
+    .option('--out <path>', 'Destination path (default: ~/.coodra/backups/data.db.bak.<ISO>.sqlite).')
     .option('--include-logs', 'Produce a .tar.gz containing data.db.bak + logs/*.log + config.json.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: DbBackupOptions) => {
@@ -473,7 +473,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const dbRestoreRunner = options.runDbRestore ?? runDbRestoreCommand;
   db.command('restore <source>')
     .description(
-      'Restore ~/.contextos/data.db from <source> (a SQLite file). Atomic replace + auto-backup of current DB. Refuses if any daemon is alive — no override.',
+      'Restore ~/.coodra/data.db from <source> (a SQLite file). Atomic replace + auto-backup of current DB. Refuses if any daemon is alive — no override.',
     )
     .option('--no-auto-backup', 'Skip the safety snapshot of the current DB before replacing it.')
     .option('--force', 'Skip the interactive confirmation prompt (reserved for future TTY-aware prompting).')
@@ -508,7 +508,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       "Add a rule to the project's __default__ policy (auto-created if absent). Rule lands at priority 100+ to stay below the seeded defaults.",
     )
-    .requiredOption('--project <slug>', 'Project slug (must already exist; run `contextos init` first).')
+    .requiredOption('--project <slug>', 'Project slug (must already exist; run `coodra init` first).')
     .requiredOption('--tool <name>', 'Tool name to match (e.g. Write, Edit, Bash).')
     .requiredOption('--decision <decision>', 'allow | deny | ask')
     .requiredOption('--reason <text>', 'Operator audit context (required).')
@@ -577,7 +577,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   project
     .command('promote [identifier]')
     .description(
-      'Promote a project from solo (__solo__) to your verified Clerk org so it syncs to cloud. Resolves [identifier] (slug or id), or <cwd>/.contextos.json when omitted. Use this when `contextos init` ran before `contextos team init` + `contextos login`.',
+      'Promote a project from solo (__solo__) to your verified Clerk org so it syncs to cloud. Resolves [identifier] (slug or id), or <cwd>/.coodra.json when omitted. Use this when `coodra init` ran before `coodra team init` + `coodra login`.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string | undefined, opts: ProjectPromoteOptions) => {
@@ -589,7 +589,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   project
     .command('demote [identifier]')
     .description(
-      'Demote a project from your team org back to solo (local-only). SAFE-ONLY: refuses if the project has already synced to cloud (split-brain risk) — it only works in the window before any data left this machine. Resolves [identifier] (slug or id) or <cwd>/.contextos.json.',
+      'Demote a project from your team org back to solo (local-only). SAFE-ONLY: refuses if the project has already synced to cloud (split-brain risk) — it only works in the window before any data left this machine. Resolves [identifier] (slug or id) or <cwd>/.coodra.json.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string | undefined, opts: ProjectDemoteOptions) => {
@@ -632,7 +632,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const templateInstallRunner = options.runTemplateInstall ?? runTemplateInstallCommand;
   tmpl
     .command('install <source>')
-    .description('Copy a local template directory into ~/.contextos/templates/<name>/ for re-use across projects.')
+    .description('Copy a local template directory into ~/.coodra/templates/<name>/ for re-use across projects.')
     .option('--name <override>', 'Install under a different name than the source template.json#name.')
     .option('--force', 'Overwrite an existing user template at this name.')
     .option('--json', 'Emit a structured JSON report.')
@@ -816,9 +816,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('uninstall')
     .description(
-      'Reverse `contextos init`: remove `__contextos__` matchers from ~/.claude/settings.json + `contextos` server from .mcp.json. Default-safe (preserves data + config + feature/context packs); --purge removes ~/.contextos/.',
+      'Reverse `coodra init`: remove `__coodra__` matchers from ~/.claude/settings.json + `coodra` server from .mcp.json. Default-safe (preserves data + config + feature/context packs); --purge removes ~/.coodra/.',
     )
-    .option('--purge', 'Remove ~/.contextos/ as well (data + config + logs + pids).')
+    .option('--purge', 'Remove ~/.coodra/ as well (data + config + logs + pids).')
     .option('--dry-run', 'Print what would change without touching disk.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: UninstallOptions) => {
@@ -830,7 +830,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('upgrade')
     .description(
-      'Check for a newer @coodra/contextos-cli on npm. Does NOT self-update — prints the install command. After install, re-run to apply migrations + restart daemons.',
+      'Check for a newer @coodra/cli on npm. Does NOT self-update — prints the install command. After install, re-run to apply migrations + restart daemons.',
     )
     .option('--check-only', 'Print the version comparison and exit; never restart or migrate.')
     .option('--no-restart', 'Skip the daemon restart after a same-version no-op upgrade.')
@@ -844,7 +844,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('logs <service>')
     .description(
-      'Tail or print recent lines from ~/.contextos/logs/<service>.log. Pure file-read; no DB. Service ∈ {mcp-server, hooks-bridge, sync-daemon, web}.',
+      'Tail or print recent lines from ~/.coodra/logs/<service>.log. Pure file-read; no DB. Service ∈ {mcp-server, hooks-bridge, sync-daemon, web}.',
     )
     .option('--follow', 'Keep streaming new lines as they arrive (Ctrl-C to exit).')
     .option('--lines <N>', 'Print the last N lines (default 100; max 1,000,000).')
@@ -858,7 +858,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('pause')
     .description(
-      'Pause ContextOS enforcement on the local machine via a row in `kill_switches`. Hard mode (default) denies; soft mode allows + audits. Local-only (M08b OQ-8); cross-developer sync is M04.',
+      'Pause Coodra enforcement on the local machine via a row in `kill_switches`. Hard mode (default) denies; soft mode allows + audits. Local-only (M08b OQ-8); cross-developer sync is M04.',
     )
     .option('--scope <scope>', 'global | project | tool | agent_type (default: global)')
     .option('--target <value>', 'projectSlug | toolName | agentType (required when --scope != global)')
@@ -894,14 +894,14 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('team')
     .description('Team-mode commands. Bodies land when team mode is reachable end-to-end (post-Module 04).');
 
-  // Phase G — `team login` is a backward-compat alias for `contextos login`.
+  // Phase G — `team login` is a backward-compat alias for `coodra login`.
   // The legacy `[token]` argument and `--server` flag are accepted but
   // ignored; the new flow captures the token via browser handoff.
   team
     .command('login')
     .argument('[token]', '[deprecated] ignored — Phase G captures the token via browser handoff.')
-    .option('--server <url>', '[deprecated] use --web-url on `contextos login` instead.')
-    .description('[alias for `contextos login`] Browser-handoff Clerk login.')
+    .option('--server <url>', '[deprecated] use --web-url on `coodra login` instead.')
+    .description('[alias for `coodra login`] Browser-handoff Clerk login.')
     .action(async (_token: string | undefined, opts: { server?: string }) => {
       const merged: LoginOptions = {
         ...(opts.server !== undefined ? { webUrl: opts.server } : {}),
@@ -909,10 +909,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await loginRunnerPhaseG(merged, options.loginIO);
     });
 
-  // Phase G — `team logout` is a backward-compat alias for `contextos logout`.
+  // Phase G — `team logout` is a backward-compat alias for `coodra logout`.
   team
     .command('logout')
-    .description('[alias for `contextos logout`] Log out of team mode.')
+    .description('[alias for `coodra logout`] Log out of team mode.')
     .action(async () => {
       await logoutRunnerPhaseG({}, options.logoutIO);
     });
@@ -922,9 +922,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   team
     .command('migrate')
     .description('Move local solo-mode data into the team cloud (idempotent + resumable).')
-    .option('--user-id <id>', 'Clerk user id (or env CONTEXTOS_TEAM_USER_ID).')
-    .option('--org-id <id>', 'Clerk org id (or env CONTEXTOS_TEAM_ORG_ID).')
-    .option('--secret <hex>', 'Local hook secret (or env CONTEXTOS_TEAM_HOOK_SECRET).')
+    .option('--user-id <id>', 'Clerk user id (or env COODRA_TEAM_USER_ID).')
+    .option('--org-id <id>', 'Clerk org id (or env COODRA_TEAM_ORG_ID).')
+    .option('--secret <hex>', 'Local hook secret (or env COODRA_TEAM_HOOK_SECRET).')
     .option('--database-url <url>', 'Cloud Postgres URL (or env DATABASE_URL).')
     .option('--yes', 'Skip the dry-run prompt and execute the migration.')
     .option('--resume', 'Resume an in-flight migration from the last successfully-completed phase.')
@@ -944,13 +944,13 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .argument('[invite-url]', 'Phase G — invite URL from /settings/team. Browser-handoff flow.')
     .description(
       'Join an existing team via an invite URL. Performs browser-based Clerk sign-in, ' +
-        'verifies email matches the invite, fetches install bundle, and writes ~/.contextos/{config.json,.env,clerk-token.json}.',
+        'verifies email matches the invite, fetches install bundle, and writes ~/.coodra/{config.json,.env,clerk-token.json}.',
     )
     // Legacy flag-driven flow (pre-Phase-G). Mutually exclusive with <invite-url>.
-    .option('--user-id <id>', '[legacy] Clerk user id (or env CONTEXTOS_TEAM_USER_ID).')
-    .option('--org-id <id>', '[legacy] Clerk org id (or env CONTEXTOS_TEAM_ORG_ID).')
+    .option('--user-id <id>', '[legacy] Clerk user id (or env COODRA_TEAM_USER_ID).')
+    .option('--org-id <id>', '[legacy] Clerk org id (or env COODRA_TEAM_ORG_ID).')
     .option('--org-slug <slug>', '[legacy] Optional Clerk org slug for display.')
-    .option('--secret <hex>', '[legacy] Local hook secret (or env CONTEXTOS_TEAM_HOOK_SECRET).')
+    .option('--secret <hex>', '[legacy] Local hook secret (or env COODRA_TEAM_HOOK_SECRET).')
     .option('--database-url <url>', '[legacy] Cloud Postgres URL (or env DATABASE_URL).')
     .option('--no-open', 'Print the sign-in URL instead of opening a browser (Phase G mode).')
     .option('--timeout-ms <ms>', 'Override the browser-handoff timeout (default 300000).', (v) =>
@@ -1016,7 +1016,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--yes-reinit', 'Skip the "already in team mode — re-init?" prompt (CI only).')
     .option(
       '--no-login',
-      'Phase H — skip chaining into the browser-based contextos login at the end. Use only for CI/tests; admin manually runs `contextos login` after.',
+      'Phase H — skip chaining into the browser-based coodra login at the end. Use only for CI/tests; admin manually runs `coodra login` after.',
     )
     .action(async (opts: TeamInitOptions & { login?: boolean }) => {
       // Commander negates `--no-login` into `login: false`. Translate
@@ -1042,8 +1042,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       'Bootstrap a team — runs against your own Supabase/Postgres. ' +
         'Verifies connectivity, installs pgvector, applies schema, prints credentials to share.',
     )
-    .option('--user-id <id>', 'Your Clerk user id (or env CONTEXTOS_TEAM_USER_ID).')
-    .option('--org-id <id>', 'Your Clerk org id (or env CONTEXTOS_TEAM_ORG_ID).')
+    .option('--user-id <id>', 'Your Clerk user id (or env COODRA_TEAM_USER_ID).')
+    .option('--org-id <id>', 'Your Clerk org id (or env COODRA_TEAM_ORG_ID).')
     .option('--org-slug <slug>', 'Optional Clerk org slug for display.')
     .option('--secret <hex>', 'Local hook secret to use (or generate fresh 32-byte hex if absent).')
     .option('--database-url <url>', 'Cloud Postgres URL (or env DATABASE_URL).')
@@ -1055,14 +1055,14 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
 
   // Module 04 Phase 2 — teammate-side counterpart to `team setup`.
   // Redeems a signed bootstrap URL (`/api/install/<token>` on the
-  // admin's deployment) and writes ~/.contextos/config.json + .env.
+  // admin's deployment) and writes ~/.coodra/config.json + .env.
   // Single-use; one invocation consumes the token at the server.
   const installRunner = options.runTeamInstall ?? runTeamInstallCommand;
   team
     .command('install')
     .description(
       'Join an existing team via a one-click invite. Provided by your admin from /settings/team. ' +
-        'Writes ~/.contextos/config.json + .env. Single-use — re-running on a new machine requires a fresh invite.',
+        'Writes ~/.coodra/config.json + .env. Single-use — re-running on a new machine requires a fresh invite.',
     )
     .option('--bootstrap-url <url>', 'Signed bootstrap URL from the invite email or /install/<token> page.')
     .option('--json', 'Print the result as JSON (suppresses human-formatted welcome message).')
@@ -1071,7 +1071,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   // Interactive terminal UI — the tabbed terminal/commands/status app.
-  // Launched explicitly via `contextos ui`, or by `contextos` with no
+  // Launched explicitly via `coodra ui`, or by `coodra` with no
   // arguments at all (handled in `index.ts`, before commander parses,
   // so the no-args path can branch on TTY without commander's default
   // action turning the root program into a strict-arity command). The
@@ -1080,7 +1080,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   // last in `--help`.
   program
     .command('ui')
-    .description('Launch the interactive ContextOS terminal UI (tabs: terminal · commands · status).')
+    .description('Launch the interactive Coodra terminal UI (tabs: terminal · commands · status).')
     .action(async () => {
       const { launchTui } = await import('./tui/index.js');
       await launchTui();

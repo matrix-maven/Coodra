@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle, scheduleDurableWrite, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 

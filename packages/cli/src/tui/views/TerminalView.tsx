@@ -3,7 +3,7 @@
  * a live command prompt that runs commands in-process and shows their
  * output. Every command typed is an observation on the context axis.
  *
- * It runs *any* `contextos` command in-process — including mutating
+ * It runs *any* `coodra` command in-process — including mutating
  * ones — except the handful that need their own terminal (interactive
  * readline prompts / browser sign-in) and `logs --follow` (streams
  * continuously). For those it surfaces a clear "run it in your own
@@ -104,12 +104,12 @@ export function TerminalView({ ctx, active, pendingCommand, onPendingConsumed }:
     }
     if (isInteractiveCommand(argv)) {
       note(
-        `\`contextos ${argv.join(' ')}\` needs its own terminal — it opens an interactive prompt or a browser sign-in. Run it in your shell.`,
+        `\`coodra ${argv.join(' ')}\` needs its own terminal — it opens an interactive prompt or a browser sign-in. Run it in your shell.`,
       );
       return;
     }
     if (!isKnownCommand(argv)) {
-      note(`'${argv[0]}' is not a contextos command — press tab for the /02 commands catalog`);
+      note(`'${argv[0]}' is not a coodra command — press tab for the /02 commands catalog`);
       return;
     }
 
@@ -163,11 +163,11 @@ function SplashBody({ version }: { version: string }) {
       </Box>
       <Box>
         <Text color={palette.inkFar}>{'  › '}</Text>
-        <Text color={palette.phosphor}>contextos status</Text>
+        <Text color={palette.phosphor}>coodra status</Text>
         <Text color={palette.inkFar}>{'     › '}</Text>
-        <Text color={palette.phosphor}>contextos doctor</Text>
+        <Text color={palette.phosphor}>coodra doctor</Text>
         <Text color={palette.inkFar}>{'     › '}</Text>
-        <Text color={palette.phosphor}>contextos run list</Text>
+        <Text color={palette.phosphor}>coodra run list</Text>
       </Box>
       <Box marginTop={1}>
         <SectionHead num="02" title="controls" />

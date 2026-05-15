@@ -2,7 +2,7 @@
  * Dialect-neutral re-export.
  *
  * Consumers that know which dialect they want should import directly
- * from `@coodra/contextos-db/schema/sqlite` or `@coodra/contextos-db/schema/postgres`
+ * from `@coodra/db/schema/sqlite` or `@coodra/db/schema/postgres`
  * — the two namespaces have identical column sets but different
  * underlying types, and mixing them in one file defeats drizzle's
  * dialect-specific query builder.

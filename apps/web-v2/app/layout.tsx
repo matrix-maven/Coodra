@@ -29,8 +29,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ContextOS — App',
-  description: 'Editorial audit surface for ContextOS — local-first, MCP-native, MIT.',
+  title: 'Coodra — App',
+  description: 'Editorial audit surface for Coodra — local-first, MCP-native, MIT.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

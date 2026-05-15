@@ -49,17 +49,17 @@ export const pendingJobsDepthCheck: Check = {
           status: 'yellow',
           detail: `${depth} pending row(s) — queue is building up`,
           remediation:
-            'OutboxWorker may be slow. Check `<contextos-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` lines. ' +
-            'If the worker is wedged on a single row, restarting the daemons (`contextos stop && contextos start`) reclaims it via the lease.',
+            'OutboxWorker may be slow. Check `<coodra-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` lines. ' +
+            'If the worker is wedged on a single row, restarting the daemons (`coodra stop && coodra start`) reclaims it via the lease.',
         };
       }
       return {
         status: 'red',
         detail: `${depth} pending row(s) — worker is stuck or absent`,
         remediation:
-          'OutboxWorker is not draining. Run `contextos status` to confirm both daemons are running. ' +
+          'OutboxWorker is not draining. Run `coodra status` to confirm both daemons are running. ' +
           'Inspect logs for `outbox_dispatch_failed` or `outbox_claim_failed`. Restart with ' +
-          '`contextos stop && contextos start` to reclaim leased rows.',
+          '`coodra stop && coodra start` to reclaim leased rows.',
       };
     } catch (err) {
       const msg = (err as Error).message;

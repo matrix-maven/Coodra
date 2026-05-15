@@ -5,7 +5,7 @@ import { createSearchPacksNlHandler, type SearchPacksNlHandlerDeps } from './han
 import { type SearchPacksNlInput, searchPacksNlInputSchema, searchPacksNlOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__search_packs_nl`.
+ * Registration factory for `coodra__search_packs_nl`.
  *
  * Module 05 reshape (2026-05-08): description rewritten to match the
  * keyword-only LIKE search. The agent does relevance ranking after
@@ -13,7 +13,7 @@ import { type SearchPacksNlInput, searchPacksNlInputSchema, searchPacksNlOutputS
  * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.3.
  *
  * §24.3 anatomy is enforced by
- * `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`.
+ * `@coodra/shared/test-utils::assertManifestDescriptionValid`.
  */
 
 const searchPacksNlIdempotencyKey: IdempotencyKeyBuilder<SearchPacksNlInput> = (input, _ctx) => {
@@ -33,7 +33,7 @@ export function createSearchPacksNlToolRegistration(
 ): ToolRegistration<typeof searchPacksNlInputSchema, typeof searchPacksNlOutputSchema> {
   return {
     name: 'search_packs_nl',
-    title: 'ContextOS: search_packs_nl',
+    title: 'Coodra: search_packs_nl',
     description:
       'Call this when the user asks "what was done before?", "has X been tried?", or "what is the current state of Y?" — or when you are unsure whether prior work on a topic exists. ' +
       'Searches Context Pack titles, excerpts, and the first 2KB of body content by keyword. Returns up to 50 matches ordered by recency, not relevance. ' +

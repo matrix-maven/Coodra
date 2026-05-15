@@ -7,7 +7,7 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 /**
  * `packages/db/src/projects` — admin-side helpers for the
  * `projects` table. Backs Module 08b S10's
- * `contextos project {list, show, reset}` CLI surface.
+ * `coodra project {list, show, reset}` CLI surface.
  *
  * Read paths (`listProjects`, `getProjectByIdentifier`):
  * pure SELECTs with optional joins for run-count + last-run.

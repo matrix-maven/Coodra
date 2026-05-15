@@ -1,6 +1,6 @@
 'use server';
 
-import { runStart, runStatus, runStop } from '@coodra/contextos-cli/lib/services';
+import { runStart, runStatus, runStop } from '@coodra/cli/lib/services';
 import { redirect } from 'next/navigation';
 
 /**
@@ -25,10 +25,10 @@ import { redirect } from 'next/navigation';
  */
 
 function ensureSoloMode(action: string): void {
-  const mode = process.env.CONTEXTOS_MODE ?? 'solo';
+  const mode = process.env.COODRA_MODE ?? 'solo';
   if (mode !== 'solo') {
     throw new Error(
-      `${action} is only available in solo mode. CONTEXTOS_MODE=${mode}; service control via the web UI is solo-only.`,
+      `${action} is only available in solo mode. COODRA_MODE=${mode}; service control via the web UI is solo-only.`,
     );
   }
 }

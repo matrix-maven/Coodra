@@ -8,18 +8,18 @@ import {
   type PolicyRuleRow,
   type PolicyWithRules,
   setPolicyActive,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `contextos policy {list|show|add|enable|disable}` — admin surface
+ * `coodra policy {list|show|add|enable|disable}` — admin surface
  * for the `policies` + `policy_rules` tables.
  *
  * Module 08b S9. Ships five subcommands that replace the
- * `sqlite3 ~/.contextos/data.db "SELECT * FROM policies …"` workflow
+ * `sqlite3 ~/.coodra/data.db "SELECT * FROM policies …"` workflow
  * operators have been using since M02.
  *
  * Cache-staleness note: the bridge's `createPolicyClient` caches
@@ -27,7 +27,7 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
  * 60 seconds to be visible to a running bridge. Documented in
  * `spec.md §4.2` for operators who hit the gap.
  *
- * Local-only: this surface mutates `~/.contextos/data.db`. No sync
+ * Local-only: this surface mutates `~/.coodra/data.db`. No sync
  * to cloud. The cross-developer admin path is M04's surface.
  */
 
@@ -65,7 +65,7 @@ export interface PolicyIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_POLICY_IO: PolicyIO = {
@@ -106,7 +106,7 @@ export async function runPolicyListCommand(options: PolicyListOptions, ioOverrid
         io.writeStdout(
           options.project !== undefined
             ? `${pc.dim('—')} no policies for project "${options.project}".\n`
-            : `${pc.dim('—')} no policies in this contextos store.\n`,
+            : `${pc.dim('—')} no policies in this coodra store.\n`,
         );
       } else {
         for (const p of policies) {
@@ -211,7 +211,7 @@ export async function runPolicyAddCommand(options: PolicyAddOptions, ioOverride?
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        `project slug "${options.project}" does not exist. Run \`contextos init --project-slug ${options.project}\` in the project root first.`,
+        `project slug "${options.project}" does not exist. Run \`coodra init --project-slug ${options.project}\` in the project root first.`,
       );
     }
     const result = await addPolicyRule(handle, {
@@ -332,8 +332,8 @@ async function runPolicySetActive(
 // ============================================================================
 
 async function openHandle(io: PolicyIO): Promise<Awaited<ReturnType<typeof openLocalDb>>> {
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   return await openLocalDb(dbPath);
 }
 

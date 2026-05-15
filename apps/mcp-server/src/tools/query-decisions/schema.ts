@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__query_decisions` (Slice 4 — 2026-05-03 audit).
+ * Input + output schemas for `coodra__query_decisions` (Slice 4 — 2026-05-03 audit).
  *
  * Read-only tool. The audit's §3.5 + §6 ground-level limit #2 surfaced
  * the gap: `record_decision` writes to the `decisions` table but
@@ -51,7 +51,7 @@ export const queryDecisionsInputSchema = z
       .default(DEFAULT_LIMIT),
   })
   .strict()
-  .describe('Input for contextos__query_decisions.');
+  .describe('Input for coodra__query_decisions.');
 
 const decisionEntrySchema = z
   .object({

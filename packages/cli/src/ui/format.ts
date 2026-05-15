@@ -1,7 +1,7 @@
 /**
  * `src/ui/format.ts` — string formatters for one-shot CLI output.
  *
- * Every `contextos <command>` that prints human-readable text composes
+ * Every `coodra <command>` that prints human-readable text composes
  * its output from these primitives, so the whole CLI speaks the design
  * vocabulary in `Terminal Redesign Preview.html`: `/NN` section heads,
  * key-value rows aligned on a column, axis-node timelines, summary
@@ -222,7 +222,7 @@ export interface BannerOptions {
   readonly tagline?: string;
   /** Wordmark text (default: `coodra`). */
   readonly wordmark?: string;
-  /** Trailing meta segment after `ContextOS · vX`. */
+  /** Trailing meta segment after `Coodra · vX`. */
   readonly metaSuffix?: string;
   readonly width?: number;
 }

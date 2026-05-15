@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
-import { InternalError } from '@coodra/contextos-shared';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { InternalError } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 

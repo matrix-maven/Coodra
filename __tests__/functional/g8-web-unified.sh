@@ -7,7 +7,7 @@
 #   1. New `resolveIdentityMode` + `isCloudHostedWeb` helpers exist in
 #      `apps/web-v2/lib/deployment-mode.ts`.
 #   2. Legacy `resolveDeploymentMode` is preserved (backward compat).
-#   3. Middleware uses CONTEXTOS_MODE (binary), not CONTEXTOS_DEPLOYMENT,
+#   3. Middleware uses COODRA_MODE (binary), not COODRA_DEPLOYMENT,
 #      for identity-mode resolution.
 #   4. `lib/auth.ts` uses `resolveIdentityMode` for the solo bypass.
 #
@@ -89,18 +89,18 @@ fi
 hdr "Section 3 — middleware uses Phase G binary mode"
 # ---------------------------------------------------------------------------
 
-# 3.1: middleware.ts no longer uses CONTEXTOS_DEPLOYMENT for identity
-if grep -q "CONTEXTOS_DEPLOYMENT" "$WEB_DIR/middleware.ts"; then
-  assert_fail "3.1 — middleware.ts still references CONTEXTOS_DEPLOYMENT (Phase G drops this)"
+# 3.1: middleware.ts no longer uses COODRA_DEPLOYMENT for identity
+if grep -q "COODRA_DEPLOYMENT" "$WEB_DIR/middleware.ts"; then
+  assert_fail "3.1 — middleware.ts still references COODRA_DEPLOYMENT (Phase G drops this)"
 else
-  assert_pass "3.1 — middleware.ts does not reference CONTEXTOS_DEPLOYMENT for identity"
+  assert_pass "3.1 — middleware.ts does not reference COODRA_DEPLOYMENT for identity"
 fi
 
-# 3.2: middleware.ts uses CONTEXTOS_MODE
-if grep -q "CONTEXTOS_MODE" "$WEB_DIR/middleware.ts"; then
-  assert_pass "3.2 — middleware.ts uses CONTEXTOS_MODE for binary mode resolution"
+# 3.2: middleware.ts uses COODRA_MODE
+if grep -q "COODRA_MODE" "$WEB_DIR/middleware.ts"; then
+  assert_pass "3.2 — middleware.ts uses COODRA_MODE for binary mode resolution"
 else
-  assert_fail "3.2 — middleware.ts missing CONTEXTOS_MODE reference"
+  assert_fail "3.2 — middleware.ts missing COODRA_MODE reference"
 fi
 
 # 3.3: middleware exports a single teamModeHandler (no longer split)

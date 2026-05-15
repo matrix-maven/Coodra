@@ -87,8 +87,8 @@ export function NewProjectWizard(props: NewProjectWizardProps) {
         }
         subtitle={
           <>
-            Web parity with <span className="font-mono text-accent">contextos init</span>. Provisions{' '}
-            <span className="font-mono text-accent">~/.contextos/data.db</span>, scaffolds a feature pack at{' '}
+            Web parity with <span className="font-mono text-accent">coodra init</span>. Provisions{' '}
+            <span className="font-mono text-accent">~/.coodra/data.db</span>, scaffolds a feature pack at{' '}
             <span className="font-mono text-accent">{`<cwd>/docs/feature-packs/<slug>/`}</span>, registers the project +
             default policy + Claude Code hook entries.
           </>

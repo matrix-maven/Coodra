@@ -1,6 +1,6 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { createPolicyClientFromCheck } from '@coodra/contextos-policy';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import type { DbHandle } from '@coodra/db';
+import { createPolicyClientFromCheck } from '@coodra/policy';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPreToolUseHandler } from '../../../src/handlers/pre-tool-use.js';
@@ -59,7 +59,7 @@ describe('createPreToolUseHandler — fail-open paths', () => {
       return { decision: 'allow', reason: 'no_rule_matched', matchedRuleId: null };
     });
     const handler = createPreToolUseHandler({ policy, projectSlugResolver: slugResolverNoProject, db: stubDb });
-    const result = await handler(makeEvent({ cwd: '/tmp/no-contextos-json' }));
+    const result = await handler(makeEvent({ cwd: '/tmp/no-coodra-json' }));
     expect(result.permissionDecision).toBe('allow');
     expect('projectId' in captured).toBe(false);
   });

@@ -1,6 +1,6 @@
-# ContextOS Demo — `taskforge`
+# Coodra Demo — `taskforge`
 
-A complete, rehearsable, 12-minute demo of ContextOS end-to-end.
+A complete, rehearsable, 12-minute demo of Coodra end-to-end.
 
 ## What's in here
 
@@ -19,13 +19,13 @@ A complete, rehearsable, 12-minute demo of ContextOS end-to-end.
 **Tonight (rehearsal — 30 minutes):**
 1. Read `DEMO_SCRIPT.md` end-to-end once.
 2. Run `bash setup.sh`. Confirm it ends with "✅ Demo ready."
-3. Open Claude Code in `~/taskforge-demo/`. Run `/mcp`. Confirm `contextos` shows up with all 9 tools.
+3. Open Claude Code in `~/taskforge-demo/`. Run `/mcp`. Confirm `coodra` shows up with all 9 tools.
 4. Walk through `CLAUDE_PROMPTS.md` once, pasting each prompt in order. See the full flow.
 5. Run `bash teardown.sh` to reset state.
 
 **Tomorrow (presentation):**
 1. Run `bash setup.sh` 2 minutes before going live.
-2. Open two terminal windows side by side: one for `contextos` commands, one for `contextos logs hooks --follow`.
+2. Open two terminal windows side by side: one for `coodra` commands, one for `coodra logs hooks --follow`.
 3. Open Claude Code in the third pane.
 4. Follow `DEMO_SCRIPT.md` minute-by-minute.
 

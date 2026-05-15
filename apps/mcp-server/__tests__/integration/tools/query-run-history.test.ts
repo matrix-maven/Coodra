@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
@@ -14,7 +14,7 @@ import type { QueryRunHistoryOutput } from '../../../src/tools/query-run-history
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__query_run_history` (S12).
+ * Integration test for `coodra__query_run_history` (S12).
  *
  * Real SQLite migrated to 0003. Two projects seeded to guard against
  * cross-project leaks. Runs seeded with explicit `started_at` values
@@ -145,7 +145,7 @@ describe('query_run_history — project_not_found soft-failure', () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.error).toBe('project_not_found');
-    expect(out.howToFix).toMatch(/contextos init|projects table/);
+    expect(out.howToFix).toMatch(/coodra init|projects table/);
   });
 });
 

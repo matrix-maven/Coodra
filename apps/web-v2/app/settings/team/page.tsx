@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic';
  * `/settings/team` — admin's view of the active team configuration.
  *
  * Reads:
- *   1. `~/.contextos/config.json::team` — clerkUserId / clerkOrgId / hookSecret hash / joinedAt.
+ *   1. `~/.coodra/config.json::team` — clerkUserId / clerkOrgId / hookSecret hash / joinedAt.
  *   2. `pending_jobs` (via dashboard's pattern) — sync queue depth.
  *   3. The audit-table union — distinct `created_by_user_id` set (members observed locally).
  *
@@ -33,7 +33,7 @@ export const dynamic = 'force-dynamic';
  * authority but a member who joined the org but never ran an agent
  * session won't appear in the local audit. The "observed locally" list
  * is therefore a strict subset of Clerk's org membership — useful for
- * answering "who's actually using ContextOS." A future enhancement
+ * answering "who's actually using Coodra." A future enhancement
  * loads the full Clerk org member list via `clerkClient` and shows
  * inactive members as faded rows.
  */
@@ -62,9 +62,9 @@ export default async function TeamSettingsPage({
 
   // Three identity-source scenarios for this page:
   //
-  //   local-team   — read team block from ~/.contextos/config.json
+  //   local-team   — read team block from ~/.coodra/config.json
   //   team-hosted  — read team identity from Clerk session + env-pinned
-  //                  CONTEXTOS_EXPECTED_ORG_ID. No ~/.contextos on the
+  //                  COODRA_EXPECTED_ORG_ID. No ~/.coodra on the
   //                  deployment server.
   //
   // Both produce the same `team` shape so the rest of the page renders
@@ -143,12 +143,12 @@ export default async function TeamSettingsPage({
     team.localHookSecret !== null
       ? `${team.localHookSecret.slice(0, 6)}…${team.localHookSecret.slice(-4)} · ${team.localHookSecret.length} chars`
       : '(team-hosted deployment — local hook secret is not present on this server)';
-  const databaseUrl = process.env.DATABASE_URL ?? '(not visible to web — set in CONTEXTOS_HOME/.env)';
+  const databaseUrl = process.env.DATABASE_URL ?? '(not visible to web — set in COODRA_HOME/.env)';
   const databaseUrlMasked = maskDatabaseUrl(databaseUrl);
 
   return (
     <>
-      <Topbar crumb="Team settings" crumbPrefix="contextos / settings" />
+      <Topbar crumb="Team settings" crumbPrefix="coodra / settings" />
       <section className="screen">
         <div className="head">
           <div>
@@ -158,7 +158,7 @@ export default async function TeamSettingsPage({
             </h1>
             <p className="head__lede">
               The team config block on this machine — what credentials it carries, when it joined, who it’s observed
-              locally. Member identities are managed in Clerk; ContextOS reads this view to scope and attribute writes.
+              locally. Member identities are managed in Clerk; Coodra reads this view to scope and attribute writes.
             </p>
           </div>
           <div>
@@ -243,7 +243,7 @@ export default async function TeamSettingsPage({
                 No attributed writes yet.
               </strong>
               <br />
-              Once teammates run <code style={inlineMono}>contextos start</code> and use Claude Code, their writes
+              Once teammates run <code style={inlineMono}>coodra start</code> and use Claude Code, their writes
               appear here within seconds. The sync daemon pulls cloud rows from teammates every 10s.
             </div>
           ) : (
@@ -328,7 +328,7 @@ export default async function TeamSettingsPage({
             <strong>Migration 0014_team_invites is not applied yet.</strong>
             <br />
             The `team_invites` table is missing on this deployment's Postgres. Run{' '}
-            <code style={inlineMono}>contextos db migrate</code> against your DATABASE_URL, then reload this page.
+            <code style={inlineMono}>coodra db migrate</code> against your DATABASE_URL, then reload this page.
             The invite form below is disabled until that completes.
           </div>
         ) : null}
@@ -372,7 +372,7 @@ export default async function TeamSettingsPage({
                 <div style={{ ...bannerWarn, marginBottom: 0 }}>
                   <strong>Schema not migrated.</strong>
                   <br />
-                  Run <code style={inlineMono}>contextos db migrate</code> first. See the banner at the top of
+                  Run <code style={inlineMono}>coodra db migrate</code> first. See the banner at the top of
                   the page.
                 </div>
               ) : inviteSecretIssue !== null ? (
@@ -385,7 +385,7 @@ export default async function TeamSettingsPage({
                 <>
                   {baseUrlUnset ? (
                     <div style={{ ...bannerWarn, marginBottom: 12 }}>
-                      <strong>Set CONTEXTOS_PUBLIC_URL</strong> in deployment env so generated invite links
+                      <strong>Set COODRA_PUBLIC_URL</strong> in deployment env so generated invite links
                       point at this deployment's external URL. Without it, links will contain a placeholder.
                     </div>
                   ) : null}
@@ -462,14 +462,14 @@ export default async function TeamSettingsPage({
                 overflowX: 'auto',
               }}
             >
-{`contextos team join \\
+{`coodra team join \\
   --user-id <their-clerk-user-id> \\
   --org-id ${team.clerkOrgId} \\
   --secret <hook-secret-from-onboarding> \\
   --database-url '<your-db-url>'`}
             </pre>
             <p style={{ marginTop: 12, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--caution)' }}>
-              The hook secret is shown only at <code style={inlineMono}>contextos team setup</code> time. We don’t store
+              The hook secret is shown only at <code style={inlineMono}>coodra team setup</code> time. We don’t store
               it readable here. If you’ve lost it, re-run setup with the same DB URL — it generates a new secret.
             </p>
             </div>
@@ -481,7 +481,7 @@ export default async function TeamSettingsPage({
                 Manage in <em>Clerk</em>
               </h3>
               <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.65, marginBottom: 14 }}>
-                Add/remove members, change roles, rotate org settings — all in your Clerk dashboard. ContextOS
+                Add/remove members, change roles, rotate org settings — all in your Clerk dashboard. Coodra
                 consumes Clerk's org membership read-only; we don't mirror or override it.
               </p>
               <a
@@ -506,7 +506,7 @@ export default async function TeamSettingsPage({
               <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.65, marginBottom: 14 }}>
                 Demotes this machine back to solo. Removes <code style={inlineMono}>config.json::team</code> + the four
                 team env keys. Local audit history stays — you can copy it elsewhere or delete{' '}
-                <code style={inlineMono}>~/.contextos/data.db</code> manually.
+                <code style={inlineMono}>~/.coodra/data.db</code> manually.
               </p>
               <pre
                 style={{
@@ -519,7 +519,7 @@ export default async function TeamSettingsPage({
                   letterSpacing: '0.04em',
                 }}
               >
-contextos team leave
+coodra team leave
               </pre>
               <p style={{ marginTop: 12, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--ink-mute)' }}>
                 Your cloud Postgres is untouched — your teammates keep using it. The Postgres project lives in your
@@ -759,7 +759,7 @@ const inviteInput: React.CSSProperties = {
  * `/settings/team` carries a "Leave team" card that explains what the
  * CLI command does, what stays, what goes — and surfaces the exact
  * shell command. The web cannot execute the leave itself: leaving the
- * team is a laptop-state operation (mutates ~/.contextos/config.json
+ * team is a laptop-state operation (mutates ~/.coodra/config.json
  * + .env on the developer's machine), and the local web variant
  * doesn't have a privileged shell channel to do that on the
  * developer's behalf. So the card is documentation + a copy block.
@@ -802,9 +802,9 @@ function LeaveTeamCard({ orgLabel }: { readonly orgLabel: string }) {
             What gets removed
           </div>
           <ul style={{ fontSize: 12, color: 'var(--ink-dim)', lineHeight: 1.7, paddingLeft: 18, margin: 0 }}>
-            <li>~/.contextos/config.json team block (mode → solo)</li>
-            <li>~/.contextos/.env: CONTEXTOS_MODE, DATABASE_URL, LOCAL_HOOK_SECRET, CONTEXTOS_TEAM_ORG_ID</li>
-            <li>sync-daemon stops spawning on next `contextos start`</li>
+            <li>~/.coodra/config.json team block (mode → solo)</li>
+            <li>~/.coodra/.env: COODRA_MODE, DATABASE_URL, LOCAL_HOOK_SECRET, COODRA_TEAM_ORG_ID</li>
+            <li>sync-daemon stops spawning on next `coodra start`</li>
           </ul>
         </div>
         <div>
@@ -823,7 +823,7 @@ function LeaveTeamCard({ orgLabel }: { readonly orgLabel: string }) {
           <ul style={{ fontSize: 12, color: 'var(--ink-dim)', lineHeight: 1.7, paddingLeft: 18, margin: 0 }}>
             <li>local SQLite rows (runs, decisions, packs) — historical state intact</li>
             <li>cloud rows — other team members continue to see them</li>
-            <li>per-project .contextos.json files (unchanged)</li>
+            <li>per-project .coodra.json files (unchanged)</li>
           </ul>
         </div>
       </div>
@@ -851,15 +851,15 @@ function LeaveTeamCard({ orgLabel }: { readonly orgLabel: string }) {
           overflowX: 'auto',
         }}
       >
-        contextos team leave
+        coodra team leave
       </pre>
       <p style={{ fontSize: 11, color: 'var(--ink-mute)', lineHeight: 1.6, marginTop: 14, marginBottom: 0 }}>
         The CLI will prompt for a typed confirmation (
         <code style={{ fontFamily: 'var(--mono)' }}>leave {orgLabel}</code>) before it changes anything. Add{' '}
         <code style={{ fontFamily: 'var(--mono)' }}>--yes</code> to skip the prompt (CI / automation only). After
-        leave, run <code style={{ fontFamily: 'var(--mono)' }}>contextos stop &amp;&amp; contextos start</code> so
-        the daemons pick up solo-mode env, then <code style={{ fontFamily: 'var(--mono)' }}>contextos doctor --fix</code>{' '}
-        to clean any stale CONTEXTOS_MODE lines in project .env files.
+        leave, run <code style={{ fontFamily: 'var(--mono)' }}>coodra stop &amp;&amp; coodra start</code> so
+        the daemons pick up solo-mode env, then <code style={{ fontFamily: 'var(--mono)' }}>coodra doctor --fix</code>{' '}
+        to clean any stale COODRA_MODE lines in project .env files.
       </p>
     </div>
   );

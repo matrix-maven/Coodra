@@ -9,7 +9,7 @@ import { loadGraph } from '@/lib/queries/graph';
  * Unit tests for `apps/web/lib/queries/graph.ts` (M04 Phase 2 S10).
  *
  * Each test seeds a tmp graphify root, points
- * CONTEXTOS_GRAPHIFY_ROOT at it, and exercises one of the three
+ * COODRA_GRAPHIFY_ROOT at it, and exercises one of the three
  * branches: missing / invalid / ok.
  */
 
@@ -17,12 +17,12 @@ let tmpRoot: string;
 
 beforeEach(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'cxos-s10-graph-'));
-  process.env.CONTEXTOS_GRAPHIFY_ROOT = tmpRoot;
+  process.env.COODRA_GRAPHIFY_ROOT = tmpRoot;
 });
 
 afterEach(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
-  delete process.env.CONTEXTOS_GRAPHIFY_ROOT;
+  delete process.env.COODRA_GRAPHIFY_ROOT;
 });
 
 describe('loadGraph', () => {

@@ -8,7 +8,7 @@ import {
   type PolicyRow,
   type PolicyWithRules,
   setPolicyActive as setPolicyActiveDb,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 

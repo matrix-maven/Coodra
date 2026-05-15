@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * E2E test configuration for ContextOS Module 02 closeout (S17).
+ * E2E test configuration for Coodra Module 02 closeout (S17).
  *
  * E2E tests live at `__tests__/e2e/<scenario>.test.ts` per
  * `essentialsforclaude/06-testing.md` §6.7 — they cross workspace

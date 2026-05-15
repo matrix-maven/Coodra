@@ -1,5 +1,5 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { createLogger, type Logger } from '@coodra/contextos-shared';
+import type { DbHandle } from '@coodra/db';
+import { createLogger, type Logger } from '@coodra/shared';
 
 import { computeBackoff, MAX_ATTEMPTS_DEFAULT, shouldGiveUp } from './backoff.js';
 import type { OutboxDispatchHandler, OutboxDispatchOutcome, OutboxJob } from './types.js';

@@ -14,8 +14,8 @@ Open **three terminal panes** side by side:
 
 | Pane | What runs in it | Purpose |
 |---|---|---|
-| **A — Commands** | `cd ~/taskforge-demo` | You'll type `contextos` commands here |
-| **B — Live logs** | `cd ~/taskforge-demo && contextos logs hooks --follow` | Audience watches activity scroll in real time |
+| **A — Commands** | `cd ~/taskforge-demo` | You'll type `coodra` commands here |
+| **B — Live logs** | `cd ~/taskforge-demo && coodra logs hooks --follow` | Audience watches activity scroll in real time |
 | **C — Claude Code** | Open Claude Code in `~/taskforge-demo/` | The agent does its work here |
 
 If you only have two screens, drop pane B. The logs are the visual upgrade, not the load-bearing piece.
@@ -28,7 +28,7 @@ If you only have two screens, drop pane B. The logs are the visual upgrade, not 
 
 > "Today's AI coding agents — Claude Code, Cursor, Copilot — are powerful, but they're amnesiac. They forget what was decided yesterday. They write to files they shouldn't touch. They don't share state with each other. Every team using them is paying tax on every session."
 >
-> "ContextOS fixes that. It's the coordination layer that gives any AI agent persistent project context, real policy enforcement, and a shared memory across sessions. It works with Claude Code, Cursor, Windsurf — anything that speaks MCP. Let me show you."
+> "Coodra fixes that. It's the coordination layer that gives any AI agent persistent project context, real policy enforcement, and a shared memory across sessions. It works with Claude Code, Cursor, Windsurf — anything that speaks MCP. Let me show you."
 
 ---
 
@@ -43,16 +43,16 @@ ls ~/taskforge-demo
 **Say:** *"This is an empty directory. No code, no config, nothing."*
 
 ```bash
-cat ~/taskforge-demo/.contextos.json
+cat ~/taskforge-demo/.coodra.json
 ls ~/taskforge-demo/docs/feature-packs/taskforge-demo/
 ```
 
-**Say:** *"Actually I lied — it's not quite empty. I ran `contextos init` 30 seconds before going on stage. Here's what that single command did."*
+**Say:** *"Actually I lied — it's not quite empty. I ran `coodra init` 30 seconds before going on stage. Here's what that single command did."*
 
 Show them:
-- `.mcp.json` exists → Claude Code will auto-connect to ContextOS
-- `.contextos.json` exists → registers this project with the local daemon
-- `~/.contextos/data.db` → SQLite store with the project + 9 default policy rules already seeded
+- `.mcp.json` exists → Claude Code will auto-connect to Coodra
+- `.coodra.json` exists → registers this project with the local daemon
+- `~/.coodra/data.db` → SQLite store with the project + 9 default policy rules already seeded
 - `docs/feature-packs/taskforge-demo/` → the project's spec, implementation plan, tech stack — already written
 
 **Say:** *"That's everything I had to do to instrument this project. One command, 30 seconds. Now watch what happens when I open Claude Code."*
@@ -69,7 +69,7 @@ Show them:
 /mcp
 ```
 
-**Show the audience:** `contextos` is connected, 9 tools listed.
+**Show the audience:** `coodra` is connected, 9 tools listed.
 
 **Say:** *"Nine MCP tools are now available to Claude. Things like `get_feature_pack`, `record_decision`, `check_policy`, `save_context_pack`. The agent can call any of these autonomously when relevant."*
 
@@ -109,12 +109,12 @@ Show them:
 
 **In pane B**, audience sees the deny event scroll past.
 
-**Say:** *"That's not a warning. The bridge actually blocked the write. The policy rule was seeded into this project the moment I ran `contextos init`. Every project gets a baseline of safe defaults — deny `.env`, deny `.git/**`, deny `node_modules/**` — without any configuration."*
+**Say:** *"That's not a warning. The bridge actually blocked the write. The policy rule was seeded into this project the moment I ran `coodra init`. Every project gets a baseline of safe defaults — deny `.env`, deny `.git/**`, deny `node_modules/**` — without any configuration."*
 
 **Show the audit:**
 
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT tool_name, permission_decision, reason FROM policy_decisions ORDER BY created_at DESC LIMIT 5;"
+sqlite3 ~/.coodra/data.db "SELECT tool_name, permission_decision, reason FROM policy_decisions ORDER BY created_at DESC LIMIT 5;"
 ```
 
 **Say:** *"Every policy decision is in an immutable, append-only audit table. CISOs love this. 'Prove no agent ever wrote to a regulated file path' becomes a one-line SQL query."*
@@ -150,7 +150,7 @@ cat ~/taskforge-demo/docs/context-packs/2026-05-*.md | head -50
 
 **Watch:** Claude calls `query_run_history` or `search_packs_nl`, finds the decision, recalls it accurately — across sessions, with no prompting from you about what to look for.
 
-**Say:** *"Brand new session. No conversation history. Claude knew to look in the run history because the manifest told it that's where past decisions live. That's how a team using ContextOS stops re-explaining the same context every Monday morning."*
+**Say:** *"Brand new session. No conversation history. Claude knew to look in the run history because the manifest told it that's where past decisions live. That's how a team using Coodra stops re-explaining the same context every Monday morning."*
 
 ---
 
@@ -159,13 +159,13 @@ cat ~/taskforge-demo/docs/context-packs/2026-05-*.md | head -50
 **In pane A:**
 
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT description, rationale FROM decisions ORDER BY created_at DESC LIMIT 3;"
+sqlite3 ~/.coodra/data.db "SELECT description, rationale FROM decisions ORDER BY created_at DESC LIMIT 3;"
 ```
 
 **Say:** *"Every architectural decision Claude made in those two sessions, queryable. This is the audit trail teams need for SOC 2, HIPAA, internal review — anything where 'show me what the AI did' becomes a question."*
 
 ```bash
-contextos doctor
+coodra doctor
 ```
 
 **Say:** *"And the system tells you it's healthy. 9 essential checks. Clean."*
@@ -180,7 +180,7 @@ contextos doctor
 >
 > Three — A new session 30 seconds later remembered everything. Real cross-session state.
 >
-> ContextOS works with any MCP-compatible agent — Claude Code today, every other one tomorrow. Solo install is one npm command. Team mode shares context across an entire engineering org. Open source, runs locally, your code never leaves the machine."
+> Coodra works with any MCP-compatible agent — Claude Code today, every other one tomorrow. Solo install is one npm command. Team mode shares context across an entire engineering org. Open source, runs locally, your code never leaves the machine."
 
 ---
 
@@ -190,7 +190,7 @@ contextos doctor
 bash /Users/abishaikc/Coodra/presentation/teardown.sh
 ```
 
-This stops the daemons and removes `~/taskforge-demo/`. Your other ContextOS projects are untouched.
+This stops the daemons and removes `~/taskforge-demo/`. Your other Coodra projects are untouched.
 
 ---
 
@@ -199,8 +199,8 @@ This stops the daemons and removes `~/taskforge-demo/`. Your other ContextOS pro
 See `TROUBLESHOOTING.md`. Most likely issues:
 
 - **`/mcp` shows nothing in Claude Code** → Cmd+Q Claude Code, reopen, retry. The `.mcp.json` change requires an IDE restart.
-- **`contextos start` says "already running"** → Run `contextos stop` first, then `contextos start`.
-- **Policy deny doesn't fire** → Pane B logs will show why. Check `sqlite3 ~/.contextos/data.db "SELECT * FROM policy_rules;"` — should have 9 rows.
+- **`coodra start` says "already running"** → Run `coodra stop` first, then `coodra start`.
+- **Policy deny doesn't fire** → Pane B logs will show why. Check `sqlite3 ~/.coodra/data.db "SELECT * FROM policy_rules;"` — should have 9 rows.
 - **Claude doesn't call MCP tools naturally** → Be more explicit: "Before answering, check the feature pack."
 
 If something truly catastrophic happens, the safest pivot is: walk through the Feature Pack files, the .mcp.json, and the audit tables. The architecture itself is the demo even without live agent activity.

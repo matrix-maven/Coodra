@@ -1,4 +1,4 @@
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -32,10 +32,10 @@ import { mapAgentType } from '../lib/agent-type.js';
  *   - stdout is reserved exclusively for JSON-RPC frames written by
  *     the SDK's `StdioServerTransport`.
  *   - Every log line from our code AND every log line from transitive
- *     dependencies (notably `@coodra/contextos-db`'s sqlite-vec loader) goes
+ *     dependencies (notably `@coodra/db`'s sqlite-vec loader) goes
  *     to stderr. That is guaranteed by the `./bootstrap/ensure-stderr-
  *     logging.js` import at the top of `src/index.ts`, which sets
- *     `CONTEXTOS_LOG_DESTINATION=stderr` before `@coodra/contextos-shared`'s
+ *     `COODRA_LOG_DESTINATION=stderr` before `@coodra/shared`'s
  *     logger module is evaluated.
  *   - No `console.log` / `console.info` in mcp-server source. Writing
  *     to stdout from handler code corrupts the transport. Lint would

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Windsurf Cascade hook adapter for ContextOS.
+# Windsurf Cascade hook adapter for Coodra.
 #
 # Windsurf invokes hook scripts as commands with JSON on stdin and
-# expects exit-code-based decisions (0 = allow; 2 = deny). ContextOS
+# expects exit-code-based decisions (0 = allow; 2 = deny). Coodra
 # Hooks Bridge speaks HTTP, so this adapter:
 #
 #   1. reads the raw payload from stdin
@@ -15,7 +15,7 @@
 #
 # Per system-architecture.md §3.3 + ADR-009 + 03-hooks-bridge spec.
 #
-# Install: copy this file to ~/.windsurf/hooks/contextos.sh and
+# Install: copy this file to ~/.windsurf/hooks/coodra.sh and
 # chmod +x. The hooks-bridge install script (S15) does this for you.
 
 set -eu
@@ -35,7 +35,7 @@ fi
 
 # Talk to the bridge. On network error / non-200, fail open.
 RESPONSE=$(printf '%s' "$PAYLOAD" | curl "${CURL_ARGS[@]}" 2>/dev/null) || {
-  printf 'contextos-windsurf-adapter: bridge unreachable; failing open\n' >&2
+  printf 'coodra-windsurf-adapter: bridge unreachable; failing open\n' >&2
   exit 0
 }
 
@@ -54,9 +54,9 @@ if [ "$DECISION" = "deny" ]; then
 import sys, json
 try:
     d = json.load(sys.stdin)
-    print(d.get("reason", "Blocked by ContextOS policy"))
+    print(d.get("reason", "Blocked by Coodra policy"))
 except Exception:
-    print("Blocked by ContextOS policy")
+    print("Blocked by Coodra policy")
 ')
   printf '%s\n' "$REASON" >&2
   exit 2

@@ -14,11 +14,11 @@
 1. **One Vercel/Fly/Docker deploy = the team's web workspace.** The PM can browse without installing anything.
 2. **One-click teammate install** via a signed bootstrap URL. No 1Password dance.
 3. **Real Clerk auth** on every web request. Cryptographically verified, role-gated, revocable.
-4. **Zero ContextOS-operated services** required. Everything still BYO Postgres + BYO Clerk.
+4. **Zero Coodra-operated services** required. Everything still BYO Postgres + BYO Clerk.
 5. **No regression** on the per-developer local web pattern. A solo developer who never deploys must still see the same experience they have today.
 
 ### Non-goals (explicitly out of scope)
-- A ContextOS-hosted central directory of teams.
+- A Coodra-hosted central directory of teams.
 - Multi-org per deployment. **One deployment = one team's org.** Multi-org is solvable but adds complexity for zero value at this scale.
 - Removing the local CLI install requirement for developers running agents. The agent ↔ MCP stdio link is fundamentally local; the developer install stays.
 - A custom auth system. Clerk is the only identity provider for team-hosted mode.
@@ -35,10 +35,10 @@ These are the exact scenes after the plan ships. If any of these stutters, the p
 ```
 Step 1  Web /welcome → "Create a team"                                   3 min
 Step 2  Web /onboarding/team — wizard takes Supabase URL + Clerk keys   1 min
-Step 3  CLI: contextos team setup ... (applies migrations, writes
-        ~/.contextos/config.json + .env)                                 2 min
-Step 4  CLI: contextos init in admin's repo                              30s
-Step 5  CLI: contextos start                                             30s
+Step 3  CLI: coodra team setup ... (applies migrations, writes
+        ~/.coodra/config.json + .env)                                 2 min
+Step 4  CLI: coodra init in admin's repo                              30s
+Step 5  CLI: coodra start                                             30s
 Step 6  Admin opens /settings/team → "Deploy to Vercel" button →
         one-click deploys the web app to admin's Vercel account
         with all env vars pre-filled                                     2 min
@@ -47,7 +47,7 @@ Step 7  Admin's Vercel deployment URL appears in /settings/team
 ```
 
 After Step 7: admin has a deployed team-hosted web at e.g.
-`https://contextos-acme.vercel.app`. Anyone they invite can sign in there.
+`https://coodra-acme.vercel.app`. Anyone they invite can sign in there.
 
 ### Journey B · Admin invites a teammate (one-time per teammate, ~30 sec)
 
@@ -57,8 +57,8 @@ Step 2  Form: { email, role: 'admin' | 'member' | 'viewer' }
 Step 3  Server action mints a signed token + creates Clerk org invitation
         Token: { orgId, role, email, expiresAt: now+7d, jti, sig }
 Step 4  Email sent (via Clerk's invitation flow):
-          "You've been invited to <team> on ContextOS.
-           Sign in: https://contextos-acme.vercel.app/install/<token>"
+          "You've been invited to <team> on Coodra.
+           Sign in: https://coodra-acme.vercel.app/install/<token>"
 Step 5  /settings/team shows the pending invite + "Copy invite link"
 ```
 
@@ -85,13 +85,13 @@ Step 1-4 same as C1
 Step 5   Page detects "this user wants the CLI" (a button on /install/<token>:
          "I want to run AI agents on my laptop")
 Step 6   Page shows a one-line install command:
-           curl -sSL https://contextos-acme.vercel.app/install/<token>/cli.sh | sh
+           curl -sSL https://coodra-acme.vercel.app/install/<token>/cli.sh | sh
          (the URL is per-token; running it consumes the token)
 Step 7   Teammate runs the command in their terminal
-Step 8   Script: downloads contextos CLI, runs `contextos team install
+Step 8   Script: downloads coodra CLI, runs `coodra team install
          --bootstrap-url https://.../install/<token>`, which fetches the
-         bundle from a server endpoint and writes ~/.contextos/config.json + .env
-Step 9   Script ends with: "Now run `contextos init` in your project."
+         bundle from a server endpoint and writes ~/.coodra/config.json + .env
+Step 9   Script ends with: "Now run `coodra init` in your project."
 Step 10  Teammate runs init + start. Daemons live. Done.
 ```
 
@@ -101,7 +101,7 @@ Re-running the install URL would 404.
 ### Journey D · Stakeholder browses the deployed web (every day, no setup)
 
 ```
-Step 1  Open https://contextos-acme.vercel.app
+Step 1  Open https://coodra-acme.vercel.app
 Step 2  Clerk middleware redirects to /auth/sign-in (if not signed in)
 Step 3  Sign in with Clerk
 Step 4  Land on /
@@ -119,9 +119,9 @@ Today's code already knows about solo vs team. We're adding a third axis: **wher
 
 | Mode | Config source | User identity | Clerk required? | Daemons run where? |
 |---|---|---|---|---|
-| `local-solo` | `~/.contextos/.env` (no team block) | `__solo__` | no | locally |
-| `local-team` | `~/.contextos/.env` (team block present) | env-resolved (the local config asserts who you are) | no, optional | locally |
-| `team-hosted` | Server env vars (`DATABASE_URL`, `CLERK_*`, `CONTEXTOS_EXPECTED_ORG_ID`) | Clerk session JWT | **yes, required** | nowhere — agent-side daemons still run on each developer's laptop in `local-team` mode |
+| `local-solo` | `~/.coodra/.env` (no team block) | `__solo__` | no | locally |
+| `local-team` | `~/.coodra/.env` (team block present) | env-resolved (the local config asserts who you are) | no, optional | locally |
+| `team-hosted` | Server env vars (`DATABASE_URL`, `CLERK_*`, `COODRA_EXPECTED_ORG_ID`) | Clerk session JWT | **yes, required** | nowhere — agent-side daemons still run on each developer's laptop in `local-team` mode |
 
 **Branching:**
 
@@ -133,8 +133,8 @@ export type DeploymentMode = 'local-solo' | 'local-team' | 'team-hosted';
 
 export function resolveDeploymentMode(): DeploymentMode {
   // Team-hosted: explicit env var the deploy template sets
-  if (process.env.CONTEXTOS_DEPLOYMENT === 'team-hosted') return 'team-hosted';
-  // Local: read mode from ~/.contextos/config.json (existing logic)
+  if (process.env.COODRA_DEPLOYMENT === 'team-hosted') return 'team-hosted';
+  // Local: read mode from ~/.coodra/config.json (existing logic)
   const localMode = resolveEffectiveMode();  // 'solo' | 'team'
   return localMode === 'team' ? 'local-team' : 'local-solo';
 }
@@ -143,7 +143,7 @@ export function resolveDeploymentMode(): DeploymentMode {
 Every page + action that touches identity branches on this once.
 
 **Key invariant:** in `team-hosted` mode, the web NEVER reads or writes
-`~/.contextos`. There is no `~/.contextos` on a Vercel server.
+`~/.coodra`. There is no `~/.coodra` on a Vercel server.
 
 ---
 
@@ -269,7 +269,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { type NextRequest, NextResponse } from 'next/server';
 
 const isPublic = createRouteMatcher(['/api/healthz', '/auth(.*)']);
-const dm = process.env.CONTEXTOS_DEPLOYMENT;
+const dm = process.env.COODRA_DEPLOYMENT;
 
 export default dm === 'team-hosted'
   ? clerkMiddleware(async (auth, req) => {
@@ -281,7 +281,7 @@ export default dm === 'team-hosted'
         return NextResponse.redirect(signIn);
       }
       // Single-tenant invariant: refuse if user is not in this deployment's org
-      const expected = process.env.CONTEXTOS_EXPECTED_ORG_ID;
+      const expected = process.env.COODRA_EXPECTED_ORG_ID;
       if (expected !== undefined && session.orgId !== expected) {
         return NextResponse.redirect(new URL('/forbidden', req.url));
       }
@@ -291,12 +291,12 @@ export default dm === 'team-hosted'
 
 ### 4.4 Deployment env vars (team-hosted)
 
-The deployment sets these once at deploy time and never reads `~/.contextos`:
+The deployment sets these once at deploy time and never reads `~/.coodra`:
 
 ```
-CONTEXTOS_DEPLOYMENT=team-hosted
+COODRA_DEPLOYMENT=team-hosted
 DATABASE_URL=postgresql://...
-CONTEXTOS_EXPECTED_ORG_ID=org_2nKjAcmeOrgId
+COODRA_EXPECTED_ORG_ID=org_2nKjAcmeOrgId
 
 CLERK_SECRET_KEY=sk_live_...
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
@@ -312,8 +312,8 @@ NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/
 | # | Test | Pass condition |
 |---|---|---|
 | 1 | Local-solo dev server (no env, no team config) | `/` renders solo UI; `/auth/sign-in` 404s |
-| 2 | Local-team dev server (with `~/.contextos/config.json::team`) | `/` renders team UI; sidebar shows org slug; no Clerk sign-in needed |
-| 3 | Team-hosted dev server (CONTEXTOS_DEPLOYMENT=team-hosted + Clerk env) | Visiting `/` redirects to `/auth/sign-in`; after sign-in lands on `/`; sidebar shows org from session |
+| 2 | Local-team dev server (with `~/.coodra/config.json::team`) | `/` renders team UI; sidebar shows org slug; no Clerk sign-in needed |
+| 3 | Team-hosted dev server (COODRA_DEPLOYMENT=team-hosted + Clerk env) | Visiting `/` redirects to `/auth/sign-in`; after sign-in lands on `/`; sidebar shows org from session |
 | 4 | Team-hosted, signed in but wrong org | redirect to `/forbidden` |
 | 5 | Team-hosted, viewer role tries to edit a policy | server action throws ForbiddenError; UI shows "you need admin" |
 | 6 | Team-hosted, member tries to resume someone else's kill-switch | server action throws ForbiddenError |
@@ -394,12 +394,12 @@ token = base64url({
 ```
 
 **Secret** = a 32-byte HMAC key stored in deployment env as
-`CONTEXTOS_INVITE_HMAC_SECRET` (admin sets this once at deploy time).
+`COODRA_INVITE_HMAC_SECRET` (admin sets this once at deploy time).
 
 ### 5.4 The CLI install command (new)
 
 ```
-contextos team install --bootstrap-url https://contextos-acme.vercel.app/install/<token>
+coodra team install --bootstrap-url https://coodra-acme.vercel.app/install/<token>
 ```
 
 What it does:
@@ -419,20 +419,20 @@ What it does:
    }
    ```
 4. Server marks `team_invites.used_at = now`, `used_by_user_id = userId`.
-5. CLI writes `~/.contextos/config.json` + `.env` with everything in the bundle.
-6. CLI prints "Now run `contextos init` in your project, then `contextos start`."
+5. CLI writes `~/.coodra/config.json` + `.env` with everything in the bundle.
+6. CLI prints "Now run `coodra init` in your project, then `coodra start`."
 
 ### 5.5 The shell-script form (one-liner) — Journey C2
 
 ```bash
-curl -sSL https://contextos-acme.vercel.app/install/<token>/cli.sh | sh
+curl -sSL https://coodra-acme.vercel.app/install/<token>/cli.sh | sh
 ```
 
 The `cli.sh` route returns a shell script that:
 1. Detects the OS + arch.
-2. Installs `@coodra/contextos-cli` via npm if Node is present, or downloads a static binary.
-3. Runs `contextos team install --bootstrap-url ${SAME_URL}`.
-4. Prints "✓ ContextOS installed and joined team acme. Run `contextos init` in your project."
+2. Installs `@coodra/cli` via npm if Node is present, or downloads a static binary.
+3. Runs `coodra team install --bootstrap-url ${SAME_URL}`.
+4. Prints "✓ Coodra installed and joined team acme. Run `coodra init` in your project."
 
 Total elapsed: ~30 seconds depending on network.
 
@@ -470,7 +470,7 @@ Admin generates a new invite, same flow.
 |---|---|---|
 | 1 | Admin generates invite for `bob@acme.com` | `team_invites` row created with `used_at = NULL` |
 | 2 | Bob clicks invite URL | `/install/<token>` page validates, shows sign-in/CLI choice |
-| 3 | Bob runs `contextos team install --bootstrap-url ...` | Token consumed, config written, success message |
+| 3 | Bob runs `coodra team install --bootstrap-url ...` | Token consumed, config written, success message |
 | 4 | Bob runs the one-line shell installer | Same outcome as #3 plus CLI is now on his PATH |
 | 5 | Bob clicks the same URL twice | Second attempt 404s with "already redeemed" |
 | 6 | Token expires | Page shows "this invite has expired" |
@@ -495,12 +495,12 @@ Add `apps/web-v2/vercel.json` + a "Deploy to Vercel" button in `/settings/team`:
 [Deploy to Vercel]
   → Vercel one-click deploy URL with all required env vars listed:
     DATABASE_URL                     (you set)
-    CONTEXTOS_EXPECTED_ORG_ID        (org_… from your Clerk)
-    CONTEXTOS_INVITE_HMAC_SECRET     (we generate; click to randomize)
+    COODRA_EXPECTED_ORG_ID        (org_… from your Clerk)
+    COODRA_INVITE_HMAC_SECRET     (we generate; click to randomize)
     CLERK_SECRET_KEY                 (you set)
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (you set)
     CLERK_PUBLISHABLE_KEY            (you set)
-    CONTEXTOS_DEPLOYMENT             (set to 'team-hosted' automatically)
+    COODRA_DEPLOYMENT             (set to 'team-hosted' automatically)
 ```
 
 Vercel's deploy-button model accepts pre-filled env vars + Git import.
@@ -530,7 +530,7 @@ Plus a docker-compose that bundles in the cloud Postgres for self-hosted-everyth
 | # | Test | Pass condition |
 |---|---|---|
 | 1 | Click "Deploy to Vercel" from /settings/team | Vercel UI opens with env vars pre-filled |
-| 2 | Complete Vercel deployment | URL like `https://contextos-acme.vercel.app` is live |
+| 2 | Complete Vercel deployment | URL like `https://coodra-acme.vercel.app` is live |
 | 3 | Visit URL → /auth/sign-in → sign in → / | Team workspace renders with admin's data |
 | 4 | docker run with same env vars | identical behavior |
 
@@ -592,7 +592,7 @@ ways someone's CLI gets bound to the team:
 ### 8.1 Admin's first install (Phase 0, today, unchanged)
 
 ```
-contextos team setup \
+coodra team setup \
   --database-url ... \
   --user-id ... \
   --org-id ...
@@ -607,8 +607,8 @@ Manually constructed. Admin owns this — they minted the team.
 2. Teammate: clicks URL → /install/<token> page
 3. Teammate: clicks "I want the CLI" → sees one-line installer
 4. Teammate: runs `curl -sSL .../install/<token>/cli.sh | sh`
-5. CLI is installed + ~/.contextos/config.json + .env are written + token consumed
-6. Teammate: contextos init in repo + contextos start
+5. CLI is installed + ~/.coodra/config.json + .env are written + token consumed
+6. Teammate: coodra init in repo + coodra start
 ```
 
 ### 8.3 Teammate, terminal-driven (Phase 2 — for engineers who hate browsers)
@@ -616,9 +616,9 @@ Manually constructed. Admin owns this — they minted the team.
 ```
 1. Admin: /settings/team → Invite → emails URL
 2. Teammate: opens email, copies URL
-3. Teammate: contextos team install --bootstrap-url <URL>
+3. Teammate: coodra team install --bootstrap-url <URL>
 4. CLI does the redeem-and-write dance
-5. Teammate: contextos init + contextos start
+5. Teammate: coodra init + coodra start
 ```
 
 Same outcome, no browser needed.
@@ -633,7 +633,7 @@ fresh token is auditable.
 
 ### 8.5 Mapping summary
 
-| Who | Their `~/.contextos/config.json::team` is bound to | How they got it |
+| Who | Their `~/.coodra/config.json::team` is bound to | How they got it |
 |---|---|---|
 | Admin's first machine | The team they just created | `team setup` (manual cred entry) |
 | Admin on a new machine | Same team | `team install --bootstrap-url` from a fresh invite they generated for themselves, OR re-`team setup` if they're rebuilding |
@@ -702,20 +702,20 @@ Total: 24 new files, 11 modified. Roughly 4 days end-to-end.
 - Each RBAC-gated action with all 3 roles
 
 ### Integration
-- Boot web-v2 with `CONTEXTOS_DEPLOYMENT=team-hosted` against testcontainers Postgres + a Clerk-test-mode app
+- Boot web-v2 with `COODRA_DEPLOYMENT=team-hosted` against testcontainers Postgres + a Clerk-test-mode app
 - Generate invite, redeem invite, assert `team_invites.used_at` is set
 - Two-user concurrent edit on policies (admin + member) — member rejected
 
 ### E2E
 - Playwright/MCP browser test: sign in via Clerk test mode, click /decisions, see seeded data, sign out
-- One-line installer test: spawn a Docker container, run `curl ... | sh`, assert ContextOS CLI is on PATH and config.json was written
+- One-line installer test: spawn a Docker container, run `curl ... | sh`, assert Coodra CLI is on PATH and config.json was written
 
 ---
 
 ## 11. Rollout
 
 ### Step 0 — merge plan + acceptance criteria (this doc)
-### Step 1 — Phase 1 lands behind a feature flag (`CONTEXTOS_DEPLOYMENT`)
+### Step 1 — Phase 1 lands behind a feature flag (`COODRA_DEPLOYMENT`)
 - Local-solo + local-team users see no change
 - Team-hosted only when explicitly opted in
 ### Step 2 — admin tests against their own deployment
@@ -726,8 +726,8 @@ Total: 24 new files, 11 modified. Roughly 4 days end-to-end.
 
 ### Backward compatibility
 The existing per-developer-local pattern continues to work without any
-changes. `CONTEXTOS_DEPLOYMENT` defaults to absent, which means web-v2
-keeps reading `~/.contextos/config.json`. No breakage.
+changes. `COODRA_DEPLOYMENT` defaults to absent, which means web-v2
+keeps reading `~/.coodra/config.json`. No breakage.
 
 ---
 

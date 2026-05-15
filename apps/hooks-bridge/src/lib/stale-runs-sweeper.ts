@@ -1,5 +1,5 @@
-import { type DbHandle, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, eq, lt, sql } from 'drizzle-orm';
 
 /**

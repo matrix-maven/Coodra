@@ -1,4 +1,4 @@
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../src/app.js';
@@ -22,7 +22,7 @@ import { buildApp } from '../../src/app.js';
 
 function makeEnv(overrides: Partial<AuthEnv> = {}): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'team',
+    COODRA_MODE: 'team',
     CLERK_SECRET_KEY: 'sk_test_realRealKey1234',
     CLERK_PUBLISHABLE_KEY: 'pk_test_realRealKey1234',
     ...overrides,
@@ -42,14 +42,14 @@ describe('auth chain on POST /v1/hooks/{agent}', () => {
     expect(res.status).toBe(200);
   });
 
-  it('(1b) solo-bypass — CONTEXTOS_MODE=solo with no sentinel still bypasses (matches MCP server semantics)', async () => {
+  it('(1b) solo-bypass — COODRA_MODE=solo with no sentinel still bypasses (matches MCP server semantics)', async () => {
     // Regression guard: before the fix, the bridge required the literal
     // CLERK_SECRET_KEY sentinel for solo-bypass while the MCP server also
-    // accepted CONTEXTOS_MODE=solo. Out-of-the-box, `contextos start` does
+    // accepted COODRA_MODE=solo. Out-of-the-box, `coodra start` does
     // not forward .env into the daemon, so CLERK_SECRET_KEY was undefined —
     // bridge 401'd every hook in solo mode. This test pins the disjunction.
     const { hono } = buildApp({
-      env: { CONTEXTOS_MODE: 'solo' } as AuthEnv,
+      env: { COODRA_MODE: 'solo' } as AuthEnv,
     });
     const res = await hono.request('/v1/hooks/claude-code', {
       method: 'POST',

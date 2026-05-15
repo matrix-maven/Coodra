@@ -1,6 +1,6 @@
-import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { and, eq } from 'drizzle-orm';
 
 import type { HookDispatchResult } from '../app.js';
@@ -14,10 +14,10 @@ import { markSaveContextPackCalled, recordPostToolUseAndCheckReminder } from '..
  * After this many PostToolUse events for one run without a
  * `save_context_pack` call, the bridge injects a one-shot
  * `<system-reminder>` via the response's `additionalContext`. Tuned
- * empirically: 15 is a "long" session in current ContextOS usage,
+ * empirically: 15 is a "long" session in current Coodra usage,
  * short enough sessions (<15 tools) get no nag.
  *
- * Future: per-project override via `.contextos.json:sessionStart.midSessionReminderAfter`.
+ * Future: per-project override via `.coodra.json:sessionStart.midSessionReminderAfter`.
  */
 const M05_MID_SESSION_REMINDER_THRESHOLD = 15;
 

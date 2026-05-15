@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../../src/app.js';
@@ -18,7 +18,7 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  * back through the agent's response shape.
  *
  * Layout:
- *   - tmp dir with `.contextos.json` containing a project slug
+ *   - tmp dir with `.coodra.json` containing a project slug
  *   - sqlite path inside the tmp dir; migrations applied at setup
  *   - one project row + one policy row + one rule denying writes to
  *     `src/auth/**` for any agent
@@ -38,7 +38,7 @@ let h: Harness;
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
@@ -46,7 +46,7 @@ function makeEnv(): AuthEnv {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'pre-tool-test-'));
   const slug = `test-proj-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   // sqlite-vec MUST be loaded — migration 0001's hand-written

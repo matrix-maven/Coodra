@@ -71,7 +71,7 @@ describe('createLogger', () => {
 });
 
 /**
- * Locks the CONTEXTOS_LOG_DESTINATION contract at the module-load
+ * Locks the COODRA_LOG_DESTINATION contract at the module-load
  * boundary. The flip is deliberately env-driven (see logger.ts docblock)
  * so every module transitively importing `createLogger` resolves to the
  * same destination. These tests reload the module under each env vector
@@ -85,40 +85,40 @@ describe('createLogger', () => {
  * parse contract only: unset / `stdout` / `stderr` are valid; anything
  * else throws at module load.
  */
-describe('CONTEXTOS_LOG_DESTINATION', () => {
-  const originalDest = process.env.CONTEXTOS_LOG_DESTINATION;
+describe('COODRA_LOG_DESTINATION', () => {
+  const originalDest = process.env.COODRA_LOG_DESTINATION;
 
   beforeEach(() => {
     vi.resetModules();
   });
 
   afterEach(() => {
-    if (originalDest === undefined) delete process.env.CONTEXTOS_LOG_DESTINATION;
-    else process.env.CONTEXTOS_LOG_DESTINATION = originalDest;
+    if (originalDest === undefined) delete process.env.COODRA_LOG_DESTINATION;
+    else process.env.COODRA_LOG_DESTINATION = originalDest;
     vi.resetModules();
   });
 
   it('unset: module loads without throwing', async () => {
-    delete process.env.CONTEXTOS_LOG_DESTINATION;
+    delete process.env.COODRA_LOG_DESTINATION;
     const mod = await import('../../src/logger.js');
     expect(typeof mod.logger.info).toBe('function');
   });
 
   it("'stdout' (explicit, any case): module loads without throwing", async () => {
-    process.env.CONTEXTOS_LOG_DESTINATION = 'STDOUT';
+    process.env.COODRA_LOG_DESTINATION = 'STDOUT';
     const mod = await import('../../src/logger.js');
     expect(typeof mod.logger.info).toBe('function');
   });
 
   it("'stderr': module loads without throwing and logger is still a pino instance", async () => {
-    process.env.CONTEXTOS_LOG_DESTINATION = 'stderr';
+    process.env.COODRA_LOG_DESTINATION = 'stderr';
     const mod = await import('../../src/logger.js');
     expect(typeof mod.logger.info).toBe('function');
     expect(typeof mod.logger.child).toBe('function');
   });
 
   it('unknown value: throws TypeError at module load with a named-var message', async () => {
-    process.env.CONTEXTOS_LOG_DESTINATION = 'syslog';
-    await expect(import('../../src/logger.js')).rejects.toThrow(/CONTEXTOS_LOG_DESTINATION/);
+    process.env.COODRA_LOG_DESTINATION = 'syslog';
+    await expect(import('../../src/logger.js')).rejects.toThrow(/COODRA_LOG_DESTINATION/);
   });
 });

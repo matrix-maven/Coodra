@@ -22,7 +22,7 @@
     "packages/db/drizzle/postgres/0010_m05_agent_driven.sql",
     "packages/db/drizzle/postgres/0011_drop_embeddings.sql",
     "packages/db/migrations.lock.json",
-    "packages/cli/src/lib/init/contextos-json.ts",
+    "packages/cli/src/lib/init/coodra-json.ts",
     "essentialsforclaude/05-agent-trigger-contract.md",
     "essentialsforclaude/11-adrs.md",
     "system-architecture.md"

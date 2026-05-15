@@ -40,7 +40,7 @@ export default async function WelcomePage() {
 
   return (
     <>
-      <Topbar crumb="Welcome" crumbPrefix="contextos" />
+      <Topbar crumb="Welcome" crumbPrefix="coodra" />
       <section className="screen">
         <div className="head">
           <div>
@@ -49,7 +49,7 @@ export default async function WelcomePage() {
               Pick your <em>path</em>.
             </h1>
             <p className="head__lede">
-              ContextOS is MIT, fully self-hosted. There is no ContextOS-operated service — every team brings their
+              Coodra is MIT, fully self-hosted. There is no Coodra-operated service — every team brings their
               own Postgres + Clerk and runs everything on machines they own. Three paths in: solo (no cloud), create
               a new team (you'll be the admin), or connect to an existing team (someone already set it up and gave
               you the bundle).
@@ -99,7 +99,7 @@ export default async function WelcomePage() {
             }
             tagline="One developer, one machine. Zero cloud."
             bullets={[
-              'Stays in ~/.contextos/data.db (SQLite).',
+              'Stays in ~/.coodra/data.db (SQLite).',
               'No accounts, no sign-in, nothing leaves the box.',
               'Everything works offline.',
               'Promote to a team any time, your data carries over.',
@@ -121,7 +121,7 @@ export default async function WelcomePage() {
               'You provision Supabase + Clerk and own them outright.',
               'CLI applies the schema, generates a hook secret.',
               'Your laptop becomes the first machine in the team.',
-              'Nothing ContextOS-hosted is ever in the picture — fully self-hosted.',
+              'Nothing Coodra-hosted is ever in the picture — fully self-hosted.',
             ]}
             need={[
               'A Supabase project (free tier works).',
@@ -168,9 +168,9 @@ export default async function WelcomePage() {
             gap: 36,
           }}
         >
-          <FactRow label="Storage" solo="~/.contextos/data.db" team="local SQLite + your Postgres" />
+          <FactRow label="Storage" solo="~/.coodra/data.db" team="local SQLite + your Postgres" />
           <FactRow label="Sign-in" solo="none" team="Clerk JWT against your Clerk app" />
-          <FactRow label="Cost to ContextOS" solo="$0" team="$0 (you pay Supabase + Clerk directly)" />
+          <FactRow label="Cost to Coodra" solo="$0" team="$0 (you pay Supabase + Clerk directly)" />
         </div>
 
         <div
@@ -194,7 +194,7 @@ export default async function WelcomePage() {
             About self-hosted team mode
           </div>
           <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.7, marginBottom: 8 }}>
-            ContextOS doesn't operate any service. <strong style={{ color: 'var(--ink)' }}>Your team's identity is
+            Coodra doesn't operate any service. <strong style={{ color: 'var(--ink)' }}>Your team's identity is
             the tuple (your Supabase project, your Clerk org)</strong>. There's no central directory to look up; the
             credential bundle is the team. That's the trade — you own everything, including the cost of losing the
             credentials if you don't store them safely.
@@ -360,7 +360,7 @@ function FactRow({ label, solo, team }: { readonly label: string; readonly solo:
 function SignedInRedirectHint({ orgSlug }: { readonly orgSlug: string }) {
   return (
     <>
-      <Topbar crumb="Welcome" crumbPrefix="contextos" />
+      <Topbar crumb="Welcome" crumbPrefix="coodra" />
       <section className="screen" style={{ maxWidth: 720 }}>
         <div className="head">
           <div>

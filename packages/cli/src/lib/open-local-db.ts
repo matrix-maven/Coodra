@@ -1,4 +1,4 @@
-import { createDb, type SqliteHandle } from '@coodra/contextos-db';
+import { createDb, type SqliteHandle } from '@coodra/db';
 
 export interface OpenLocalDbOptions {
   /**

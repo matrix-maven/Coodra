@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation';
  * team-hosted deployment pattern.
  *
  * Each team-hosted deployment serves exactly one Clerk org. The
- * deployment's `CONTEXTOS_EXPECTED_ORG_ID` env var encodes which one.
+ * deployment's `COODRA_EXPECTED_ORG_ID` env var encodes which one.
  * Visitors whose Clerk session belongs to a *different* org must be
  * hard-rejected — not "show them empty data," not "let them write
  * cross-tenant rows," but redirected to `/forbidden`.
@@ -40,7 +40,7 @@ export interface RequireOrgMatchOptions {
 }
 
 /**
- * Verifies the Clerk session's orgId matches `CONTEXTOS_EXPECTED_ORG_ID`.
+ * Verifies the Clerk session's orgId matches `COODRA_EXPECTED_ORG_ID`.
  *
  *   - `expected === undefined`  → check is a no-op (used in dev when
  *                                  the env var hasn't been set yet).
@@ -54,7 +54,7 @@ export async function requireOrgMatch(
   actual: string | null | undefined,
   options: RequireOrgMatchOptions = {},
 ): Promise<void> {
-  const expected = process.env.CONTEXTOS_EXPECTED_ORG_ID;
+  const expected = process.env.COODRA_EXPECTED_ORG_ID;
   if (typeof expected !== 'string' || expected.length === 0) {
     // No expected-org pinned for this deployment → check is intentionally
     // skipped. Operator can wire it after the first member signs in.
@@ -74,7 +74,7 @@ export async function requireOrgMatch(
 
 /** Pure predicate variant — never throws or redirects; returns boolean. */
 export function isOrgMatch(actual: string | null | undefined): boolean {
-  const expected = process.env.CONTEXTOS_EXPECTED_ORG_ID;
+  const expected = process.env.COODRA_EXPECTED_ORG_ID;
   if (typeof expected !== 'string' || expected.length === 0) return true;
   return typeof actual === 'string' && actual === expected;
 }

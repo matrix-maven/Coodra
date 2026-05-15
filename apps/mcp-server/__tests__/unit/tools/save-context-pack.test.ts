@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createSaveContextPackToolRegistration } from '../../../src/tools/save-context-pack/manifest.js';
 import { saveContextPackInputSchema } from '../../../src/tools/save-context-pack/schema.js';
 
 /**
- * Unit tests for `contextos__save_context_pack` — manifest contract +
+ * Unit tests for `coodra__save_context_pack` — manifest contract +
  * input schema boundaries + idempotency-key shape. DB behaviour
  * (runs SELECT, context_packs write, runs UPDATE) is covered in
  * `__tests__/integration/tools/save-context-pack.test.ts`.

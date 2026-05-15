@@ -12,7 +12,7 @@
  *      between two parses. The editor refuses to save when the user
  *      has added, removed, or renamed a marker — only the inner
  *      content of an existing marker is editable from the web. Adding
- *      or removing markers is a `contextos pack regenerate` (or
+ *      or removing markers is a `coodra pack regenerate` (or
  *      template install) responsibility.
  *
  *   2. `summarizeParseErrors(errors)` — render the parser's structured
@@ -28,7 +28,7 @@ import {
   type ParseError,
   type ParseResult,
   parseAutoSections,
-} from '@coodra/contextos-cli/lib/auto-marker';
+} from '@coodra/cli/lib/auto-marker';
 
 export type { AutoSection, ParseError, ParseResult };
 export { parseAutoSections };

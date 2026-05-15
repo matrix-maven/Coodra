@@ -2,8 +2,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { type DbHandle, migrateSqlite } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, migrateSqlite } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { __internal as envInternal, type McpServerEnv } from '../../../apps/mcp-server/src/config/env.js';
 import type { ContextDeps } from '../../../apps/mcp-server/src/framework/tool-context.js';
 import { ToolRegistry } from '../../../apps/mcp-server/src/framework/tool-registry.js';
@@ -77,13 +77,13 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
   });
 
   const registry = new ToolRegistry({ deps });
-  registerAllTools(registry, { db: dbHandle, mode: opts.env.CONTEXTOS_MODE });
+  registerAllTools(registry, { db: dbHandle, mode: opts.env.COODRA_MODE });
 
   let http: HttpTransportHandle | undefined;
   if (opts.withHttp) {
     http = await startHttpTransport({
       registry,
-      serverName: '@coodra/contextos-mcp-server-e2e',
+      serverName: '@coodra/mcp-server-e2e',
       serverVersion: '0.0.0-e2e',
       env: opts.env,
     });
@@ -110,7 +110,7 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
  * directly.
  */
 export interface EnvOverride {
-  readonly CONTEXTOS_MODE?: 'solo' | 'team';
+  readonly COODRA_MODE?: 'solo' | 'team';
   readonly MCP_SERVER_PORT?: number;
   readonly MCP_SERVER_HOST?: string;
   readonly CLERK_SECRET_KEY?: string;
@@ -122,8 +122,8 @@ export function buildE2eEnv(override: EnvOverride = {}): McpServerEnv {
   const base: Record<string, unknown> = {
     NODE_ENV: 'test',
     LOG_LEVEL: 'error',
-    CONTEXTOS_MODE: override.CONTEXTOS_MODE ?? 'solo',
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
+    COODRA_MODE: override.COODRA_MODE ?? 'solo',
+    COODRA_LOG_DESTINATION: 'stderr',
     MCP_SERVER_PORT: override.MCP_SERVER_PORT ?? 0,
     MCP_SERVER_HOST: override.MCP_SERVER_HOST ?? '127.0.0.1',
     MCP_SERVER_TRANSPORT: 'http',

@@ -1,9 +1,9 @@
-import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/contextos-db';
+import { createPostgresDb, ensurePgVector, migratePostgres, type PostgresHandle } from '@coodra/db';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos cloud-migrate` — apply Drizzle Postgres migrations to the
+ * `coodra cloud-migrate` — apply Drizzle Postgres migrations to the
  * cloud database identified by `DATABASE_URL`.
  *
  * Used by self-hosters during initial deploy and on every deploy that
@@ -104,7 +104,7 @@ export async function runCloudMigrateCommand(
   const databaseUrl = options.databaseUrl ?? process.env.DATABASE_URL;
   if (!databaseUrl || databaseUrl.trim() === '') {
     io.writeStderr(
-      `${pc.red('contextos cloud-migrate')}: DATABASE_URL is required (pass --database-url or set the env var).\n`,
+      `${pc.red('coodra cloud-migrate')}: DATABASE_URL is required (pass --database-url or set the env var).\n`,
     );
     return io.exit(EXIT_USER_ACTION_REQUIRED);
   }
@@ -115,7 +115,7 @@ export async function runCloudMigrateCommand(
     handle = createPostgresDb({ databaseUrl });
   } catch (cause) {
     io.writeStderr(
-      `${pc.red('contextos cloud-migrate')}: failed to construct Postgres client: ${errorMessage(cause)}\n`,
+      `${pc.red('coodra cloud-migrate')}: failed to construct Postgres client: ${errorMessage(cause)}\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -144,8 +144,8 @@ export async function runCloudMigrateCommand(
         .map((t) => `  - ${t.name} (${t.rowCount.toString()} rows)`)
         .join('\n');
       io.writeStderr(
-        `${pc.red('contextos cloud-migrate')}: refusing to run — the target database has tables not in the current ` +
-          `ContextOS schema, AND those tables contain data. Migrating against this database risks corrupting an ` +
+        `${pc.red('coodra cloud-migrate')}: refusing to run — the target database has tables not in the current ` +
+          `Coodra schema, AND those tables contain data. Migrating against this database risks corrupting an ` +
           `unrelated application or leaving a stale schema in an inconsistent state.\n\n` +
           `Unknown non-empty tables:\n${lines}\n\n` +
           `If this is intentional (e.g. you removed a module that previously created these tables, and the rows are ` +
@@ -167,7 +167,7 @@ export async function runCloudMigrateCommand(
       exitCode = EXIT_OK;
     }
   } catch (cause) {
-    io.writeStderr(`${pc.red('contextos cloud-migrate')}: migration failed: ${errorMessage(cause)}\n`);
+    io.writeStderr(`${pc.red('coodra cloud-migrate')}: migration failed: ${errorMessage(cause)}\n`);
     exitCode = EXIT_USER_RECOVERABLE;
   } finally {
     await handle.close();
@@ -227,7 +227,7 @@ function writeSuccess(io: CloudMigrateIO, report: CloudMigrateReport, json: bool
   }
   const verb = applied ? pc.green('applied') : pc.cyan('preflight ok');
   io.writeStdout(
-    `contextos cloud-migrate: ${verb} against ${report.databaseUrlMasked}\n` +
+    `coodra cloud-migrate: ${verb} against ${report.databaseUrlMasked}\n` +
       `  known tables found: ${report.preflight.knownTables.length}\n` +
       `  unknown empty tables: ${report.preflight.unknownEmptyTables.length}\n` +
       (applied ? '' : '  (--dry-run — migrations not applied)\n'),

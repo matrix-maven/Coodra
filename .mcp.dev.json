@@ -1,14 +1,14 @@
 {
-  "_comment": "ContextOS — DEV profile (live-reload). Runs both the MCP server and the Hooks Bridge under `tsx watch` so source changes hot-reload without an IDE restart. Closes verification finding §8.2 + Module 03 hooks-bridge dev iteration. For prod-shaped boot, use `.mcp.json` which points at the built dist/. Copy this file over `.mcp.json` and restart Claude Code once to switch profiles. The bridge is launched separately (`pnpm --filter @coodra/contextos-hooks-bridge dev`); this file only configures the MCP subprocess + the hook routing.",
+  "_comment": "Coodra — DEV profile (live-reload). Runs both the MCP server and the Hooks Bridge under `tsx watch` so source changes hot-reload without an IDE restart. Closes verification finding §8.2 + Module 03 hooks-bridge dev iteration. For prod-shaped boot, use `.mcp.json` which points at the built dist/. Copy this file over `.mcp.json` and restart Claude Code once to switch profiles. The bridge is launched separately (`pnpm --filter @coodra/hooks-bridge dev`); this file only configures the MCP subprocess + the hook routing.",
   "_implementedBy": "Module 02 verification fixes + Module 03 (2026-04-25)",
   "mcpServers": {
-    "contextos": {
+    "coodra": {
       "type": "stdio",
       "command": "pnpm",
       "args": ["exec", "tsx", "watch", "apps/mcp-server/src/index.ts", "--transport", "stdio"],
       "env": {
-        "CONTEXTOS_LOG_DESTINATION": "stderr",
-        "CONTEXTOS_MODE": "solo",
+        "COODRA_LOG_DESTINATION": "stderr",
+        "COODRA_MODE": "solo",
         "CLERK_SECRET_KEY": "sk_test_replace_me"
       }
     }

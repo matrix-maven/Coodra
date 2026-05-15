@@ -13,19 +13,19 @@ import {
 } from './verify-clerk-jwt.js';
 
 /**
- * `@coodra/contextos-shared/auth/clerk-token-store` — Phase G slice G.1.
+ * `@coodra/shared/auth/clerk-token-store` — Phase G slice G.1.
  *
  * The on-disk identity record every Phase G consumer reads on every
  * write operation. Solves the trust-based identity gap surfaced in
  * Phase F.6+ where `config.json::team.clerkUserId` was a forgeable
  * string nobody verified.
  *
- * File: `~/.contextos/clerk-token.json` (or `${CONTEXTOS_HOME}/clerk-token.json`).
+ * File: `~/.coodra/clerk-token.json` (or `${COODRA_HOME}/clerk-token.json`).
  * Mode: 0600. Format: see `StoredTokenSchema` below.
  *
  * Consumers and their flow:
  *   - CLI commands           → `readVerifiedToken()` before any mutation.
- *                              On null → "Run `contextos login` to re-authenticate." + exit non-zero.
+ *                              On null → "Run `coodra login` to re-authenticate." + exit non-zero.
  *   - MCP child handlers     → same pattern, but return soft-failure
  *                              `{ ok: false, error: 'auth_required' }`.
  *   - hooks-bridge handlers  → same pattern; respond 401 on missing/expired.
@@ -37,7 +37,7 @@ import {
  *     handles repeat reads) wins over env (process restart required).
  *   - Process env leaks through `ps aux` on Unix; mode-0600 file
  *     restricts to owner only.
- *   - Lets `contextos logout` actually log out in-flight MCP children
+ *   - Lets `coodra logout` actually log out in-flight MCP children
  *     mid-tool-call (next read returns null → soft-failure).
  *
  * Why verify on every read (not just on write):
@@ -62,7 +62,7 @@ const FILE_MODE = 0o600;
 /**
  * On-disk shape. Versioned so future field additions (refresh token,
  * device fingerprint, etc.) can land without breaking existing files.
- * The `claims` mirror is for diagnostic UX (CLI `contextos whoami`
+ * The `claims` mirror is for diagnostic UX (CLI `coodra whoami`
  * shouldn't have to re-verify just to print the user's email) — the
  * authoritative claims always come from re-verifying `token`.
  */
@@ -96,7 +96,7 @@ export interface TokenStoreOptions {
   readonly homeOverride?: string;
   /**
    * Override the Clerk env used for verification. Useful in tests; in
-   * production the env comes from `~/.contextos/.env` via
+   * production the env comes from `~/.coodra/.env` via
    * `loadHomeEnvForVerify`.
    */
   readonly envOverride?: AuthEnv;
@@ -105,16 +105,16 @@ export interface TokenStoreOptions {
 /**
  * Resolves the absolute path to the token file. Order:
  *   1. `opts.homeOverride` (test-side injection)
- *   2. `process.env.CONTEXTOS_HOME`
- *   3. `~/.contextos`
+ *   2. `process.env.COODRA_HOME`
+ *   3. `~/.coodra`
  */
 export function getClerkTokenPath(homeOverride?: string): string {
-  const home = homeOverride ?? process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = homeOverride ?? process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   return resolve(home, TOKEN_FILENAME);
 }
 
 /**
- * Reads `~/.contextos/.env` and returns just the keys the JWT verifier
+ * Reads `~/.coodra/.env` and returns just the keys the JWT verifier
  * needs. Returns `{}` (which the verifier will reject) if the file is
  * missing — caller decides whether to treat that as "no auth in this
  * mode" (solo) or "auth required, prompt login" (team).
@@ -126,19 +126,19 @@ export function getClerkTokenPath(homeOverride?: string): string {
 /**
  * Phase H.6 (2026-05-13) — solo-bypass sentinel detection.
  *
- * `contextos init` writes `CLERK_SECRET_KEY=sk_test_replace_me` and
+ * `coodra init` writes `CLERK_SECRET_KEY=sk_test_replace_me` and
  * `CLERK_PUBLISHABLE_KEY=pk_test_replace_me` into every project's
  * `.env` as solo-mode placeholders. When the CLI's env-bootstrap shim
  * runs from inside such a project dir, the project `.env` flows into
  * `process.env`, the sentinels mask the real keys from
- * `~/.contextos/.env`, and JWT verification fails with
+ * `~/.coodra/.env`, and JWT verification fails with
  * `CLERK_SECRET_KEY is the solo-bypass sentinel`. That falls back to
  * the (forgeable) `config.json::team.clerkUserId` — regressing the
  * Phase G tamper-safety invariant.
  *
  * Fix: when the value seen in process.env is one of these solo-mode
  * sentinels, treat it as "not present" and prefer the value from the
- * authoritative `~/.contextos/.env` file. This makes the home value
+ * authoritative `~/.coodra/.env` file. This makes the home value
  * always win for team-mode JWT verification regardless of which
  * project directory the CLI was launched from.
  */
@@ -153,21 +153,21 @@ function isRealKey(value: string | undefined): boolean {
 }
 
 export function loadHomeEnvForVerify(homeOverride?: string): AuthEnv {
-  const home = homeOverride ?? process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = homeOverride ?? process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const envPath = resolve(home, '.env');
   if (!existsSync(envPath)) {
     return {
       CLERK_SECRET_KEY: isRealKey(process.env.CLERK_SECRET_KEY) ? process.env.CLERK_SECRET_KEY : undefined,
       CLERK_PUBLISHABLE_KEY: isRealKey(process.env.CLERK_PUBLISHABLE_KEY) ? process.env.CLERK_PUBLISHABLE_KEY : undefined,
       CLERK_JWT_ISSUER: process.env.CLERK_JWT_ISSUER ?? null,
-      CONTEXTOS_MODE: process.env.CONTEXTOS_MODE === 'team' || process.env.CONTEXTOS_MODE === 'solo'
-        ? process.env.CONTEXTOS_MODE
+      COODRA_MODE: process.env.COODRA_MODE === 'team' || process.env.COODRA_MODE === 'solo'
+        ? process.env.COODRA_MODE
         : undefined,
     };
   }
   const parsed = parseEnvFile(readFileSync(envPath, 'utf8'));
   // Phase H.6 — for Clerk keys: prefer process.env BUT skip the
-  // solo-bypass sentinels (which `contextos init` writes to project
+  // solo-bypass sentinels (which `coodra init` writes to project
   // `.env`s). Home file is the authoritative source. For other keys,
   // process.env wins as before (operator override / test injection).
   const mergeClerk = (key: 'CLERK_SECRET_KEY' | 'CLERK_PUBLISHABLE_KEY'): string | undefined => {
@@ -176,12 +176,12 @@ export function loadHomeEnvForVerify(homeOverride?: string): AuthEnv {
     return parsed[key];
   };
   const merge = (key: string): string | undefined => process.env[key] ?? parsed[key];
-  const modeRaw = merge('CONTEXTOS_MODE');
+  const modeRaw = merge('COODRA_MODE');
   return {
     CLERK_SECRET_KEY: mergeClerk('CLERK_SECRET_KEY'),
     CLERK_PUBLISHABLE_KEY: mergeClerk('CLERK_PUBLISHABLE_KEY'),
     CLERK_JWT_ISSUER: merge('CLERK_JWT_ISSUER') ?? null,
-    CONTEXTOS_MODE: modeRaw === 'team' || modeRaw === 'solo' ? modeRaw : undefined,
+    COODRA_MODE: modeRaw === 'team' || modeRaw === 'solo' ? modeRaw : undefined,
   };
 }
 
@@ -211,7 +211,7 @@ function parseEnvFile(raw: string): Record<string, string> {
  * file, malformed JSON, expired, tampered, missing Clerk env).
  *
  * Every failure path is logged at WARN level with the path + reason
- * so an operator running `contextos doctor` (or just tailing logs)
+ * so an operator running `coodra doctor` (or just tailing logs)
  * can diagnose "why are my writes refused?".
  *
  * Callers branch on null vs non-null. They do NOT call `loadHomeEnv`
@@ -275,7 +275,7 @@ export async function writeToken(
   opts: TokenStoreOptions = {},
 ): Promise<VerifiedClerkClaims> {
   const env = opts.envOverride ?? loadHomeEnvForVerify(opts.homeOverride);
-  // Throws if invalid — propagate to caller so `contextos login` can
+  // Throws if invalid — propagate to caller so `coodra login` can
   // surface a clean error.
   const claims = await verifyClerkJwtAndExtractClaims(token, env);
 

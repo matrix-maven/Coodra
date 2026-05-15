@@ -38,11 +38,11 @@
 ## Local-only test invocation
 
 ```
-pnpm --filter @coodra/contextos-shared test:unit -- run-diff
-pnpm --filter @coodra/contextos-db test:unit
-pnpm --filter @coodra/contextos-hooks-bridge test:unit
-pnpm --filter @coodra/contextos-mcp-server test:unit
-pnpm --filter @coodra/contextos-web-v2 typecheck
+pnpm --filter @coodra/shared test:unit -- run-diff
+pnpm --filter @coodra/db test:unit
+pnpm --filter @coodra/hooks-bridge test:unit
+pnpm --filter @coodra/mcp-server test:unit
+pnpm --filter @coodra/web-v2 typecheck
 ```
 
 ## CI

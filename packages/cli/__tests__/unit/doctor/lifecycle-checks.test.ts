@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { claudeHookRegistrationCheck } from '../../../src/doctor/checks/28-claude-hook-registration.js';
@@ -20,7 +20,7 @@ import { openLocalDb } from '../../../src/lib/open-local-db.js';
 function ctxWithHome(home: string, overrides: Partial<Parameters<typeof buildCheckContext>[0]> = {}) {
   return buildCheckContext({
     env: {},
-    contextosHomeOverride: home,
+    coodraHomeOverride: home,
     cwd: home,
     ...overrides,
   });
@@ -102,15 +102,15 @@ describe('claudeHookRegistrationCheck (28)', () => {
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/SessionEnd/);
-    expect(result.remediation).toMatch(/contextos init/);
+    expect(result.remediation).toMatch(/coodra init/);
   });
 
-  it('YELLOW when PreToolUse still has the legacy `__contextos__` matcher (pre-Fix-F drift)', async () => {
+  it('YELLOW when PreToolUse still has the legacy `__coodra__` matcher (pre-Fix-F drift)', async () => {
     const settings = {
       hooks: {
         SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
         PreToolUse: [
-          { matcher: '__contextos__', hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] },
+          { matcher: '__coodra__', hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] },
         ],
         PostToolUse: [
           {
@@ -125,7 +125,7 @@ describe('claudeHookRegistrationCheck (28)', () => {
     await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/__contextos__|legacy/);
+    expect(result.detail).toMatch(/__coodra__|legacy/);
   });
 
   it('YELLOW when SessionStart wrongly has a matcher set (matcher only applies to tool events)', async () => {
@@ -164,7 +164,7 @@ describe('claudeHookRegistrationCheck (28)', () => {
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/not found/);
-    expect(result.remediation).toMatch(/contextos init/);
+    expect(result.remediation).toMatch(/coodra init/);
   });
 
   it('YELLOW when bridge URL on hooks does not match the configured bridgePort', async () => {
@@ -226,7 +226,7 @@ describe('staleRunsCheck (30)', () => {
     seedRun('run_recent', Math.floor(now.getTime() / 1000) - 60); // 1 minute ago — fresh
     const ctx = buildCheckContext({
       env: {},
-      contextosHomeOverride: homeDir,
+      coodraHomeOverride: homeDir,
       cwd: homeDir,
       now: () => now,
     });
@@ -241,7 +241,7 @@ describe('staleRunsCheck (30)', () => {
     seedRun('run_old_b', oldSec);
     const ctx = buildCheckContext({
       env: {},
-      contextosHomeOverride: homeDir,
+      coodraHomeOverride: homeDir,
       cwd: homeDir,
       now: () => now,
     });
@@ -259,7 +259,7 @@ describe('staleRunsCheck (30)', () => {
     seedRun('run_failed', oldSec, 'failed');
     const ctx = buildCheckContext({
       env: {},
-      contextosHomeOverride: homeDir,
+      coodraHomeOverride: homeDir,
       cwd: homeDir,
       now: () => now,
     });

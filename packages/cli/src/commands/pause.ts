@@ -8,15 +8,15 @@ import {
   listActiveKillSwitches,
   lookupProjectBySlug,
   scheduleDurableWrite,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { EXIT_KILL_SWITCH_REFUSAL, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { DurationParseError, parseDuration } from '../lib/duration.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos pause` — insert a row into `kill_switches` so the bridge's
+ * `coodra pause` — insert a row into `kill_switches` so the bridge's
  * pre-tool-use evaluator (M08b S2) short-circuits matching events.
  *
  * Per OQ-1 lock (2026-05-03) the default mode is `hard` (deny on match).
@@ -32,10 +32,10 @@ import { pc } from '../ui/index.js';
  *
  * Examples:
  *
- *   contextos pause                                 # global hard pause, no expiry
- *   contextos pause --mode soft --reason "demo"     # observability-only
- *   contextos pause --scope tool --target Bash --reason "no shell"
- *   contextos pause --scope project --target my-app --expires-in 1h
+ *   coodra pause                                 # global hard pause, no expiry
+ *   coodra pause --mode soft --reason "demo"     # observability-only
+ *   coodra pause --scope tool --target Bash --reason "no shell"
+ *   coodra pause --scope project --target my-app --expires-in 1h
  */
 
 export interface PauseOptions {
@@ -59,8 +59,8 @@ export interface PauseIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  /** Override the contextos home for tests. */
-  readonly contextosHome?: string;
+  /** Override the coodra home for tests. */
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_PAUSE_IO: PauseIO = {
@@ -133,8 +133,8 @@ export async function runPauseCommand(options: PauseOptions, ioOverride?: PauseI
     }
   }
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   const handle = await openLocalDb(dbPath);
   try {
     // Resolve target. For scope='global' the target stays null. For
@@ -169,7 +169,7 @@ export async function runPauseCommand(options: PauseOptions, ioOverride?: PauseI
             io,
             new CommandError(
               EXIT_USER_RECOVERABLE,
-              `project slug "${options.target}" does not exist in this contextos store. Run \`contextos init --project-slug <slug>\` in the project root first.`,
+              `project slug "${options.target}" does not exist in this coodra store. Run \`coodra init --project-slug <slug>\` in the project root first.`,
             ),
             json,
           );
@@ -215,7 +215,7 @@ export async function runPauseCommand(options: PauseOptions, ioOverride?: PauseI
     // via the audit pairing, but for a one-sided sync we issue
     // scheduleDurableWrite directly here (the audit IS the kill_switch
     // row; no separate audit-write to pair with).
-    const mode_ = process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo';
+    const mode_ = process.env.COODRA_MODE === 'team' ? 'team' : 'solo';
     if (mode_ === 'team' && !isLocalOnly) {
       try {
         await scheduleDurableWrite(handle, {
@@ -318,7 +318,7 @@ function writePauseSuccess(io: PauseIO, json: boolean, row: KillSwitchRecord): v
   io.writeStdout(
     `${pc.green('✓')} Paused ${scopeDescription} (${row.mode}-mode, ${expiresDescription}; id: ${row.id}).\n`,
   );
-  io.writeStdout(`  Resume: ${pc.cyan(`contextos resume --id ${row.id}`)}\n`);
+  io.writeStdout(`  Resume: ${pc.cyan(`coodra resume --id ${row.id}`)}\n`);
 }
 
 function writePauseAlreadyPaused(io: PauseIO, json: boolean, existing: KillSwitchRecord): void {
@@ -337,5 +337,5 @@ function writePauseAlreadyPaused(io: PauseIO, json: boolean, existing: KillSwitc
   io.writeStderr(
     `${pc.yellow('!')} Already paused (${scopeDescription}, ${existing.mode}-mode, id: ${existing.id}). No new switch inserted.\n`,
   );
-  io.writeStderr(`  Resume: ${pc.cyan(`contextos resume --id ${existing.id}`)}\n`);
+  io.writeStderr(`  Resume: ${pc.cyan(`coodra resume --id ${existing.id}`)}\n`);
 }

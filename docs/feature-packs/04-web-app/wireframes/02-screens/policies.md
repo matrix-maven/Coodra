@@ -1,6 +1,6 @@
 # `/policies` and `/policies/[id]` — Policy admin (S5)
 
-CLI parity: `contextos policy {list, show, add, enable, disable}`.
+CLI parity: `coodra policy {list, show, add, enable, disable}`.
 
 ## `/policies` — desktop
 
@@ -48,7 +48,7 @@ CLI parity: `contextos policy {list, show, add, enable, disable}`.
 │                                                                                         │
 │  id: b4bb7198-eb11-4fb1-9abc-bf401edd8749                                               │
 │  project: a5c004e1-7439-422e-9639-aa992e957d1a (verify-m08b)                            │
-│  description: Default policy seeded by `contextos init` (Phase 3 Fix D + Phase 4        │
+│  description: Default policy seeded by `coodra init` (Phase 3 Fix D + Phase 4        │
 │  Fix F, 2026-05-02). Denies file-mutating tools (Write, Edit, MultiEdit,                │
 │  NotebookEdit) writing to .env / **/.env / .git/** / node_modules/**; asks before       │
 │  Bash. Edit via `policy` UI or by writing custom rules with higher priority.            │

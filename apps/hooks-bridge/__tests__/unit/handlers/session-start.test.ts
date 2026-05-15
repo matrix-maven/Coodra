@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { DbHandle } from '@coodra/contextos-db';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import type { DbHandle } from '@coodra/db';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createSessionStartHandler } from '../../../src/handlers/session-start.js';
@@ -21,7 +21,7 @@ import type { RunRecorder } from '../../../src/lib/run-recorder.js';
  *   2. With a resolved projectSlug but NO feature-pack files,
  *      the handler still returns 'allow' but skips additionalContext.
  *
- *   3. Without a resolved projectSlug (no `.contextos.json`), the
+ *   3. Without a resolved projectSlug (no `.coodra.json`), the
  *      handler returns 'allow' with no additionalContext and logs
  *      `session_start_no_project_slug`.
  *
@@ -57,7 +57,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-session-start-test-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-session-start-test-'));
     vi.clearAllMocks();
   });
   afterEach(() => {
@@ -89,7 +89,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
 
     expect(result.permissionDecision).toBe('allow');
     expect(typeof result.additionalContext).toBe('string');
-    expect(result.additionalContext ?? '').toContain('# ContextOS Feature Pack — auto-inject-target');
+    expect(result.additionalContext ?? '').toContain('# Coodra Feature Pack — auto-inject-target');
     expect(result.additionalContext ?? '').toContain('# spec body line');
     expect(result.additionalContext ?? '').toContain('# impl body line');
     expect(result.additionalContext ?? '').toContain('# tech body line');
@@ -132,7 +132,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
 
   it('returns allow + contract-only additionalContext when projectSlug is unresolved', async () => {
     // Same M05 invariant: the contract block always renders, even when
-    // the cwd has no `.contextos.json` and the resolver returns
+    // the cwd has no `.coodra.json` and the resolver returns
     // undefined for both slug and projectId. The pack + features-index
     // + recent-decisions blocks are skipped (they all require a slug
     // to fetch their data) but the contract is the static

@@ -10,7 +10,7 @@ export const bridgeHealthzCheck: Check = {
       url: `http://127.0.0.1:${ctx.bridgePort}/healthz`,
       timeoutMs: ctx.timeoutMs - 200,
       label: 'Hooks Bridge',
-      contextosHome: ctx.contextosHome,
+      coodraHome: ctx.coodraHome,
       unitName: 'hooks-bridge',
     });
   },

@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import {
   ALL_REAL_ENVELOPES,
   REAL_ENVELOPE_POST_TOOL_USE,
@@ -14,7 +14,7 @@ import {
   REAL_ENVELOPE_SESSION_START,
   REAL_ENVELOPE_STOP,
   REAL_ENVELOPE_USER_PROMPT_SUBMIT,
-} from '@coodra/contextos-shared/test-utils';
+} from '@coodra/shared/test-utils';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -72,7 +72,7 @@ let h: Harness;
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
@@ -88,7 +88,7 @@ async function postEvent(body: Record<string, unknown>): Promise<Response> {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'real-envelope-test-'));
   const slug = `real-envelope-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });

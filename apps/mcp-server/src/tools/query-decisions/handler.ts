@@ -1,12 +1,12 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, desc, eq, like, or } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { DecisionEntry, QueryDecisionsInput, QueryDecisionsOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__query_decisions` (Slice 4 — 2026-05-03 audit).
+ * Handler factory for `coodra__query_decisions` (Slice 4 — 2026-05-03 audit).
  *
  * Factory shape because the handler closes over a `DbHandle` for the
  * projects-slug resolution + the decisions SELECT joined to runs.
@@ -178,7 +178,7 @@ export function createQueryDecisionsHandler(deps: QueryDecisionsHandlerDeps) {
         ok: false,
         error: 'project_not_found',
         howToFix:
-          'Register the project via the CLI (`contextos init`) or verify the slug matches an existing entry in the projects table.',
+          'Register the project via the CLI (`coodra init`) or verify the slug matches an existing entry in the projects table.',
       };
     }
 

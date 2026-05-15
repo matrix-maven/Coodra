@@ -32,10 +32,10 @@ export function isLogService(s: string): s is LogService {
 
 /**
  * Resolves the on-disk log path for a service. Honors
- * `CONTEXTOS_LOGS_DIR` (test override); else `~/.contextos/logs/`.
+ * `COODRA_LOGS_DIR` (test override); else `~/.coodra/logs/`.
  */
 export function logPathFor(service: LogService): string {
-  const root = process.env.CONTEXTOS_LOGS_DIR ?? join(homedir(), '.contextos', 'logs');
+  const root = process.env.COODRA_LOGS_DIR ?? join(homedir(), '.coodra', 'logs');
   return join(root, `${service}.log`);
 }
 

@@ -9,7 +9,7 @@
 
 ## What was built (15 slices, S1–S15)
 
-Phase 2 delivers the Web App as an **action layer** for ContextOS, not just an audit-trail viewer. Hub-and-spoke IA: `/` is the project picker, every operational surface lives under `/projects/[slug]/...`.
+Phase 2 delivers the Web App as an **action layer** for Coodra, not just an audit-trail viewer. Hub-and-spoke IA: `/` is the project picker, every operational surface lives under `/projects/[slug]/...`.
 
 | Slice | Commit | Surface | What it does |
 |---|---|---|---|
@@ -22,7 +22,7 @@ Phase 2 delivers the Web App as an **action layer** for ContextOS, not just an a
 | S7 | `1c7ee42` | FP↔CP linkage | `/runs` panel — runs + context packs at the project grain (FK linkage deferred to M05) |
 | S8 | `70fb525` | Doctor live | `/doctor` essential / full registry render; activates the project home Doctor tile |
 | S9 | `6469610` | Context Packs | `/context-packs` list + `/[id]` detail with markdown body |
-| S10 | `1430eb7` | Graph reader | `/graph` reads `~/.contextos/graphify/<slug>/graph.json`; empty-state CTA per ADR-010 |
+| S10 | `1430eb7` | Graph reader | `/graph` reads `~/.coodra/graphify/<slug>/graph.json`; empty-state CTA per ADR-010 |
 | S11 | `d327341` | Logs SSE | `/logs` index + `/logs/[service]` live tail via SSE |
 | S12 | `b49d2d3` | Service control | `/settings/workspace` start/stop/status (solo-mode only) |
 | S13 | `60083a7` | Template install | `/templates` install-from-local-path action |
@@ -128,7 +128,7 @@ Every slice was smoke-tested with a real dev server boot before commit:
 1. **Hub-and-spoke IA pivot (OQ-1 re-lock 2026-05-04, c).** Original Phase 1 dashboard mashed every project's data into one view. Per user direction the new IA scopes everything per-project at the URL, with a minimal workspace header.
 2. **Web is an action layer (user pushback 2026-05-04).** Added 3 net-new slices (S12 service control, S13 template install, S14 project rename / delete / export) on top of the original read-only Phase 2 plan.
 3. **OQ-7 lock (S5).** Pack delete matches real CLI behavior — `rm(dir, recursive)` AND `is_active=false`. The earlier user assumption ("CLI is soft-flip-only") was wrong; verified at `packages/cli/src/commands/pack.ts:415-422`.
-4. **Solo-mode gate on S12.** Service start/stop is refused in team mode (CONTEXTOS_MODE=team) — the web is deployed remotely there, has no business spawning local daemons. Doctor + environment sections still render.
+4. **Solo-mode gate on S12.** Service start/stop is refused in team mode (COODRA_MODE=team) — the web is deployed remotely there, has no business spawning local daemons. Doctor + environment sections still render.
 5. **No client-side editor for FP edits (S6).** Section-aware textarea + server-side marker validation. A future client-side preview can layer on without changing the data contract.
 6. **JSONL export (S14).** One JSON object per line, tagged by `type`. Every per-project audit row in chronological order. Materialized in-process today; chunked streaming reserved for >50MB exports.
 7. **Per-pack FP↔CP filtering deferred to M05.** Schema doesn't yet carry `feature_pack_id` on `runs` / `context_packs`. S7 panel scopes at the project grain and labels this honestly in the page header.

@@ -1,8 +1,8 @@
 -- Phase F.1 — features (2026-05-11).
 --
 -- One row per on-demand "skill recipe" (Anthropic Skills pattern). The
--- agent indexes these at SessionStart via `contextos__list_features` and
--- pulls the full body via `contextos__get_feature` ONLY when a user
+-- agent indexes these at SessionStart via `coodra__list_features` and
+-- pulls the full body via `coodra__get_feature` ONLY when a user
 -- prompt matches the frontmatter trigger. Distinct from feature_packs
 -- (push-at-SessionStart module blueprints): features are pull-on-trigger
 -- skills.

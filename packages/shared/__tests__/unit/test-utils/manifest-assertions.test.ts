@@ -19,7 +19,7 @@ import {
 
 /** Forty-one-word, 'Call this' / 'Returns'-bearing golden description. */
 const GOLDEN_DESCRIPTION =
-  'Call this tool when you need a zero-cost health check of the ContextOS server. ' +
+  'Call this tool when you need a zero-cost health check of the Coodra server. ' +
   'It round-trips a server timestamp, the session id, and the idempotency key the ' +
   'registry computed for the input — no filesystem, database, or policy side effects. ' +
   'Returns { ok, pong, serverTime, sessionId, echo? } on success.';

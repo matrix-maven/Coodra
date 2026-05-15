@@ -255,7 +255,7 @@ function MissingState({
           </h2>
         </div>
         <p className="text-sm text-text-secondary">
-          ContextOS reads <span className="font-mono">graph.json</span> from{' '}
+          Coodra reads <span className="font-mono">graph.json</span> from{' '}
           <span className="break-all font-mono">{path}</span>. The graphify CLI is third-party (ADR-010) — install it
           once, then scan from the repo root for <span className="font-mono">{slug}</span>.
         </p>

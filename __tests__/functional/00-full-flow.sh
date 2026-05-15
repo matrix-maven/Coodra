@@ -18,7 +18,7 @@
 #  12.  Audit trail integrity tamper-test
 #
 # Pre-flight requirements (see phase-g-e2e-test-guide.md):
-#   - Real Clerk app with `contextos_cli` JWT template (24h TTL)
+#   - Real Clerk app with `coodra_cli` JWT template (24h TTL)
 #   - Real Postgres at $DATABASE_URL with migrations 0015-0018 applied
 #   - Admin + member test accounts in the same Clerk org
 #   - CLI bundle built
@@ -70,13 +70,13 @@ SOLO_HOME=$(mktemp -d -t "00-full-solo.XXXXXX")
 SOLO_PROJ=$(mktemp -d -t "00-full-solo-proj.XXXXXX")
 trap 'rm -rf "$SOLO_HOME" "$SOLO_PROJ" 2>/dev/null || true' EXIT
 
-# contextos init requires a project-root marker. Create a minimal package.json.
+# coodra init requires a project-root marker. Create a minimal package.json.
 echo '{"name":"00-full-flow-test","version":"0.0.0","private":true}' > "$SOLO_PROJ/package.json"
 
-(cd "$SOLO_PROJ" && CONTEXTOS_HOME="$SOLO_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 \
+(cd "$SOLO_PROJ" && COODRA_HOME="$SOLO_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 \
   node "$CLI_BIN" init --no-graphify --project-slug 00-solo --no-feature-pack > /dev/null 2>&1) && \
-  assert_pass "1.1 — contextos init succeeded in fresh home" || \
-  assert_fail "1.1 — contextos init failed"
+  assert_pass "1.1 — coodra init succeeded in fresh home" || \
+  assert_fail "1.1 — coodra init failed"
 
 if [ -f "$SOLO_HOME/config.json" ]; then
   MODE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$SOLO_HOME/config.json', 'utf8')).mode)" 2>/dev/null)
@@ -100,9 +100,9 @@ hdr 2 "Solo → team init wizard (admin)"
 # ---------------------------------------------------------------------------
 
 if [ "${INTERACTIVE:-0}" != "1" ]; then
-  assert_skip "2.1 — `contextos team init` is interactive; needs INTERACTIVE=1"
+  assert_skip "2.1 — `coodra team init` is interactive; needs INTERACTIVE=1"
 else
-  yel "Action required: Run \`contextos team init\` against your test Clerk app + Postgres."
+  yel "Action required: Run \`coodra team init\` against your test Clerk app + Postgres."
   yel "       When finished, press Enter to continue."
   read -r _wait
   assert_pass "2.1 — admin completed team init (user-confirmed)"
@@ -115,7 +115,7 @@ hdr 3 "Admin authors content"
 if [ "${INTERACTIVE:-0}" != "1" ]; then
   assert_skip "3.x — needs admin's clerk-token.json (Phase 2 completion)"
 else
-  yel "Verify: run \`contextos feature add ship-checklist\` in your test admin home."
+  yel "Verify: run \`coodra feature add ship-checklist\` in your test admin home."
   yel "       Then check cloud Postgres: SELECT created_by_user_id FROM features WHERE slug='ship-checklist';"
   yel "       The clerk user_id must NOT be __solo__. Press Enter when verified."
   read -r _wait
@@ -150,7 +150,7 @@ else
   TEAMMATE_HOME=$(mktemp -d -t "00-full-teammate.XXXXXX")
   trap 'rm -rf "$SOLO_HOME" "$SOLO_PROJ" "$TEAMMATE_HOME" 2>/dev/null || true' EXIT
 
-  yel "Action required: run \`CONTEXTOS_HOME=$TEAMMATE_HOME contextos team join '$INVITE_URL'\`"
+  yel "Action required: run \`COODRA_HOME=$TEAMMATE_HOME coodra team join '$INVITE_URL'\`"
   yel "       Sign in as the invited email when the browser opens."
   yel "       Press Enter when complete."
   read -r _wait
@@ -193,7 +193,7 @@ hdr 9 "Mode flip (team ↔ solo)"
 if [ "${INTERACTIVE:-0}" != "1" ]; then
   assert_skip "9.x — needs admin team state from Phase 2"
 else
-  yel "Action required: in admin's home, run \`contextos logout\` then \`contextos login\`."
+  yel "Action required: in admin's home, run \`coodra logout\` then \`coodra login\`."
   yel "       Verify the toggle is clean (no manual config edits). Press Enter when done."
   read -r _wait
   assert_pass "9.1 — admin completed logout/login cycle (user-confirmed)"
@@ -209,7 +209,7 @@ assert_skip "10.x — manual: tamper an expired token, verify CLI/MCP/bridge all
 hdr 11 "Multi-org isolation"
 # ---------------------------------------------------------------------------
 
-assert_skip "11.x — optional: requires the user be in 2 Clerk orgs; exercise \`contextos org switch\`"
+assert_skip "11.x — optional: requires the user be in 2 Clerk orgs; exercise \`coodra org switch\`"
 
 # ---------------------------------------------------------------------------
 hdr 12 "Audit trail integrity"

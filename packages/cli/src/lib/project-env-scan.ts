@@ -4,34 +4,34 @@ import { join } from 'node:path';
 /**
  * `packages/cli/src/lib/project-env-scan.ts` — Phase A (clarity-pass-
  * plan, 2026-05-11). Shared scan-and-strip helpers for stale
- * `CONTEXTOS_MODE=` lines in per-project `.env` files.
+ * `COODRA_MODE=` lines in per-project `.env` files.
  *
  * Why this exists:
  *
- *   `contextos init` (pre-Phase-A) wrote `CONTEXTOS_MODE=solo` into
+ *   `coodra init` (pre-Phase-A) wrote `COODRA_MODE=solo` into
  *   `<projectCwd>/.env` when the operator's machine was solo at the
- *   time. If the operator later ran `contextos team setup` /
- *   `contextos team install`, their machine flipped to team mode but
- *   the stale project `.env` still carried `CONTEXTOS_MODE=solo`. With
+ *   time. If the operator later ran `coodra team setup` /
+ *   `coodra team install`, their machine flipped to team mode but
+ *   the stale project `.env` still carried `COODRA_MODE=solo`. With
  *   the original `loadHomeEnv` (project wins), that one byte demoted
  *   the entire daemon stack back to solo: sync-daemon never spawned,
  *   runs never pushed to cloud, the web's team surfaces were empty.
  *
  *   The 2026-05-11 fix landed the `MACHINE_LEVEL_KEYS` carve-out in
- *   `load-home-env.ts` — home now wins for CONTEXTOS_MODE / DATABASE_URL
- *   / LOCAL_HOOK_SECRET / CONTEXTOS_TEAM_*. That stops the demotion at
+ *   `load-home-env.ts` — home now wins for COODRA_MODE / DATABASE_URL
+ *   / LOCAL_HOOK_SECRET / COODRA_TEAM_*. That stops the demotion at
  *   the spawn-env layer.
  *
- *   But the stale `CONTEXTOS_MODE=solo` line in project `.env` is still
+ *   But the stale `COODRA_MODE=solo` line in project `.env` is still
  *   misleading: a developer reading the file thinks "we're solo here"
  *   when the machine is actually team. Phase A surfaces this drift via
- *   doctor check 36 and offers `contextos doctor --fix` to remove the
+ *   doctor check 36 and offers `coodra doctor --fix` to remove the
  *   lines safely. Idempotent — running `--fix` twice is a no-op the
  *   second time.
  *
  * Scope: this module ONLY operates on the per-project `.env` file at
- * `<cwd>/.env`. It does NOT touch `~/.contextos/.env` (that's owned by
- * team-config.ts) or `<cwd>/.contextos.json` (that's the project
+ * `<cwd>/.env`. It does NOT touch `~/.coodra/.env` (that's owned by
+ * team-config.ts) or `<cwd>/.coodra.json` (that's the project
  * registration manifest, no env keys inside).
  *
  * Atomicity: writes use tmpfile + rename, same pattern as
@@ -46,23 +46,23 @@ export interface ProjectEnvScanResult {
   /** True when `<cwd>/.env` exists on disk. */
   readonly exists: boolean;
   /**
-   * The value of `CONTEXTOS_MODE` if present; `null` otherwise.
+   * The value of `COODRA_MODE` if present; `null` otherwise.
    *
-   * A `null` here means "no CONTEXTOS_MODE line found" — the file is
+   * A `null` here means "no COODRA_MODE line found" — the file is
    * already clean.
    */
   readonly staleModeValue: string | null;
 }
 
 export interface StripStaleModeResult {
-  /** True when at least one CONTEXTOS_MODE line was removed. */
+  /** True when at least one COODRA_MODE line was removed. */
   readonly stripped: boolean;
   /** The literal lines that were removed (for diagnostics / logging). */
   readonly removedLines: readonly string[];
 }
 
 /**
- * Scan a project root's `.env` file for a `CONTEXTOS_MODE=` line.
+ * Scan a project root's `.env` file for a `COODRA_MODE=` line.
  *
  * Returns a stable result shape even when the file is missing — callers
  * filter on `staleModeValue !== null` to find drift.
@@ -81,7 +81,7 @@ export function scanProjectEnvForStaleMode(cwd: string): ProjectEnvScanResult {
   for (const rawLine of body.split('\n')) {
     const parsed = parseEnvLine(rawLine);
     if (parsed === null) continue;
-    if (parsed.key === 'CONTEXTOS_MODE') {
+    if (parsed.key === 'COODRA_MODE') {
       return { cwd, envPath, exists: true, staleModeValue: parsed.value };
     }
   }
@@ -89,11 +89,11 @@ export function scanProjectEnvForStaleMode(cwd: string): ProjectEnvScanResult {
 }
 
 /**
- * Remove every `CONTEXTOS_MODE=` line from the given `.env` file. Idem-
+ * Remove every `COODRA_MODE=` line from the given `.env` file. Idem-
  * potent — re-running on an already-stripped file is a no-op.
  *
  * Returns `stripped=false` when the file is absent or contains no
- * CONTEXTOS_MODE lines. Returns `stripped=true` with the removed line
+ * COODRA_MODE lines. Returns `stripped=true` with the removed line
  * bodies (verbatim, including any inline comments) on success.
  */
 export function stripStaleModeFromProjectEnv(envPath: string): StripStaleModeResult {
@@ -111,7 +111,7 @@ export function stripStaleModeFromProjectEnv(envPath: string): StripStaleModeRes
   const kept: string[] = [];
   for (const line of before) {
     const parsed = parseEnvLine(line);
-    if (parsed !== null && parsed.key === 'CONTEXTOS_MODE') {
+    if (parsed !== null && parsed.key === 'COODRA_MODE') {
       removed.push(line);
       continue;
     }

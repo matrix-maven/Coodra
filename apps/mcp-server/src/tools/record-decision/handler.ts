@@ -1,14 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
 import type { RecordDecisionInput, RecordDecisionOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__record_decision` (§24.4, S13).
+ * Handler factory for `coodra__record_decision` (§24.4, S13).
  *
  * Factory shape (not bare static) because the handler closes over a
  * `DbHandle` for the `runs` SELECT + `decisions` INSERT. No route
@@ -260,7 +260,7 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
     // see it via the team-rows-puller. Solo mode (or when the row was
     // an idempotent hit) skips the enqueue — append-only semantics
     // mean re-pushing on conflict is harmless but wasteful.
-    if (inserted && process.env.CONTEXTOS_MODE === 'team') {
+    if (inserted && process.env.COODRA_MODE === 'team') {
       try {
         await scheduleDurableWrite(deps.db, {
           queue: 'sync_to_cloud',

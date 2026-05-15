@@ -23,7 +23,7 @@ export async function runChecks(checks: readonly Check[], context: CheckContext)
 
   return {
     version: VERSION,
-    contextosHome: context.contextosHome,
+    coodraHome: context.coodraHome,
     cwd: context.cwd,
     checks: results,
     summary,

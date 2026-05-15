@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { type Options as ExecaOptions, execa, type ResultPromise } from 'execa';
 import type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
-const UNIT_PREFIX = 'contextos-';
+const UNIT_PREFIX = 'coodra-';
 
 type ExecaLike = (file: string, args: readonly string[], options?: ExecaOptions) => ResultPromise<ExecaOptions>;
 
@@ -16,7 +16,7 @@ export interface SystemdManagerOptions {
 export type { ExecaLike };
 
 /**
- * Linux systemd --user. Writes ~/.config/systemd/user/contextos-<name>.service
+ * Linux systemd --user. Writes ~/.config/systemd/user/coodra-<name>.service
  * and shells `systemctl --user start/stop/status/daemon-reload`. Survives the
  * user session; for restart-on-reboot the user must run `loginctl enable-linger
  * <user>` once (doctor check 16 surfaces this).
@@ -54,7 +54,7 @@ export class SystemdDaemonManager implements DaemonManager {
     // `reject: false`, that refusal was silently swallowed: the unit
     // file got fixed (e.g. DATABASE_URL added by `team init`) but the
     // daemon never actually came back up. Running `reset-failed` on
-    // every install makes `contextos start` a genuine clean slate.
+    // every install makes `coodra start` a genuine clean slate.
     // No-op on a healthy unit; idempotent.
     await this.run('systemctl', ['--user', 'reset-failed', this.unitName(unit.name)], {
       reject: false,
@@ -73,7 +73,7 @@ export class SystemdDaemonManager implements DaemonManager {
   }
 
   async start(unitName: string): Promise<void> {
-    // Use `restart` not `start` so a fresh `contextos start` after a
+    // Use `restart` not `start` so a fresh `coodra start` after a
     // unit-file change always picks up the latest env. systemd's `start`
     // is a no-op on an already-active unit; `restart` does stop+start
     // and re-reads the (already daemon-reloaded) unit file. install()
@@ -130,7 +130,7 @@ function renderServiceUnit(unit: DaemonUnit): string {
   const envLines = Object.entries(unit.env).map(([k, v]) => renderEnvLine(k, v));
   const lines = [
     '[Unit]',
-    `Description=ContextOS managed unit (${unit.name})`,
+    `Description=Coodra managed unit (${unit.name})`,
     'After=default.target',
     '',
     '[Service]',

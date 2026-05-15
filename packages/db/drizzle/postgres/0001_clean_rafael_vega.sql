@@ -62,7 +62,7 @@ CREATE INDEX "policy_rules_policy_priority_idx" ON "policy_rules" USING btree ("
 -- cosine distance. Drizzle-Kit does NOT emit this; sha256 of this block
 -- is locked in `packages/db/migrations.lock.json`. If drizzle-kit
 -- regenerates this migration and wipes this block, restore from git and
--- re-run `pnpm --filter @coodra/contextos-db check:migration-lock` to verify.
+-- re-run `pnpm --filter @coodra/db check:migration-lock` to verify.
 -- HNSW params per decision 2026-04-22 22:10: m=16, ef_construction=64
 -- (pgvector 0.8.x defaults — balanced recall/build-time for datasets up
 -- to ~1M rows; revisit in Module 05 if recall degrades measurably).

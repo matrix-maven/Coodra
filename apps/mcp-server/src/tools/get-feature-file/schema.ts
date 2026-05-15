@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__get_feature_file`.
+ * Input + output schemas for `coodra__get_feature_file`.
  *
  *   - `{ ok: true, path, bytes, mediaType, content }`
  *
@@ -42,7 +42,7 @@ export const getFeatureFileInputSchema = z
       }),
   })
   .strict()
-  .describe('Input for contextos__get_feature_file.');
+  .describe('Input for coodra__get_feature_file.');
 
 const successBranch = z
   .object({

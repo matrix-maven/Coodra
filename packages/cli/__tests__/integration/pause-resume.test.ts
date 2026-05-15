@@ -2,12 +2,12 @@ import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, migrateSqlite } from '@coodra/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { type PauseIO, runPauseCommand } from '../../src/commands/pause.js';
 import { type ResumeIO, runResumeCommand } from '../../src/commands/resume.js';
-import { resolveContextosDataDb } from '../../src/lib/contextos-home.js';
+import { resolveCoodraDataDb } from '../../src/lib/coodra-home.js';
 
 /**
  * Module 08b S3 — pause + resume integration roundtrip against a tmpdir SQLite store.
@@ -32,7 +32,7 @@ function pauseIo(home: string, cap: Capture): PauseIO {
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: home,
+    coodraHome: home,
   };
 }
 
@@ -44,7 +44,7 @@ function resumeIo(home: string, cap: Capture): ResumeIO {
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: home,
+    coodraHome: home,
   };
 }
 
@@ -64,9 +64,9 @@ let homePath: string;
 
 beforeAll(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-pause-resume-int-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   mkdirSync(homePath, { recursive: true });
-  const opened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+  const opened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
   if (opened.kind !== 'sqlite') throw new Error('expected sqlite');
   migrateSqlite(opened.db);
   opened.close();
@@ -122,7 +122,7 @@ describe('pause + resume roundtrip', () => {
     expect(code6).toBe(1);
 
     // Step 7: total of 3 rows, all resumed.
-    const reopened = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(homePath) } });
+    const reopened = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(homePath) } });
     if (reopened.kind !== 'sqlite') throw new Error('expected sqlite');
     const all = reopened.raw.prepare('SELECT id, resumed_at FROM kill_switches').all() as Array<{
       id: string;

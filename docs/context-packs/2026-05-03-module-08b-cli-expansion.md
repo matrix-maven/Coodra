@@ -1,7 +1,7 @@
 # Module 08b — CLI Expansion (closeout)
 
 - **Date:** 2026-05-03
-- **Module:** 08b — CLI Expansion (`@coodra/contextos-cli` operational essentials + admin surfaces + Feature-Pack flexibility)
+- **Module:** 08b — CLI Expansion (`@coodra/cli` operational essentials + admin surfaces + Feature-Pack flexibility)
 - **Feature Pack:** `docs/feature-packs/08b-cli-expansion/`
 - **Session lead (human):** Abishai
 - **Run ID:** n/a (worked from CLAUDE.md + context_memory; no MCP `get_run_id` was issued for this multi-day branch)
@@ -31,7 +31,7 @@
 
 ## Outcome
 
-`@coodra/contextos-cli` now ships a complete operational + admin surface on top of the M08a install/lifecycle base — 20 top-level commands (up from 8). An operator can pause/resume enforcement, tail service logs, apply schema migrations, back up + restore the local SQLite primary store, upgrade the package + its on-disk artefacts in sync, uninstall cleanly (default-safe, opt-in `--purge`), inspect + administer policies/projects/runs/feature-packs, render any run as markdown/json/html/slack, and seed feature packs from one of seven bundled templates with auto-sections that re-populate from project shape on regenerate. The hooks-bridge kill-switch evaluator runs ahead of the policy chain — a `contextos pause` flips deny/allow-with-audit on the next event, in process, fail-open on DB error per `system-architecture.md` §7. One schema delta (`kill_switches`, migration `0007`) and zero changes to existing tables. Every M08a command keeps its surface verbatim. `--full` doctor returns 35 checks (was 30); five new ones surface kill-switch state, upgrade availability, stale backups, bundled-template integrity, and auto-marker grammar smoke.
+`@coodra/cli` now ships a complete operational + admin surface on top of the M08a install/lifecycle base — 20 top-level commands (up from 8). An operator can pause/resume enforcement, tail service logs, apply schema migrations, back up + restore the local SQLite primary store, upgrade the package + its on-disk artefacts in sync, uninstall cleanly (default-safe, opt-in `--purge`), inspect + administer policies/projects/runs/feature-packs, render any run as markdown/json/html/slack, and seed feature packs from one of seven bundled templates with auto-sections that re-populate from project shape on regenerate. The hooks-bridge kill-switch evaluator runs ahead of the policy chain — a `coodra pause` flips deny/allow-with-audit on the next event, in process, fail-open on DB error per `system-architecture.md` §7. One schema delta (`kill_switches`, migration `0007`) and zero changes to existing tables. Every M08a command keeps its surface verbatim. `--full` doctor returns 35 checks (was 30); five new ones surface kill-switch state, upgrade availability, stale backups, bundled-template integrity, and auto-marker grammar smoke.
 
 ## Scope boundary
 
@@ -45,7 +45,7 @@
 - AC-9 — Templates ship inside the npm tarball: `bundle.mjs` step 5 copies `packages/cli/templates/` → `dist/templates/`. All seven templates load via `loadTemplate` (verified by S18 check 34 against the bundled output).
 - AC-10 — Auto-marker contract documented (S0/S14) and covered by parser unit tests; behaviour exercised end-to-end by S15/S16.
 - AC-11 — `pause` is reversible via soft-resume (`resumed_at IS NULL` is the active predicate). Resumed rows stay in the table as audit history (S1, parallels ADR-007 append-only).
-- AC-12 — `uninstall` default-safe per OQ-5 lock (preserves `data.db` + `config.json` + every `docs/feature-packs/<slug>/` + every `docs/context-packs/`); `--purge` opt-in adds `~/.contextos/` removal and prints the npm-uninstall command for the user to run manually (S8).
+- AC-12 — `uninstall` default-safe per OQ-5 lock (preserves `data.db` + `config.json` + every `docs/feature-packs/<slug>/` + every `docs/context-packs/`); `--purge` opt-in adds `~/.coodra/` removal and prints the npm-uninstall command for the user to run manually (S8).
 - AC-13 — `export` is read-only: no DB mutation, no file write outside `--out` (or stdout). Four format renderers (markdown/json/html/slack) + `--include-audit` toggle covered by integration tests (S12).
 - AC-14 — No new automatic outbound HTTP. The two new outbound paths (`upgrade`'s `npm view`, `export --format slack --webhook`) are both explicit user invocations.
 - AC-15 — Doctor extensions land at slots 31–35 (the spec's "21–25" was the original numbering before Phase 4 Fix L took 28–30). Five checks: active kill-switch count, upgrade-available (env-gated), stale backups, bundled-templates manifest, @auto-marker grammar smoke (S18).
@@ -63,9 +63,9 @@ The eight open questions in spec.md §11 were locked at S0 and acted as protocol
 
 - **Decision (OQ-1):** kill-switch `mode` defaults to `'hard'` (deny). **Rationale:** matches the principle of least surprise — `pause` should stop the system, not silently audit. Soft is opt-in via `--soft`. **Constrains:** S1 schema default + S3 CLI default. **Cross-ref:** decisions-log 2026-05-03 OQ-1.
 - **Decision (OQ-2):** polymorphic `(scope, target)` shape for `kill_switches` (single table, four scope values: `global`/`project`/`tool`/`agent_type`). **Rationale:** one table + one matcher beats four tables + four matchers; the scope-cardinality is small. **Constrains:** S1 schema + S2 evaluator. **Cross-ref:** decisions-log 2026-05-03 OQ-2.
-- **Decision (OQ-3):** `db backup` defaults to `VACUUM INTO`; `--include-logs` produces a tarball that bundles the db plus `~/.contextos/logs/`. **Rationale:** `VACUUM INTO` is atomic + smaller; the tarball is the "I'm filing a bug" surface. **Constrains:** S6 implementation. **Cross-ref:** decisions-log 2026-05-03 OQ-3.
-- **Decision (OQ-4):** `upgrade` never self-updates; it prints the `npm i -g @coodra/contextos-cli@<version>` command for the user to run. **Rationale:** self-uninstall + reinstall while the binary is mid-execution is unreliable on Windows; the user keeps the destructive action. **Constrains:** S7 implementation. **Cross-ref:** decisions-log 2026-05-03 OQ-4.
-- **Decision (OQ-5):** `uninstall` default-safe; `--purge` opt-in to wipe `~/.contextos/`. **Rationale:** matches `apt-get remove` vs `apt-get purge`; users reinstall and expect their feature/context packs to still be there. **Constrains:** S8 default-safe path. **Cross-ref:** decisions-log 2026-05-03 OQ-5.
+- **Decision (OQ-3):** `db backup` defaults to `VACUUM INTO`; `--include-logs` produces a tarball that bundles the db plus `~/.coodra/logs/`. **Rationale:** `VACUUM INTO` is atomic + smaller; the tarball is the "I'm filing a bug" surface. **Constrains:** S6 implementation. **Cross-ref:** decisions-log 2026-05-03 OQ-3.
+- **Decision (OQ-4):** `upgrade` never self-updates; it prints the `npm i -g @coodra/cli@<version>` command for the user to run. **Rationale:** self-uninstall + reinstall while the binary is mid-execution is unreliable on Windows; the user keeps the destructive action. **Constrains:** S7 implementation. **Cross-ref:** decisions-log 2026-05-03 OQ-4.
+- **Decision (OQ-5):** `uninstall` default-safe; `--purge` opt-in to wipe `~/.coodra/`. **Rationale:** matches `apt-get remove` vs `apt-get purge`; users reinstall and expect their feature/context packs to still be there. **Constrains:** S8 default-safe path. **Cross-ref:** decisions-log 2026-05-03 OQ-5.
 - **Decision (OQ-6):** `run cancel` flips status only; bridge keeps recording. **Rationale:** adding a `runs.status` lookup on every PostToolUse costs ~1 ms on a 10 ms budget for debugging-utility-grade gain. **Constrains:** S11 implementation + bridge contract. **Cross-ref:** decisions-log 2026-05-03 OQ-6.
 - **Decision (OQ-7):** `export` excludes the audit by default for narrative formats (markdown/html/slack); JSON always includes it. **Rationale:** narrative readers want the story; JSON consumers want the full record. **Constrains:** S12 renderer defaults. **Cross-ref:** decisions-log 2026-05-03 OQ-7.
 - **Decision (OQ-8):** kill switches are local-only; cross-developer sync is M04's surface. **Rationale:** no managed-cloud product yet — building sync now would couple M08b to a not-yet-decided cloud authorization model. **Constrains:** S2 (no sync-daemon enqueue) + S3 (CLI never POSTs to cloud). **Cross-ref:** decisions-log 2026-05-03 OQ-8.
@@ -121,7 +121,7 @@ Grouped by package. Verbs: created / updated / removed / generated.
 - `lib/log-reader.ts` — created (chunked reverse-seek)
 - `lib/sqlite-magic.ts` — created (16-byte header check)
 - `lib/npm-view.ts` — created (`npm view ... --json` wrapper with `NpmViewError` discriminated codes)
-- `lib/template-paths.ts` — created (3-tier resolution: explicit path → `~/.contextos/templates/` → bundled `dist/templates/`)
+- `lib/template-paths.ts` — created (3-tier resolution: explicit path → `~/.coodra/templates/` → bundled `dist/templates/`)
 - `lib/templates/{load-template,render,detect}.ts` — created (Zod template.json schema; mustache-style substitution)
 - `lib/auto-marker/{types,parser,serializer,index}.ts` — created (pure parser/serializer for `<!-- @auto:<name> -->`; respects fenced code blocks; roundtrip property `serialize(parse(x)) === x`)
 - `lib/init/auto-populate.ts` — created (5 generators: dependencies, directory-structure, scripts, entry-points, services; empty results return italic placeholders rather than blank)
@@ -129,8 +129,8 @@ Grouped by package. Verbs: created / updated / removed / generated.
 - `lib/init/claude-settings-merge.ts` — updated (S8.5: `defaultClaudeSettingsPath()` honours `CLAUDE_SETTINGS_PATH` env override)
 - `lib/export/{render-markdown,render-json,render-html,render-slack}.ts` — created (4 renderers; non-JSON formats default exclude audit; JSON always includes)
 - `doctor/checks/31-active-kill-switches.ts` — created (YELLOW when count > 0; reports oldest age; SKIPPED pre-init)
-- `doctor/checks/32-upgrade-available.ts` — created (env-gated `CONTEXTOS_DOCTOR_CHECK_UPDATES=1`; YELLOW when newer)
-- `doctor/checks/33-stale-backups.ts` — created (YELLOW when any file in `~/.contextos/backups/` is > 30 days)
+- `doctor/checks/32-upgrade-available.ts` — created (env-gated `COODRA_DOCTOR_CHECK_UPDATES=1`; YELLOW when newer)
+- `doctor/checks/33-stale-backups.ts` — created (YELLOW when any file in `~/.coodra/backups/` is > 30 days)
 - `doctor/checks/34-bundled-templates.ts` — created (RED on missing/parse failure; resolves bundled `dist/templates/` first)
 - `doctor/checks/35-auto-marker-smoke.ts` — created (YELLOW if any template's *.tmpl file fails parse)
 - `doctor/registry.ts` — updated (wires the 5 new checks; none essential — `--full` only)
@@ -186,20 +186,20 @@ Grouped by package. Verbs: created / updated / removed / generated.
 **Verification commands run locally (final S18 cycle):**
 
 ```bash
-pnpm --filter @coodra/contextos-cli lint            # clean
-pnpm --filter @coodra/contextos-db lint             # clean
-pnpm --filter @coodra/contextos-cli typecheck       # clean
-pnpm --filter @coodra/contextos-db typecheck        # clean
-pnpm --filter @coodra/contextos-cli test:unit       # 188/188
-pnpm --filter @coodra/contextos-cli test:integration --run __tests__/integration/doctor-binary.test.ts  # 49/55, 6 skipped pre-existing
+pnpm --filter @coodra/cli lint            # clean
+pnpm --filter @coodra/db lint             # clean
+pnpm --filter @coodra/cli typecheck       # clean
+pnpm --filter @coodra/db typecheck        # clean
+pnpm --filter @coodra/cli test:unit       # 188/188
+pnpm --filter @coodra/cli test:integration --run __tests__/integration/doctor-binary.test.ts  # 49/55, 6 skipped pre-existing
 node packages/cli/dist/index.js doctor --json --full  # 35 checks; M08b rows behave per state
 ```
 
-Functional smoke against a sandbox CONTEXTOS_HOME (S18 close):
+Functional smoke against a sandbox COODRA_HOME (S18 close):
 
 - Empty home → 31 skipped (no DB), 32 skipped (no env opt-in), 33 green, 34 green, 35 green.
 - After `init --project-slug doctor-smoke --no-graphify --ide claude` → 31 GREEN.
-- After `pause --reason 'doctor smoke test'` → 31 YELLOW with `1 active kill switch(es); oldest paused 0 min ago` + remediation `contextos resume --all`.
+- After `pause --reason 'doctor smoke test'` → 31 YELLOW with `1 active kill switch(es); oldest paused 0 min ago` + remediation `coodra resume --all`.
 
 **CI status at session end:** unmerged feature branch — local-only verification. CI run will trigger on PR open.
 

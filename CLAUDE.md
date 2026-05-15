@@ -1,8 +1,8 @@
-# ContextOS — CLAUDE.md (Standing System Prompt for AI Agents)
+# Coodra — CLAUDE.md (Standing System Prompt for AI Agents)
 
 > **Read every imported file below on every session.** These rules apply to Claude Code, Cursor, Copilot, and any AI coding agent operating on this repository. They are non-negotiable.
 
-> **This is NOT a prototype.** ContextOS v2 is built linearly, start to finish, as a production-grade system. There is no "we'll come back to this later," no placeholder surfaces, no mocked endpoints to make the UI render. Every module ships complete or is not merged.
+> **This is NOT a prototype.** Coodra v2 is built linearly, start to finish, as a production-grade system. There is no "we'll come back to this later," no placeholder surfaces, no mocked endpoints to make the UI render. Every module ships complete or is not merged.
 
 ---
 
@@ -31,7 +31,7 @@ Edit the imported files, not this one. This file's only job is to be the stable 
 **When in doubt — research online vs ask the user, decision tree:**
 @essentialsforclaude/04-when-in-doubt.md
 
-**Agent trigger contract — when to call which ContextOS MCP tool (directive version of `system-architecture.md` §24):**
+**Agent trigger contract — when to call which Coodra MCP tool (directive version of `system-architecture.md` §24):**
 @essentialsforclaude/05-agent-trigger-contract.md
 
 **Testing requirements — unit, integration, E2E, coverage, MCP manifest test:**
@@ -66,8 +66,8 @@ Two source-of-truth documents live at the root. Use the maps to jump to the righ
 ## Related folders
 
 - `context_memory/` — session working memory (see `03-context-memory.md` above)
-- `docs/context-packs/` — archive of completed work, queryable via `contextos__search_packs_nl`
+- `docs/context-packs/` — archive of completed work, queryable via `coodra__search_packs_nl`
 - `docs/feature-packs/` — per-module specs (spec.md / implementation.md / techstack.md)
 - `docs/DEVELOPMENT.md` — local dev setup, service commands, testing
-- `.mcp.json` — ContextOS MCP server configuration
+- `.mcp.json` — Coodra MCP server configuration
 - `.claude/rules/` — NOT used currently. `essentialsforclaude/` serves the same role via `@`-imports from this file. See `essentialsforclaude/README.md` for the upgrade path if path-scoped rules are needed later.

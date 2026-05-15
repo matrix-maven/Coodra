@@ -5,8 +5,8 @@ import {
   type FeatureIndexEntry,
   featuresRoot,
   generateFeaturesIndex,
-} from '@coodra/contextos-shared/features';
-import { createLogger } from '@coodra/contextos-shared';
+} from '@coodra/shared/features';
+import { createLogger } from '@coodra/shared';
 
 /**
  * `apps/hooks-bridge/src/lib/features-index-loader` — reads
@@ -15,7 +15,7 @@ import { createLogger } from '@coodra/contextos-shared';
  *
  * The skill-pattern insight: the agent reads the index (cheap — names
  * + descriptions only) on every session start, then calls
- * `contextos__get_feature(slug)` to load a body on demand. The bridge
+ * `coodra__get_feature(slug)` to load a body on demand. The bridge
  * is the courier that ships the index to the agent at turn zero.
  *
  * Three behaviours this module guarantees:
@@ -30,7 +30,7 @@ import { createLogger } from '@coodra/contextos-shared';
  *   2. **Size cap.** The bridge appends up to `MAX_INDEX_BYTES` of
  *      rendered index text. If the full index would exceed the cap,
  *      we drop the oldest features (by `lastUpdatedAt`) and append a
- *      "+N more (use contextos__list_features)" footer so the agent
+ *      "+N more (use coodra__list_features)" footer so the agent
  *      knows it can fetch the rest.
  *
  *   3. **Soft failure on every error.** No throw escapes this module.
@@ -57,7 +57,7 @@ const featuresIndexLoaderLogger = createLogger('hooks-bridge.features-index-load
 const MAX_INDEX_BYTES = 12 * 1024;
 
 export interface LoadFeaturesIndexOptions {
-  /** Project root (the directory containing `.contextos.json`). */
+  /** Project root (the directory containing `.coodra.json`). */
   readonly cwd: string;
   /** Project slug — used for the "stale regen" path which requires it. */
   readonly projectSlug: string;
@@ -250,7 +250,7 @@ function renderHeader(projectSlug: string, total: number): string {
     '',
     `This project (${projectSlug}) has ${total} feature${total === 1 ? '' : 's'} available on demand. Each entry below`,
     'declares **when to use it** — read the trigger description and call',
-    '`contextos__get_feature({slug:"<slug>"})` to load the body of any that fits the current task.',
+    '`coodra__get_feature({slug:"<slug>"})` to load the body of any that fits the current task.',
     '',
   ].join('\n');
 }
@@ -278,7 +278,7 @@ function renderFooter(droppedCount: number): string {
   return [
     '',
     `_+${droppedCount} more feature${droppedCount === 1 ? '' : 's'} omitted to fit the context budget._`,
-    `_Call \`contextos__list_features({projectSlug:"<slug>"})\` to see the full list._`,
+    `_Call \`coodra__list_features({projectSlug:"<slug>"})\` to see the full list._`,
     '',
   ].join('\n');
 }

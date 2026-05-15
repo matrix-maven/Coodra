@@ -61,8 +61,8 @@ ALTER TABLE `context_packs` ADD `content_excerpt` text DEFAULT '' NOT NULL;--> s
 -- `context_packs`. Drizzle-Kit does NOT emit this; sha256 of this block
 -- is locked in `packages/db/migrations.lock.json`. If drizzle-kit regenerates
 -- this migration and wipes this block, restore from git and re-run
--- `pnpm --filter @coodra/contextos-db check:migration-lock` to verify the sha256.
--- EMBEDDING_DIM (384) is sourced from `@coodra/contextos-shared/constants`; change
+-- `pnpm --filter @coodra/db check:migration-lock` to verify the sha256.
+-- EMBEDDING_DIM (384) is sourced from `@coodra/shared/constants`; change
 -- via the checklist in `packages/shared/src/constants.ts`.
 CREATE VIRTUAL TABLE IF NOT EXISTS context_packs_vec USING vec0(
   context_pack_id TEXT PRIMARY KEY,

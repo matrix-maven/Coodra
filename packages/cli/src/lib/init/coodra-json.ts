@@ -2,15 +2,15 @@ import { access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WriteOutcome } from './types.js';
 
-export interface WriteContextosJsonOptions {
+export interface WriteCoodraJsonOptions {
   readonly cwd: string;
   readonly projectSlug: string;
   readonly force: boolean;
   readonly dryRun: boolean;
 }
 
-export async function writeContextosJson(options: WriteContextosJsonOptions): Promise<WriteOutcome> {
-  const path = join(options.cwd, '.contextos.json');
+export async function writeCoodraJson(options: WriteCoodraJsonOptions): Promise<WriteOutcome> {
+  const path = join(options.cwd, '.coodra.json');
   const baseline = { projectSlug: options.projectSlug };
   const baselineSerialised = `${JSON.stringify(baseline, null, 2)}\n`;
   const exists = await pathExists(path);
@@ -27,9 +27,9 @@ export async function writeContextosJson(options: WriteContextosJsonOptions): Pr
   } catch {
     if (options.force) {
       if (!options.dryRun) await writeFile(path, baselineSerialised, 'utf8');
-      return { path, action: 'forced', notes: 'replaced corrupt .contextos.json with baseline' };
+      return { path, action: 'forced', notes: 'replaced corrupt .coodra.json with baseline' };
     }
-    return { path, action: 'unchanged', notes: 'corrupt .contextos.json (pass --force to overwrite)' };
+    return { path, action: 'unchanged', notes: 'corrupt .coodra.json (pass --force to overwrite)' };
   }
 
   if (options.force) {

@@ -1,26 +1,26 @@
 {
-  "$schema": "https://contextos.dev/schemas/migrations-lock.v1.json",
-  "description": "Hand-written preserve-blocks inside drizzle migrations. Regenerate via `pnpm --filter @coodra/contextos-db check:migration-lock --write` after intentional edits. CI enforces drift via `pnpm --filter @coodra/contextos-db check:migration-lock`.",
+  "$schema": "https://coodra.dev/schemas/migrations-lock.v1.json",
+  "description": "Hand-written preserve-blocks inside drizzle migrations. Regenerate via `pnpm --filter @coodra/db check:migration-lock --write` after intentional edits. CI enforces drift via `pnpm --filter @coodra/db check:migration-lock`.",
   "entries": [
     {
       "file": "packages/db/drizzle/postgres/0001_clean_rafael_vega.sql",
       "blockMarker": "pgvector-hnsw",
-      "sha256": "3c527a028c32af0ec5344e117adec0327707c291cf3654b87fc9a0094eeb1972",
+      "sha256": "89fbfe034658192c351ef9b730833b788b59051f73fd19f1187829ee9110a1d0",
       "lineRange": [
         59,
         76
       ],
-      "generatedAt": "2026-05-02T11:44:10.361Z"
+      "generatedAt": "2026-05-15T10:25:37.357Z"
     },
     {
       "file": "packages/db/drizzle/postgres/0006_lush_switch.sql",
       "blockMarker": "policy-rules-dedup-cleanup-postgres",
-      "sha256": "677e8a250d70d151898bf8b66c478c0b9428d5aa5747de49632236d4caf588c1",
+      "sha256": "1f18291370c17ff46d114850b78bb81d1de4cba2b91836b2ea4683a9ef64bf0d",
       "lineRange": [
         10,
         33
       ],
-      "generatedAt": "2026-05-03T11:32:01.638Z"
+      "generatedAt": "2026-05-15T10:25:37.358Z"
     },
     {
       "file": "packages/db/drizzle/postgres/0006_lush_switch.sql",
@@ -35,22 +35,22 @@
     {
       "file": "packages/db/drizzle/sqlite/0001_chief_turbo.sql",
       "blockMarker": "sqlite-vec",
-      "sha256": "ee5bc54e25e3f145e79b915ea743b4417f71b35321d75bddd3588a9eaa63930b",
+      "sha256": "1c365297f7676eee29977fc3ba7d106e7474c3beff3f63dcab8252aeebba6fae",
       "lineRange": [
         59,
         71
       ],
-      "generatedAt": "2026-05-02T11:44:10.358Z"
+      "generatedAt": "2026-05-15T10:25:37.352Z"
     },
     {
       "file": "packages/db/drizzle/sqlite/0006_clumsy_banshee.sql",
       "blockMarker": "policy-rules-dedup-cleanup-sqlite",
-      "sha256": "47028e35c0564fab8dacbef2ba8a7aef77660e11b1bb42a07c7dba255319b3d5",
+      "sha256": "b0b85dceed55507e3642a72a4cbc715d298d4c1b97755d3c7ecf4f964f109b1a",
       "lineRange": [
         30,
         54
       ],
-      "generatedAt": "2026-05-03T11:32:01.636Z"
+      "generatedAt": "2026-05-15T10:25:37.354Z"
     },
     {
       "file": "packages/db/drizzle/sqlite/0006_clumsy_banshee.sql",

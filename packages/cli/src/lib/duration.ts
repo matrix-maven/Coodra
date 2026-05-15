@@ -1,7 +1,7 @@
 /**
  * `packages/cli/src/lib/duration` — pure parser for human-readable
- * duration strings used by `contextos pause --expires-in <duration>`
- * (M08b S3) and `contextos logs --since <duration>` (M08b S4).
+ * duration strings used by `coodra pause --expires-in <duration>`
+ * (M08b S3) and `coodra logs --since <duration>` (M08b S4).
  *
  * Grammar (case-insensitive):
  *

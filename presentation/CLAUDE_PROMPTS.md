@@ -10,7 +10,7 @@
 What project is this and what are we building?
 ```
 
-**What you'll see:** Claude calls `mcp__contextos__get_feature_pack` autonomously, reads `spec.md`, and answers with what taskforge actually is.
+**What you'll see:** Claude calls `mcp__coodra__get_feature_pack` autonomously, reads `spec.md`, and answers with what taskforge actually is.
 
 **Audience takeaway:** Claude knew the project without you ever explaining it.
 
@@ -25,7 +25,7 @@ Let's build the storage layer per the implementation plan's Slice 2. Use the con
 **What you'll see:**
 - More `get_feature_pack` calls (Claude reads `implementation.md` + `techstack.md`)
 - Claude writes `src/storage.ts`, `src/types.ts`, possibly `package.json`
-- Claude calls `mcp__contextos__record_decision` with a real decision like *"chose JSON file over SQLite for taskforge storage because dataset is small and human-editability matters more than concurrent-write safety"*
+- Claude calls `mcp__coodra__record_decision` with a real decision like *"chose JSON file over SQLite for taskforge storage because dataset is small and human-editability matters more than concurrent-write safety"*
 
 **Audience takeaway:** Claude follows the architectural decisions in the Feature Pack AND records new ones it makes.
 
@@ -75,14 +75,14 @@ Now build the `add` command per Slice 3 and the `list` command per Slice 4. Wire
 
 ## Prompt 5 — Phase 4 (cross-session magic, in NEW Claude session)
 
-> Important: **end the previous Claude Code session first** (Cmd+Q). Open a fresh Claude Code in the same directory. Run `/mcp` to confirm contextos still connects. Then paste:
+> Important: **end the previous Claude Code session first** (Cmd+Q). Open a fresh Claude Code in the same directory. Run `/mcp` to confirm coodra still connects. Then paste:
 
 ```
 What did we decide about storage in the previous session?
 ```
 
 **What you'll see:**
-- Claude calls `mcp__contextos__query_run_history` or `mcp__contextos__search_packs_nl` autonomously
+- Claude calls `mcp__coodra__query_run_history` or `mcp__coodra__search_packs_nl` autonomously
 - Finds the recorded decision from Session 1
 - Recalls accurately: "In the previous session, we decided to use a JSON file rather than SQLite because..."
 
@@ -98,7 +98,7 @@ What did we decide about storage in the previous session?
 What are the current policy rules for this project? List them with their reasons.
 ```
 
-Claude reads from the `policies` + `policy_rules` tables. Audience sees what came pre-seeded by `contextos init`.
+Claude reads from the `policies` + `policy_rules` tables. Audience sees what came pre-seeded by `coodra init`.
 
 ### Show the agent voluntarily saving:
 
@@ -106,7 +106,7 @@ Claude reads from the `policies` + `policy_rules` tables. Audience sees what cam
 Save a context pack of this session so far with title "demo session 2 — storage decision recall".
 ```
 
-Claude calls `mcp__contextos__save_context_pack`. New file appears in `docs/context-packs/`. Useful if you want to demonstrate the explicit-save path in addition to the automatic SessionEnd save.
+Claude calls `mcp__coodra__save_context_pack`. New file appears in `docs/context-packs/`. Useful if you want to demonstrate the explicit-save path in addition to the automatic SessionEnd save.
 
 ---
 

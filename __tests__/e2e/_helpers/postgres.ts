@@ -1,4 +1,4 @@
-import { type DbHandle, migratePostgres } from '@coodra/contextos-db';
+import { type DbHandle, migratePostgres } from '@coodra/db';
 import { sql } from 'drizzle-orm';
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers';
 import { createDbClient } from '../../../apps/mcp-server/src/lib/db.js';
@@ -26,16 +26,16 @@ export async function openPostgresHandle(): Promise<PostgresHandle> {
   const container: StartedTestContainer = await new GenericContainer('pgvector/pgvector:pg16')
     .withExposedPorts(5432)
     .withEnvironment({
-      POSTGRES_USER: 'contextos',
-      POSTGRES_PASSWORD: 'contextos_e2e',
-      POSTGRES_DB: 'contextos_e2e',
+      POSTGRES_USER: 'coodra',
+      POSTGRES_PASSWORD: 'coodra_e2e',
+      POSTGRES_DB: 'coodra_e2e',
     })
     .withWaitStrategy(Wait.forLogMessage(/database system is ready to accept connections/, 2))
     .start();
 
   const host = container.getHost();
   const port = container.getMappedPort(5432);
-  const databaseUrl = `postgres://contextos:contextos_e2e@${host}:${port}/contextos_e2e`;
+  const databaseUrl = `postgres://coodra:coodra_e2e@${host}:${port}/coodra_e2e`;
 
   const { client, asInternalHandle } = createDbClient({
     mode: 'team',

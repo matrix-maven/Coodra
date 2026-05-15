@@ -5,17 +5,17 @@ import type {
   RunIdResolution,
   SessionClosePayloadV1,
   SessionOpenPayloadV1,
-} from '@coodra/contextos-cli/lib/outbox';
+} from '@coodra/cli/lib/outbox';
 import {
   type DbHandle,
   GLOBAL_PROJECT_ID,
   insertRun,
   scheduleAuditWriteWithSync,
   scheduleDurableWrite,
-} from '@coodra/contextos-db';
-import { buildPolicyDecisionIdempotencyKey } from '@coodra/contextos-policy';
-import { createLogger, generateRunKey } from '@coodra/contextos-shared';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+} from '@coodra/db';
+import { buildPolicyDecisionIdempotencyKey } from '@coodra/policy';
+import { createLogger, generateRunKey } from '@coodra/shared';
+import type { HookEvent } from '@coodra/shared/hooks';
 
 /**
  * `apps/hooks-bridge/src/lib/run-recorder` — durable + idempotent
@@ -23,7 +23,7 @@ import type { HookEvent } from '@coodra/contextos-shared/hooks';
  *
  * Module 03.1 — every audit write goes through `pending_jobs` via
  * `scheduleDurableWrite` (the durable outbox). The OutboxWorker
- * (`@coodra/contextos-cli/lib/outbox`) drains the queue and applies each
+ * (`@coodra/cli/lib/outbox`) drains the queue and applies each
  * row to its destination table. This recorder's only job is to
  * build the queue payload and enqueue durably; on success the
  * caller's HTTP response can return immediately without waiting
@@ -49,7 +49,7 @@ import type { HookEvent } from '@coodra/contextos-shared/hooks';
  * null. By the time the worker dispatches the policy_decision job
  * (~1s later), the session_open job has likely landed and the
  * lookup succeeds. The dispatcher in
- * `@coodra/contextos-cli/lib/outbox::dispatcher` performs the
+ * `@coodra/cli/lib/outbox::dispatcher` performs the
  * `lookupRunId(projectId, sessionId)` call.
  *
  * Idempotency.
@@ -109,7 +109,7 @@ export interface CreateRunRecorderDeps {
   /**
    * Module 04 Phase 4. Resolver for the active human-actor identity.
    * Bridge boot wires `() => getActorIdentity()` so every audit-write
-   * path picks up the current user's clerk id from `~/.contextos/
+   * path picks up the current user's clerk id from `~/.coodra/
    * config.json`. Returning null → no `createdByUserId` stamped (solo
    * mode + pre-team-join state).
    */
@@ -124,7 +124,7 @@ export interface RunRecorder {
    *
    * `projectId` (when defined) lets the dispatcher resolve `runs.id`
    * so the row's `run_id` FK is populated. Pass `undefined` when no
-   * project resolves (no `.contextos.json` in cwd) — the dispatcher
+   * project resolves (no `.coodra.json` in cwd) — the dispatcher
    * falls back to `__global__` and the row still lands.
    */
   recordPostToolUse(event: HookEvent, projectId?: string): void;
@@ -403,7 +403,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
     },
 
     recordSessionStart({ event, projectId, mode }) {
-      // F7 closure (2026-04-27): when no .contextos.json resolved a
+      // F7 closure (2026-04-27): when no .coodra.json resolved a
       // projectId, fall back to the __global__ sentinel so the runs
       // row still lands. This preserves the audit trail for agents
       // operating in unregistered cwds.

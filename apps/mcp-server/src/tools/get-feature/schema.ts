@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__get_feature`.
+ * Input + output schemas for `coodra__get_feature`.
  *
  *   - `{ ok: true, feature: { slug, frontmatter, body, files: [...] } }`
  *
@@ -28,7 +28,7 @@ export const getFeatureInputSchema = z
       .regex(/^[a-z0-9_-]+$/, 'slug must be lowercase letters, digits, hyphens or underscores'),
   })
   .strict()
-  .describe('Input for contextos__get_feature.');
+  .describe('Input for coodra__get_feature.');
 
 const featureFileSchema = z
   .object({

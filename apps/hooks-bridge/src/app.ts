@@ -1,5 +1,5 @@
-import { createLogger } from '@coodra/contextos-shared';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import { createLogger } from '@coodra/shared';
+import type { AuthEnv } from '@coodra/shared/auth';
 import {
   adaptClaudeCode,
   adaptCursor,
@@ -8,7 +8,7 @@ import {
   CursorHookPayloadSchema,
   type HookEvent,
   WindsurfHookPayloadSchema,
-} from '@coodra/contextos-shared/hooks';
+} from '@coodra/shared/hooks';
 import { Hono } from 'hono';
 
 import { createAuthChainMiddleware } from './lib/auth-middleware.js';
@@ -168,7 +168,7 @@ export function buildApp(deps: BuildAppDeps): AppHandle {
     c.json({
       ok: true,
       service: 'hooks-bridge',
-      mode: deps.env.CONTEXTOS_MODE ?? 'solo',
+      mode: deps.env.COODRA_MODE ?? 'solo',
       serverStartedAt: serverStartedAt.toISOString(),
     }),
   );

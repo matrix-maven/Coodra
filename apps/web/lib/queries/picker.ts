@@ -1,4 +1,4 @@
-import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { and, count, desc, eq, gt, inArray } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -39,7 +39,7 @@ const SENTINEL_PROJECT_SLUGS: ReadonlySet<string> = new Set(['__global__']);
 
 export async function fetchPickerSnapshot(): Promise<PickerSnapshot> {
   const handle = createWebDb();
-  const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
   const allProjects = await selectAllProjects(handle);
   const projects = allProjects.filter((p) => !SENTINEL_PROJECT_SLUGS.has(p.slug));
   if (projects.length === 0) {

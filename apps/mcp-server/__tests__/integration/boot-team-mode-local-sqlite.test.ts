@@ -8,13 +8,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 /**
  * Verification finding §8.3 (closed in Module 03 S4).
  *
- * Module 02 introduced `CONTEXTOS_DB_OVERRIDE_MODE` as a stop-gap so a
+ * Module 02 introduced `COODRA_DB_OVERRIDE_MODE` as a stop-gap so a
  * dev could exercise the team-mode auth chain locally with a SQLite
  * store. Module 03 S4 made the override unnecessary by refactoring
  * `createDb` to take a `kind: 'local' | 'cloud'` discriminator —
  * `mode` is now an auth-strategy hint that does NOT change DB routing.
  *
- * This test boots the binary with `CONTEXTOS_MODE=team` (no override
+ * This test boots the binary with `COODRA_MODE=team` (no override
  * env var, none exists anymore) and asserts the server starts on
  * SQLite — proves the new createDb default routing matches the
  * architecture's "local services always write to local SQLite" rule
@@ -43,14 +43,14 @@ beforeAll(async () => {
       ...process.env,
       NODE_ENV: 'test',
       LOG_LEVEL: 'error',
-      CONTEXTOS_MODE: 'team',
-      // No CONTEXTOS_DB_OVERRIDE_MODE — that knob was removed in S4.
+      COODRA_MODE: 'team',
+      // No COODRA_DB_OVERRIDE_MODE — that knob was removed in S4.
       // The new createDb({ kind: 'local' }) defaulting in
       // apps/mcp-server/src/lib/db.ts is what makes this work.
       CLERK_SECRET_KEY: 'sk_test_replace_me',
       CLERK_PUBLISHABLE_KEY: 'pk_test_xxx',
-      CONTEXTOS_LOG_DESTINATION: 'stderr',
-      CONTEXTOS_SQLITE_PATH: sqlitePath,
+      COODRA_LOG_DESTINATION: 'stderr',
+      COODRA_SQLITE_PATH: sqlitePath,
     } as Record<string, string>,
     stderr: 'pipe',
   });
@@ -70,7 +70,7 @@ afterAll(async () => {
   }
 }, 30_000);
 
-describe('boot — CONTEXTOS_MODE=team with no override knob (finding §8.3 closed)', () => {
+describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)', () => {
   it('binary boots with team-mode auth + sqlite store; tools/list returns 10 tools', async () => {
     const { tools } = await h.client.listTools();
     // Slice 4 (2026-05-03 audit): query_decisions added → 10 tools.
@@ -78,7 +78,7 @@ describe('boot — CONTEXTOS_MODE=team with no override knob (finding §8.3 clos
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {
-    // Under CONTEXTOS_MODE=team with the solo-bypass sentinel, get_run_id
+    // Under COODRA_MODE=team with the solo-bypass sentinel, get_run_id
     // routes through the team-mode auth path but the project must still
     // be registered explicitly — unknown slug → soft-failure
     // project_not_found. The exact contract is:

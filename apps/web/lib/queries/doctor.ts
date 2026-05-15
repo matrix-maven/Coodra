@@ -1,4 +1,4 @@
-import { type DoctorReport, runDoctorReport } from '@coodra/contextos-cli/lib/doctor';
+import { type DoctorReport, runDoctorReport } from '@coodra/cli/lib/doctor';
 
 /**
  * `apps/web/lib/queries/doctor.ts` — server-only thin wrapper around

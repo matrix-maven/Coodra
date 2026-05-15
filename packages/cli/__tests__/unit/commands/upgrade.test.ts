@@ -51,7 +51,7 @@ describe('runUpgradeCommand', () => {
       installCommand: string;
     };
     expect(payload.status).toBe('newer_available');
-    expect(payload.installCommand).toBe('npm i -g @coodra/contextos-cli@99.0.0');
+    expect(payload.installCommand).toBe('npm i -g @coodra/cli@99.0.0');
   });
 
   it('Fixture 2 — installed === published → exit 0 + migrate + restart called', async () => {

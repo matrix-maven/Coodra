@@ -1,5 +1,5 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import type { DbHandle } from '@coodra/db';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createPostToolUseHandler } from '../../../src/handlers/post-tool-use.js';

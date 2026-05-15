@@ -7,7 +7,7 @@ import type { cookies } from 'next/headers';
  * component / route handler that talks to Supabase Auth or queries
  * the public schema directly.
  *
- * In ContextOS team mode the M04 storage adapter (lib/db.ts) goes
+ * In Coodra team mode the M04 storage adapter (lib/db.ts) goes
  * through Drizzle for application reads against `DATABASE_URL`, NOT
  * through this client. This client is reserved for Supabase-specific
  * surfaces (e.g. realtime channels in a future slice; managed auth

@@ -9,7 +9,7 @@ import {
 } from './schema.js';
 
 /**
- * Registration factory for `contextos__list_features`.
+ * Registration factory for `coodra__list_features`.
  *
  * Read-only — idempotency kind is `read` so the registry doesn't dedupe
  * across separate calls (every list query gets a fresh roundtrip; the
@@ -18,7 +18,7 @@ import {
  * The description follows the §24.3 five-part recipe (imperative
  * trigger / return shape / why / when-NOT / hand-off). The agent uses
  * the returned descriptions to decide which features to load via
- * `contextos__get_feature`; that's the central skill-pattern handshake.
+ * `coodra__get_feature`; that's the central skill-pattern handshake.
  */
 
 const listFeaturesIdempotencyKey: IdempotencyKeyBuilder<ListFeaturesInput> = (input, ctx) => {
@@ -34,7 +34,7 @@ export function createListFeaturesToolRegistration(
 ): ToolRegistration<typeof listFeaturesInputSchema, typeof listFeaturesOutputSchema> {
   return {
     name: 'list_features',
-    title: 'ContextOS: list_features',
+    title: 'Coodra: list_features',
     description:
       'Call when you need to discover available SKILLS for this project — atomic, reusable recipes the agent fetches ' +
       'on demand when a user prompt matches a feature\'s trigger description (the Anthropic Skills pattern). ' +

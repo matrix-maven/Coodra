@@ -1,4 +1,4 @@
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
@@ -10,9 +10,9 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
  *
  * F7 closure (verification 2026-04-27): `policy_decisions.project_id`
  * is NOT NULL. The hooks-bridge previously skipped audit writes when
- * the resolver returned no projectId (no `.contextos.json` in cwd) to
+ * the resolver returned no projectId (no `.coodra.json` in cwd) to
  * avoid the FK violation. Deny still worked via the `__global__`
- * cache slot in `@coodra/contextos-policy::createPolicyClient`, but no
+ * cache slot in `@coodra/policy::createPolicyClient`, but no
  * audit row landed — agents working in unregistered cwds left no
  * governance trail, breaking SOC2/NHI auditability.
  *

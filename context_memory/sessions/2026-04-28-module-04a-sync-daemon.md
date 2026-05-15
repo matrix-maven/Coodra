@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build Module 04a (Sync Daemon + Self-Host Packaging) end-to-end on `feat/04a-sync-daemon`. Eight slices S0 → S8 per `docs/feature-packs/04a-sync-daemon/implementation.md`, one commit each, M03.1 cadence (test/fix/document inline, no separate verification report). Land a context pack at S8 and re-call `contextos__save_context_pack`.
+Build Module 04a (Sync Daemon + Self-Host Packaging) end-to-end on `feat/04a-sync-daemon`. Eight slices S0 → S8 per `docs/feature-packs/04a-sync-daemon/implementation.md`, one commit each, M03.1 cadence (test/fix/document inline, no separate verification report). Land a context pack at S8 and re-call `coodra__save_context_pack`.
 
 The single load-bearing AC: a write to local SQLite must appear in cloud Postgres within the sync window (5–30s, OQ2-locked at 30s catchup poll), with idempotency holding under cloud unreachability + recovery.
 
@@ -18,10 +18,10 @@ The single load-bearing AC: a write to local SQLite must appear in cloud Postgre
 **Module 04a complete.** All 8 slices S0 → S8 landed on `feat/04a-sync-daemon`:
 
 - S0 `734b6c2` — feature-pack triplet
-- S1 `871cec0` — `contextos cloud-migrate` (idempotent + OQ4 pre-flight refusal)
+- S1 `871cec0` — `coodra cloud-migrate` (idempotent + OQ4 pre-flight refusal)
 - S2 `5379f7b` — `scheduleAuditWriteWithSync` paired-enqueue + worker `queueFilter` (OQ7)
 - S3 `4ba37a0` — `apps/sync-daemon` package: dual-handle boot, dispatch handler, integration tests
-- S4 `c94883f` — `contextos start/stop/status` supervises sync-daemon as third managed process in team mode
+- S4 `c94883f` — `coodra start/stop/status` supervises sync-daemon as third managed process in team mode
 - S5 `4c7a62a` — doctor checks 24–27 (cloud reachability with time escalation, sync queue depth/lag/dead-letter); finding #4 (port-availability false-warn) closed
 - S6 `713cc06` — bridge auto-create-run uses `generateRunKey` for canonical 4-segment ids; migration 0005 backfills bare UUIDs (reversible via `_runid_backfill_0005` audit table); finding #9 closed
 - S7 `9d97da8` — Dockerfiles (4) + Compose stack + `.env.example` + `docs/deploy/self-host.md`; `cloud-migrate` image built and ran successfully against compose Postgres
@@ -31,7 +31,7 @@ The single load-bearing AC: a write to local SQLite must appear in cloud Postgre
 - OQ1 — one-way push for v1 (local→cloud)
 - OQ2 — 30-second catchup poll
 - OQ3 — GREEN reachable / YELLOW after 5min / RED after 1h cloud unreachability
-- OQ4 — separate `contextos cloud-migrate` CLI command WITH constraint: refuses if unknown tables contain rows
+- OQ4 — separate `coodra cloud-migrate` CLI command WITH constraint: refuses if unknown tables contain rows
 - OQ5 — Docker Compose canonical, Railway/Fly.io brief mentions
 - OQ6 — doctor only for v1 (no /metrics)
 - OQ7 — reuse `pending_jobs` with `queue='sync_to_cloud'`, paired-job pattern WITH constraint: each worker filters by queue type AND fails loudly on cross-pollination
@@ -44,14 +44,14 @@ Side-task constraints honoured:
 
 ```bash
 pnpm exec turbo run typecheck lint test:unit                                        # all green
-DATABASE_URL='postgres://contextos:contextos_dev_password@localhost:5432/contextos' \
-  pnpm --filter @coodra/contextos-cli test:integration                                     # 6/6 (cloud-migrate)
-pnpm --filter @coodra/contextos-db test:integration                                        # 45/45
-pnpm --filter @coodra/contextos-hooks-bridge test:integration                              # 38/38
-pnpm --filter @coodra/contextos-mcp-server test:integration                                # 179/179
-DATABASE_URL='postgres://...' pnpm --filter @coodra/contextos-sync-daemon test:integration # 5/5
+DATABASE_URL='postgres://coodra:coodra_dev_password@localhost:5432/coodra' \
+  pnpm --filter @coodra/cli test:integration                                     # 6/6 (cloud-migrate)
+pnpm --filter @coodra/db test:integration                                        # 45/45
+pnpm --filter @coodra/hooks-bridge test:integration                              # 38/38
+pnpm --filter @coodra/mcp-server test:integration                                # 179/179
+DATABASE_URL='postgres://...' pnpm --filter @coodra/sync-daemon test:integration # 5/5
 pnpm test:e2e                                                                       # 32 passed (1 pre-existing skip)
-CONTEXTOS_MODE=solo pnpm exec tsx __tests__/manual/verify-outbox-crash-safety.ts   # ALL PASS (M03.1 untouched)
+COODRA_MODE=solo pnpm exec tsx __tests__/manual/verify-outbox-crash-safety.ts   # ALL PASS (M03.1 untouched)
 pnpm exec tsx __tests__/manual/verify-f5-live.ts                                    # PASS
 DATABASE_URL='postgres://...' pnpm exec tsx __tests__/manual/verify-sync-roundtrip.ts  # ALL PASS (new M04a primary AC)
 ```
@@ -75,6 +75,6 @@ Then start **Module 04b (Web App)** per `docs/feature-packs/04b-web-app/spec.md`
 - [08:45] S4 — sync-daemon as third managed process (services discriminated union; team-mode gating)
 - [08:35] S3 — sync-daemon scaffold (dispatch + boot + 5 integration tests against compose pg)
 - [08:25] S2 — paired sync_to_cloud enqueue + worker queueFilter + 9 new tests
-- [08:00] S1 — `contextos cloud-migrate` + 6 integration tests + program test wiring
+- [08:00] S1 — `coodra cloud-migrate` + 6 integration tests + program test wiring
 - [07:48] S0 — feature-pack triplet committed (`734b6c2`); 7 OQs answered with constraints
 - [07:30] git state intact (branch `main` @ `d7a3238`, identity Abishai <abishai95141@gmail.com>); branched `feat/04a-sync-daemon`

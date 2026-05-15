@@ -367,7 +367,7 @@ export const runDiffs = pgTable(
  * mirror in `./sqlite.ts` for the full design rationale; the column set
  * here is identical for the dual-dialect schema-parity test.
  *
- * Only ever populated on cloud Postgres in practice — `~/.contextos/data.db`
+ * Only ever populated on cloud Postgres in practice — `~/.coodra/data.db`
  * never holds an invite row because invite minting is a team-hosted
  * operation. The SQLite table exists for parity (test coverage + future
  * draft-invite use cases).
@@ -427,10 +427,10 @@ export type NewTeamInvite = typeof teamInvites.$inferInsert;
 /**
  * Module 04 Phase 4 — `_migration_attempts`. **Postgres-only**; the
  * solo SQLite store has no use for this since migration moves data
- * solo→team, never team→solo at the data layer (`contextos team leave`
+ * solo→team, never team→solo at the data layer (`coodra team leave`
  * just clears local team config — it doesn't write a migration row).
  *
- * Tracks the lifecycle of each `contextos team migrate` invocation so:
+ * Tracks the lifecycle of each `coodra team migrate` invocation so:
  *   - A crashed migration can be **resumed** on the next CLI run by
  *     looking up `status='running'` for this (orgId, userId) and
  *     continuing from `last_phase`.

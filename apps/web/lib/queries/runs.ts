@@ -6,7 +6,7 @@ import {
   listRunsForProject,
   type RunRow,
   type RunWithEverything,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 

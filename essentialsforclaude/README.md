@@ -10,7 +10,7 @@ The files are numbered so the reading order matches the order Claude sees them:
 
 ```
 essentialsforclaude/
-├── 00-identity.md                    — What ContextOS is + the two canonical docs + not-a-prototype framing
+├── 00-identity.md                    — What Coodra is + the two canonical docs + not-a-prototype framing
 ├── 01-development-discipline.md      — No shallow proxies + 9 dev rules (type safety, errors, logging, idempotency, migrations, ask-don't-assume, testing)
 ├── 02-agent-human-boundary.md        — What the agent does vs what the user does, with hard rules against faking user actions
 ├── 03-context-memory.md              — The context_memory/ folder, what to write after every PostToolUse hook, session recovery
@@ -44,7 +44,7 @@ The rule for where new standing context goes:
 | Module build order / "complete" criteria | `08-implementation-order.md` |
 | A code template the agent should follow | `09-common-patterns.md` |
 | A local dev error with a known fix | `10-troubleshooting.md` |
-| A decision (library, pattern, tech) | `11-adrs.md` AND call `contextos__record_decision` |
+| A decision (library, pattern, tech) | `11-adrs.md` AND call `coodra__record_decision` |
 | A pointer into the big architecture doc | `references/architecture-map.md` |
 | A pointer into the library reference doc | `references/library-map.md` |
 

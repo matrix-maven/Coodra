@@ -8,8 +8,8 @@ import { loadHomeEnv } from '../../src/lib/load-home-env.js';
 
 /**
  * Closes Finding A from the 2026-04-28 functionality test:
- *   `contextos init` writes `.env` to `<cwd>/.env`, but commit 34faa0e's
- *   loader read `<CONTEXTOS_HOME>/.env` only. Different files. Init's
+ *   `coodra init` writes `.env` to `<cwd>/.env`, but commit 34faa0e's
+ *   loader read `<COODRA_HOME>/.env` only. Different files. Init's
  *   .env was therefore decorative end-to-end, team-mode setups silently
  *   fell back to solo, and doctor check 20 (`LOCAL_HOOK_SECRET` present)
  *   was YELLOW for this exact reason.
@@ -20,7 +20,7 @@ import { loadHomeEnv } from '../../src/lib/load-home-env.js';
  * shapes the call site can encounter.
  */
 
-describe('loadHomeEnv — layered <CONTEXTOS_HOME>/.env + <cwd>/.env', () => {
+describe('loadHomeEnv — layered <COODRA_HOME>/.env + <cwd>/.env', () => {
   let homeDir: string;
   let cwdDir: string;
 
@@ -37,66 +37,66 @@ describe('loadHomeEnv — layered <CONTEXTOS_HOME>/.env + <cwd>/.env', () => {
   it('case 1 — both files exist, no overlap → all vars from both present', () => {
     writeFileSync(
       join(homeDir, '.env'),
-      ['CONTEXTOS_GRAPHIFY_ROOT=/var/graphify', 'CLERK_PUBLISHABLE_KEY=pk_test_replace_me'].join('\n'),
+      ['COODRA_GRAPHIFY_ROOT=/var/graphify', 'CLERK_PUBLISHABLE_KEY=pk_test_replace_me'].join('\n'),
       'utf8',
     );
     writeFileSync(
       join(cwdDir, '.env'),
-      [`LOCAL_HOOK_SECRET=${'a'.repeat(40)}`, 'CONTEXTOS_MODE=solo'].join('\n'),
+      [`LOCAL_HOOK_SECRET=${'a'.repeat(40)}`, 'COODRA_MODE=solo'].join('\n'),
       'utf8',
     );
 
     const merged = loadHomeEnv(homeDir, cwdDir);
 
-    expect(merged.CONTEXTOS_GRAPHIFY_ROOT).toBe('/var/graphify');
+    expect(merged.COODRA_GRAPHIFY_ROOT).toBe('/var/graphify');
     expect(merged.CLERK_PUBLISHABLE_KEY).toBe('pk_test_replace_me');
     expect(merged.LOCAL_HOOK_SECRET).toBe('a'.repeat(40));
-    expect(merged.CONTEXTOS_MODE).toBe('solo');
+    expect(merged.COODRA_MODE).toBe('solo');
   });
 
   it('case 2 — both files exist with overlap → cwd value wins', () => {
     // Per-project override is the more specific scope. A developer who
-    // sets CONTEXTOS_MODE=team in their project must override whatever
+    // sets COODRA_MODE=team in their project must override whatever
     // the user-global .env says.
     writeFileSync(
       join(homeDir, '.env'),
-      ['CONTEXTOS_MODE=solo', 'CLERK_SECRET_KEY=sk_test_from_home'].join('\n'),
+      ['COODRA_MODE=solo', 'CLERK_SECRET_KEY=sk_test_from_home'].join('\n'),
       'utf8',
     );
     writeFileSync(
       join(cwdDir, '.env'),
-      ['CONTEXTOS_MODE=team', 'CLERK_SECRET_KEY=sk_test_from_project'].join('\n'),
+      ['COODRA_MODE=team', 'CLERK_SECRET_KEY=sk_test_from_project'].join('\n'),
       'utf8',
     );
 
     const merged = loadHomeEnv(homeDir, cwdDir);
 
-    expect(merged.CONTEXTOS_MODE).toBe('team');
+    expect(merged.COODRA_MODE).toBe('team');
     expect(merged.CLERK_SECRET_KEY).toBe('sk_test_from_project');
   });
 
-  it('case 3 — only <CONTEXTOS_HOME>/.env exists → its vars loaded', () => {
+  it('case 3 — only <COODRA_HOME>/.env exists → its vars loaded', () => {
     writeFileSync(
       join(homeDir, '.env'),
-      ['CONTEXTOS_MODE=solo', 'CLERK_SECRET_KEY=sk_test_replace_me'].join('\n'),
+      ['COODRA_MODE=solo', 'CLERK_SECRET_KEY=sk_test_replace_me'].join('\n'),
       'utf8',
     );
     // No file at cwdDir/.env.
 
     const merged = loadHomeEnv(homeDir, cwdDir);
 
-    expect(merged.CONTEXTOS_MODE).toBe('solo');
+    expect(merged.COODRA_MODE).toBe('solo');
     expect(merged.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
   });
 
   it('case 4 — only <cwd>/.env exists → its vars loaded (this is the post-init shape)', () => {
-    // This is exactly the state `contextos init` leaves behind: it wrote
-    // .env to <cwd>, no <CONTEXTOS_HOME>/.env exists yet. Pre-fix, the
+    // This is exactly the state `coodra init` leaves behind: it wrote
+    // .env to <cwd>, no <COODRA_HOME>/.env exists yet. Pre-fix, the
     // loader returned {} here and `start` saw nothing.
     writeFileSync(
       join(cwdDir, '.env'),
       [
-        'CONTEXTOS_MODE=solo',
+        'COODRA_MODE=solo',
         'CLERK_SECRET_KEY=sk_test_replace_me',
         'CLERK_PUBLISHABLE_KEY=pk_test_replace_me',
         `LOCAL_HOOK_SECRET=${'b'.repeat(40)}`,
@@ -106,7 +106,7 @@ describe('loadHomeEnv — layered <CONTEXTOS_HOME>/.env + <cwd>/.env', () => {
 
     const merged = loadHomeEnv(homeDir, cwdDir);
 
-    expect(merged.CONTEXTOS_MODE).toBe('solo');
+    expect(merged.COODRA_MODE).toBe('solo');
     expect(merged.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
     expect(merged.CLERK_PUBLISHABLE_KEY).toBe('pk_test_replace_me');
     expect(merged.LOCAL_HOOK_SECRET).toBe('b'.repeat(40));
@@ -119,13 +119,13 @@ describe('loadHomeEnv — layered <CONTEXTOS_HOME>/.env + <cwd>/.env', () => {
   });
 
   it('back-compat — projectCwd omitted, behaves as the original home-only loader', () => {
-    writeFileSync(join(homeDir, '.env'), 'CONTEXTOS_MODE=solo\n', 'utf8');
-    writeFileSync(join(cwdDir, '.env'), 'CONTEXTOS_MODE=team\n', 'utf8');
+    writeFileSync(join(homeDir, '.env'), 'COODRA_MODE=solo\n', 'utf8');
+    writeFileSync(join(cwdDir, '.env'), 'COODRA_MODE=team\n', 'utf8');
 
     // Don't pass the second arg — old call sites that only know about the
     // home layer must keep working unchanged.
     const merged = loadHomeEnv(homeDir);
 
-    expect(merged.CONTEXTOS_MODE).toBe('solo');
+    expect(merged.COODRA_MODE).toBe('solo');
   });
 });

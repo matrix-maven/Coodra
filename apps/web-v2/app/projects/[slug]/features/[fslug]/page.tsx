@@ -45,7 +45,7 @@ export default async function FeatureDetailPage({
     <>
       <Topbar
         crumb={`${project.slug} / features / ${row.slug}`}
-        crumbPrefix="contextos / projects"
+        crumbPrefix="coodra / projects"
       />
       <section className="screen">
         <div className="head">
@@ -112,7 +112,7 @@ export default async function FeatureDetailPage({
               <h2 className="card__title">
                 <em>feature.md</em> body
               </h2>
-              <span className="card__role">loaded by `contextos__get_feature`</span>
+              <span className="card__role">loaded by `coodra__get_feature`</span>
             </div>
             <pre
               style={{

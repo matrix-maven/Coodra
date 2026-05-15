@@ -5,7 +5,7 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 
 /**
  * `packages/db/src/runs-admin` — admin-side helpers for the `runs`
- * table. Backs Module 08b S11's `contextos run {list, show, cancel}`
+ * table. Backs Module 08b S11's `coodra run {list, show, cancel}`
  * CLI surface.
  *
  * Per OQ-6 lock (2026-05-03), cancellation is informational metadata:

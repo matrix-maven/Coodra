@@ -2,7 +2,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { DbHandle } from '@coodra/contextos-db';
+import type { DbHandle } from '@coodra/db';
 import { describe, expect, it } from 'vitest';
 
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';

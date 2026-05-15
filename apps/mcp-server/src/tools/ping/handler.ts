@@ -3,7 +3,7 @@ import type { ToolContext } from '../../framework/tool-context.js';
 import type { PingInput, PingOutput } from './schema.js';
 
 /**
- * Handler for `contextos__ping`. Pure, synchronous in intent (still
+ * Handler for `coodra__ping`. Pure, synchronous in intent (still
  * `async` to match the framework contract that every handler is a
  * promise-returning function). Returns a deterministic envelope that
  * the registry will validate against `pingOutputSchema` before it

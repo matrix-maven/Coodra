@@ -1,12 +1,12 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, desc, eq, or, sql } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { PackResult, SearchPacksNlInput, SearchPacksNlOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__search_packs_nl`.
+ * Handler factory for `coodra__search_packs_nl`.
  *
  * Module 05 reshape (2026-05-08): the embedding-supplied semantic-KNN
  * branch was removed. Search is now LIKE over (title, content_excerpt,
@@ -30,7 +30,7 @@ const handlerLogger = createLogger('mcp-server.tool.search_packs_nl');
 const DEFAULT_LIMIT = 50 as const;
 
 const PROJECT_NOT_FOUND_HOWTO =
-  'Register this project via the Web App or run `contextos init` in the project root before retrying.' as const;
+  'Register this project via the Web App or run `coodra init` in the project root before retrying.' as const;
 
 export interface SearchPacksNlHandlerDeps {
   readonly db: DbHandle;

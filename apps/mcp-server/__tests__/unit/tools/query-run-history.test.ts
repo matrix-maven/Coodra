@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createQueryRunHistoryToolRegistration } from '../../../src/tools/query-run-history/manifest.js';
 import { queryRunHistoryInputSchema } from '../../../src/tools/query-run-history/schema.js';
 
 /**
- * Unit tests for `contextos__query_run_history` — manifest contract +
+ * Unit tests for `coodra__query_run_history` — manifest contract +
  * input schema boundaries + idempotency-key shape + factory
  * construction contract. DB behaviour (project resolve, LEFT JOIN
  * title, status filter, DESC order, limit) is in the integration suite.

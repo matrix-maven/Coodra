@@ -63,7 +63,7 @@ export default async function ContextPacksPage({ searchParams }: { searchParams:
     <>
       <Topbar
         crumb="Context Packs"
-        crumbPrefix={selectedProject !== undefined ? `contextos / ${selectedProject.slug}` : 'contextos'}
+        crumbPrefix={selectedProject !== undefined ? `coodra / ${selectedProject.slug}` : 'coodra'}
       />
       <section className="screen">
         <div className="head">

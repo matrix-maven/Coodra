@@ -1,6 +1,6 @@
 # Module 04 — Web App — Implementation
 
-> Slice-by-slice work breakdown for `feat/04-web-app`. Read `spec.md` first for scope and `techstack.md` for runtime/dep choices. Decisions made mid-implementation get logged in `context_memory/decisions-log.md` (see `essentialsforclaude/03-context-memory.md`) and mirrored to the MCP via `contextos__record_decision`.
+> Slice-by-slice work breakdown for `feat/04-web-app`. Read `spec.md` first for scope and `techstack.md` for runtime/dep choices. Decisions made mid-implementation get logged in `context_memory/decisions-log.md` (see `essentialsforclaude/03-context-memory.md`) and mirrored to the MCP via `coodra__record_decision`.
 
 ## Prerequisites (one-time, before S0.5)
 
@@ -45,7 +45,7 @@ These are already in place as of the S0 commit:
 
 - `docs/feature-packs/04-web-app/wireframes/00-information-architecture.md` — page tree with parent/child relationships, breadcrumb scheme, header/footer chrome, the Solo-vs-Team affordance differences (e.g. team gets an org switcher in the header).
 - `docs/feature-packs/04-web-app/wireframes/01-nav-map.md` — global nav (top + side), per-route mini-nav, the dashboard tile grid, the run-detail timeline pattern, the kill-switch admin form pattern.
-- `docs/feature-packs/04-web-app/wireframes/02-screens/` — one ASCII / textual wireframe per route (mobile + desktop breakpoints), referencing brand.md tokens by name (e.g. "header uses Inter 900 + 56/64 + Off-Black on Surface, Precision Blue dot indicator at right when ContextOS Mode = team").
+- `docs/feature-packs/04-web-app/wireframes/02-screens/` — one ASCII / textual wireframe per route (mobile + desktop breakpoints), referencing brand.md tokens by name (e.g. "header uses Inter 900 + 56/64 + Off-Black on Surface, Precision Blue dot indicator at right when Coodra Mode = team").
   - `dashboard.md` (`/`) — five tiles + recent events list + status palette mapping
   - `runs-list.md` (`/runs`)
   - `run-detail.md` (`/runs/[id]`) + `run-live.md` (`/runs/[id]/live`)
@@ -71,8 +71,8 @@ These are already in place as of the S0 commit:
 **Files created:**
 
 - `apps/web/` — Next.js 15 app with App Router, React 19, TypeScript strict
-- `apps/web/package.json` — name `@coodra/contextos-web`, `private: true`, deps from `techstack.md`
-- `apps/web/next.config.ts` — `experimental.serverActions = true`, runtime config for `CONTEXTOS_MODE`, `transpilePackages: ['@coodra/contextos-shared', '@coodra/contextos-db']`
+- `apps/web/package.json` — name `@coodra/web`, `private: true`, deps from `techstack.md`
+- `apps/web/next.config.ts` — `experimental.serverActions = true`, runtime config for `COODRA_MODE`, `transpilePackages: ['@coodra/shared', '@coodra/db']`
 - `apps/web/tailwind.config.ts` (or `app/globals.css` Tailwind v4 CSS-first config) — `@theme` block consumes the token catalog
 - `apps/web/styles/tokens.css` — **the full brand catalog** (per OQ-5 lock + spec §11): colors, typography, spacing, motion, elevation, status palette, risk-level palette
 - `apps/web/styles/globals.css` — Tailwind directives + body defaults + reset
@@ -94,8 +94,8 @@ These are already in place as of the S0 commit:
 
 **Acceptance:**
 
-- `pnpm --filter @coodra/contextos-web dev` boots on `:3000` in solo mode against the sandbox CONTEXTOS_HOME, renders the placeholder page using brand tokens (visible: Precision Blue interactive, Inter 900 header, JetBrains Mono badge, zero-radius). `/api/healthz` returns 200.
-- Switching `CONTEXTOS_MODE=team` and pointing at the live `gyopozvfmggumidptmjr` Supabase boots and renders without DB error (the placeholder doesn't read DB yet — but the storage adapter resolves correctly).
+- `pnpm --filter @coodra/web dev` boots on `:3000` in solo mode against the sandbox COODRA_HOME, renders the placeholder page using brand tokens (visible: Precision Blue interactive, Inter 900 header, JetBrains Mono badge, zero-radius). `/api/healthz` returns 200.
+- Switching `COODRA_MODE=team` and pointing at the live `gyopozvfmggumidptmjr` Supabase boots and renders without DB error (the placeholder doesn't read DB yet — but the storage adapter resolves correctly).
 - Clerk middleware short-circuits in solo (no sign-in screen); in team mode an unauthenticated GET 302s to Clerk-hosted sign-in.
 - Lint, typecheck, unit tests pass.
 
@@ -111,7 +111,7 @@ These are already in place as of the S0 commit:
 
 **Drizzle → Supabase:**
 
-- Run `pnpm --filter @coodra/contextos-db migrate:cloud` against `DATABASE_URL` from `.env`. The existing `cloud-migrate` CLI command (already wired) walks `packages/db/drizzle/postgres/0000_*.sql` through `0007_*.sql`. The `0000` migration installs `vector` (currently available, not installed on the cloud).
+- Run `pnpm --filter @coodra/db migrate:cloud` against `DATABASE_URL` from `.env`. The existing `cloud-migrate` CLI command (already wired) walks `packages/db/drizzle/postgres/0000_*.sql` through `0007_*.sql`. The `0000` migration installs `vector` (currently available, not installed on the cloud).
 - Verify: `psql $DATABASE_URL -c "\dt"` shows the 11 tables; `psql $DATABASE_URL -c "\dx vector"` shows `vector 0.8.0` installed.
 - Apply RLS: a new migration `0008_rls_org_isolation.sql` adds row-level security on `projects` (filter by `org_id = current_setting('app.current_org')::text`) + cascade on `runs`, `run_events`, `policy_decisions`, etc. (read-side filter by `project_id IN (SELECT id FROM projects)`). The web's Drizzle client sets `app.current_org` per request from Clerk's `auth().orgId`.
 - Update `cloud-migrate` README + acceptance test.
@@ -140,7 +140,7 @@ These are already in place as of the S0 commit:
 
 **Server actions:** none (pure read). All queries via `apps/web/lib/queries/{runs,events,decisions,policy-decisions,context-packs}.ts` using `createWebDb()` from S1 storage adapter. RLS in team mode (set `app.current_org` per request).
 
-**HTML port of CLI export:** the `/runs/[id]` page is the visual equivalent of `contextos export <runId> --format markdown --include-audit`. Where the CLI emits markdown, the web emits semantic HTML with the same information density. **Audit always visible** in web (vs CLI default-exclude per OQ-7) — the web's audience is humans-reading-not-Slack-broadcasting; nothing is dropped to "fit a Slack post".
+**HTML port of CLI export:** the `/runs/[id]` page is the visual equivalent of `coodra export <runId> --format markdown --include-audit`. Where the CLI emits markdown, the web emits semantic HTML with the same information density. **Audit always visible** in web (vs CLI default-exclude per OQ-7) — the web's audience is humans-reading-not-Slack-broadcasting; nothing is dropped to "fit a Slack post".
 
 **Acceptance:**
 
@@ -185,12 +185,12 @@ These are already in place as of the S0 commit:
 
 **Routes:**
 
-- `/policies` — list, filter by project, active/inactive toggle. CLI parity: `contextos policy list`.
+- `/policies` — list, filter by project, active/inactive toggle. CLI parity: `coodra policy list`.
 - `/policies/[id]` — rules table sorted by priority asc; "Add rule" form (tool + decision + reason + path-glob + agent-type + priority); enable/disable toggle on the policy itself.
 
 **Server actions:**
 
-- `addPolicyRuleAction` — calls `addPolicyRule` from `@coodra/contextos-db` (the same helper M08b S9 wired into the CLI). Form validation via Zod.
+- `addPolicyRuleAction` — calls `addPolicyRule` from `@coodra/db` (the same helper M08b S9 wired into the CLI). Form validation via Zod.
 - `setPolicyActiveAction` — calls `setPolicyActive` (idempotent).
 
 **Bridge cache TTL note:** the policy client cache is 60s. The form's success banner says: "Rule added. Bridges will see it on the next cache miss (≤ 60s)."
@@ -210,7 +210,7 @@ These are already in place as of the S0 commit:
 
 **Routes:**
 
-- `/projects` — list with run-count + last-run timestamp. CLI parity: `contextos project list`.
+- `/projects` — list with run-count + last-run timestamp. CLI parity: `coodra project list`.
 - `/projects/[id]` — project header, recent runs, status histogram, `Reset` button.
 
 **Reset confirmation:** destructive op (per CLI's `--force` requirement). Two-step confirm dialog: type the project slug to enable the Reset button. Default `--keep-policies` (preserves policies + policy_rules + project-scoped kill_switches).
@@ -258,7 +258,7 @@ These are already in place as of the S0 commit:
 **Files modified:**
 
 - `apps/sync-daemon/src/lib/cloud-pull.ts` — extend the pull-table list with `kill_switches`. Existing pattern: pull-on-interval, upsert by id, soft-resume by `resumed_at` timestamp.
-- `apps/sync-daemon/src/handlers/kill-switches.ts` (NEW) — handler that accepts the cloud → local row, resolves conflicts (id-match upsert; never delete), writes via `insertKillSwitch`/`softResumeKillSwitch` from `@coodra/contextos-db`.
+- `apps/sync-daemon/src/handlers/kill-switches.ts` (NEW) — handler that accepts the cloud → local row, resolves conflicts (id-match upsert; never delete), writes via `insertKillSwitch`/`softResumeKillSwitch` from `@coodra/db`.
 - `apps/sync-daemon/src/lib/cloud-pull-config.ts` — adds `kill_switches` to `PULLABLE_TABLES`.
 - `packages/cli/src/commands/pause.ts` — add `--no-sync` flag (default: sync on). When set, the inserted row gets `paused_by_session_id='local-only:<host>'` which the sync-daemon's push-side filter excludes.
 - `apps/sync-daemon/__tests__/integration/kill-switches-bidirectional.test.ts` (NEW) — testcontainers-backed: spin up cloud Postgres, insert a kill-switch via the cloud-side helper (mimicking what S8b will do), run the sync-daemon's pull tick, assert the row appears in local SQLite. Then pause locally with `--no-sync` and verify it doesn't push.
@@ -285,7 +285,7 @@ These are already in place as of the S0 commit:
 
 **Server actions:**
 
-- `pauseKillSwitchAction` — calls `insertKillSwitch` from `@coodra/contextos-db` against the **cloud** Drizzle handle in team mode (writes to cloud — sync-daemon picks it up); against local SQLite in solo mode (no propagation since solo has no team).
+- `pauseKillSwitchAction` — calls `insertKillSwitch` from `@coodra/db` against the **cloud** Drizzle handle in team mode (writes to cloud — sync-daemon picks it up); against local SQLite in solo mode (no propagation since solo has no team).
 - `resumeKillSwitchAction` — `softResumeKillSwitch` (idempotent).
 
 **Identity stamping:** `paused_by_session_id='web:<userId>'` per spec §9.
@@ -307,17 +307,17 @@ These are already in place as of the S0 commit:
 
 ### S9 — Dashboard home (`/`)
 
-**Per STRUCT-3 lock** — its own slice, not folded into a doctor page. CLI parity is `contextos doctor` (summary) + `contextos run list` (recent) + `contextos pause` status + `policy_decisions` (denials) combined.
+**Per STRUCT-3 lock** — its own slice, not folded into a doctor page. CLI parity is `coodra doctor` (summary) + `coodra run list` (recent) + `coodra pause` status + `policy_decisions` (denials) combined.
 
 **Five tiles** (using the `<Tile>` component from S1's chrome + status palette tokens):
 
 1. **Active runs:** count of `runs WHERE status='in_progress'` — Inactive grey if 0, Precision Blue if > 0. Click → `/runs?status=in_progress`.
 2. **Denials (24h):** count of `policy_decisions WHERE permission_decision='deny' AND created_at > now() - interval '24 hours'` — Allowed green if 0, Denied red if > 0. Click → `/runs?denials_24h=1`.
 3. **Active kill-switches:** count of `kill_switches WHERE resumed_at IS NULL` — Inactive grey if 0, Partial amber if > 0 (matches doctor check 31's YELLOW). Click → `/kill-switches`.
-4. **Doctor:** RED + YELLOW counts from the last `contextos doctor --json --full` run (cached for 60s in memory). Click → expanded list of failed checks. Hardcoded RED/YELLOW lookup; no need to render all 35.
+4. **Doctor:** RED + YELLOW counts from the last `coodra doctor --json --full` run (cached for 60s in memory). Click → expanded list of failed checks. Hardcoded RED/YELLOW lookup; no need to render all 35.
 5. **Latest events:** scrollable list of last 10 `run_events` across all runs (with project slug + tool name + phase + timestamp). Each row links to the run.
 
-**Doctor cache strategy:** the doctor runs out-of-process (`spawn('contextos', ['doctor', '--json'])` from a Node.js server action, cached 60s). Solo: shells out locally. Team: there is no shared "doctor" — the doctor concept is per-machine. In team mode, the doctor tile is grey with caption "Doctor runs per-developer locally; no cloud rollup." (Reasonable behaviour for v1; M07 / future could add a per-developer report stream.)
+**Doctor cache strategy:** the doctor runs out-of-process (`spawn('coodra', ['doctor', '--json'])` from a Node.js server action, cached 60s). Solo: shells out locally. Team: there is no shared "doctor" — the doctor concept is per-machine. In team mode, the doctor tile is grey with caption "Doctor runs per-developer locally; no cloud rollup." (Reasonable behaviour for v1; M07 / future could add a per-developer report stream.)
 
 **Polling:** the whole dashboard polls at 2000ms (per spec §8 lock).
 
@@ -395,13 +395,13 @@ The original OQ-6 lock scoped a separate `fix/pre-m04-blockers` PR to ship three
 After S11 lands and before the M04 PR squash-merges to main, run this end-to-end on a clean checkout:
 
 1. `pnpm install --frozen-lockfile && pnpm typecheck && pnpm lint && pnpm test:unit && pnpm test:integration` — all green.
-2. `pnpm --filter @coodra/contextos-cli build` — bundled CLI ready.
-3. Sandbox solo init: fresh CONTEXTOS_HOME + CWD; `contextos init --project-slug verify-m04 --no-graphify --ide claude`; `contextos start`.
-4. `pnpm --filter @coodra/contextos-web build && pnpm --filter @coodra/contextos-web start` — web on `:3000`.
+2. `pnpm --filter @coodra/cli build` — bundled CLI ready.
+3. Sandbox solo init: fresh COODRA_HOME + CWD; `coodra init --project-slug verify-m04 --no-graphify --ide claude`; `coodra start`.
+4. `pnpm --filter @coodra/web build && pnpm --filter @coodra/web start` — web on `:3000`.
 5. Open `http://localhost:3000` → `/` shows the dashboard with all five tiles. Trigger a Claude Code session; watch the active-runs tile flip to 1; click into the live view; observe the timeline build event-by-event.
 6. Walk every route in spec §4. Each renders without error against seeded data.
-7. Switch `CONTEXTOS_MODE=team` + point at the live Supabase + sign in via Clerk → repeat the route walk against cloud.
-8. Pause from web `/kill-switches` → run `contextos doctor --full --json | jq '.checks[] | select(.id==31)'` on a separate developer machine (simulated via second CONTEXTOS_HOME) → check 31 reports YELLOW within ~10s.
+7. Switch `COODRA_MODE=team` + point at the live Supabase + sign in via Clerk → repeat the route walk against cloud.
+8. Pause from web `/kill-switches` → run `coodra doctor --full --json | jq '.checks[] | select(.id==31)'` on a separate developer machine (simulated via second COODRA_HOME) → check 31 reports YELLOW within ~10s.
 9. Capture each route's screenshot at desktop + mobile breakpoints; attach to closeout pack.
 
 If any step fails, file as a follow-up issue + flag in the closeout pack's "open questions". **Do not patch to make smoke green** — capture the gap honestly.
@@ -412,8 +412,8 @@ If any step fails, file as a follow-up issue + flag in the closeout pack's "open
 - **`/runs/[id]/diff` (M06 dependency)** — semantic-diff overlay requires M06's tree-sitter + Anthropic-call infrastructure.
 - **VS Code webview shipping the same brand tokens** — M07 will likely extract `apps/web/styles/tokens.css` to `packages/design-tokens/`. Out-of-scope for M04; the path is documented in spec §11.
 - **Org-level kill-switch governance** — who in an org is allowed to flip a global kill-switch? M04 lets any signed-in org member; per-role gating is a follow-up after Clerk org roles are scoped.
-- **Doctor full-detail page (35 checks)** — operators run `contextos doctor --full --json` for that level of detail. The dashboard tile shows summary RED/YELLOW only.
-- **Multi-project view in solo** — solo has one project per CONTEXTOS_HOME by default. Multi-project switching is a team-mode feature (the org switcher serves the same role).
+- **Doctor full-detail page (35 checks)** — operators run `coodra doctor --full --json` for that level of detail. The dashboard tile shows summary RED/YELLOW only.
+- **Multi-project view in solo** — solo has one project per COODRA_HOME by default. Multi-project switching is a team-mode feature (the org switcher serves the same role).
 - **Audit-export "share with non-org reviewer"** — out of scope per §3 non-goals (no public share links).
 - **Web push notifications** — out of scope. Polling at 1.5s is plenty for the v1 audience; push adds infra (FCM / APN) + permission-prompt UX without proportionate value.
 - **Webhook integrations from web (e.g. "post deny to Slack")** — out of scope. CLI's `export --format slack --webhook ...` covers this from the operator-script side.

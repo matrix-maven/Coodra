@@ -6,7 +6,7 @@ import type { TeamCommandIO } from './team.js';
 import { DEFAULT_TEAM_IO } from './team.js';
 
 /**
- * `contextos team init` — Phase B (clarity-pass-plan, 2026-05-11). The
+ * `coodra team init` — Phase B (clarity-pass-plan, 2026-05-11). The
  * guided admin-onboarding wizard. Replaces the six-flag `team setup`
  * with a three-step interactive flow:
  *
@@ -20,7 +20,7 @@ import { DEFAULT_TEAM_IO } from './team.js';
  * secret-key`, `--org-id`) for CI / automation; the wizard skips the
  * corresponding prompt when a flag is supplied AND non-empty.
  *
- * Re-init: when `~/.contextos/config.json` already carries a team
+ * Re-init: when `~/.coodra/config.json` already carries a team
  * block, the wizard prompts for a "type 're-init' to overwrite"
  * confirmation. `--yes-reinit` skips the confirmation (CI only).
  *
@@ -43,7 +43,7 @@ export interface TeamInitOptions {
   /** Skip the "you're already in team mode — re-init?" prompt. */
   readonly yesReinit?: boolean;
   /**
-   * Phase H.4 — skip the post-finalize `contextos login` browser handoff.
+   * Phase H.4 — skip the post-finalize `coodra login` browser handoff.
    * Used in tests/CI where opening a browser is impossible. In normal
    * use the wizard chains directly into login so the admin gets a
    * verified JWT before exiting.
@@ -79,7 +79,7 @@ export async function runTeamInitCommand(
   }
 
   io.writeStdout(
-    `${pc.bold('ContextOS team setup')} — three steps:\n` +
+    `${pc.bold('Coodra team setup')} — three steps:\n` +
       `  (1) Postgres — your team's cloud database\n` +
       `  (2) Clerk    — your team's identity provider\n` +
       `  (3) Local    — generate hook secret + write config\n\n`,
@@ -202,20 +202,20 @@ export async function runTeamInitCommand(
   }
   io.writeStdout(`${pc.green('✓')} Org: ${pc.cyan(selectedOrg.slug ?? selectedOrg.name)} (${selectedOrg.id})\n\n`);
 
-  // Phase H.12 — auto-create the `contextos_cli` JWT template via Clerk
+  // Phase H.12 — auto-create the `coodra_cli` JWT template via Clerk
   // Backend API. Pre-Phase-H the admin had to do this manually in the
   // Clerk dashboard (and typically got the claim names wrong, producing
   // tokens the verifier rejected with `org_id missing`). The wizard now
   // does it idempotently — re-runs detect the existing template and
   // skip the POST. Dynamic import so unit tests can stub via vi.mock.
-  io.writeStdout(pc.gray('  Creating contextos_cli JWT template (idempotent) …\n'));
-  const { ensureContextosCliJwtTemplate } = await import('../lib/team-init/clerk-jwt-template.js');
-  const tmpl = await ensureContextosCliJwtTemplate({ secretKey: clerkSecretKey });
+  io.writeStdout(pc.gray('  Creating coodra_cli JWT template (idempotent) …\n'));
+  const { ensureCoodraCliJwtTemplate } = await import('../lib/team-init/clerk-jwt-template.js');
+  const tmpl = await ensureCoodraCliJwtTemplate({ secretKey: clerkSecretKey });
   if (tmpl.ok) {
     if (tmpl.status === 'created') {
-      io.writeStdout(`${pc.green('✓')} JWT template "contextos_cli" created\n`);
+      io.writeStdout(`${pc.green('✓')} JWT template "coodra_cli" created\n`);
     } else {
-      io.writeStdout(`${pc.gray('=')} JWT template "contextos_cli" already exists — left as-is\n`);
+      io.writeStdout(`${pc.gray('=')} JWT template "coodra_cli" already exists — left as-is\n`);
     }
   } else {
     io.writeStdout(`${pc.yellow('⚠')} JWT template auto-create failed (${tmpl.error}): ${tmpl.howToFix}\n`);
@@ -279,21 +279,21 @@ export async function runTeamInitCommand(
     }
     if (loginExitCode !== 0) {
       io.writeStderr(
-        `${pc.yellow('⚠')} Browser sign-in didn't complete cleanly (exit ${loginExitCode}). Run \`contextos login\` manually to finish.\n`,
+        `${pc.yellow('⚠')} Browser sign-in didn't complete cleanly (exit ${loginExitCode}). Run \`coodra login\` manually to finish.\n`,
       );
     }
   }
 
   io.writeStdout(`\n${pc.bold('Next steps:')}\n`);
-  io.writeStdout(`  1. ${pc.cyan('`contextos start`')} — daemons pick up team-mode env; sync-daemon spawns now.\n`);
-  io.writeStdout(`  2. ${pc.cyan('`contextos invite <email>`')} — share invite links with teammates.\n`);
+  io.writeStdout(`  1. ${pc.cyan('`coodra start`')} — daemons pick up team-mode env; sync-daemon spawns now.\n`);
+  io.writeStdout(`  2. ${pc.cyan('`coodra invite <email>`')} — share invite links with teammates.\n`);
   io.writeStdout(`  3. Open ${pc.cyan('http://localhost:3001/')} once daemons are up — admin dashboard.\n`);
 
   return io.exit(EXIT_OK);
 }
 
 /**
- * Internal sentinel — when the chained `contextos login` command tries
+ * Internal sentinel — when the chained `coodra login` command tries
  * to `process.exit(code)`, throw this instead so the wizard can catch
  * and continue. Without this the wizard's `.action` handler would die
  * mid-flow on a successful login (process.exit(0) bubbles out).

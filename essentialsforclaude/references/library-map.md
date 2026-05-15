@@ -15,7 +15,7 @@ Pointer guide into `../../External api and library reference.md`. Use this to ju
 | Write a Zod schema, convert to JSON Schema for MCP, or add retries with cockatiel | **Validation, Schemas & Resilience** → Zod, zod-to-json-schema, cockatiel (circuit breaker + retry) |
 | Add structured logging anywhere in a TS service | **Logging** → Pino (levels, redaction, transports) |
 | Configure Vitest, Biome, or Turborepo; set up testcontainers | **Tooling: Testing, Linting, Monorepo** → Vitest, testcontainers, Biome, Turborepo |
-| Import Graphify output into ContextOS for cold-start | **Graphify CLI** → usage, graph.json schema, import pipeline |
+| Import Graphify output into Coodra for cold-start | **Graphify CLI** → usage, graph.json schema, import pipeline |
 | Deploy to Railway or Fly.io | **Deployment Platforms** → Railway, Fly.io (Dockerfile + fly.toml patterns) |
 | Add a JIRA MCP tool, wire OAuth, verify a webhook, convert ADF ↔ Markdown, execute JQL | **Atlassian / Jira Integration** → jira.js, REST v3 endpoints, OAuth 2.0 3LO, webhook signatures, ADF, JQL, rate limits, gotchas |
 | Add a GitHub MCP tool, wire GitHub App auth, verify webhooks, parse CODEOWNERS, read branch protection or Rulesets, use Octokit plugins | **GitHub Governance & Context Layer** → REST v3, GraphQL v4, GitHub App auth (`@octokit/auth-app`), fine-grained PATs, webhook signature (`X-Hub-Signature-256`), CODEOWNERS syntax + parsers, legacy protection + Rulesets, Octokit suite (6 packages) with throttling + retry plugins, ETag conditional requests, rate-limit numbers, GFM comment format |

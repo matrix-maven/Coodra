@@ -1,4 +1,4 @@
-# ContextOS — local service stack for team-mode + integration tests.
+# Coodra — local service stack for team-mode + integration tests.
 #
 # Used by:
 #   - `pnpm test:integration` via testcontainers (from Module 02 onward)
@@ -8,23 +8,23 @@
 # Module 01 Foundation ships this file but does NOT require it to run.
 # Starting it requires Docker Desktop (see docs/DEVELOPMENT.md).
 
-name: contextos
+name: coodra
 
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: contextos-postgres
+    container_name: coodra-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: contextos
-      POSTGRES_PASSWORD: contextos_dev_password
-      POSTGRES_DB: contextos
+      POSTGRES_USER: coodra
+      POSTGRES_PASSWORD: coodra_dev_password
+      POSTGRES_DB: coodra
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - contextos_pg_data:/var/lib/postgresql/data
+      - coodra_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U contextos -d contextos"]
+      test: ["CMD-SHELL", "pg_isready -U coodra -d coodra"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -38,12 +38,12 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: contextos-redis
+    container_name: coodra-redis
     restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
-      - contextos_redis_data:/data
+      - coodra_redis_data:/data
     command:
       - "redis-server"
       - "--appendonly"
@@ -59,7 +59,7 @@ services:
       start_period: 5s
 
 volumes:
-  contextos_pg_data:
-    name: contextos_pg_data
-  contextos_redis_data:
-    name: contextos_redis_data
+  coodra_pg_data:
+    name: coodra_pg_data
+  coodra_redis_data:
+    name: coodra_redis_data

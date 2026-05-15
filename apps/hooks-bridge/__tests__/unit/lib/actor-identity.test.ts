@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Phase G slice G.7 — `apps/hooks-bridge/src/lib/actor-identity.ts` tests.
  *
- * The bridge's actor-identity resolver reads `~/.contextos/clerk-token.json::
+ * The bridge's actor-identity resolver reads `~/.coodra/clerk-token.json::
  * claimsMirror` (Phase G primary path) with a config.json::team
  * fallback. The function is SYNCHRONOUS — bridge hot-path constraint.
  *
@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockReadTeamConfig = vi.hoisted(() => vi.fn());
 
-vi.mock('@coodra/contextos-cli/lib/team-config', async () => ({
+vi.mock('@coodra/cli/lib/team-config', async () => ({
   readTeamConfig: mockReadTeamConfig,
 }));
 
@@ -27,16 +27,16 @@ let prevHome: string | undefined;
 beforeEach(() => {
   homeDir = mkdtempSync(join(tmpdir(), 'bridge-actor-test-'));
   mkdirSync(homeDir, { recursive: true });
-  prevHome = process.env.CONTEXTOS_HOME;
-  process.env.CONTEXTOS_HOME = homeDir;
+  prevHome = process.env.COODRA_HOME;
+  process.env.COODRA_HOME = homeDir;
   mockReadTeamConfig.mockReset();
 });
 
 afterEach(() => {
   if (prevHome === undefined) {
-    delete process.env.CONTEXTOS_HOME;
+    delete process.env.COODRA_HOME;
   } else {
-    process.env.CONTEXTOS_HOME = prevHome;
+    process.env.COODRA_HOME = prevHome;
   }
 });
 

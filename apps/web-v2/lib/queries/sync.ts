@@ -1,4 +1,4 @@
-import { sqliteSchema } from '@coodra/contextos-db';
+import { sqliteSchema } from '@coodra/db';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -46,7 +46,7 @@ export interface SyncSnapshot {
 }
 
 export async function fetchSyncSnapshot(): Promise<SyncSnapshot> {
-  const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
   const db = createWebDb();
   if (db.kind !== 'sqlite') {
     return { mode, queues: [], recentDead: [], fetchedAt: new Date().toISOString() };

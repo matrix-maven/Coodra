@@ -12,7 +12,7 @@ import type { Check } from '../types.js';
  * parser, reports YELLOW if any parse error is detected. Catches a
  * regression where someone edits a template by hand and breaks an
  * @auto open/close pair — would otherwise only surface when an
- * operator runs `contextos init --mode auto` with that template.
+ * operator runs `coodra init --mode auto` with that template.
  *
  * GREEN when every shipped template's auto sections round-trip
  * cleanly.
@@ -62,7 +62,7 @@ export const autoMarkerSmokeCheck: Check = {
       status: 'yellow',
       detail: `${errors.length} parser issue(s): ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? `…+${errors.length - 3} more` : ''}`,
       remediation:
-        'Run `pnpm --filter @coodra/contextos-cli test:unit` to surface the same errors in the parser test suite, then fix the offending template files.',
+        'Run `pnpm --filter @coodra/cli test:unit` to surface the same errors in the parser test suite, then fix the offending template files.',
     };
   },
 };

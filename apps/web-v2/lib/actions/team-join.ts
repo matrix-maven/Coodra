@@ -1,7 +1,7 @@
 'use server';
 
-import { upgradeToTeamConfig, writeTeamHomeEnv } from '@coodra/contextos-cli/lib/team-config';
-import { createPostgresDb } from '@coodra/contextos-db';
+import { upgradeToTeamConfig, writeTeamHomeEnv } from '@coodra/cli/lib/team-config';
+import { createPostgresDb } from '@coodra/db';
 import { redirect } from 'next/navigation';
 
 import { refuseInTeamHosted } from '@/lib/action-guards';
@@ -10,7 +10,7 @@ import { refuseInTeamHosted } from '@/lib/action-guards';
  * `apps/web-v2/lib/actions/team-join.ts` — server action backing the
  * web flow at `/onboarding/team/join`.
  *
- * This is the web-app equivalent of the CLI's `contextos team join`
+ * This is the web-app equivalent of the CLI's `coodra team join`
  * command. It exists because the per-developer local-web deployment
  * pattern needs a way for *anyone* (admin on a new machine, freshly
  * onboarded member, viewer who only browses the web) to bootstrap
@@ -18,26 +18,26 @@ import { refuseInTeamHosted } from '@/lib/action-guards';
  *
  * What it does — in this exact order:
  *   1. Validates connectivity (`SELECT 1`) against the supplied DATABASE_URL.
- *   2. Counts the 12 expected ContextOS tables — sanity check that
- *      this is actually a ContextOS-provisioned cloud, not someone
+ *   2. Counts the 12 expected Coodra tables — sanity check that
+ *      this is actually a Coodra-provisioned cloud, not someone
  *      else's database.
- *   3. Calls `upgradeToTeamConfig` (writes `~/.contextos/config.json::team`).
- *   4. Calls `writeTeamHomeEnv` (writes `~/.contextos/.env` with
- *      CONTEXTOS_MODE=team + DATABASE_URL + LOCAL_HOOK_SECRET +
- *      CONTEXTOS_TEAM_ORG_ID).
+ *   3. Calls `upgradeToTeamConfig` (writes `~/.coodra/config.json::team`).
+ *   4. Calls `writeTeamHomeEnv` (writes `~/.coodra/.env` with
+ *      COODRA_MODE=team + DATABASE_URL + LOCAL_HOOK_SECRET +
+ *      COODRA_TEAM_ORG_ID).
  *   5. Redirects to `/?joined=ok` so the dashboard renders the new
  *      team-mode banner.
  *
  * What it does NOT do — and why:
- *   - It does NOT write the Clerk keys to ~/.contextos/.env. Those
+ *   - It does NOT write the Clerk keys to ~/.coodra/.env. Those
  *     vary by deployment and live at the discretion of the operator.
  *     A future iteration could prompt for them; for now we expect
  *     the user to append them manually (the page tells them how).
- *   - It does NOT call any Clerk API. There's no ContextOS-side
+ *   - It does NOT call any Clerk API. There's no Coodra-side
  *     Clerk integration for "verify this user is in this org" — that
  *     happens at the team's web deployment via `clerkMiddleware`.
  *     This action only writes config; the next time the daemon spawn
- *     reads ~/.contextos/.env, it sees the team identity.
+ *     reads ~/.coodra/.env, it sees the team identity.
  *   - It does NOT generate a hook secret. The whole point is that
  *     the user supplies the *team's existing* secret so they
  *     authenticate against existing teammates' machines.
@@ -63,8 +63,8 @@ const REQUIRED_TABLES: ReadonlyArray<string> = [
 ];
 
 export async function joinExistingTeamAction(formData: FormData): Promise<void> {
-  // `team join` writes ~/.contextos/config.json + .env on the local
-  // laptop. On a Vercel deployment there's no ~/.contextos to write
+  // `team join` writes ~/.coodra/config.json + .env on the local
+  // laptop. On a Vercel deployment there's no ~/.coodra to write
   // to. Refuse so an operator doesn't accidentally try to "join" the
   // hosted deployment to itself.
   refuseInTeamHosted('joinExistingTeamAction');

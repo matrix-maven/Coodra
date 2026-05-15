@@ -8,7 +8,7 @@ import { type DbMigrateIO, runDbMigrateCommand } from '../../src/commands/db-mig
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../../src/exit-codes.js';
 
 /**
- * Module 08b S5 — `contextos db migrate` integration tests (4 fixtures).
+ * Module 08b S5 — `coodra db migrate` integration tests (4 fixtures).
  *
  * Tests use the real bundled migrations folder (resolved by the same
  * runtime-paths helper init.ts uses) so any drift between migrate's
@@ -31,7 +31,7 @@ function makeIo(homePath: string, cap: Capture, migrationsDir = REPO_DRIZZLE_SQL
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: homePath,
+    coodraHome: homePath,
     migrationsDir,
   };
 }
@@ -53,7 +53,7 @@ let pidsDir: string;
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-db-migrate-int-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   pidsDir = join(homePath, 'pids');
   mkdirSync(homePath, { recursive: true });
   mkdirSync(pidsDir, { recursive: true });
@@ -63,7 +63,7 @@ afterEach(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('contextos db migrate integration', () => {
+describe('coodra db migrate integration', () => {
   it('Fixture 1 — clean DB applies all migrations and reports the count', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() => runDbMigrateCommand({ json: true }, makeIo(homePath, cap)));

@@ -7,7 +7,7 @@ import { probeHealthz } from '../../../src/doctor/checks/10-mcp-healthz.js';
 /**
  * Locks the post-08a-cleanup PID-aware severity refinement: doctor
  * checks 10/11 distinguish "process crashed" (RED) from "never started"
- * (YELLOW) by reading `<contextos-home>/pids/<unitName>.pid`.
+ * (YELLOW) by reading `<coodra-home>/pids/<unitName>.pid`.
  *
  * The probe target is a local port that's guaranteed unbound (we use a
  * high random port nobody listens on). fetch fails ECONNREFUSED, then
@@ -22,7 +22,7 @@ describe('probeHealthz — PID-aware severity', () => {
   const URL = `http://127.0.0.1:${UNBOUND_PORT}/healthz`;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-healthz-pid-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-healthz-pid-'));
     await mkdir(join(home, 'pids'), { recursive: true, mode: 0o700 });
   });
 
@@ -30,17 +30,17 @@ describe('probeHealthz — PID-aware severity', () => {
     await rm(home, { recursive: true, force: true });
   });
 
-  it('YELLOW with `Run contextos start` remediation when no PID file (never started)', async () => {
+  it('YELLOW with `Run coodra start` remediation when no PID file (never started)', async () => {
     const result = await probeHealthz({
       url: URL,
       timeoutMs: 1000,
       label: 'Hooks Bridge',
-      contextosHome: home,
+      coodraHome: home,
       unitName: 'hooks-bridge',
     });
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/ECONNREFUSED|probe failed/);
-    expect(result.remediation).toMatch(/contextos start/);
+    expect(result.remediation).toMatch(/coodra start/);
   });
 
   it('RED with crash-recovery remediation when PID file exists but PID is dead', async () => {
@@ -65,12 +65,12 @@ describe('probeHealthz — PID-aware severity', () => {
       url: URL,
       timeoutMs: 1000,
       label: 'Hooks Bridge',
-      contextosHome: home,
+      coodraHome: home,
       unitName: 'hooks-bridge',
     });
     expect(result.status).toBe('red');
     expect(result.detail).toMatch(new RegExp(`PID file points at PID ${deadPid}.*no longer alive`));
-    expect(result.remediation).toMatch(/contextos stop.*contextos start/s);
+    expect(result.remediation).toMatch(/coodra stop.*coodra start/s);
   });
 
   it('YELLOW (transient) when PID file exists and PID is alive but probe fails', async () => {
@@ -83,12 +83,12 @@ describe('probeHealthz — PID-aware severity', () => {
       url: URL,
       timeoutMs: 1000,
       label: 'Hooks Bridge',
-      contextosHome: home,
+      coodraHome: home,
       unitName: 'hooks-bridge',
     });
     // Process is alive but probe fails — yellow with remediation,
     // not red (no crash signal).
     expect(result.status).toBe('yellow');
-    expect(result.remediation).toMatch(/contextos start/);
+    expect(result.remediation).toMatch(/coodra start/);
   });
 });

@@ -1,6 +1,6 @@
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+import { readVerifiedToken } from '@coodra/shared/auth';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED } from '../exit-codes.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { pc } from '../ui/index.js';
 
 import { type LoginIO, type LoginOptions, runLoginCommand } from './login.js';
@@ -12,13 +12,13 @@ import { type LoginIO, type LoginOptions, runLoginCommand } from './login.js';
  * orgs; the CLI binds to ONE active org at a time (Phase G v1 — no
  * multiplexing).
  *
- *   - `contextos org status` — prints the active org from the
+ *   - `coodra org status` — prints the active org from the
  *      verified clerk-token.json (org id + role + email).
  *
- *   - `contextos org switch <orgSlug>` — opens browser handoff so the
+ *   - `coodra org switch <orgSlug>` — opens browser handoff so the
  *      user can pick a different org in Clerk's organization switcher,
  *      then mints a fresh JWT bound to that org. Internally delegates
- *      to `runLoginCommand` — the only difference vs `contextos login`
+ *      to `runLoginCommand` — the only difference vs `coodra login`
  *      is the friendly preamble announcing the org switch.
  *
  * The `<orgSlug>` argument is informational for v1 — the actual org
@@ -59,7 +59,7 @@ export interface OrgStatusOptions {
 }
 
 export async function runOrgStatusCommand(options: OrgStatusOptions = {}, io: OrgIO = DEFAULT_ORG_IO): Promise<never> {
-  const home = resolveContextosHome({
+  const home = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env: options.env ?? process.env,
   });
@@ -72,7 +72,7 @@ export async function runOrgStatusCommand(options: OrgStatusOptions = {}, io: Or
   }
 
   if (claims === null) {
-    io.writeStdout(`${pc.gray('No active Clerk session.')} Run \`contextos login\` to sign in.\n`);
+    io.writeStdout(`${pc.gray('No active Clerk session.')} Run \`coodra login\` to sign in.\n`);
     return io.exit(EXIT_OK);
   }
 
@@ -84,7 +84,7 @@ export async function runOrgStatusCommand(options: OrgStatusOptions = {}, io: Or
       `  Role:    ${pc.cyan(claims.role)}\n` +
       `  Expires: ${pc.gray(claims.expiresAt.toISOString())}\n` +
       `\n` +
-      `To switch orgs (multi-org users): \`contextos org switch <orgSlug>\`\n`,
+      `To switch orgs (multi-org users): \`coodra org switch <orgSlug>\`\n`,
   );
   return io.exit(EXIT_OK);
 }
@@ -100,9 +100,9 @@ export interface OrgSwitchOptions {
 export async function runOrgSwitchCommand(options: OrgSwitchOptions = {}, io: OrgIO = DEFAULT_ORG_IO): Promise<never> {
   if (options.targetOrgSlug === undefined || options.targetOrgSlug.trim().length === 0) {
     io.writeStderr(
-      `${pc.red('contextos org switch')}: missing <orgSlug> argument.\n` +
+      `${pc.red('coodra org switch')}: missing <orgSlug> argument.\n` +
         `\n` +
-        `  Usage: contextos org switch <orgSlug>\n` +
+        `  Usage: coodra org switch <orgSlug>\n` +
         `\n` +
         `  The slug is the org's short identifier in Clerk (e.g. "acme").\n` +
         `  When the browser opens, you'll see your org switcher — pick the matching org and sign in.\n` +
@@ -112,7 +112,7 @@ export async function runOrgSwitchCommand(options: OrgSwitchOptions = {}, io: Or
   }
 
   io.writeStdout(
-    `${pc.cyan(`contextos org switch — switching to org "${options.targetOrgSlug}"`)}\n` +
+    `${pc.cyan(`coodra org switch — switching to org "${options.targetOrgSlug}"`)}\n` +
       pc.gray("  Opening browser. Pick the target org in Clerk's switcher when prompted.\n"),
   );
 

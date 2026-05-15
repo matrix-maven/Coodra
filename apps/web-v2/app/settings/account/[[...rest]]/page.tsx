@@ -43,7 +43,7 @@ export default async function AccountSettingsPage() {
   const { UserProfile } = await import('@clerk/nextjs');
   return (
     <>
-      <Topbar crumb="Account" crumbPrefix="contextos / settings" />
+      <Topbar crumb="Account" crumbPrefix="coodra / settings" />
       <section className="screen" style={{ maxWidth: 1100 }}>
         <div className="head">
           <div>
@@ -52,7 +52,7 @@ export default async function AccountSettingsPage() {
               Your <em>account</em>.
             </h1>
             <p className="head__lede">
-              Managed by Clerk. ContextOS uses your Clerk identity for every read + write you make against the team
+              Managed by Clerk. Coodra uses your Clerk identity for every read + write you make against the team
               workspace; updates here propagate to every page on next refresh.
             </p>
           </div>

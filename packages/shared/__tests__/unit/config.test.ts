@@ -5,9 +5,9 @@ import { baseEnvSchema, loadBaseEnv, parseEnv } from '../../src/config.js';
 import { ValidationError } from '../../src/errors/index.js';
 
 describe('baseEnvSchema', () => {
-  it('defaults CONTEXTOS_MODE to solo', () => {
+  it('defaults COODRA_MODE to solo', () => {
     const parsed = parseEnv(baseEnvSchema, {});
-    expect(parsed.CONTEXTOS_MODE).toBe('solo');
+    expect(parsed.COODRA_MODE).toBe('solo');
   });
 
   it('defaults LOG_LEVEL to info', () => {
@@ -21,12 +21,12 @@ describe('baseEnvSchema', () => {
   });
 
   it('accepts team mode', () => {
-    const parsed = parseEnv(baseEnvSchema, { CONTEXTOS_MODE: 'team' });
-    expect(parsed.CONTEXTOS_MODE).toBe('team');
+    const parsed = parseEnv(baseEnvSchema, { COODRA_MODE: 'team' });
+    expect(parsed.COODRA_MODE).toBe('team');
   });
 
-  it('rejects invalid CONTEXTOS_MODE', () => {
-    expect(() => parseEnv(baseEnvSchema, { CONTEXTOS_MODE: 'cloud' })).toThrow(ValidationError);
+  it('rejects invalid COODRA_MODE', () => {
+    expect(() => parseEnv(baseEnvSchema, { COODRA_MODE: 'cloud' })).toThrow(ValidationError);
   });
 
   it('rejects invalid LOG_LEVEL', () => {
@@ -92,7 +92,7 @@ describe('loadBaseEnv', () => {
     const env = loadBaseEnv({});
     expect(env).toEqual({
       NODE_ENV: 'development',
-      CONTEXTOS_MODE: 'solo',
+      COODRA_MODE: 'solo',
       LOG_LEVEL: 'info',
     });
   });

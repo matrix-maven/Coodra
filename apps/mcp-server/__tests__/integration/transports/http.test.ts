@@ -1,4 +1,4 @@
-import { migrateSqlite } from '@coodra/contextos-db';
+import { migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { __internal as envInternal } from '../../../src/config/env.js';
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
@@ -35,7 +35,7 @@ interface Harness {
 }
 
 type EnvOverride = {
-  readonly CONTEXTOS_MODE?: 'solo' | 'team';
+  readonly COODRA_MODE?: 'solo' | 'team';
   readonly CLERK_SECRET_KEY?: string;
   readonly CLERK_PUBLISHABLE_KEY?: string;
   readonly LOCAL_HOOK_SECRET?: string;
@@ -47,8 +47,8 @@ function buildEnv(override: EnvOverride): Parameters<typeof startHttpTransport>[
   const base = {
     NODE_ENV: 'test',
     LOG_LEVEL: 'error',
-    CONTEXTOS_MODE: override.CONTEXTOS_MODE ?? 'solo',
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
+    COODRA_MODE: override.COODRA_MODE ?? 'solo',
+    COODRA_LOG_DESTINATION: 'stderr',
     MCP_SERVER_PORT: override.MCP_SERVER_PORT ?? 0,
     MCP_SERVER_HOST: '127.0.0.1',
     MCP_SERVER_TRANSPORT: 'http',
@@ -77,7 +77,7 @@ async function openHarness(envOverride: EnvOverride = {}): Promise<Harness> {
 
   const handle2 = await startHttpTransport({
     registry,
-    serverName: '@coodra/contextos-mcp-server-test',
+    serverName: '@coodra/mcp-server-test',
     serverVersion: '0.0.0-test',
     env,
   });
@@ -149,7 +149,7 @@ describe('http transport — unknown path', () => {
 describe('http transport — /mcp auth: solo-bypass (sentinel CLERK_SECRET_KEY)', () => {
   let h: Harness;
   beforeEach(async () => {
-    h = await openHarness({ CLERK_SECRET_KEY: 'sk_test_replace_me', CONTEXTOS_MODE: 'solo' });
+    h = await openHarness({ CLERK_SECRET_KEY: 'sk_test_replace_me', COODRA_MODE: 'solo' });
   });
   afterEach(async () => {
     await h.close();
@@ -185,7 +185,7 @@ describe('http transport — /mcp auth: solo-bypass (sentinel CLERK_SECRET_KEY)'
       result?: { protocolVersion?: string; serverInfo?: { name: string } };
     };
     expect(body.jsonrpc).toBe('2.0');
-    expect(body.result?.serverInfo?.name).toBe('@coodra/contextos-mcp-server-test');
+    expect(body.result?.serverInfo?.name).toBe('@coodra/mcp-server-test');
   });
 });
 
@@ -200,7 +200,7 @@ describe('http transport — /mcp auth: team mode rejects unauthenticated', () =
     // requiring a live Clerk tenant (the JWT path returns 401 on a
     // bogus token, which is what we want to exercise).
     h = await openHarness({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_realistic_but_fake_secret_only_for_testing_xxx',
       CLERK_PUBLISHABLE_KEY: 'pk_test_realistic_but_fake_publishable_xxx',
       LOCAL_HOOK_SECRET: 'integration-test-hook-secret-16chars-min',
@@ -257,7 +257,7 @@ describe('http transport — /mcp auth: X-Local-Hook-Secret matches', () => {
   const HOOK = 'integration-test-hook-secret-16chars-min';
   beforeEach(async () => {
     h = await openHarness({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_realistic_but_fake_secret_only_for_testing_xxx',
       CLERK_PUBLISHABLE_KEY: 'pk_test_realistic_but_fake_publishable_xxx',
       LOCAL_HOOK_SECRET: HOOK,

@@ -1,8 +1,8 @@
-import { type BaseEnv, baseEnvSchema, parseEnv } from '@coodra/contextos-shared';
+import { type BaseEnv, baseEnvSchema, parseEnv } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
- * The one and only place in `@coodra/contextos-mcp-server` that reads
+ * The one and only place in `@coodra/mcp-server` that reads
  * `process.env`. Every other module depends on the typed `env`
  * singleton exported at the bottom of this file. Any direct
  * `process.env.X` reference outside this file is a lint-level bug
@@ -15,7 +15,7 @@ import { z } from 'zod';
  *   2. The result is a fully-typed object. No `string | undefined`
  *      leaks out; every variable is either required (and validated)
  *      or has a defaulted non-undefined value.
- *   3. Failure is a `ValidationError` from `@coodra/contextos-shared` —
+ *   3. Failure is a `ValidationError` from `@coodra/shared` —
  *      same error class the db layer uses — carrying the specific
  *      Zod path so operators can find the offending variable.
  *   4. Mode-conditional rules (Clerk keys required in team mode)
@@ -23,8 +23,8 @@ import { z } from 'zod';
  *      of the Module 02 plan and are locked by the regression test
  *      in S7a (Module 02 implementation plan).
  *
- * S5 scope note: only CONTEXTOS_MODE, LOG_LEVEL, HOSTNAME, and
- * CONTEXTOS_LOG_DESTINATION are actually CONSUMED in S5 (stdio
+ * S5 scope note: only COODRA_MODE, LOG_LEVEL, HOSTNAME, and
+ * COODRA_LOG_DESTINATION are actually CONSUMED in S5 (stdio
  * transport, no auth). The rest of the schema is defined now so that
  * S6+ slices can rely on a single, versioned `env` shape from day one.
  * Defining all variables up-front is deliberate: it moves shape
@@ -37,7 +37,7 @@ const SOLO_BYPASS_CLERK_SENTINEL = 'sk_test_replace_me' as const;
 const mcpServerEnvSchema = baseEnvSchema
   .extend({
     /** stdio transport requires stderr (bootstrap enforces this). */
-    CONTEXTOS_LOG_DESTINATION: z
+    COODRA_LOG_DESTINATION: z
       .enum(['stdout', 'stderr'])
       .default('stderr')
       .describe(
@@ -90,11 +90,11 @@ const mcpServerEnvSchema = baseEnvSchema
      * Override for the on-disk `context_packs/` materialisation root.
      * `lib/context-pack.ts` defaults to `<cwd>/docs/context-packs`,
      * which is correct when the binary runs from the repo root and
-     * wrong everywhere else (e.g., a future `npx contextos-mcp-server`
+     * wrong everywhere else (e.g., a future `npx coodra-mcp-server`
      * launched from an arbitrary directory). Operators set this when
      * running outside the repo. Closes verification finding §8.5.
      */
-    CONTEXTOS_CONTEXT_PACKS_ROOT: z
+    COODRA_CONTEXT_PACKS_ROOT: z
       .string()
       .min(1)
       .optional()
@@ -102,13 +102,13 @@ const mcpServerEnvSchema = baseEnvSchema
 
     /**
      * Override for the Graphify index root. `lib/graphify.ts` defaults
-     * to `~/.contextos/graphify`. Closes verification finding §8.5.
+     * to `~/.coodra/graphify`. Closes verification finding §8.5.
      */
-    CONTEXTOS_GRAPHIFY_ROOT: z
+    COODRA_GRAPHIFY_ROOT: z
       .string()
       .min(1)
       .optional()
-      .describe('Override for graph.json lookups. Defaults to ~/.contextos/graphify.'),
+      .describe('Override for graph.json lookups. Defaults to ~/.coodra/graphify.'),
 
     /**
      * Shared secret that the local PostToolUse hook client uses to
@@ -159,7 +159,7 @@ const mcpServerEnvSchema = baseEnvSchema
     // secret requires BOTH Clerk keys to be present, otherwise the
     // server would silently run as solo-bypass in production — the
     // hardest-to-detect auth failure mode.
-    if (env.CONTEXTOS_MODE === 'team' && env.CLERK_SECRET_KEY !== SOLO_BYPASS_CLERK_SENTINEL) {
+    if (env.COODRA_MODE === 'team' && env.CLERK_SECRET_KEY !== SOLO_BYPASS_CLERK_SENTINEL) {
       if (!env.CLERK_SECRET_KEY) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -182,7 +182,7 @@ export type McpServerEnv = z.infer<typeof mcpServerEnvSchema> & BaseEnv;
 
 /**
  * Typed env singleton. Parsed exactly once, at first import, via
- * @coodra/contextos-shared's `parseEnv` so the ValidationError shape is
+ * @coodra/shared's `parseEnv` so the ValidationError shape is
  * identical to every other service's startup failure.
  */
 export const env: McpServerEnv = parseEnv(mcpServerEnvSchema) as McpServerEnv;

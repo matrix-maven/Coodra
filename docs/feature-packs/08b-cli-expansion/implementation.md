@@ -6,7 +6,7 @@
 
 - M08a squash-merged on `main` at the SHA from its closeout pack. CI green.
 - M03 squash-merged + the auto-pack-save / auto-feature-pack-injection hooks are reachable (`apps/hooks-bridge/src/handlers/{session-start,session-end}.ts`).
-- M04a squash-merged (sync-daemon present) so `contextos logs sync-daemon` has a real log file to read.
+- M04a squash-merged (sync-daemon present) so `coodra logs sync-daemon` has a real log file to read.
 - Eight open questions from `spec.md §11` answered. The answers land as a same-commit edit to spec.md §11 in **S0** (this slice).
 
 ## Slice sequence
@@ -25,7 +25,7 @@
 
 ### S1 — `kill_switches` schema + migration 0007 + ensure helper
 
-Schema delta the rest of M08b depends on. Lands the table on both SQLite and Postgres dialects, generates migration `0007_*` via `pnpm --filter @coodra/contextos-db db:generate`, sha-locks any hand-written preserve blocks (none anticipated for this delta) in `migrations.lock.json`, ships `packages/db/src/kill-switches.ts` with the helper functions every other slice imports.
+Schema delta the rest of M08b depends on. Lands the table on both SQLite and Postgres dialects, generates migration `0007_*` via `pnpm --filter @coodra/db db:generate`, sha-locks any hand-written preserve blocks (none anticipated for this delta) in `migrations.lock.json`, ships `packages/db/src/kill-switches.ts` with the helper functions every other slice imports.
 
 > **Migration-number note (2026-05-03):** the original spec drafted at S0 named this migration `0006_*`. Between draft and lock, Phase 4 Fix K (commit `92e37a6`) landed on `main` claiming the 0006 slot for the `policy_rules` UNIQUE-constraint cleanup. M08b's kill_switches table therefore lands as `0007_*` on both dialects. Drizzle-kit will pick the next-free integer prefix automatically; this note exists so that the diff between spec/implementation and what shows up on disk is explained.
 
@@ -44,9 +44,9 @@ Schema delta the rest of M08b depends on. Lands the table on both SQLite and Pos
 - `packages/db/__tests__/integration/kill-switches.test.ts` (NEW) — 7 fixtures: insert + active-list, insert two scopes + active-list shape, scope='global' match, scope='project' match, scope='tool' match, scope='agent_type' match, expires_at in past = treated-as-resumed by `listActiveKillSwitches`.
 
 **Acceptance:**
-- `pnpm --filter @coodra/contextos-db db:generate` produces migration `0007_*` on both dialects.
-- `pnpm --filter @coodra/contextos-db check:migration-lock` is clean.
-- `pnpm --filter @coodra/contextos-db test:integration` green (7 new fixtures + every existing test).
+- `pnpm --filter @coodra/db db:generate` produces migration `0007_*` on both dialects.
+- `pnpm --filter @coodra/db check:migration-lock` is clean.
+- `pnpm --filter @coodra/db test:integration` green (7 new fixtures + every existing test).
 - Schema-parity test green (no dialect drift beyond the M02-allowed text-vs-vector).
 
 **Reference updates in the same commit:** `External api and library reference.md` → Drizzle ORM subsection — append "kill_switches table — soft-resume pattern" paragraph noting the polymorphic `(scope, target)` shape and the active-switch index.
@@ -89,9 +89,9 @@ The bridge's read uses `listActiveKillSwitches(db, projectId)` cached in-process
 
 ---
 
-### S3 — `contextos pause` + `contextos resume` CLI commands
+### S3 — `coodra pause` + `coodra resume` CLI commands
 
-CLI surface for the kill-switch table. Direct DB writes via `@coodra/contextos-db` helpers (no MCP tool, no bridge call needed — same posture as `ensureDefaultPolicy`).
+CLI surface for the kill-switch table. Direct DB writes via `@coodra/db` helpers (no MCP tool, no bridge call needed — same posture as `ensureDefaultPolicy`).
 
 **Files:**
 - `packages/cli/src/commands/pause.ts` (NEW) — argument parsing (commander), Zod-validate the `--scope`, resolve target (project slug → projectId via `lookupProject`, tool name passed verbatim, agent_type passed verbatim), call `insertKillSwitch`, print `✓ Paused <scope>=<target> for <duration> (id: <id>)`. JSON output behind `--json`.
@@ -112,9 +112,9 @@ CLI surface for the kill-switch table. Direct DB writes via `@coodra/contextos-d
 
 ---
 
-### S4 — `contextos logs <service>` (tail + read)
+### S4 — `coodra logs <service>` (tail + read)
 
-Pure file-read command. Reads `<contextosHome>/logs/<service>.log`. `--follow` uses `node:fs::watch` (the same pattern Hono dev tools use) — no `tail` shellout to keep Windows parity. `--since <ISO|relative>` parses with the duration parser from S3.
+Pure file-read command. Reads `<coodraHome>/logs/<service>.log`. `--follow` uses `node:fs::watch` (the same pattern Hono dev tools use) — no `tail` shellout to keep Windows parity. `--since <ISO|relative>` parses with the duration parser from S3.
 
 **Files:**
 - `packages/cli/src/commands/logs.ts` (NEW).
@@ -126,36 +126,36 @@ Pure file-read command. Reads `<contextosHome>/logs/<service>.log`. `--follow` u
 **Acceptance:**
 - `--follow` exits cleanly on SIGINT.
 - Unknown service exits 1 with remediation listing valid services.
-- Missing log file exits 2 (likely the daemon hasn't started yet) with a remediation pointer at `contextos start`.
+- Missing log file exits 2 (likely the daemon hasn't started yet) with a remediation pointer at `coodra start`.
 
 **Commit:** `feat(cli): logs <service> tail/read command (M08b S4)`.
 
 ---
 
-### S5 — `contextos db migrate`
+### S5 — `coodra db migrate`
 
 Refactors the existing auto-migrate-at-init code into a standalone command. `init` continues to call the same primitive — no behaviour change there. Adds the standalone surface for upgrade flows (S7) and operator scripting.
 
 **Files:**
-- `packages/cli/src/commands/db-migrate.ts` (NEW) — opens local SQLite via `openLocalDb`, calls `migrateSqlite(handle.db)`, reports the number of migrations applied + last-migration timestamp. `--dry-run` calls `getPendingMigrations` (NEW helper in `@coodra/contextos-db`) without applying. Refuses to run while daemons are running unless `--with-daemons-running` is set; daemons-running check uses the existing `pid-status.ts` from M08a.
+- `packages/cli/src/commands/db-migrate.ts` (NEW) — opens local SQLite via `openLocalDb`, calls `migrateSqlite(handle.db)`, reports the number of migrations applied + last-migration timestamp. `--dry-run` calls `getPendingMigrations` (NEW helper in `@coodra/db`) without applying. Refuses to run while daemons are running unless `--with-daemons-running` is set; daemons-running check uses the existing `pid-status.ts` from M08a.
 - `packages/db/src/index.ts` (MODIFIED) — export `getPendingMigrations(db: DbHandle): Promise<{ filename: string; appliedAt: Date | null }[]>` (new helper).
 - `packages/cli/src/program.ts` (MODIFIED) — `program.command('db').command('migrate')` per the M08a `team` subcommand pattern.
 - `packages/cli/__tests__/integration/db-migrate.test.ts` (NEW) — 4 fixtures: clean DB → applies all migrations, applied DB → reports 0 pending, daemons running → exits 1 unless `--with-daemons-running`, dry-run → no schema mutation.
 
 **Acceptance:**
 - Re-running `db migrate` is a no-op (idempotent, exits 0).
-- Daemons-running detection is based on `~/.contextos/pids/*.pid` per M08a, not by probing the port (a stale pid + dead process must not block the migration).
+- Daemons-running detection is based on `~/.coodra/pids/*.pid` per M08a, not by probing the port (a stale pid + dead process must not block the migration).
 
 **Commit:** `feat(cli): db migrate command (M08b S5)`.
 
 ---
 
-### S6 — `contextos db backup` + `contextos db restore`
+### S6 — `coodra db backup` + `coodra db restore`
 
 Per OQ-3 the default backup format is single-file `.sqlite` via `VACUUM INTO`; `--include-logs` produces a tarball. Per OQ-4 restore is atomic-replace with auto-backup-of-current; refuses if daemons running.
 
 **Files:**
-- `packages/cli/src/commands/db-backup.ts` (NEW) — opens the live SQLite for read, runs `VACUUM INTO ?` against the destination path. Backup path defaults to `~/.contextos/backups/data.db.bak.<ISO-with-colons-replaced>`. `--include-logs` switches to a tarball output via `node:zlib` + `tar-stream` (or `tar` if cleaner — see techstack.md). On `SQLITE_BUSY`, retries with `[100ms, 250ms, 1s]` backoff per spec §9.
+- `packages/cli/src/commands/db-backup.ts` (NEW) — opens the live SQLite for read, runs `VACUUM INTO ?` against the destination path. Backup path defaults to `~/.coodra/backups/data.db.bak.<ISO-with-colons-replaced>`. `--include-logs` switches to a tarball output via `node:zlib` + `tar-stream` (or `tar` if cleaner — see techstack.md). On `SQLITE_BUSY`, retries with `[100ms, 250ms, 1s]` backoff per spec §9.
 - `packages/cli/src/commands/db-restore.ts` (NEW) — checks daemon-running state (refuses if running), validates `<path>` exists + is a SQLite file (magic-bytes check), takes auto-backup of current DB to `<current>.pre-restore-<ISO>`, atomic replaces via temp+rename. `--force` skips the confirmation prompt; `--no-auto-backup` skips the safety copy (warns aloud first).
 - `packages/cli/src/lib/sqlite-magic.ts` (NEW) — small helper: read first 16 bytes, verify SQLite header (`53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00`).
 - `packages/cli/src/program.ts` (MODIFIED) — `program.command('db').command('backup')` + `program.command('db').command('restore')`.
@@ -173,15 +173,15 @@ Per OQ-3 the default backup format is single-file `.sqlite` via `VACUUM INTO`; `
 
 ---
 
-### S7 — `contextos upgrade`
+### S7 — `coodra upgrade`
 
-Three phases: (1) check published version vs installed via `npm view @coodra/contextos-cli version` (HTTPS GET, ~250ms p95 against `registry.npmjs.org`), (2) if the user has already installed the new version, run `db migrate` + cycle daemons, (3) print the install command for the user when a newer version is detected.
+Three phases: (1) check published version vs installed via `npm view @coodra/cli version` (HTTPS GET, ~250ms p95 against `registry.npmjs.org`), (2) if the user has already installed the new version, run `db migrate` + cycle daemons, (3) print the install command for the user when a newer version is detected.
 
-The CLI **does not self-update** — npm cannot reliably overwrite a binary that's currently executing on Windows, and on Linux/macOS the user's `node_modules/.bin/contextos` symlink would point at a half-written file mid-update. The user runs the command; the CLI confirms the result.
+The CLI **does not self-update** — npm cannot reliably overwrite a binary that's currently executing on Windows, and on Linux/macOS the user's `node_modules/.bin/coodra` symlink would point at a half-written file mid-update. The user runs the command; the CLI confirms the result.
 
 **Files:**
-- `packages/cli/src/commands/upgrade.ts` (NEW) — orchestration: read installed version from `package.json` shipped with the CLI (already exposed by `version.ts` from M08a), spawn `npm view @coodra/contextos-cli version --json` via `execa`, parse, semver-compare. If installed >= published, run `db migrate` + restart daemons via existing `runStopCommand` + `runStartCommand`. If installed < published, print the install command + exit 2.
-- `packages/cli/src/lib/npm-view.ts` (NEW) — thin wrapper around `execa('npm', ['view', '@coodra/contextos-cli', 'version', '--json'], { timeout: 5_000 })`. Returns parsed version or throws with structured error.
+- `packages/cli/src/commands/upgrade.ts` (NEW) — orchestration: read installed version from `package.json` shipped with the CLI (already exposed by `version.ts` from M08a), spawn `npm view @coodra/cli version --json` via `execa`, parse, semver-compare. If installed >= published, run `db migrate` + restart daemons via existing `runStopCommand` + `runStartCommand`. If installed < published, print the install command + exit 2.
+- `packages/cli/src/lib/npm-view.ts` (NEW) — thin wrapper around `execa('npm', ['view', '@coodra/cli', 'version', '--json'], { timeout: 5_000 })`. Returns parsed version or throws with structured error.
 - `packages/cli/src/program.ts` (MODIFIED).
 - `packages/cli/__tests__/unit/commands/upgrade.test.ts` (NEW) — 5 fixtures: stub npm-view → newer published, stub npm-view → matching, stub npm-view → throws (registry outage), `--check-only` does not restart, restart phase calls stop+start in order.
 
@@ -195,21 +195,21 @@ The CLI **does not self-update** — npm cannot reliably overwrite a binary that
 
 ---
 
-### S8 — `contextos uninstall`
+### S8 — `coodra uninstall`
 
 Per OQ-5 the default is conservative — preserve user data + config + feature/context packs unless `--purge`. Removes IDE-side wires (the things M08a init wrote). Prints (does not run) the npm-uninstall command for the user.
 
 **Files:**
 - `packages/cli/src/commands/uninstall.ts` (NEW) — reverses M08a's `init` writes, in reverse order:
   1. Stop daemons (`runStopCommand({ uninstall: true })` from M08a — already removes daemon-manager units).
-  2. Remove `__contextos__` matcher entries from `~/.claude/settings.json` (re-uses `mergeClaudeSettings` logic, in "remove" mode — new `removeClaudeSettings` helper next to existing `mergeClaudeSettings`).
-  3. Remove the `contextos` server entry from `<cwd>/.mcp.json` (new `removeMcpJson` helper next to existing `mergeMcpJson`).
-  4. Optionally `--purge`: `rm -rf ~/.contextos/`.
-  5. Always: print the `npm uninstall -g @coodra/contextos-cli` command for the user.
-- `packages/cli/src/lib/init/claude-settings-merge.ts` (MODIFIED) — add `removeClaudeSettings(options): Promise<MergeClaudeSettingsResult>` that finds and drops every entry whose `matcher === '__contextos__'`.
-- `packages/cli/src/lib/init/mcp-merge.ts` (MODIFIED) — add `removeMcpJson(options): Promise<WriteOutcome>` that drops the `contextos` key from `mcpServers`.
+  2. Remove `__coodra__` matcher entries from `~/.claude/settings.json` (re-uses `mergeClaudeSettings` logic, in "remove" mode — new `removeClaudeSettings` helper next to existing `mergeClaudeSettings`).
+  3. Remove the `coodra` server entry from `<cwd>/.mcp.json` (new `removeMcpJson` helper next to existing `mergeMcpJson`).
+  4. Optionally `--purge`: `rm -rf ~/.coodra/`.
+  5. Always: print the `npm uninstall -g @coodra/cli` command for the user.
+- `packages/cli/src/lib/init/claude-settings-merge.ts` (MODIFIED) — add `removeClaudeSettings(options): Promise<MergeClaudeSettingsResult>` that finds and drops every entry whose `matcher === '__coodra__'`.
+- `packages/cli/src/lib/init/mcp-merge.ts` (MODIFIED) — add `removeMcpJson(options): Promise<WriteOutcome>` that drops the `coodra` key from `mcpServers`.
 - `packages/cli/src/program.ts` (MODIFIED).
-- `packages/cli/__tests__/integration/uninstall.test.ts` (NEW) — 5 fixtures: removes claude entries, removes mcp entry, default keeps data, `--purge` removes ~/.contextos/, idempotent re-run is exit-0.
+- `packages/cli/__tests__/integration/uninstall.test.ts` (NEW) — 5 fixtures: removes claude entries, removes mcp entry, default keeps data, `--purge` removes ~/.coodra/, idempotent re-run is exit-0.
 
 **Acceptance:**
 - Re-running `uninstall` is exit-0 (idempotent — nothing to remove).
@@ -219,9 +219,9 @@ Per OQ-5 the default is conservative — preserve user data + config + feature/c
 
 ---
 
-### S9 — `contextos policy {list,show,add,enable,disable}`
+### S9 — `coodra policy {list,show,add,enable,disable}`
 
-Admin surface for the `policies` + `policy_rules` tables. Direct DB writes via `@coodra/contextos-db` helpers. Same pattern as `ensureDefaultPolicy` (M08a Phase-3 Fix D).
+Admin surface for the `policies` + `policy_rules` tables. Direct DB writes via `@coodra/db` helpers. Same pattern as `ensureDefaultPolicy` (M08a Phase-3 Fix D).
 
 The MCP server's existing `check_policy` tool reads from the same tables; the policy evaluator's 60-second cache means a `policy add` won't be visible to the running bridge for up to a minute. S9 is OK with that — the cache TTL was chosen for read latency, not write propagation. (A future enhancement: `pause` already invalidates the kill-switch cache; `policy add` could optionally invalidate the policy cache via a sentinel file. Out of S9 scope; called out in the slice's "deferred follow-ups" section.)
 
@@ -245,7 +245,7 @@ The MCP server's existing `check_policy` tool reads from the same tables; the po
 
 ---
 
-### S10 — `contextos project {list,show,reset}`
+### S10 — `coodra project {list,show,reset}`
 
 Admin surface for the `projects` table.
 
@@ -263,7 +263,7 @@ Admin surface for the `projects` table.
 
 ---
 
-### S11 — `contextos run {list,show,cancel}`
+### S11 — `coodra run {list,show,cancel}`
 
 Admin surface for the `runs` table. Per OQ-6 cancel is informational — bridge does not block future events.
 
@@ -280,7 +280,7 @@ Admin surface for the `runs` table. Per OQ-6 cancel is informational — bridge 
 
 ---
 
-### S12 — `contextos export <runId>`
+### S12 — `coodra export <runId>`
 
 Read-only assembler. Per OQ-7 the markdown / html / slack formats default to excluding `policy_decisions`; `--include-audit` opts in. JSON always includes audit.
 
@@ -298,7 +298,7 @@ Read-only assembler. Per OQ-7 the markdown / html / slack formats default to exc
 
 **Acceptance:**
 - All four formats produced for the same `runId` are mutually consistent (json shape ⊇ markdown content).
-- `--out` writes to disk; without it, output goes to stdout (so `contextos export <runId> --format markdown | pbcopy` works on macOS).
+- `--out` writes to disk; without it, output goes to stdout (so `coodra export <runId> --format markdown | pbcopy` works on macOS).
 - `--webhook` failure surfaces the format payload to stdout AS WELL — the user never loses content to a network glitch.
 
 **Commit:** `feat(cli): export <runId> --format markdown|json|html|slack (M08b S12)`.
@@ -312,7 +312,7 @@ Adds the seven bundled templates + the `lib/template-paths.ts` resolver + extend
 **Files:**
 - `packages/cli/templates/{generic,node-monorepo,nextjs-saas,python-ml,python-fastapi,rust-cli,go-service}/` (NEW) — each containing `template.json`, `spec.md.tmpl`, `implementation.md.tmpl`, `techstack.md.tmpl`, `meta.json.tmpl`. Templates ship with explicit `<!-- @auto:* -->` markers in the relevant sections.
 - `packages/cli/scripts/bundle.mjs` (MODIFIED) — copy `templates/**` into `dist/templates/**`. Add the templates to the externals-not-bundled allowlist (asset copy, not bundle).
-- `packages/cli/src/lib/template-paths.ts` (NEW) — same resolver pattern as `runtime-paths.ts`: bundled-first, `~/.contextos/templates/*` second. Returns `{ name, source: 'bundled'|'user', dir }` or null.
+- `packages/cli/src/lib/template-paths.ts` (NEW) — same resolver pattern as `runtime-paths.ts`: bundled-first, `~/.coodra/templates/*` second. Returns `{ name, source: 'bundled'|'user', dir }` or null.
 - `packages/cli/src/lib/templates/load-template.ts` (NEW) — reads `template.json`, validates against a Zod schema, returns the template definition.
 - `packages/cli/src/lib/templates/render.ts` (NEW) — pure: `renderTemplate(definition, context: { slug, languages, deps }): { 'spec.md': string, 'implementation.md': string, 'techstack.md': string, 'meta.json': string }`. Mustache-style hand-rolled `{{slug}}` substitution.
 - `packages/cli/src/lib/templates/detect.ts` (NEW) — `detectTemplate(projectRoot, availableTemplates): TemplateDefinition | null` per the spec.md §7 detection rules.
@@ -389,7 +389,7 @@ Combines S13 (templates) + S14 (parser) — `init --mode auto` detects the templ
 
 ---
 
-### S16 — `contextos pack {new,list,show,regenerate,delete}`
+### S16 — `coodra pack {new,list,show,regenerate,delete}`
 
 Per spec.md §4.3. Reuses S13's templates + S14's parser/serializer + S15's auto-populator.
 
@@ -411,13 +411,13 @@ Per spec.md §4.3. Reuses S13's templates + S14's parser/serializer + S15's auto
 
 ---
 
-### S17 — `contextos template {list,install}`
+### S17 — `coodra template {list,install}`
 
-User templates land in `~/.contextos/templates/<name>/` and override bundled templates of the same name. Bundled templates cannot be overwritten.
+User templates land in `~/.coodra/templates/<name>/` and override bundled templates of the same name. Bundled templates cannot be overwritten.
 
 **Files:**
 - `packages/cli/src/commands/template.ts` (NEW) — two subcommands.
-- `packages/cli/src/lib/templates/install.ts` (NEW) — copies the source directory to `~/.contextos/templates/<name>/` after validating `template.json` + the four `*.tmpl` files. Refuses to overwrite a bundled-template name (i.e. user can't shadow `generic`).
+- `packages/cli/src/lib/templates/install.ts` (NEW) — copies the source directory to `~/.coodra/templates/<name>/` after validating `template.json` + the four `*.tmpl` files. Refuses to overwrite a bundled-template name (i.e. user can't shadow `generic`).
 - `packages/cli/__tests__/integration/template-install.test.ts` (NEW) — 4 fixtures.
 
 **Deferred follow-up (NOT in S17):**
@@ -437,7 +437,7 @@ Adds checks 21–25 to the doctor registry:
 
 - **21 — Active kill-switch count.** Reads `kill_switches WHERE resumed_at IS NULL` + reports count + age of the oldest active switch. YELLOW if count > 0 (not RED — pause is intentional, but operator should know).
 - **22 — Upgrade available.** Only runs with `--check-updates` flag (off by default to keep doctor offline). When on: calls the S7 npm-view helper. YELLOW if newer version available.
-- **23 — Stale backup files.** Walks `~/.contextos/backups/`. YELLOW if any file older than 30 days exists; reports total size.
+- **23 — Stale backup files.** Walks `~/.coodra/backups/`. YELLOW if any file older than 30 days exists; reports total size.
 - **24 — Bundled templates manifest.** Asserts every `dist/templates/<name>/template.json` is present + parseable. RED on parse failure (corrupted install).
 - **25 — Auto-marker grammar smoke.** Loads each bundled template's `*.tmpl` files, runs the S14 parser; YELLOW if any parse error.
 
@@ -484,12 +484,12 @@ After all 19 slices land:
 1. `pnpm build` — clean compile, all packages green.
 2. `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm test:e2e` — full repo green.
 3. **Manual operator walk-through** on a clean-ish dev box:
-   - `npx @coodra/contextos-cli@<sha> init --template nextjs-saas --mode auto` in a fresh Next.js repo. Inspect the four files; confirm template prose is present + auto sections populated from `package.json`.
-   - `contextos pause --reason "demo"`; start a Claude Code session; confirm the agent's first tool-use is denied with `kill_switch_paused:<id>` reason; `contextos resume --all`; next tool-use evaluates against policy normally.
-   - `contextos run list`; `contextos run show <id>`; `contextos export <id> --format markdown` and read the output.
-   - `contextos db backup --include-logs --out /tmp/full.tar.gz`; `tar -tf /tmp/full.tar.gz` lists data + logs + config.
-   - `contextos pack regenerate <slug>` after editing the auto-section content by hand; confirm the user-edit OUTSIDE markers is preserved and the auto-section content INSIDE markers is replaced.
-   - `contextos uninstall`; verify ~/.claude/settings.json has no `__contextos__` matchers; verify ~/.contextos/data.db is preserved; re-run `init` and confirm everything comes back without data loss.
+   - `npx @coodra/cli@<sha> init --template nextjs-saas --mode auto` in a fresh Next.js repo. Inspect the four files; confirm template prose is present + auto sections populated from `package.json`.
+   - `coodra pause --reason "demo"`; start a Claude Code session; confirm the agent's first tool-use is denied with `kill_switch_paused:<id>` reason; `coodra resume --all`; next tool-use evaluates against policy normally.
+   - `coodra run list`; `coodra run show <id>`; `coodra export <id> --format markdown` and read the output.
+   - `coodra db backup --include-logs --out /tmp/full.tar.gz`; `tar -tf /tmp/full.tar.gz` lists data + logs + config.
+   - `coodra pack regenerate <slug>` after editing the auto-section content by hand; confirm the user-edit OUTSIDE markers is preserved and the auto-section content INSIDE markers is replaced.
+   - `coodra uninstall`; verify ~/.claude/settings.json has no `__coodra__` matchers; verify ~/.coodra/data.db is preserved; re-run `init` and confirm everything comes back without data loss.
 4. CI green on `feat/08b-cli-expansion` for every commit on the branch.
 5. Squash-merge to `main` via `gh pr create` then `gh pr merge --squash --delete-branch`.
 
@@ -502,7 +502,7 @@ After all 19 slices land:
 - **`template install <git+https://...>`.** Cloning a remote template is a future S17 follow-up. M08b accepts local paths only.
 - **`policy import/export <file>`.** Snapshotting / sharing policies between projects. Worth doing once we see real demand.
 - **`run replay <id>`.** Replaying a past run's events through the live bridge for testing. Could be useful for regression coverage; out of scope for M08b.
-- **`contextos audit <date-range>` SOC2 export.** A flatter `export --format json` over many runs. Useful for compliance reviews; not in M08b.
+- **`coodra audit <date-range>` SOC2 export.** A flatter `export --format json` over many runs. Useful for compliance reviews; not in M08b.
 - **CRUD on `decisions` / `context_packs` from the CLI.** Both tables are append-only by ADR-007. M08b reads them but never deletes/updates rows.
 - **Windows daemon-manager parity.** M08a deferred Task Scheduler integration; M08b inherits the same posture.
 

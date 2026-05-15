@@ -1,23 +1,23 @@
-# 05 — Agent Trigger Contract: When to Call ContextOS Tools
+# 05 — Agent Trigger Contract: When to Call Coodra Tools
 
-The ContextOS MCP server exposes 26 tools. Their `tools/list` manifest — with full descriptions, input schemas, and return shapes — is specified in `../system-architecture.md` §24. That section tells the agent **what** each tool does and **when it applies**; this file converts those into **directive rules you must follow** while operating on this repo.
+The Coodra MCP server exposes 26 tools. Their `tools/list` manifest — with full descriptions, input schemas, and return shapes — is specified in `../system-architecture.md` §24. That section tells the agent **what** each tool does and **when it applies**; this file converts those into **directive rules you must follow** while operating on this repo.
 
-> **If you do not call these tools, ContextOS does not exist.** The hooks and services described in the architecture are only reachable because the agent's planner decides to invoke the MCP tools. Skipping the triggers below breaks the entire coordination layer — Feature Packs never load, policy never evaluates, context packs never save, prior decisions are forgotten. Follow these rules as if they were runtime preconditions, because for the architecture they are.
+> **If you do not call these tools, Coodra does not exist.** The hooks and services described in the architecture are only reachable because the agent's planner decides to invoke the MCP tools. Skipping the triggers below breaks the entire coordination layer — Feature Packs never load, policy never evaluates, context packs never save, prior decisions are forgotten. Follow these rules as if they were runtime preconditions, because for the architecture they are.
 
 ## 5.1 Session start — FIRST, in parallel, before any other tool call
 
-> **Bridge-mediated autonomous default (Pattern 20, decision `dec_83ba10c1`, 2026-05-02):** when the project is set up via `contextos init`, the hooks-bridge fires Feature Pack injection on Claude Code's SessionStart hook and returns the project-level pack via `additionalContext`. You therefore receive the pack at turn zero *before* this trigger contract runs. The MCP calls below are still required so the agent has its **own** `runId` for `record_decision` / `save_context_pack` and so non-bridge agents (Cursor, Windsurf, raw API) get the same coverage.
+> **Bridge-mediated autonomous default (Pattern 20, decision `dec_83ba10c1`, 2026-05-02):** when the project is set up via `coodra init`, the hooks-bridge fires Feature Pack injection on Claude Code's SessionStart hook and returns the project-level pack via `additionalContext`. You therefore receive the pack at turn zero *before* this trigger contract runs. The MCP calls below are still required so the agent has its **own** `runId` for `record_decision` / `save_context_pack` and so non-bridge agents (Cursor, Windsurf, raw API) get the same coverage.
 
 ### Two knowledge layers — never confuse them
 
-ContextOS exposes two distinct knowledge surfaces. They look similar at a glance but have opposite trigger models, and the difference matters at SessionStart:
+Coodra exposes two distinct knowledge surfaces. They look similar at a glance but have opposite trigger models, and the difference matters at SessionStart:
 
 | | **Feature Packs** | **Features** |
 |---|---|---|
 | What | Architectural blueprint of one **module** (spec.md + implementation.md + techstack.md + meta.json). | Atomic, callable **skill** — single markdown + YAML frontmatter (description / triggers / whenNotToUse) + optional supporting files. |
 | Trigger model | **Push.** Injected via hooks-bridge `additionalContext` at SessionStart; you ALWAYS have the project's pack. | **Pull.** Indexed at SessionStart; you fetch a feature ONLY when a user prompt matches its trigger description. Same pattern as Anthropic Skills. |
 | Granularity | One per logical module (~5–20 per project). | One per reusable skill (20–100+ as the team matures). |
-| Fetch tool | `contextos__get_feature_pack` (rarely needed — see step 2 below). | `contextos__list_features` once, then `contextos__get_feature` per matching slug. |
+| Fetch tool | `coodra__get_feature_pack` (rarely needed — see step 2 below). | `coodra__list_features` once, then `coodra__get_feature` per matching slug. |
 | Filesystem | `<project-root>/docs/feature-packs/<slug>/` | `<project-root>/docs/features/<slug>/feature.md` |
 | When to use | Constraints + conventions + permitted files for the area of the codebase you're editing. | Specific how-to that gets pulled in only when the conversation actually needs it. |
 
@@ -25,11 +25,11 @@ If you find yourself asking "should I use a feature pack or a feature for this?"
 
 ### SessionStart calls
 
-1. `contextos__get_run_id { projectSlug, agentSessionId?, agentType? }` — obtains the `runId` that binds every subsequent call in this session. Cache the result; reuse it. **Pass `agentSessionId` set to the same `session_id` you fire at the hooks-bridge SessionStart hook**, plus `agentType` (`claude_code | cursor | windsurf`). Without these, MCP creates a separate `runs` row keyed on the transport-generated sessionId — the bridge SessionStart row and this MCP `runs` row will not agree. Closes verification F9 (run-identity reconciliation) and F10 (`agent_type='unknown'` on MCP-minted rows).
-2. `contextos__get_feature_pack { projectSlug }` (PUSH layer — modules) — call this only if (a) the bridge did not inject an `additionalContext` at session start (non-Claude agents, or Claude in environments where the bridge is offline), or (b) you are switching to a new module mid-session and need the pack scoped to a specific `filePath`. Otherwise the bridge already loaded the project-level pack on your behalf.
-3. `contextos__list_features { projectSlug }` (PULL layer — skills) — call once per session to discover the available skills. Read each description; DO NOT call `get_feature` for any of them yet. Wait until a user prompt actually matches a feature's trigger before pulling it via `contextos__get_feature { projectSlug, slug }`. Soft-fails gracefully on projects with no `docs/features/` directory — that's fine, the project has no skills (yet).
-4. `contextos__query_run_history { projectSlug, status: 'in_progress', limit: 1 }` — checks whether a previous session left work in-flight.
-5. `contextos__search_packs_nl { projectSlug, query: <brief summary of what you are about to build> }` — retrieves prior context packs on the topic so you don't duplicate or contradict past work.
+1. `coodra__get_run_id { projectSlug, agentSessionId?, agentType? }` — obtains the `runId` that binds every subsequent call in this session. Cache the result; reuse it. **Pass `agentSessionId` set to the same `session_id` you fire at the hooks-bridge SessionStart hook**, plus `agentType` (`claude_code | cursor | windsurf`). Without these, MCP creates a separate `runs` row keyed on the transport-generated sessionId — the bridge SessionStart row and this MCP `runs` row will not agree. Closes verification F9 (run-identity reconciliation) and F10 (`agent_type='unknown'` on MCP-minted rows).
+2. `coodra__get_feature_pack { projectSlug }` (PUSH layer — modules) — call this only if (a) the bridge did not inject an `additionalContext` at session start (non-Claude agents, or Claude in environments where the bridge is offline), or (b) you are switching to a new module mid-session and need the pack scoped to a specific `filePath`. Otherwise the bridge already loaded the project-level pack on your behalf.
+3. `coodra__list_features { projectSlug }` (PULL layer — skills) — call once per session to discover the available skills. Read each description; DO NOT call `get_feature` for any of them yet. Wait until a user prompt actually matches a feature's trigger before pulling it via `coodra__get_feature { projectSlug, slug }`. Soft-fails gracefully on projects with no `docs/features/` directory — that's fine, the project has no skills (yet).
+4. `coodra__query_run_history { projectSlug, status: 'in_progress', limit: 1 }` — checks whether a previous session left work in-flight.
+5. `coodra__search_packs_nl { projectSlug, query: <brief summary of what you are about to build> }` — retrieves prior context packs on the topic so you don't duplicate or contradict past work.
 
 If the previous session left an `in_progress` run, read its `context_memory/current-session.md` and "Next action" (see `03-context-memory.md`) before deciding whether to start something new.
 
@@ -40,7 +40,7 @@ If `runs.prRef` is set on the in-progress run AND the GitHub integration is acti
 ## 5.2 Before every file write, create, or delete — non-negotiable
 
 ```
-contextos__check_policy({
+coodra__check_policy({
   projectSlug, sessionId: runId, agentType: 'claude_code',
   eventType: 'PreToolUse',
   toolName: 'write_file',          // or 'edit_file', 'delete_file'
@@ -52,19 +52,19 @@ contextos__check_policy({
 - `permissionDecision === 'ask'` → surface the question to the user verbatim and wait.
 - `permissionDecision === 'allow'` → proceed.
 
-If the file is in an area of the codebase you have not yet loaded a Feature Pack for, ALSO call `contextos__get_feature_pack { projectSlug, filePath }` before the write.
+If the file is in an area of the codebase you have not yet loaded a Feature Pack for, ALSO call `coodra__get_feature_pack { projectSlug, filePath }` before the write.
 
 ## 5.3 Before every shell command
 
 ```
-contextos__check_policy({ ..., toolName: 'bash', toolInput: { command } })
+coodra__check_policy({ ..., toolName: 'bash', toolInput: { command } })
 ```
 
 Same decision rules as §5.2. Commands that modify state (package installs, migrations, git operations, file deletions) are the ones that most often get denied.
 
 ## 5.4 At every design decision — immediately, not at session end
 
-Any of the following triggers `contextos__record_decision`:
+Any of the following triggers `coodra__record_decision`:
 
 - You picked library A over library B.
 - You designed an API shape or data schema.
@@ -72,7 +72,7 @@ Any of the following triggers `contextos__record_decision`:
 - You decided NOT to implement something (deferral, scope cut).
 
 ```
-contextos__record_decision({
+coodra__record_decision({
   runId,
   description: "One sentence: what was decided",
   rationale: "Why this approach over alternatives",
@@ -86,16 +86,16 @@ Do not batch these. Do not wait for `save_context_pack`. Log each as you make it
 
 Triggers: *"what was done before?"*, *"has X been tried?"*, *"what is the state of Y?"*, *"why did we choose Z?"*.
 
-1. `contextos__query_decisions { projectSlug, query?, runId?, limit: 10 }` — direct read of the `decisions` table for this project. Use this **first** for "what did we decide about X?" / "why did we pick Y?" — every `record_decision` call is durable history and this is the authoritative read-path. Quoted descriptions and rationales surface verbatim; if a query string is supplied it LIKE-matches against description+rationale.
-2. `contextos__search_packs_nl { projectSlug, query }` — semantic search over prior context packs (LIKE-substring fallback until M05 NL Assembly ships embeddings).
-3. `contextos__query_run_history { projectSlug, limit: 10 }` — chronological recent runs.
+1. `coodra__query_decisions { projectSlug, query?, runId?, limit: 10 }` — direct read of the `decisions` table for this project. Use this **first** for "what did we decide about X?" / "why did we pick Y?" — every `record_decision` call is durable history and this is the authoritative read-path. Quoted descriptions and rationales surface verbatim; if a query string is supplied it LIKE-matches against description+rationale.
+2. `coodra__search_packs_nl { projectSlug, query }` — semantic search over prior context packs (LIKE-substring fallback until M05 NL Assembly ships embeddings).
+3. `coodra__query_run_history { projectSlug, limit: 10 }` — chronological recent runs.
 4. Answer from the retrieved data. **Do not answer from memory.** If all three return empty, say so — don't confabulate.
 
 ## 5.6 Before structural refactors or unfamiliar code navigation
 
 Triggers: *"refactor X"*, *"rename Y across the codebase"*, *"where is Z defined?"*, *"what depends on A?"*.
 
-`contextos__query_codebase_graph { projectSlug, query }` returns the symbol-level dependency graph from the Graphify index. Use it to find blast radius before touching shared code. Fall back to reading files only if the graph is empty.
+`coodra__query_codebase_graph { projectSlug, query }` returns the symbol-level dependency graph from the Graphify index. Use it to find blast radius before touching shared code. Fall back to reading files only if the graph is empty.
 
 ## 5.7 JIRA triggers (when the JIRA integration is active)
 
@@ -133,7 +133,7 @@ Triggers: *"refactor X"*, *"rename Y across the codebase"*, *"where is Z defined
 When the feature/bugfix/refactor is complete and tests pass:
 
 ```
-contextos__save_context_pack({
+coodra__save_context_pack({
   runId,
   title: "One-line title of what was built",
   content: "Full markdown: what was done, decisions made, files modified, test results, open TODOs, flags for next session",

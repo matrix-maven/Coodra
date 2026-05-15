@@ -17,7 +17,7 @@
  * fixtures lock the contract: any future schema regression that
  * narrows again will fail the integration test that uses them.
  *
- * **Fields beyond the ContextOS enum.** Every envelope here carries
+ * **Fields beyond the Coodra enum.** Every envelope here carries
  * `transcript_path`. Tool-call events add `permission_mode`.
  * SessionStart adds `source` and `model`. The `.passthrough()`
  * wrapper accepts these unchanged; the adapter ignores them; the

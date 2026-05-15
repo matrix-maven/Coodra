@@ -1,4 +1,4 @@
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { describe, expect, it, vi } from 'vitest';
 
 import { buildApp, type DispatchHookEvent } from '../../src/app.js';
@@ -15,7 +15,7 @@ import { buildApp, type DispatchHookEvent } from '../../src/app.js';
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }

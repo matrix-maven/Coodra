@@ -1,7 +1,7 @@
 # Module 04 — Web App (closeout)
 
 - **Date:** 2026-05-04
-- **Module:** 04 — Web App (`apps/web` admin + audit-trail UI for ContextOS)
+- **Module:** 04 — Web App (`apps/web` admin + audit-trail UI for Coodra)
 - **Feature Pack:** `docs/feature-packs/04-web-app/`
 - **Session lead (human):** Abishai
 - **Run ID:** n/a (worked from CLAUDE.md + context_memory; the M04 branch built + verified across multiple agent sessions)
@@ -26,7 +26,7 @@
 
 ## Outcome
 
-ContextOS now has a real web surface. `apps/web` ships **15 routes** (4 API + 11 page) covering every CLI admin verb plus the live audit-trail view, all rendered under one brand-mandatory token catalog (Precision Blue, Inter weight contrast, JetBrains Mono, zero border-radius). Solo developers visit `http://localhost:3000` after `contextos init` and see their local SQLite live; teams point at the same build with `CONTEXTOS_MODE=team` and read the cloud Postgres at `gyopozvfmggumidptmjr.supabase.co`. The bidirectional kill-switch sync (sync-daemon push + cloud→local poller, S8a) closes the M04a OQ-1 "one-way only" restriction — a web admin pause propagates to every developer's local hooks-bridge within ~10s p95. M02 S7b's deferred Clerk live-tenant validation was closed in S2 with 7/7 cloud integration tests against the real `fun-gnu-96` tenant. The M04 S11 cleanups bring two latent fragilities to closure: bridge response shape now matches Claude Code's per-event hook spec, and the mcp-server feature-pack reader mirrors the bridge's `readMaybe` pattern.
+Coodra now has a real web surface. `apps/web` ships **15 routes** (4 API + 11 page) covering every CLI admin verb plus the live audit-trail view, all rendered under one brand-mandatory token catalog (Precision Blue, Inter weight contrast, JetBrains Mono, zero border-radius). Solo developers visit `http://localhost:3000` after `coodra init` and see their local SQLite live; teams point at the same build with `COODRA_MODE=team` and read the cloud Postgres at `gyopozvfmggumidptmjr.supabase.co`. The bidirectional kill-switch sync (sync-daemon push + cloud→local poller, S8a) closes the M04a OQ-1 "one-way only" restriction — a web admin pause propagates to every developer's local hooks-bridge within ~10s p95. M02 S7b's deferred Clerk live-tenant validation was closed in S2 with 7/7 cloud integration tests against the real `fun-gnu-96` tenant. The M04 S11 cleanups bring two latent fragilities to closure: bridge response shape now matches Claude Code's per-event hook spec, and the mcp-server feature-pack reader mirrors the bridge's `readMaybe` pattern.
 
 ## Scope boundary
 
@@ -58,7 +58,7 @@ ContextOS now has a real web surface. `apps/web` ships **15 routes** (4 API + 11
 
 - Server actions for pack regenerate / pack delete / template install — all three need helper extraction from `packages/cli/src/commands/{pack,template}.ts`. Shippable as a follow-up M04 patch slice when the operator demand materialises.
 - Markdown→HTML renderer for `/packs/[slug]` — currently renders as `<pre>`. The S11 cleanup didn't pull in M08b S12's renderer; it's reserved for the same follow-up patch.
-- Doctor shell-out tile on `/` — currently a stub. Reserved for the S9 follow-up that wires `spawn('contextos', ['doctor', '--json'])` with 60s in-memory cache.
+- Doctor shell-out tile on `/` — currently a stub. Reserved for the S9 follow-up that wires `spawn('coodra', ['doctor', '--json'])` with 60s in-memory cache.
 - Polling refresh on `/` and `/kill-switches` — both pages currently server-render every request. S4's `usePoll` hook is the substrate for the upgrade; reserved for the polling-everywhere follow-up.
 
 ## Decisions made
@@ -77,7 +77,7 @@ The seven OQ locks + three STRUCT decisions captured in S0 drove every implement
 
 - **STRUCT-1 (S0.5 wireframes):** added between S0 and S1. M04 is the UI/UX module; visual slices (S3+) had a target before scaffolding started. 14 wireframe files (3 top-level + 11 per-route) in `docs/feature-packs/04-web-app/wireframes/`.
 - **STRUCT-2 (S8 split):** S8a backend (sync-daemon push + pull) + S8b web admin. Bidirectional sync surface revertable on its own; M04a OQ-1 extension visible as its own commit on the audit trail.
-- **STRUCT-3 (S9 dashboard home):** its own slice instead of folded into a doctor page. Aggregate-data home page meaty enough; doctor full-detail page deferred (operators run `contextos doctor --full --json` for that).
+- **STRUCT-3 (S9 dashboard home):** its own slice instead of folded into a doctor page. Aggregate-data home page meaty enough; doctor full-detail page deferred (operators run `coodra doctor --full --json` for that).
 
 ## Files touched
 
@@ -128,7 +128,7 @@ The seven OQ locks + three STRUCT decisions captured in S0 drove every implement
 
 - `--no-sync` flag added; in team mode + sync-on, emits `sync_to_cloud` durable write after `insertKillSwitch`. Local-only rows tagged `paused_by_session_id='local-only:<platform>-<pid>'`.
 
-`packages/cli/src/program.ts` — wired `--no-sync` option onto `contextos pause` (S8a).
+`packages/cli/src/program.ts` — wired `--no-sync` option onto `coodra pause` (S8a).
 
 `packages/cli/src/commands/init.ts` — dropped unused `join` import in passing during S8a lint pass.
 
@@ -182,27 +182,27 @@ The seven OQ locks + three STRUCT decisions captured in S0 drove every implement
 **Verification commands run:**
 
 ```sh
-pnpm --filter @coodra/contextos-web typecheck   # clean
-pnpm --filter @coodra/contextos-web lint        # clean
-pnpm --filter @coodra/contextos-web test:unit   # 27/27 pass
-pnpm --filter @coodra/contextos-web build       # all 15 routes built
+pnpm --filter @coodra/web typecheck   # clean
+pnpm --filter @coodra/web lint        # clean
+pnpm --filter @coodra/web test:unit   # 27/27 pass
+pnpm --filter @coodra/web build       # all 15 routes built
 
 LIVE_SUPABASE_TEST=1 CLERK_LIVE_TEST=1 \
   DATABASE_URL=postgresql://... \
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=... \
-  pnpm --filter @coodra/contextos-web test:integration
+  pnpm --filter @coodra/web test:integration
 # → 7/7 pass (4 cloud + 3 Clerk live)
 
-pnpm --filter @coodra/contextos-cli test:unit          # 188/188
-pnpm --filter @coodra/contextos-mcp-server test:unit   # 261/261 (post S11 cleanup B)
-pnpm --filter @coodra/contextos-hooks-bridge test:unit # 46/46 (post S11 cleanup A)
+pnpm --filter @coodra/cli test:unit          # 188/188
+pnpm --filter @coodra/mcp-server test:unit   # 261/261 (post S11 cleanup B)
+pnpm --filter @coodra/hooks-bridge test:unit # 46/46 (post S11 cleanup A)
 ```
 
 **Live cloud + tenant verification (this commit):**
 
 - `psql` against `db.gyopozvfmggumidptmjr.supabase.co:5432` — 11 expected tables present + `vector 0.8.0` + 8 entries in `drizzle.__drizzle_migrations`.
 - `https://fun-gnu-96.clerk.accounts.dev/.well-known/jwks.json` — JWKS reachable + populated key set.
-- Browser smoke (solo): all 11 page routes render against `~/.contextos/data.db` (14 real runs + 4 projects + 26 policy_rules + 3 active kill-switches surfaced; brand chips + tokens pixel-correct).
+- Browser smoke (solo): all 11 page routes render against `~/.coodra/data.db` (14 real runs + 4 projects + 26 policy_rules + 3 active kill-switches surfaced; brand chips + tokens pixel-correct).
 - Browser smoke (team): `/api/healthz` returns `mode:"team"`; protected routes 307→`/auth/sign-in?redirect_url=<original>`; `/auth/sign-in` renders Clerk `<SignIn />` with brand-styled appearance.
 
 ## Open questions
@@ -211,7 +211,7 @@ None blocking. Three follow-ups deferred from spec §3 / S7 / S9:
 
 - **AC-6 e2e harness (M07 owner)** — full e2e against a real Claude Code session needs to spin up the bridge against the agent loop. The bridge integration suite covers the protocol; M07 picks up the harness.
 - **`/packs/[slug]` mutating actions + markdown renderer (M04 patch slice owner)** — pack regenerate / delete / template install server actions need helper extraction from `packages/cli`. Markdown renderer port from `packages/cli/src/lib/export/render-html.ts`. Estimate: half a day.
-- **Doctor tile shell-out + dashboard polling (M04 patch slice owner)** — `spawn('contextos', ['doctor', '--json'])` + 60s cache + the polling hook wrapped around the dashboard. Estimate: half a day.
+- **Doctor tile shell-out + dashboard polling (M04 patch slice owner)** — `spawn('coodra', ['doctor', '--json'])` + 60s cache + the polling hook wrapped around the dashboard. Estimate: half a day.
 
 ## Pending user actions
 

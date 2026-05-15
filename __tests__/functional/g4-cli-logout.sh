@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # __tests__/functional/g4-cli-logout.sh
 #
-# Phase G.4 functional test — `contextos logout` command.
+# Phase G.4 functional test — `coodra logout` command.
 #
 # What it proves:
 #   1. Idempotent — logout on already-solo home is a no-op exiting 0.
 #   2. Tear-down — logout on team-state home:
 #        - removes clerk-token.json
 #        - flips config.json::mode from team→solo
-#        - strips CONTEXTOS_MODE / DATABASE_URL / LOCAL_HOOK_SECRET /
-#          CONTEXTOS_TEAM_ORG_ID from .env
+#        - strips COODRA_MODE / DATABASE_URL / LOCAL_HOOK_SECRET /
+#          COODRA_TEAM_ORG_ID from .env
 #        - leaves user-managed env vars intact
 #   3. `team logout` is wired as a backward-compat alias.
 #
@@ -21,7 +21,7 @@ set -uo pipefail
 SLICE="G.4"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 PASS=0
@@ -37,8 +37,8 @@ assert_pass() { green "  ✓ PASS — $*"; PASS=$((PASS + 1)); }
 assert_fail() { red "  ✗ FAIL — $*"; FAIL=$((FAIL + 1)); }
 assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 
-contextos() {
-  CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
+coodra() {
+  COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ hdr "Precondition: CLI binary"
 
 if [ ! -f "$CLI_BIN" ]; then
   yel "Building CLI bundle..."
-  (cd "$REPO_ROOT" && pnpm --filter @coodra/contextos-cli build 2>&1 | tail -3) || {
+  (cd "$REPO_ROOT" && pnpm --filter @coodra/cli build 2>&1 | tail -3) || {
     red "build failed"
     exit 1
   }
@@ -58,7 +58,7 @@ green "  ✓ CLI bundle present"
 hdr "Section 1 — idempotent no-op on empty home"
 # ---------------------------------------------------------------------------
 
-OUT=$(contextos logout 2>&1)
+OUT=$(coodra logout 2>&1)
 RC=$?
 if [ $RC -eq 0 ] && echo "$OUT" | grep -q "Already logged out"; then
   assert_pass "1.1 — empty home logout exits 0 with no-op message"
@@ -67,7 +67,7 @@ else
 fi
 
 # Re-run; still no-op
-OUT2=$(contextos logout 2>&1)
+OUT2=$(coodra logout 2>&1)
 RC2=$?
 if [ $RC2 -eq 0 ] && echo "$OUT2" | grep -q "Already logged out"; then
   assert_pass "1.2 — second invocation is also idempotent"
@@ -95,10 +95,10 @@ EOF
 
 cat > "$STUB_HOME/.env" <<'EOF'
 # A user comment that should survive
-CONTEXTOS_MODE=team
+COODRA_MODE=team
 DATABASE_URL=postgres://x/y
 LOCAL_HOOK_SECRET=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-CONTEXTOS_TEAM_ORG_ID=org_xyz
+COODRA_TEAM_ORG_ID=org_xyz
 CLERK_SECRET_KEY=sk_test_real
 CLERK_PUBLISHABLE_KEY=pk_test_real
 EOF
@@ -117,7 +117,7 @@ EOF
 chmod 600 "$STUB_HOME/clerk-token.json"
 
 # Run logout
-OUT=$(contextos logout 2>&1)
+OUT=$(coodra logout 2>&1)
 RC=$?
 
 # 2.1: exit 0
@@ -160,7 +160,7 @@ fi
 # 2.6: team env keys stripped
 ENV_AFTER=$(cat "$STUB_HOME/.env")
 STRIPPED=0
-for key in CONTEXTOS_MODE DATABASE_URL LOCAL_HOOK_SECRET CONTEXTOS_TEAM_ORG_ID; do
+for key in COODRA_MODE DATABASE_URL LOCAL_HOOK_SECRET COODRA_TEAM_ORG_ID; do
   if echo "$ENV_AFTER" | grep -q "^$key="; then
     assert_fail "2.6 — $key still in .env after logout"
     STRIPPED=1
@@ -199,7 +199,7 @@ cat > "$STUB_HOME/config.json" <<'EOF'
 }
 EOF
 
-OUT=$(contextos team logout 2>&1)
+OUT=$(coodra team logout 2>&1)
 RC=$?
 
 MODE=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$STUB_HOME/config.json', 'utf8')).mode)" 2>/dev/null || echo "ERR")

@@ -19,7 +19,7 @@ Pointer guide into `../../system-architecture.md` (25 sections, §0–§24). Use
 | URL routing, API versioning, deprecation policy, MCP tool stability | §10 API Design, Versioning, and Backward Compatibility |
 | CORS policy, per mode | §11 CORS Configuration |
 | Browser / CDN / server-side caching layers | §12 Caching — All Three Layers |
-| `contextos start`, Docker Compose, production infra shape | §13 Server Setup and Infrastructure |
+| `coodra start`, Docker Compose, production infra shape | §13 Server Setup and Infrastructure |
 | Why SQLite for solo and Postgres for team | §14 Database Selection Rationale |
 | Scaling strategy — solo (vertical) and team (horizontal) | §15 Scaling Strategy |
 | Cross-cutting patterns (19 currently) — circuit breakers, idempotency, hooks, outbound integrations, inbound webhooks, Repository Graph Index, tool descriptions as agent prompts | §16 Design Patterns |
@@ -34,7 +34,7 @@ Pointer guide into `../../system-architecture.md` (25 sections, §0–§24). Use
 
 ## Section-to-file quick reference
 
-Most ContextOS-level rules in `essentialsforclaude/` are concise summaries of one or more architecture sections. When you need depth, this map tells you which architecture section a rule ultimately traces back to:
+Most Coodra-level rules in `essentialsforclaude/` are concise summaries of one or more architecture sections. When you need depth, this map tells you which architecture section a rule ultimately traces back to:
 
 | essentialsforclaude file | Draws depth from |
 |---|---|

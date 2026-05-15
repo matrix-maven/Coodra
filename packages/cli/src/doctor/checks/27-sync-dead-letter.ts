@@ -18,8 +18,8 @@ export const syncDeadLetterCheck: Check = {
   name: 'sync_to_cloud dead-letter count (Module 04a sync-daemon)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    if (ctx.env.CONTEXTOS_MODE !== 'team') {
-      return { status: 'skipped', detail: 'CONTEXTOS_MODE != team' };
+    if (ctx.env.COODRA_MODE !== 'team') {
+      return { status: 'skipped', detail: 'COODRA_MODE != team' };
     }
     try {
       await access(ctx.dataDb);
@@ -53,8 +53,8 @@ export const syncDeadLetterCheck: Check = {
           status: 'red',
           detail: `dead-letter escalated to RED: ${reason}`,
           remediation:
-            "Inspect dead sync rows: `sqlite3 <contextos-home>/data.db \"SELECT id, payload, attempts, last_error FROM pending_jobs WHERE status='dead' AND queue='sync_to_cloud'\"`. " +
-            'Common causes: schema mismatch (cloud migration not applied — run `contextos cloud-migrate`), ' +
+            "Inspect dead sync rows: `sqlite3 <coodra-home>/data.db \"SELECT id, payload, attempts, last_error FROM pending_jobs WHERE status='dead' AND queue='sync_to_cloud'\"`. " +
+            'Common causes: schema mismatch (cloud migration not applied — run `coodra cloud-migrate`), ' +
             'cloud Postgres permanently unreachable, FK target missing on cloud (parent runs row never synced). ' +
             "After fixing the root cause: `DELETE FROM pending_jobs WHERE status='dead' AND queue='sync_to_cloud'`.",
         };
@@ -63,7 +63,7 @@ export const syncDeadLetterCheck: Check = {
         status: 'yellow',
         detail: `${dead} dead sync row(s)`,
         remediation:
-          "Inspect with: `sqlite3 <contextos-home>/data.db \"SELECT id, payload, attempts, last_error FROM pending_jobs WHERE status='dead' AND queue='sync_to_cloud'\"`. " +
+          "Inspect with: `sqlite3 <coodra-home>/data.db \"SELECT id, payload, attempts, last_error FROM pending_jobs WHERE status='dead' AND queue='sync_to_cloud'\"`. " +
           'Escalates to RED at >10 OR any row older than 1h.',
       };
     } catch (err) {

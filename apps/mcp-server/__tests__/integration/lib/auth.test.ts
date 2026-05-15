@@ -1,4 +1,4 @@
-import { UnauthorizedError, ValidationError } from '@coodra/contextos-shared';
+import { UnauthorizedError, ValidationError } from '@coodra/shared';
 import { describe, expect, it } from 'vitest';
 
 import type { McpServerEnv } from '../../../src/config/env.js';
@@ -15,8 +15,8 @@ function baseEnv(overrides: Partial<McpServerEnv> = {}): McpServerEnv {
     NODE_ENV: 'test',
     LOG_LEVEL: 'info',
     HOSTNAME: 'test',
-    CONTEXTOS_MODE: 'solo',
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
+    COODRA_MODE: 'solo',
+    COODRA_LOG_DESTINATION: 'stderr',
     MCP_SERVER_PORT: 3100,
     ...overrides,
   } as McpServerEnv;
@@ -28,7 +28,7 @@ function baseEnv(overrides: Partial<McpServerEnv> = {}): McpServerEnv {
  * Proves that both factory outputs satisfy the shared `AuthClient`
  * interface and that `requireIdentity` enforces its contract — the
  * solo factory resolves, the anonymous factory rejects with
- * `UnauthorizedError` from `@coodra/contextos-shared`.
+ * `UnauthorizedError` from `@coodra/shared`.
  *
  * This locks the S7a invariant that tool code never branches on
  * "is this solo or Clerk?" — both paths respond to the same
@@ -76,7 +76,7 @@ describe('lib/auth — createAuthClient dispatcher (S7b)', () => {
   it('dispatches to solo when CLERK_SECRET_KEY is the solo-bypass sentinel, even in team mode', async () => {
     const auth = createAuthClient(
       baseEnv({
-        CONTEXTOS_MODE: 'team',
+        COODRA_MODE: 'team',
         CLERK_SECRET_KEY: 'sk_test_replace_me',
         CLERK_PUBLISHABLE_KEY: 'pk_test_xxx',
       }),
@@ -87,7 +87,7 @@ describe('lib/auth — createAuthClient dispatcher (S7b)', () => {
   it('dispatches to Clerk in team mode with real keys — getIdentity=null on stdio', async () => {
     const auth = createAuthClient(
       baseEnv({
-        CONTEXTOS_MODE: 'team',
+        COODRA_MODE: 'team',
         CLERK_SECRET_KEY: 'sk_test_real',
         CLERK_PUBLISHABLE_KEY: 'pk_test_real',
       }),

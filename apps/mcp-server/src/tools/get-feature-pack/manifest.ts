@@ -5,7 +5,7 @@ import { getFeaturePackHandler } from './handler.js';
 import { type GetFeaturePackInput, getFeaturePackInputSchema, getFeaturePackOutputSchema } from './schema.js';
 
 /**
- * Registration for `contextos__get_feature_pack`.
+ * Registration for `coodra__get_feature_pack`.
  *
  * Static const (not a factory) per §9.1.1 common-patterns: the
  * handler consumes `ctx.featurePack` which is already wired into
@@ -13,7 +13,7 @@ import { type GetFeaturePackInput, getFeaturePackInputSchema, getFeaturePackOutp
  * needs to be closed over here.
  *
  * Description is verbatim from `system-architecture.md §24.4`. §24.3
- * anatomy is enforced by `@coodra/contextos-shared/test-utils::
+ * anatomy is enforced by `@coodra/shared/test-utils::
  * assertManifestDescriptionValid` in the unit tests.
  */
 
@@ -37,7 +37,7 @@ export const getFeaturePackToolRegistration: ToolRegistration<
   typeof getFeaturePackOutputSchema
 > = {
   name: 'get_feature_pack',
-  title: 'ContextOS: get_feature_pack',
+  title: 'Coodra: get_feature_pack',
   description:
     'Call this at SessionStart (or when switching to a different module mid-session) for the project\'s ' +
     'architectural blueprint — the MODULE-level spec, conventions, permitted files, and gotchas the tech lead has ' +

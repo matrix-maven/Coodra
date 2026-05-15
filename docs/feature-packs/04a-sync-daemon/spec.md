@@ -7,13 +7,13 @@
 
 ## 1. The problem
 
-After M03.1, every audit row written by `apps/hooks-bridge` and `apps/mcp-server` lands durably in the **local** SQLite at `~/.contextos/data.db`. ADR-008 promises cloud Postgres as the team-sync layer; today, no process pushes local rows to that cloud. In practice this means:
+After M03.1, every audit row written by `apps/hooks-bridge` and `apps/mcp-server` lands durably in the **local** SQLite at `~/.coodra/data.db`. ADR-008 promises cloud Postgres as the team-sync layer; today, no process pushes local rows to that cloud. In practice this means:
 
-- A team running ContextOS in team mode has audit data scattered across N developer laptops with no central read surface.
+- A team running Coodra in team mode has audit data scattered across N developer laptops with no central read surface.
 - M04b's Web App (the first cloud read consumer) cannot ship — it would render empty timelines because `runs`, `run_events`, `policy_decisions`, `decisions`, and `context_packs` only exist locally.
 - Self-hosters have no installable artifact today. The repo builds and runs from source, but there is no Dockerfile per service, no Compose stack, no documented deploy path. ADR-008's "optional team-sync layer" is aspirational.
 
-This module closes both gaps: the **Sync Daemon** (a third long-running process spawned by `contextos start` when mode=team) ships local→cloud rows, and the **self-host packaging** (Dockerfiles + Compose + a one-platform deploy guide) makes the team-mode stack installable on infrastructure that is not the original developer's laptop.
+This module closes both gaps: the **Sync Daemon** (a third long-running process spawned by `coodra start` when mode=team) ships local→cloud rows, and the **self-host packaging** (Dockerfiles + Compose + a one-platform deploy guide) makes the team-mode stack installable on infrastructure that is not the original developer's laptop.
 
 It also closes two side-task functest findings the user flagged as in-scope here:
 - **Finding #4** — doctor's port-availability check warns on healthy non-default ports. Suppress the warn when `/healthz` answers.
@@ -31,7 +31,7 @@ The secondary AC: **the team-mode stack is installable on a fresh machine with o
 
 ### 3.1 In scope
 
-1. **`apps/sync-daemon`** — new long-running TypeScript process. Boots a SQLite handle (local source) and a Postgres handle (cloud destination). Runs an `OutboxWorker` (reused from `@coodra/contextos-cli/lib/outbox`) configured for the `sync_to_cloud` queue. Same lease/retry/dead-letter machinery as M03.1; same `pending_jobs` table; same doctor surfaces extended with sync-specific checks.
+1. **`apps/sync-daemon`** — new long-running TypeScript process. Boots a SQLite handle (local source) and a Postgres handle (cloud destination). Runs an `OutboxWorker` (reused from `@coodra/cli/lib/outbox`) configured for the `sync_to_cloud` queue. Same lease/retry/dead-letter machinery as M03.1; same `pending_jobs` table; same doctor surfaces extended with sync-specific checks.
 
 2. **Sync substrate.** Reuse `pending_jobs` with a new queue value `'sync_to_cloud'`. Each existing audit-write job dispatched in M03.1 gains a paired sync enqueue at the same point (see OQ7 — single-job-with-sync-side-effect vs paired-jobs is a design choice; spec assumes paired for now). The Sync Daemon's worker only claims rows where `queue='sync_to_cloud'`; the bridge/MCP workers continue to claim only their own audit-destination queues.
 
@@ -55,16 +55,16 @@ The secondary AC: **the team-mode stack is installable on a fresh machine with o
    - On reconnect, the worker drains the backlog at the M03.1 hybrid cadence.
    - The local read path (`query_run_history` and friends) reads from SQLite always — never blocks on cloud.
 
-6. **`contextos cloud-migrate` command** — runs Drizzle migrations against `DATABASE_URL`. Idempotent. Used by self-hosters before first daemon boot. Lives in `packages/cli/src/commands/cloud-migrate.ts`.
+6. **`coodra cloud-migrate` command** — runs Drizzle migrations against `DATABASE_URL`. Idempotent. Used by self-hosters before first daemon boot. Lives in `packages/cli/src/commands/cloud-migrate.ts`.
 
 7. **Self-host packaging.**
    - **`deploy/Dockerfile.mcp-server`**, **`deploy/Dockerfile.hooks-bridge`**, **`deploy/Dockerfile.sync-daemon`** — multi-stage; pnpm install + turbo build → slim runtime image. Each carries the per-service entry binary, `node_modules`, and a non-root user. No Drizzle CLI in the runtime image — migrations are run via the `cloud-migrate` command from a one-shot container.
-   - **`deploy/compose.yaml`** — the canonical stack: postgres (pgvector/pgvector:pg16), mcp-server, hooks-bridge, sync-daemon. Healthchecks. Bind-mounted `~/.contextos` for SQLite parity.
+   - **`deploy/compose.yaml`** — the canonical stack: postgres (pgvector/pgvector:pg16), mcp-server, hooks-bridge, sync-daemon. Healthchecks. Bind-mounted `~/.coodra` for SQLite parity.
    - **`docs/deploy/self-host.md`** — happy-path guide for Docker Compose (OQ5). Covers env layout, first-boot migration, healthcheck verification, smoke test against the included Compose stack.
    - **`deploy/.env.example`** — every env var the stack needs, with comments and sample values for solo-dev.
 
 8. **Doctor checks** (4 new, extending the M03.1 21/22/23 trio):
-   - **Check 24** — `cloud reachability` — `SELECT 1` against `DATABASE_URL`. GREEN if reachable, YELLOW after 5min unreachable, RED after 1h. Skipped when `CONTEXTOS_MODE !== 'team'`.
+   - **Check 24** — `cloud reachability` — `SELECT 1` against `DATABASE_URL`. GREEN if reachable, YELLOW after 5min unreachable, RED after 1h. Skipped when `COODRA_MODE !== 'team'`.
    - **Check 25** — `sync queue depth` — `count WHERE queue='sync_to_cloud' AND status='pending'`. Same OQ3 thresholds as check 21 (0–10 green, 11–100 yellow, >100 red).
    - **Check 26** — `sync lag` — `now() - max(created_at) FROM runs` minus `now() - max(created_at) FROM runs ON cloud`. GREEN if <30s lag, YELLOW <5min, RED older. Skipped when cloud is unreachable (gracefully — already covered by 24).
    - **Check 27** — `sync dead-letter count` — `count WHERE queue='sync_to_cloud' AND status='dead'`. Same OQ3 thresholds as check 23.
@@ -127,7 +127,7 @@ This spec is paused on these seven decisions. Recommendations and reasoning belo
 
 - **OQ3 — cloud unreachability escalation.** Recommend doctor check 24: GREEN if reachable, YELLOW after 5min unreachable, RED after 1h. *Why:* mirrors OQ3 from M03.1 — same operator mental model; 5min absorbs transient blips without paging; 1h is unambiguous "cloud is down, page someone." *Alternative:* shorter windows (5s yellow, 5min red) — rejected as too noisy for transient blips.
 
-- **OQ4 — cloud Postgres migration ownership.** Recommend a separate **`contextos cloud-migrate`** CLI command, run by the operator before first sync-daemon boot (and on every deploy that ships a new migration). *Why:* explicit > implicit; operators expect a migration step; auto-on-Web-App-boot couples ops to runtime and risks racing migrations across instances. *Alternative:* auto-on-Web-App-boot (rejected — race risk, unclear ownership when N web instances start in parallel); auto-on-sync-daemon-boot (rejected — same race risk; operator can't disable).
+- **OQ4 — cloud Postgres migration ownership.** Recommend a separate **`coodra cloud-migrate`** CLI command, run by the operator before first sync-daemon boot (and on every deploy that ships a new migration). *Why:* explicit > implicit; operators expect a migration step; auto-on-Web-App-boot couples ops to runtime and risks racing migrations across instances. *Alternative:* auto-on-Web-App-boot (rejected — race risk, unclear ownership when N web instances start in parallel); auto-on-sync-daemon-boot (rejected — same race risk; operator can't disable).
 
 - **OQ5 — self-host deploy happy path.** Recommend **Docker Compose** for the canonical guide; brief mentions for Railway and Fly.io. *Why:* Compose is the universal substrate; any managed platform can be derived; operators who want managed get Compose-as-reference. *Alternative:* Railway-first (rejected — locks the guide to one vendor; less self-hosted in spirit); bare systemd (rejected — too much per-distro detail for a v1 guide).
 
@@ -138,7 +138,7 @@ This spec is paused on these seven decisions. Recommendations and reasoning belo
 ## 7. Out of scope per user directive (re-affirmed)
 
 - **No billing / Stripe / seat management.** Per `essentialsforclaude/08-implementation-order.md` §8.1.
-- **No marketing site, no contextos.dev HTML, no landing page.** Same source.
+- **No marketing site, no coodra.dev HTML, no landing page.** Same source.
 - **No BYO-cloud Enterprise variant.** Team mode is operator-hosted; one canonical Compose path.
 
 ## 8. References

@@ -29,7 +29,7 @@ export default async function KillSwitchesPage({
 
   return (
     <>
-      <Topbar crumb="Kill switches" crumbPrefix={scopedSlug !== null ? `contextos / ${scopedSlug}` : 'contextos'} />
+      <Topbar crumb="Kill switches" crumbPrefix={scopedSlug !== null ? `coodra / ${scopedSlug}` : 'coodra'} />
       <section className="screen">
         <div className="head">
           <div>
@@ -96,7 +96,7 @@ export default async function KillSwitchesPage({
               <Field
                 label="Target (slug / tool / agent type)"
                 name="target"
-                placeholder="e.g. contextos · bash · cursor"
+                placeholder="e.g. coodra · bash · cursor"
                 {...(scopedSlug !== null ? { defaultValue: scopedSlug } : {})}
               />
               <Field

@@ -1,14 +1,14 @@
 import { createHash } from 'node:crypto';
 
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createRecordDecisionToolRegistration } from '../../../src/tools/record-decision/manifest.js';
 import { recordDecisionInputSchema } from '../../../src/tools/record-decision/schema.js';
 
 /**
- * Unit tests for `contextos__record_decision` — manifest contract +
+ * Unit tests for `coodra__record_decision` — manifest contract +
  * input schema boundaries + idempotency-key shape + factory
  * construction contract. DB behaviour (insert + dedupe +
  * run_not_found soft-failure) is in the integration suite.

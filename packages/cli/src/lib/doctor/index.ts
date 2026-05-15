@@ -3,7 +3,7 @@
  * doctor registry + runner for in-process consumption by the web app
  * (M04 Phase 2 S8).
  *
- * The CLI command (`contextos doctor [--full]`) remains the single
+ * The CLI command (`coodra doctor [--full]`) remains the single
  * source of truth for the check definitions; this surface re-exports
  * the same helpers behind a stable, ESM-friendly path so the web's
  * Server Components can render a doctor report without spawning a

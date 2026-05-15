@@ -1,15 +1,15 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { lookupProjectBySlug, type DbHandle } from '@coodra/contextos-db';
-import { featuresRoot, readFeatureRow } from '@coodra/contextos-shared/features';
-import { createLogger } from '@coodra/contextos-shared';
+import { lookupProjectBySlug, type DbHandle } from '@coodra/db';
+import { featuresRoot, readFeatureRow } from '@coodra/shared/features';
+import { createLogger } from '@coodra/shared';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { GetFeatureInput, GetFeatureOutput } from './schema.js';
 
 /**
- * Handler for `contextos__get_feature`.
+ * Handler for `coodra__get_feature`.
  *
  * Loads the body of one feature on demand, after the agent has decided
  * (via `list_features`) that the feature is relevant to the current
@@ -37,7 +37,7 @@ export function createGetFeatureHandler(
         ok: false,
         error: 'project_not_found',
         howToFix:
-          `No projects row for slug "${input.projectSlug}". Run \`contextos init\` from the project root, or check the slug.`,
+          `No projects row for slug "${input.projectSlug}". Run \`coodra init\` from the project root, or check the slug.`,
       };
     }
     if (project.cwd === null) {
@@ -58,7 +58,7 @@ export function createGetFeatureHandler(
         ok: false,
         error: 'feature_not_found',
         howToFix:
-          `No feature at \`${dir}\`. Call \`contextos__list_features\` to see what's available, or \`contextos feature add ${input.slug}\` to create it.`,
+          `No feature at \`${dir}\`. Call \`coodra__list_features\` to see what's available, or \`coodra feature add ${input.slug}\` to create it.`,
       };
     }
     const row = readFeatureRow(input.slug, dir);
@@ -71,7 +71,7 @@ export function createGetFeatureHandler(
         ok: false,
         error: 'feature_not_found',
         howToFix:
-          `\`${dir}\` exists but has no \`feature.md\`. Either remove the empty directory or run \`contextos feature add ${input.slug} --force\` to scaffold one.`,
+          `\`${dir}\` exists but has no \`feature.md\`. Either remove the empty directory or run \`coodra feature add ${input.slug} --force\` to scaffold one.`,
       };
     }
 

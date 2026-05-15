@@ -64,7 +64,7 @@ AI agents frequently produce incomplete code to save tokens. Do not do this.
 Use **pino** for all TypeScript logging. Use Python's **structlog** or `logging` with JSON output.
 
 ```typescript
-import { logger } from '@coodra/contextos-shared';
+import { logger } from '@coodra/shared';
 
 logger.info({ projectId, packId, version }, 'Fetching feature pack');
 logger.error({ err, projectId, packId }, 'Feature pack fetch failed');
@@ -80,7 +80,7 @@ Every log line MUST include:
 
 Every write operation must be idempotent. Retries (network timeout, agent retry) must produce the same result, not duplicate data.
 
-- **Run Events:** keyed by `{runId}:{eventType}:{toolName}:{timestamp}` — use `generateIdempotencyKey()` from `@coodra/contextos-shared`.
+- **Run Events:** keyed by `{runId}:{eventType}:{toolName}:{timestamp}` — use `generateIdempotencyKey()` from `@coodra/shared`.
 - **Runs:** keyed by `run:{projectId}:{sessionId}:{uuid}` — use `generateRunKey()`.
 - **Context Packs:** one per run. If one exists for a runId, return the existing one.
 - **Policy Decisions:** logged with their own idempotency key to prevent duplicate audit entries.
@@ -98,7 +98,7 @@ Every write operation must be idempotent. Retries (network timeout, agent retry)
 
 You are not running alone. The user is the product lead and the only source for things the agent cannot decide. Ask — do not guess — when any of these are true:
 
-- An architectural decision is not fully covered in `system-architecture.md` and you cannot find it in `docs/context-packs/` or via `contextos__search_packs_nl`.
+- An architectural decision is not fully covered in `system-architecture.md` and you cannot find it in `docs/context-packs/` or via `coodra__search_packs_nl`.
 - A library version or API shape is ambiguous, deprecated, or newer than what's pinned in `External api and library reference.md`.
 - A user action is required (see `02-agent-human-boundary.md` §2.2): API key, infra provisioning, paid account, DNS, OAuth app registration, GitHub App install.
 - A destructive operation is about to happen (schema drop, force-push, mass delete, rotating a shared secret).

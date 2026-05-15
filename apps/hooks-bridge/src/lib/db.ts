@@ -1,5 +1,5 @@
-import { createDb, type DbHandle } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { createDb, type DbHandle } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 
 import type { HooksBridgeEnv } from '../config/env.js';
 
@@ -15,7 +15,7 @@ const dbLibLogger = createLogger('hooks-bridge.lib-db');
 export interface CreateHooksBridgeDbClientOptions {
   /** Auth-strategy hint, forwarded to createDb but not used for DB choice. */
   readonly mode?: 'solo' | 'team';
-  /** Override the SQLite path (defaults to env.CONTEXTOS_SQLITE_PATH). */
+  /** Override the SQLite path (defaults to env.COODRA_SQLITE_PATH). */
   readonly sqlitePath?: string;
   /** Test marker — forces an in-memory DB with no extension load. */
   readonly _testOverrideInMemory?: boolean;
@@ -67,5 +67,5 @@ export function createHooksBridgeDbClient(options: CreateHooksBridgeDbClientOpti
  * synthesised env so the function stays pure.
  */
 export function resolveSqlitePathFromEnv(env: HooksBridgeEnv): string | undefined {
-  return env.CONTEXTOS_SQLITE_PATH;
+  return env.COODRA_SQLITE_PATH;
 }

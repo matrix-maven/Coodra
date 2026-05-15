@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { sqliteSchema } from '@coodra/contextos-db';
+import { sqliteSchema } from '@coodra/db';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { eq } from 'drizzle-orm';
@@ -12,7 +12,7 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
 /**
  * Full session simulation (S17, scenario 5).
  *
- * Walks an entire ContextOS workflow through one MCP Client session:
+ * Walks an entire Coodra workflow through one MCP Client session:
  *   1. `get_run_id` → mints a run + auto-creates the projects row in
  *      solo mode.
  *   2. `record_decision` × 2 → two distinct rows in `decisions`.
@@ -37,7 +37,7 @@ let h: Harness;
 
 beforeAll(async () => {
   const { handle, close: closeDb } = openSqliteHandle();
-  const env = buildE2eEnv({ CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
+  const env = buildE2eEnv({ COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
   const boot = await bootForE2E({ db: handle, env, withHttp: true });
   if (!boot.http) throw new Error('expected http transport');
 

@@ -45,7 +45,7 @@ Real DB queries (no mocks). Mode-aware (sqlite for solo, postgres for team).
 
 Existing apps/web/ Vitest suite still runs:
 ```bash
-pnpm --filter @coodra/contextos-web test
+pnpm --filter @coodra/web test
 ```
 
 apps/web-v2/ has no tests yet (deferred per spec).

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input schema for `contextos__get_feature_pack` (§24.4).
+ * Input schema for `coodra__get_feature_pack` (§24.4).
  *
  * `projectSlug` is the single-namespace feature-pack slug (per
  * decisions-log 2026-04-24 12:15 "feature_packs is
@@ -25,7 +25,7 @@ export const getFeaturePackInputSchema = z
       .describe('Optional path to resolve against `sourceFiles` globs; deepest match wins.'),
   })
   .strict()
-  .describe('Input for contextos__get_feature_pack.');
+  .describe('Input for coodra__get_feature_pack.');
 
 /**
  * Wire shape of a single FeaturePack in the output. Mirrors the

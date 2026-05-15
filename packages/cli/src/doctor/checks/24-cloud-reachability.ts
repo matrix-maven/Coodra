@@ -1,19 +1,19 @@
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { createPostgresDb } from '@coodra/contextos-db';
+import { createPostgresDb } from '@coodra/db';
 
 import type { Check } from '../types.js';
 
 /**
  * Module 04a doctor surface — cloud Postgres reachability.
  *
- * Skipped when `CONTEXTOS_MODE !== 'team'` or `DATABASE_URL` is not set
+ * Skipped when `COODRA_MODE !== 'team'` or `DATABASE_URL` is not set
  * (solo mode has no cloud target).
  *
  * Time-based escalation (per OQ3 sign-off 2026-04-28). Doctor runs are
  * one-shot, so we track first-failure time in a small state file at
- * `<contextos-home>/state/sync-cloud-unreachable-since` so successive
+ * `<coodra-home>/state/sync-cloud-unreachable-since` so successive
  * doctor invocations can compute the elapsed window:
  *   - reachable → green; remove the state file
  *   - unreachable, first time / <5min → yellow (transient)
@@ -28,20 +28,20 @@ export const cloudReachabilityCheck: Check = {
   name: 'cloud Postgres reachability (Module 04a sync-daemon)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    if (ctx.env.CONTEXTOS_MODE !== 'team') {
-      return { status: 'skipped', detail: 'CONTEXTOS_MODE != team — no cloud target to reach' };
+    if (ctx.env.COODRA_MODE !== 'team') {
+      return { status: 'skipped', detail: 'COODRA_MODE != team — no cloud target to reach' };
     }
     const databaseUrl = ctx.env.DATABASE_URL;
     if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
       return {
         status: 'red',
-        detail: 'CONTEXTOS_MODE=team but DATABASE_URL is not set',
+        detail: 'COODRA_MODE=team but DATABASE_URL is not set',
         remediation:
-          'Set DATABASE_URL in your environment (or `<contextos-home>/.env`). The sync-daemon will not start without it.',
+          'Set DATABASE_URL in your environment (or `<coodra-home>/.env`). The sync-daemon will not start without it.',
       };
     }
 
-    const stateFile = join(ctx.contextosHome, 'state', 'sync-cloud-unreachable-since');
+    const stateFile = join(ctx.coodraHome, 'state', 'sync-cloud-unreachable-since');
     const reachable = await tryPing(databaseUrl, ctx.timeoutMs);
 
     if (reachable.ok) {

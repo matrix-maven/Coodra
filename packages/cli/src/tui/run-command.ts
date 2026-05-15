@@ -21,7 +21,7 @@ import { buildProgram } from '../program.js';
 /** Thrown by the capturing `io.exit` so the runner records the code without exiting the process. */
 export class TuiExitSignal extends Error {
   constructor(public readonly code: number) {
-    super(`contextos exited ${code}`);
+    super(`coodra exited ${code}`);
     this.name = 'TuiExitSignal';
   }
 }
@@ -44,7 +44,7 @@ function applyCommanderOverrides(cmd: Command, writeOut: (s: string) => void, wr
 }
 
 /**
- * Run `contextos <argv…>` in-process and capture its output. Never
+ * Run `coodra <argv…>` in-process and capture its output. Never
  * throws for a command-level failure — a non-zero `exitCode` (or
  * `crashed: true`) is reported in the result instead.
  */
@@ -112,7 +112,7 @@ export async function runCommandInProcess(argv: readonly string[]): Promise<Comm
   );
 
   try {
-    await program.parseAsync(['node', 'contextos', ...argv]);
+    await program.parseAsync(['node', 'coodra', ...argv]);
   } catch (err) {
     if (err instanceof TuiExitSignal) {
       exitCode = err.code;

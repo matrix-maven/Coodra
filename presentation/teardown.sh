@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # teardown.sh — Clean up after the demo.
 # Stops daemons, removes the demo project directory.
-# Does NOT touch ~/.contextos/ (your other projects' state stays intact).
+# Does NOT touch ~/.coodra/ (your other projects' state stays intact).
 
 set -euo pipefail
 
 DEMO_DIR="$HOME/taskforge-demo"
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  ContextOS Demo Teardown"
+echo "  Coodra Demo Teardown"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 
-echo "▸ Stopping ContextOS daemons..."
-contextos stop 2>/dev/null || true
+echo "▸ Stopping Coodra daemons..."
+coodra stop 2>/dev/null || true
 echo ""
 
 if [ -d "$DEMO_DIR" ]; then
@@ -22,7 +22,7 @@ if [ -d "$DEMO_DIR" ]; then
 fi
 echo ""
 
-echo "▸ ~/.contextos/ preserved (your other projects' state untouched)."
+echo "▸ ~/.coodra/ preserved (your other projects' state untouched)."
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  ✅ Teardown complete."

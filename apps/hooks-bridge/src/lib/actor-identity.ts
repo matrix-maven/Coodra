@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
+import { readTeamConfig } from '@coodra/cli/lib/team-config';
 
 /**
  * `apps/hooks-bridge/src/lib/actor-identity.ts` — Phase G slice G.7.
@@ -12,7 +12,7 @@ import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
  *
  * Phase G trust hierarchy (highest first):
  *
- *   1. `~/.contextos/clerk-token.json::claimsMirror` (Phase G primary).
+ *   1. `~/.coodra/clerk-token.json::claimsMirror` (Phase G primary).
  *      The mirror was written by `writeToken` in shared/auth, which
  *      ALREADY verified the JWT signature before persisting. So the
  *      on-disk mirror is trusted as long as the file isn't tampered
@@ -21,14 +21,14 @@ import { readTeamConfig } from '@coodra/contextos-cli/lib/team-config';
  *      round-trip. The bridge already does dozens of disk ops per
  *      hook event; one more sync JSON read is in the noise.
  *
- *   2. `~/.contextos/config.json::team` (legacy, deprecation fallback).
+ *   2. `~/.coodra/config.json::team` (legacy, deprecation fallback).
  *      Used only when no clerk-token.json exists. Removed in Phase H
  *      after a deprecation window.
  *
  *   3. None → null (solo mode, or team mode with no credential).
  *
  * Why NOT verify the JWT signature on every event:
- *   - The CLI's `contextos login` verified the JWT BEFORE writing the
+ *   - The CLI's `coodra login` verified the JWT BEFORE writing the
  *     file. We trust the disk-side-of-write.
  *   - JWT verification involves JWKS fetch (cached but still network
  *     possible) which would add p50 ~5-50ms per hook event. The
@@ -70,7 +70,7 @@ interface StoredTokenShape {
 }
 
 function resolveTokenPath(): string {
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   return resolve(home, TOKEN_FILENAME);
 }
 
@@ -94,7 +94,7 @@ function readClerkTokenMirror(): ActorIdentity | null {
   if (typeof mirror.userId !== 'string' || mirror.userId.length === 0) return null;
   if (typeof mirror.orgId !== 'string' || mirror.orgId.length === 0) return null;
   // Sanity-check expiry — if the mirror says the token has expired,
-  // refuse the attribution. The CLI's `contextos login` will refresh
+  // refuse the attribution. The CLI's `coodra login` will refresh
   // claimsMirror on next login; until then we fall back to legacy
   // config or null.
   try {

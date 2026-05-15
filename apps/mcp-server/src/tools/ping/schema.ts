@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input schema for `contextos__ping`. Deliberately tiny — `ping` is
+ * Input schema for `coodra__ping`. Deliberately tiny — `ping` is
  * the walking-skeleton tool that proves the registration framework,
  * stdio transport, policy wrapper, and idempotency-key contract all
  * work end-to-end. It does nothing domain-specific.
@@ -19,7 +19,7 @@ export const pingInputSchema = z
       .describe('Optional string the server will include verbatim in the response. Useful for roundtrip tests.'),
   })
   .strict()
-  .describe('Input for contextos__ping.');
+  .describe('Input for coodra__ping.');
 
 /**
  * Output schema. Locking it as a Zod type lets the registry validate

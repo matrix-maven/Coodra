@@ -12,18 +12,18 @@ import 'server-only';
  *     installer URL the teammate copies into their terminal.
  *
  * Resolution order:
- *   1. `CONTEXTOS_PUBLIC_URL` — explicit override, set by the deploy
+ *   1. `COODRA_PUBLIC_URL` — explicit override, set by the deploy
  *      template. Always wins; admin's source of truth.
  *   2. `VERCEL_URL` — auto-set by Vercel runtime (no scheme; we prefix
  *      `https://`).
- *   3. Sentinel `https://CONTEXTOS_PUBLIC_URL_NOT_SET.invalid` so a
+ *   3. Sentinel `https://COODRA_PUBLIC_URL_NOT_SET.invalid` so a
  *      mis-deployed instance produces clearly-broken links rather
  *      than silently pointing at localhost. Operators see "what is
  *      that URL" and search the env vars they forgot.
  */
 
 export function resolveDeploymentBaseUrl(): string {
-  const explicit = process.env.CONTEXTOS_PUBLIC_URL;
+  const explicit = process.env.COODRA_PUBLIC_URL;
   if (typeof explicit === 'string' && explicit.length > 0) {
     return explicit.replace(/\/$/, '');
   }
@@ -31,7 +31,7 @@ export function resolveDeploymentBaseUrl(): string {
   if (typeof vercel === 'string' && vercel.length > 0) {
     return `https://${vercel.replace(/\/$/, '')}`;
   }
-  return 'https://CONTEXTOS_PUBLIC_URL_NOT_SET.invalid';
+  return 'https://COODRA_PUBLIC_URL_NOT_SET.invalid';
 }
 
 /**
@@ -39,5 +39,5 @@ export function resolveDeploymentBaseUrl(): string {
  * a remediation banner.
  */
 export function isDeploymentBaseUrlUnset(): boolean {
-  return resolveDeploymentBaseUrl().includes('CONTEXTOS_PUBLIC_URL_NOT_SET');
+  return resolveDeploymentBaseUrl().includes('COODRA_PUBLIC_URL_NOT_SET');
 }

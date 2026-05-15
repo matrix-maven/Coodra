@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # __tests__/functional/g3-cli-login.sh
 #
-# Phase G.3 functional test — `contextos login` command.
+# Phase G.3 functional test — `coodra login` command.
 #
 # What it proves:
 #   1. The command refuses cleanly when Clerk env is missing (no token
@@ -10,12 +10,12 @@
 #   3. Top-level `login` is registered.
 #   4. With --no-open the URL is printed to stdout (no actual browser).
 #   5. (Optional, manual) The full flow against a real Clerk session
-#      writes ~/.contextos/clerk-token.json with valid claims, mode 0600.
+#      writes ~/.coodra/clerk-token.json with valid claims, mode 0600.
 #
 # Modes:
 #   • Mode A — quick smoke (no web, no Clerk). Runs unprompted.
 #   • Mode B — full flow (requires real web running in team mode + the
-#     `contextos_cli` JWT template configured in the Clerk dashboard).
+#     `coodra_cli` JWT template configured in the Clerk dashboard).
 #     Triggered by setting INTERACTIVE=1 in the env.
 #
 # Run:
@@ -27,7 +27,7 @@ set -uo pipefail
 SLICE="G.3"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 PASS=0
@@ -48,8 +48,8 @@ assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 # repo's own .env files (which exist on a contributor's laptop). The
 # real product on a clean machine doesn't have those, so disabling the
 # shim is the right way to simulate that.
-contextos() {
-  CONTEXTOS_HOME="$STUB_HOME" CONTEXTOS_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
+coodra() {
+  COODRA_HOME="$STUB_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 node "$CLI_BIN" "$@"
 }
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ hdr "Precondition: CLI binary exists"
 
 if [ ! -f "$CLI_BIN" ]; then
   yel "  ⊘ CLI bundle not found at $CLI_BIN. Building..."
-  (cd "$REPO_ROOT" && pnpm --filter @coodra/contextos-cli build 2>&1 | tail -3) || {
+  (cd "$REPO_ROOT" && pnpm --filter @coodra/cli build 2>&1 | tail -3) || {
     red "  ✗ build failed"
     exit 1
   }
@@ -74,7 +74,7 @@ OUT=$(node "$CLI_BIN" --help 2>&1)
 if echo "$OUT" | grep -q "^[[:space:]]*login \[options\]"; then
   assert_pass "A.1 — top-level \`login\` command is registered"
 else
-  assert_fail "A.1 — \`login\` not listed in \`contextos --help\`"
+  assert_fail "A.1 — \`login\` not listed in \`coodra --help\`"
 fi
 
 # A.2: login --help shows expected flags
@@ -86,7 +86,7 @@ else
 fi
 
 # A.3: empty home → refuses with helpful message
-OUT=$(contextos login --no-open 2>&1 || true)
+OUT=$(coodra login --no-open 2>&1 || true)
 if echo "$OUT" | grep -q "Clerk env is not configured"; then
   assert_pass "A.3 — refuses cleanly when Clerk env missing"
 else
@@ -99,7 +99,7 @@ cat > "$STUB_HOME/.env" <<'EOF'
 CLERK_SECRET_KEY=sk_test_replace_me
 CLERK_PUBLISHABLE_KEY=pk_test_xxx
 EOF
-OUT=$(contextos login --no-open 2>&1 || true)
+OUT=$(coodra login --no-open 2>&1 || true)
 if echo "$OUT" | grep -q "Clerk env is not configured"; then
   assert_pass "A.4 — refuses on solo-bypass sentinel"
 else
@@ -114,10 +114,10 @@ hdr "Mode B — full flow (requires INTERACTIVE=1 + real Clerk + web running)"
 if [ "${INTERACTIVE:-0}" != "1" ]; then
   assert_skip "set INTERACTIVE=1 to run the interactive browser-handoff test"
 else
-  # Use the developer's real ~/.contextos so the test exercises the
+  # Use the developer's real ~/.coodra so the test exercises the
   # real web running in team mode against real Clerk. After the test,
   # restore any pre-existing clerk-token.json.
-  REAL_HOME="${CONTEXTOS_HOME:-$HOME/.contextos}"
+  REAL_HOME="${COODRA_HOME:-$HOME/.coodra}"
   TOKEN_PATH="$REAL_HOME/clerk-token.json"
   BACKUP=""
   if [ -f "$TOKEN_PATH" ]; then
@@ -135,7 +135,7 @@ else
 
   # Run with the real home + with timeout shorter than default so test
   # doesn't hang forever in CI.
-  if CONTEXTOS_HOME="$REAL_HOME" timeout 300 node "$CLI_BIN" login --timeout-ms 240000; then
+  if COODRA_HOME="$REAL_HOME" timeout 300 node "$CLI_BIN" login --timeout-ms 240000; then
     if [ -f "$TOKEN_PATH" ]; then
       MODE=$(stat -f '%A' "$TOKEN_PATH" 2>/dev/null || stat -c '%a' "$TOKEN_PATH" 2>/dev/null)
       if [ "$MODE" = "600" ]; then

@@ -9,7 +9,7 @@ import { clerkAppearance } from '@/lib/clerk-appearance';
  */
 
 export default function SignUpPage() {
-  if ((process.env.CONTEXTOS_MODE ?? 'solo') === 'solo') notFound();
+  if ((process.env.COODRA_MODE ?? 'solo') === 'solo') notFound();
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center gap-8">
       <div className="flex flex-col items-center gap-2">

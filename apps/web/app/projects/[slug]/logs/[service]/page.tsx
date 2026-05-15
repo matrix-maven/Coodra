@@ -52,7 +52,7 @@ export default async function LogTailPage({ params }: { params: Promise<{ slug: 
           body={
             <>
               The {service} service has not started, or its log was never written. Start the service via{' '}
-              <span className="font-mono">contextos start</span> or the workspace settings page.
+              <span className="font-mono">coodra start</span> or the workspace settings page.
             </>
           }
         />

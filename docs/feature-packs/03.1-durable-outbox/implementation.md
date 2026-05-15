@@ -11,12 +11,12 @@
 - **The big AC:** SIGTERM mid-PreToolUse → restart → `policy_decisions` row lands. `verify-outbox-crash-safety.ts` (S5) is the test that proves it.
 - **No new external deps.** `pending_jobs` is in the schema since M01. Worker is plain TS + `better-sqlite3` + Drizzle.
 - **Per-slice green gate.** Each commit passes `pnpm exec turbo run typecheck lint test:unit` across the monorepo.
-- **Migration-lock discipline.** S0's migration 0004 has a `@preserve` block IF any hand-rolled SQL is needed; otherwise pure Drizzle-Kit emit. Verify with `pnpm --filter @coodra/contextos-db check:migration-lock`.
-- **CONTEXTOS_HOME precedence.** The worker reads/writes via the same `DbHandle` the bridge + mcp-server use, so the M08a fix `37f70d0` (resolveSqlitePath honours CONTEXTOS_HOME) makes the worker write to the same DB doctor reads from automatically — no new path-resolution logic.
+- **Migration-lock discipline.** S0's migration 0004 has a `@preserve` block IF any hand-rolled SQL is needed; otherwise pure Drizzle-Kit emit. Verify with `pnpm --filter @coodra/db check:migration-lock`.
+- **COODRA_HOME precedence.** The worker reads/writes via the same `DbHandle` the bridge + mcp-server use, so the M08a fix `37f70d0` (resolveSqlitePath honours COODRA_HOME) makes the worker write to the same DB doctor reads from automatically — no new path-resolution logic.
 
 ## Slice plan
 
-### S0 — Schema migration 0004 + `scheduleDurableWrite` helper in `@coodra/contextos-db`
+### S0 — Schema migration 0004 + `scheduleDurableWrite` helper in `@coodra/db`
 
 **Independent of OQ sign-off** — pure schema + helper, no behavioral change for callsites. Lands on `feat/03.1-durable-outbox` directly.
 
@@ -26,7 +26,7 @@
 - `packages/db/migrations.lock.json` — only updated if a `@preserve` block is added (likely not for this migration).
 - `packages/db/src/schema/sqlite.ts` — add `pickedAt`, `failedAt`, `lastError` columns to `pendingJobs`.
 - `packages/db/src/schema/postgres.ts` — same columns, dialect-parallel.
-- `packages/db/src/schedule-durable-write.ts` (new) — `scheduleDurableWrite(handle, job)` — INSERT into `pending_jobs` with the canonical envelope. Exported from `@coodra/contextos-db`.
+- `packages/db/src/schedule-durable-write.ts` (new) — `scheduleDurableWrite(handle, job)` — INSERT into `pending_jobs` with the canonical envelope. Exported from `@coodra/db`.
 - `packages/db/src/index.ts` — re-export `scheduleDurableWrite` + the new types.
 
 **Schema additions:**
@@ -65,9 +65,9 @@ Postgres dialect mirrors with `timestamp({ withTimezone: true, mode: 'date' })`.
 - `packages/db/__tests__/integration/postgres-migrate.test.ts` — add an assertion that the new columns + index exist after migration 0004 applies.
 
 **Verification:**
-- `pnpm --filter @coodra/contextos-db check:migration-lock` — clean.
-- `pnpm --filter @coodra/contextos-db test:integration` — green; new test file passes.
-- `pnpm --filter @coodra/contextos-db build && pnpm exec turbo run typecheck lint test:unit` — green across the monorepo.
+- `pnpm --filter @coodra/db check:migration-lock` — clean.
+- `pnpm --filter @coodra/db test:integration` — green; new test file passes.
+- `pnpm --filter @coodra/db build && pnpm exec turbo run typecheck lint test:unit` — green across the monorepo.
 
 **Commit message:** `feat(db): pending_jobs.{picked_at,failed_at,last_error} + scheduleDurableWrite helper for the durable audit outbox (S0)`
 
@@ -83,7 +83,7 @@ Postgres dialect mirrors with `timestamp({ withTimezone: true, mode: 'date' })`.
 - `packages/cli/src/lib/outbox/backoff.ts` — `computeBackoff(attempts)` returns the per-attempt delay (1s/5s/30s/5min/30min/give-up).
 - `packages/cli/src/lib/outbox/index.ts` — barrel re-export.
 
-**Wait — why does the OutboxWorker live in `packages/cli`?** Because bridge and mcp-server are both apps; sharing code between apps means the code lives in a `packages/*` package. `@coodra/contextos-cli` already houses the daemon abstraction; adding the worker there avoids a new package. Both apps import it. (If this feels like the wrong package, S1 may move it to `@coodra/contextos-shared` or a new `@coodra/contextos-outbox` — sign-off step before S1 starts.)
+**Wait — why does the OutboxWorker live in `packages/cli`?** Because bridge and mcp-server are both apps; sharing code between apps means the code lives in a `packages/*` package. `@coodra/cli` already houses the daemon abstraction; adding the worker there avoids a new package. Both apps import it. (If this feels like the wrong package, S1 may move it to `@coodra/shared` or a new `@coodra/outbox` — sign-off step before S1 starts.)
 
 **Behavioral spec:**
 
@@ -110,7 +110,7 @@ export class OutboxWorker {
   8. Concurrent workers (two `OutboxWorker` instances on the same DB): each row is dispatched exactly once (lease serialization).
 - `packages/cli/__tests__/unit/outbox/backoff.test.ts` — 3 cases: schedule shape, give-up at attempts ≥ MAX_ATTEMPTS, monotonically increasing.
 
-**Verification:** `pnpm exec turbo run typecheck lint test:unit --filter=@coodra/contextos-cli` ✓.
+**Verification:** `pnpm exec turbo run typecheck lint test:unit --filter=@coodra/cli` ✓.
 
 **Commit message:** `feat(cli): OutboxWorker — pickup/lease/dispatch/retry/give-up loop for the durable audit outbox (S1)`
 
@@ -132,10 +132,10 @@ export class OutboxWorker {
   - **Deletes** the `setImmediate(resolve)` "drain in-flight" shim. Replaced by the OutboxWorker's `stop()` (S3).
 
 **Files (new):**
-- `apps/hooks-bridge/src/lib/outbox-dispatch.ts` — `createBridgeDispatchHandler({ db, logger })` returning the `OutboxDispatchHandler` that maps `queue` → destination INSERT (uses `lookupRunId`, `recordPolicyDecision` from `@coodra/contextos-db`, the runs/run_events insert helpers from `run-recorder.ts`'s body refactored into pure functions).
+- `apps/hooks-bridge/src/lib/outbox-dispatch.ts` — `createBridgeDispatchHandler({ db, logger })` returning the `OutboxDispatchHandler` that maps `queue` → destination INSERT (uses `lookupRunId`, `recordPolicyDecision` from `@coodra/db`, the runs/run_events insert helpers from `run-recorder.ts`'s body refactored into pure functions).
 - `apps/mcp-server/src/lib/outbox-dispatch.ts` — same shape; the dispatch table is shared (both services dispatch the same `queue` types) but each app has its own typed factory.
 
-**Refactor opportunity:** the destination-insert bodies currently inline in `run-recorder.ts` move to `@coodra/contextos-db` as pure helpers (`insertRunEvent`, `insertRun`, `closeRun`, `recordPolicyDecision` — which already exists). The bridge's `run-recorder.ts` shrinks to just enqueue + the existing `clampToolInput`. The mcp-server's `run-recorder.ts` shrinks similarly.
+**Refactor opportunity:** the destination-insert bodies currently inline in `run-recorder.ts` move to `@coodra/db` as pure helpers (`insertRunEvent`, `insertRun`, `closeRun`, `recordPolicyDecision` — which already exists). The bridge's `run-recorder.ts` shrinks to just enqueue + the existing `clampToolInput`. The mcp-server's `run-recorder.ts` shrinks similarly.
 
 **Tests:**
 - `apps/hooks-bridge/__tests__/integration/run-recorder.test.ts` — update to assert that calling `recordPolicyDecision` LANDS A ROW IN `pending_jobs` (not directly in `policy_decisions`), and that running the worker drains it to `policy_decisions`.
@@ -224,7 +224,7 @@ export class OutboxWorker {
 **Files (modify):**
 - `context_memory/current-session.md` — overwrite with the M03.1 session log; "Next action" = "Module 04 (Web App) kickoff per `docs/feature-packs/04-web-app/spec.md`".
 
-**Re-call** `contextos__save_context_pack` with the full pack content.
+**Re-call** `coodra__save_context_pack` with the full pack content.
 
 **Commit message:** `docs(03.1-durable-outbox): closeout context pack + session-memory handoff (S6)`
 
@@ -255,4 +255,4 @@ After all 6 slices land and the branch is squash-merged to main:
 - Tech stack — `docs/feature-packs/03.1-durable-outbox/techstack.md`.
 - Architecture — `system-architecture.md` §3.4 (CAP), §4.3 (idempotency), §16 pattern 3 (Outbox), ADR-006.
 - The 7 audit callsites being replaced — see `spec.md` §3.1 item 4.
-- M08a closeout (post-08a integration findings) — `docs/context-packs/2026-04-27-module-08a-cli.md` for the doctor-pattern + CONTEXTOS_HOME precedence cross-references.
+- M08a closeout (post-08a integration findings) — `docs/context-packs/2026-04-27-module-08a-cli.md` for the doctor-pattern + COODRA_HOME precedence cross-references.

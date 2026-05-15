@@ -164,7 +164,7 @@ export async function runInit(input: RunInitInput): Promise<RunInitResult> {
       ok: false,
       error: 'mcp_runtime_unavailable',
       howToFix:
-        'The bundled mcp-server runtime could not be resolved. Reinstall @coodra/contextos-cli or run `pnpm --filter @coodra/contextos-cli build`.',
+        'The bundled mcp-server runtime could not be resolved. Reinstall @coodra/cli or run `pnpm --filter @coodra/cli build`.',
       exitCode,
       stdout,
       stderr,

@@ -13,10 +13,10 @@ const projectConfigSchema = z
 
 export const projectRegisteredCheck: Check = {
   id: 12,
-  name: 'Project registered for cwd (.contextos.json resolves to a projects row)',
+  name: 'Project registered for cwd (.coodra.json resolves to a projects row)',
   severity: 'yellow',
   async run(ctx) {
-    const configPath = join(ctx.cwd, '.contextos.json');
+    const configPath = join(ctx.cwd, '.coodra.json');
     let parsed: z.infer<typeof projectConfigSchema>;
     try {
       const raw = readFileSync(configPath, 'utf8');
@@ -27,13 +27,13 @@ export const projectRegisteredCheck: Check = {
         return {
           status: 'yellow',
           detail: `${configPath} not found — bridge will fall back to __global__ for this cwd`,
-          remediation: 'Run `contextos init` from this directory to register the project.',
+          remediation: 'Run `coodra init` from this directory to register the project.',
         };
       }
       return {
         status: 'yellow',
         detail: `cannot read ${configPath}: ${(err as Error).message}`,
-        remediation: 'Re-run `contextos init` to rewrite a valid .contextos.json.',
+        remediation: 'Re-run `coodra init` to rewrite a valid .coodra.json.',
       };
     }
     try {
@@ -56,8 +56,8 @@ export const projectRegisteredCheck: Check = {
       }
       return {
         status: 'yellow',
-        detail: `.contextos.json says slug='${parsed.projectSlug}' but no projects row matches`,
-        remediation: 'Run `contextos init` to register the project, or update .contextos.json to a known slug.',
+        detail: `.coodra.json says slug='${parsed.projectSlug}' but no projects row matches`,
+        remediation: 'Run `coodra init` to register the project, or update .coodra.json to a known slug.',
       };
     } catch (err) {
       const msg = (err as Error).message;

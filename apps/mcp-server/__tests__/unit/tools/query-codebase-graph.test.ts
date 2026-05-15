@@ -1,5 +1,5 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createQueryCodebaseGraphToolRegistration } from '../../../src/tools/query-codebase-graph/manifest.js';
@@ -9,7 +9,7 @@ import {
 } from '../../../src/tools/query-codebase-graph/schema.js';
 
 /**
- * Unit tests for `contextos__query_codebase_graph` — manifest
+ * Unit tests for `coodra__query_codebase_graph` — manifest
  * contract + input schema boundaries + output schema (three branches
  * + observability primitives) + idempotency-key shape + factory
  * construction contract. DB + graphify behaviour
@@ -133,7 +133,7 @@ describe('query_codebase_graph — output schema branches', () => {
     const parsed = queryCodebaseGraphOutputSchema.safeParse({
       ok: false,
       error: 'project_not_found',
-      howToFix: 'run contextos init',
+      howToFix: 'run coodra init',
     });
     expect(parsed.success).toBe(true);
   });

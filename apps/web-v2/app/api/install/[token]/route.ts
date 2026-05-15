@@ -76,7 +76,7 @@ async function preflight(
       response: errorResponse(
         404,
         'not_team_mode',
-        'This endpoint only exists in team-mode deployments. Run `contextos team init` to switch into team mode.',
+        'This endpoint only exists in team-mode deployments. Run `coodra team init` to switch into team mode.',
       ),
     };
   }
@@ -117,7 +117,7 @@ async function preflight(
         response: errorResponse(
           503,
           'schema_not_migrated',
-          'Deployment Postgres is missing the `team_invites` table. The admin must apply Drizzle migration 0014_team_invites (`contextos db migrate`) before invites can be served.',
+          'Deployment Postgres is missing the `team_invites` table. The admin must apply Drizzle migration 0014_team_invites (`coodra db migrate`) before invites can be served.',
         ),
       };
     }
@@ -222,7 +222,7 @@ export async function POST(_request: Request, { params }: RouteParams): Promise<
   //
   // Phase H drops the Clerk org-invite step entirely. The admin's
   // `mintInviteAction` no longer fires `createOrganizationInvitation`,
-  // so Jane only ever sees ONE link — the ContextOS install URL.
+  // so Jane only ever sees ONE link — the Coodra install URL.
   //
   // At redemption time, this route looks up Jane by email. Two cases:
   //
@@ -235,7 +235,7 @@ export async function POST(_request: Request, { params }: RouteParams): Promise<
   //      single-use token is the admin's vouching credential.
   //
   // If Jane has no Clerk user at all (case C), she has to sign up via
-  // /auth/sign-up first. The install page UX (and `contextos team join`)
+  // /auth/sign-up first. The install page UX (and `coodra team join`)
   // open the browser to the cli-login page, which routes through Clerk
   // sign-in/sign-up so case C is handled at the UX layer — by the time
   // a request hits this POST, Jane has a Clerk identity in some form.

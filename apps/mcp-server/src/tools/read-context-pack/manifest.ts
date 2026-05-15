@@ -9,11 +9,11 @@ import {
 } from './schema.js';
 
 /**
- * Registration factory for `contextos__read_context_pack` (M05 §5.2).
+ * Registration factory for `coodra__read_context_pack` (M05 §5.2).
  *
  * Read-only tool — idempotency key kind `readonly`.
  * §24.3 description anatomy enforced by
- * `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`.
+ * `@coodra/shared/test-utils::assertManifestDescriptionValid`.
  */
 
 const readContextPackIdempotencyKey: IdempotencyKeyBuilder<ReadContextPackInput> = (input, _ctx) => {
@@ -35,7 +35,7 @@ export function createReadContextPackToolRegistration(
 ): ToolRegistration<typeof readContextPackInputSchema, typeof readContextPackOutputSchema> {
   return {
     name: 'read_context_pack',
-    title: 'ContextOS: read_context_pack',
+    title: 'Coodra: read_context_pack',
     description:
       'Call this after `list_context_packs` or `search_packs_nl` to load the full body of a single Context Pack. ' +
       'Provide exactly one of `packId` or `runId`. Returns title, content, save time, source (agent | bridge_auto), the agent-supplied `meta` (decisionIds, affectedFiles, testStatus, openTodos), and all decisions recorded during that run with their structured fields. ' +

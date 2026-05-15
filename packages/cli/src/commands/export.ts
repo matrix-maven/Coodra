@@ -1,9 +1,9 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { getRunWithEverything } from '@coodra/contextos-db';
+import { getRunWithEverything } from '@coodra/db';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { renderHtml } from '../lib/export/render-html.js';
 import { renderJson } from '../lib/export/render-json.js';
 import { renderMarkdown } from '../lib/export/render-markdown.js';
@@ -12,7 +12,7 @@ import { openLocalDb } from '../lib/open-local-db.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos export <runId> --format markdown|json|html|slack` —
+ * `coodra export <runId> --format markdown|json|html|slack` —
  * read-only assembler. Module 08b S12.
  *
  * Per OQ-7 lock (2026-05-03):
@@ -23,7 +23,7 @@ import { pc } from '../ui/index.js';
  *
  * Output destination:
  *   - `--out <path>` writes to disk.
- *   - Otherwise writes to stdout (so `contextos export <runId> --format markdown
+ *   - Otherwise writes to stdout (so `coodra export <runId> --format markdown
  *     | pbcopy` works).
  *   - `--webhook <url>` (Slack format only) POSTs the rendered body as
  *     `{ "text": <body> }` to the URL. If the POST fails, the body is
@@ -46,7 +46,7 @@ export interface ExportIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   /** Override the fetch impl for tests (--webhook). Default: globalThis.fetch. */
   readonly fetchImpl?: typeof fetch;
 }
@@ -82,8 +82,8 @@ export async function runExportCommand(runId: string, options: ExportOptions, io
     return surfaceError(io, EXIT_USER_RECOVERABLE, '--webhook is only supported with --format slack');
   }
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const handle = await openLocalDb(resolveContextosDataDb(homePath));
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const handle = await openLocalDb(resolveCoodraDataDb(homePath));
   let body: string;
   try {
     const data = await getRunWithEverything(handle, runId.trim());

@@ -6,7 +6,7 @@
 
 ## 1. Goal
 
-Bring ContextOS team mode from "scaffolded" to "functional" — every component the team UI will read from now exists, gets stamped with actor identity, and stays cross-team-member consistent.
+Bring Coodra team mode from "scaffolded" to "functional" — every component the team UI will read from now exists, gets stamped with actor identity, and stays cross-team-member consistent.
 
 This phase is **server-side only**:
 - Schema additions for member attribution.
@@ -22,7 +22,7 @@ This phase is **server-side only**:
 
 `0012_team_actor_attribution.sql` — adds `created_by_user_id` text columns to `runs`, `decisions`, `context_packs`, `policies`, `feature_packs`, `run_diffs`, plus `paused_by_user_id` + `resumed_by_user_id` on `kill_switches`. All nullable (solo + pre-Phase-4 rows = NULL).
 
-`0013_team_migration_tables.sql` — postgres-only. Adds `_migration_attempts` + `_migration_map` for `contextos team migrate` checkpointing + rollback.
+`0013_team_migration_tables.sql` — postgres-only. Adds `_migration_attempts` + `_migration_map` for `coodra team migrate` checkpointing + rollback.
 
 ### 2.2 Shared RBAC primitives
 
@@ -61,7 +61,7 @@ Wired into:
 ### 2.5 Sync daemon pull-tick (Caveat 1 fix)
 
 `apps/sync-daemon/src/lib/team-rows-puller.ts`:
-- Ticks every 10s (configurable via `CONTEXTOS_SYNC_TICK_MS`).
+- Ticks every 10s (configurable via `COODRA_SYNC_TICK_MS`).
 - Pulls `runs`, `decisions`, `context_packs`, `run_events` newer than local watermark.
 - INSERT ... ON CONFLICT (id) DO NOTHING per ADR-007 append-only.
 - `runs` pulled first so dependent FK lookups succeed in the same tick.
@@ -71,20 +71,20 @@ Without this, member A's decision was invisible to member B's local MCP. The M05
 ### 2.6 CLI team commands
 
 `packages/cli/src/commands/team-setup-cmd.ts` + `team-migrate-cmd.ts` + `packages/cli/src/lib/team-migrate/`:
-- **`contextos team setup`** — admin bootstrap. Connects to the team's own Supabase / Postgres, installs pgvector, applies migrations, verifies 14 expected tables, generates local hook secret, writes admin config, prints credentials block for teammates. The first command an admin runs. **Bring-your-own-DB** posture documented in [docs/team-setup.md](../../team-setup.md).
-- **`contextos team migrate`** — solo→team data move. 12-phase pipeline (preflight → snapshot → plan → reserve → projects → runs → children → org_scoped → verify → rewrite_local → commit → cleanup). Idempotent + resumable + rollback-able. Slug conflicts auto-renamed.
-- **`contextos team join`** — teammate machine onboarding. Promotes local config to team mode; sync-daemon pull-tick handles the actual seed.
-- **`contextos team leave --yes`** — demotes config back to solo.
+- **`coodra team setup`** — admin bootstrap. Connects to the team's own Supabase / Postgres, installs pgvector, applies migrations, verifies 14 expected tables, generates local hook secret, writes admin config, prints credentials block for teammates. The first command an admin runs. **Bring-your-own-DB** posture documented in [docs/team-setup.md](../../team-setup.md).
+- **`coodra team migrate`** — solo→team data move. 12-phase pipeline (preflight → snapshot → plan → reserve → projects → runs → children → org_scoped → verify → rewrite_local → commit → cleanup). Idempotent + resumable + rollback-able. Slug conflicts auto-renamed.
+- **`coodra team join`** — teammate machine onboarding. Promotes local config to team mode; sync-daemon pull-tick handles the actual seed.
+- **`coodra team leave --yes`** — demotes config back to solo.
 
 ### 2.6.1 Doctor check 36 — team-config well-formed
 
 `packages/cli/src/doctor/checks/36-team-config.ts` — surfaces config drift:
 - Solo + no team block → green.
-- CONTEXTOS_MODE=team but config still solo → yellow with remediation.
+- COODRA_MODE=team but config still solo → yellow with remediation.
 - Team block present but missing required fields (clerkUserId, clerkOrgId, localHookSecret, weak secret) → yellow.
 - Complete team block → green with abbreviated identity in detail.
 
-`contextos doctor --full` runs all 36 checks. Essential subset (default `contextos doctor`) is unchanged at 11 checks.
+`coodra doctor --full` runs all 36 checks. Essential subset (default `coodra doctor`) is unchanged at 11 checks.
 
 ### 2.6.2 cloud-migrate updated for the 14-table schema
 
@@ -113,11 +113,11 @@ These all gate on the design system and will land in Phase 4-web after Phase 4 s
 
 1. `pnpm -r typecheck` clean across all 9 packages.
 2. `pnpm -r test:unit` passes — 868 tests, 0 failures.
-3. `pnpm --filter @coodra/contextos-db check:migration-lock` clean.
-4. CLI `contextos team migrate --help` lists the new flags.
-5. CLI `contextos team --help` lists `migrate / join / leave / login / logout` subcommands.
-6. With `DATABASE_URL` set, `pnpm --filter @coodra/contextos-cli test:integration` exercises the full migrate / rollback / idempotent-replay flow.
-7. With `DATABASE_URL` set, `pnpm --filter @coodra/contextos-sync-daemon test:integration` exercises the team-rows pull-tick.
+3. `pnpm --filter @coodra/db check:migration-lock` clean.
+4. CLI `coodra team migrate --help` lists the new flags.
+5. CLI `coodra team --help` lists `migrate / join / leave / login / logout` subcommands.
+6. With `DATABASE_URL` set, `pnpm --filter @coodra/cli test:integration` exercises the full migrate / rollback / idempotent-replay flow.
+7. With `DATABASE_URL` set, `pnpm --filter @coodra/sync-daemon test:integration` exercises the team-rows pull-tick.
 8. RBAC unit tests cover admin / member / viewer behavior + ownership semantics + Clerk role parsing.
 
 ## 5. Open follow-ups

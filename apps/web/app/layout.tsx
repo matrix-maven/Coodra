@@ -37,8 +37,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ContextOS',
-  description: 'Editorial audit surface for ContextOS — local-first, MCP-native, MIT.',
+  title: 'Coodra',
+  description: 'Editorial audit surface for Coodra — local-first, MCP-native, MIT.',
 };
 
 /**

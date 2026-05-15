@@ -18,7 +18,7 @@ Here is the requested reference document in Markdown. It covers each external de
 
 ##### WAL mode and performance PRAGMAs
 
-The solo-mode database is `~/.contextos/data.db` with WAL and performance PRAGMAs. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+The solo-mode database is `~/.coodra/data.db` with WAL and performance PRAGMAs. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
 
 ```sql
 PRAGMA journal_mode = WAL;
@@ -50,7 +50,7 @@ PRAGMA temp_store = MEMORY;
 **Install:**
 
 ```bash
-pnpm --filter @coodra/contextos-db add sqlite-vec@0.1.9 --save-exact
+pnpm --filter @coodra/db add sqlite-vec@0.1.9 --save-exact
 ```
 
 **Node.js load pattern** (what `createSqliteDb` does, guarded by the strict-vs-WARN contract below):
@@ -65,7 +65,7 @@ sqliteVec.load(db);   // throws if the platform binary is missing
 
 **Docs:** <https://alexgarcia.xyz/sqlite-vec/> · <https://github.com/asg017/sqlite-vec>
 
-#### vec0 virtual table (what ContextOS writes)
+#### vec0 virtual table (what Coodra writes)
 
 Module 02 migration `0001_chief_turbo.sql` creates:
 
@@ -104,14 +104,14 @@ const rows = db
 
 `packages/db/src/client.ts::loadSqliteVecOrFail` attempts `sqliteVec.load(db)` and handles failure based on the environment:
 
-- `NODE_ENV=test` **or** `CONTEXTOS_REQUIRE_VEC=1` → throw `InternalError('sqlite_vec_unavailable')` and refuse the SQLite handle. Dev and CI must never silently degrade to the LIKE-over-`content_excerpt` fallback, because that would hide embedding-index regressions.
+- `NODE_ENV=test` **or** `COODRA_REQUIRE_VEC=1` → throw `InternalError('sqlite_vec_unavailable')` and refuse the SQLite handle. Dev and CI must never silently degrade to the LIKE-over-`content_excerpt` fallback, because that would hide embedding-index regressions.
 - otherwise → log a structured WARN tagged `sqlite_vec_unavailable` with `{ loadablePath, platform, arch, err }` and continue. This is the production fail-open path (§7 of `system-architecture.md`): the server still serves contextual reads and falls back to LIKE search.
 
 **Gotchas & caveats**
 
-- **Dimension changes require recreation.** `FLOAT[N]` is baked into the vtab schema; changing `EMBEDDING_DIM` (from `@coodra/contextos-shared/constants`) means a migration + full re-embed. The `packages/shared/src/constants.ts` docblock carries the five-step checklist.
+- **Dimension changes require recreation.** `FLOAT[N]` is baked into the vtab schema; changing `EMBEDDING_DIM` (from `@coodra/shared/constants`) means a migration + full re-embed. The `packages/shared/src/constants.ts` docblock carries the five-step checklist.
 - **Shadow tables.** Creating a `vec0` virtual table also materialises 4–5 companion tables (`<name>_chunks`, `<name>_rowids`, `<name>_vector_chunks00`, `<name>_info`). The unit test in `packages/db/__tests__/unit/client.test.ts` filters them via `substr(name, 1, 18) <> 'context_packs_vec_'` so assertions target the 10-object logical schema.
-- **Migration lock.** The `CREATE VIRTUAL TABLE` block is hand-written and sha256-locked via `packages/db/migrations.lock.json`. Drizzle-Kit regenerating `0001` would wipe it; CI and the `.githooks/pre-commit` hook run `pnpm --filter @coodra/contextos-db check:migration-lock` to catch that drift before it reaches main.
+- **Migration lock.** The `CREATE VIRTUAL TABLE` block is hand-written and sha256-locked via `packages/db/migrations.lock.json`. Drizzle-Kit regenerating `0001` would wipe it; CI and the `.githooks/pre-commit` hook run `pnpm --filter @coodra/db check:migration-lock` to catch that drift before it reaches main.
 - **ANN vs brute-force.** `vec0` is an O(n·d) scan engine in 0.1.x; HNSW/IVF support is not in 0.1.9. Solo-mode SQLite search is therefore brute-force, which is acceptable for the dataset sizes solo workflows produce. Team mode uses the Postgres HNSW index.
 - **Loadable-extension privilege.** `loadExtension(path)` requires SQLite to have extension loading enabled. `better-sqlite3` enables it for the lifetime of the connection it's called on; no pragma needed.
 
@@ -129,7 +129,7 @@ const rows = db
 - Docker example (must adapt to your environment):  
 
   ```bash
-  docker run --name contextos-pg -e POSTGRES_PASSWORD=secret -p 5432:5432 -d postgres:16
+  docker run --name coodra-pg -e POSTGRES_PASSWORD=secret -p 5432:5432 -d postgres:16
   ```
 
 **Docs:**  
@@ -226,7 +226,7 @@ Example usage consistent with architecture’s `createDb()` factory for solo mod
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-const sqlite = new Database(process.env.CONTEXTOS_DB_PATH || '~/.contextos/data.db');
+const sqlite = new Database(process.env.COODRA_DB_PATH || '~/.coodra/data.db');
 sqlite.pragma('journal_mode = WAL');
 
 export const db = drizzle(sqlite);
@@ -340,7 +340,7 @@ export const runs = sqliteTable('runs', {
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
-const sqlite = new Database('~/.contextos/data.db');
+const sqlite = new Database('~/.coodra/data.db');
 export const db = drizzle(sqlite);
 ```
 
@@ -377,7 +377,7 @@ export default defineConfig({
 - `kind: 'local'` always returns a SQLite handle (regardless of `mode`). Used by every local service — `apps/mcp-server`, `apps/hooks-bridge`, `apps/web` — in BOTH solo and team mode. Matches the architectural rule from `system-architecture.md` §1: "local services always write to local SQLite."
 - `kind: 'cloud'` always returns a Postgres handle. Used by future cloud-side processes (Sync Daemon, cloud-api). Local code never picks this branch.
 - `mode` is preserved as an auth-strategy hint that flows through to the auth chain. It does NOT change DB choice.
-- Module 02 introduced a `CONTEXTOS_DB_OVERRIDE_MODE` env var as a stop-gap so a developer could exercise the team-mode auth chain locally without spinning up Postgres. Module 03 S4 makes the override unnecessary by separating `kind` from `mode`. The env knob is removed; existing callers passed it implicitly via `CONTEXTOS_MODE=team` and the new contract handles that case natively.
+- Module 02 introduced a `COODRA_DB_OVERRIDE_MODE` env var as a stop-gap so a developer could exercise the team-mode auth chain locally without spinning up Postgres. Module 03 S4 makes the override unnecessary by separating `kind` from `mode`. The env knob is removed; existing callers passed it implicitly via `COODRA_MODE=team` and the new contract handles that case natively.
 
 #### `kill_switches` polymorphic-scope pattern + soft-resume (Module 08b S1)
 
@@ -671,7 +671,7 @@ serve({ fetch: app.fetch, port: 3101 }, (info) => {
 **Install (app router + TypeScript example):**
 
 ```bash
-npx create-next-app@latest contextos-web
+npx create-next-app@latest coodra-web
 ```
 
 **Docs:** <https://nextjs.org/docs>
@@ -780,7 +780,7 @@ The architecture’s MCP server implements both stdio and HTTP transports simult
 **Install:**
 
 ```bash
-pnpm --filter @coodra/contextos-mcp-server add @modelcontextprotocol/sdk@1.29.0 --save-exact
+pnpm --filter @coodra/mcp-server add @modelcontextprotocol/sdk@1.29.0 --save-exact
 ```
 
 **Docs:** <https://github.com/modelcontextprotocol/typescript-sdk> · <https://modelcontextprotocol.io/specification/2025-03-26>
@@ -792,7 +792,7 @@ The SDK exposes two Node server APIs:
 - **`McpServer`** (`@modelcontextprotocol/sdk/server/mcp.js`) — high-level, prescriptive. `McpServer.registerTool(name, { inputSchema, handler })` takes Zod *raw shapes*, validates inputs for you, and formats outputs.
 - **`Server`** (`@modelcontextprotocol/sdk/server/index.js`) — low-level. You register request handlers against the SDK's exported Zod schemas (`ListToolsRequestSchema`, `CallToolRequestSchema`) and own every byte of the response.
 
-ContextOS's `ToolRegistry` (`apps/mcp-server/src/framework/tool-registry.ts`) already owns input parsing, output validation, the idempotency-key contract, and the automatic policy wrapper. Routing calls through `McpServer.registerTool` would either duplicate that work or invalidate our single-source-of-truth claim. We therefore use `Server` + `setRequestHandler` directly. The SDK marks `Server` as `@deprecated` in favour of `McpServer`, but in context that annotation means "use `McpServer` unless you have a reason to take over the request lifecycle" — and our custom registry is exactly that reason.
+Coodra's `ToolRegistry` (`apps/mcp-server/src/framework/tool-registry.ts`) already owns input parsing, output validation, the idempotency-key contract, and the automatic policy wrapper. Routing calls through `McpServer.registerTool` would either duplicate that work or invalidate our single-source-of-truth claim. We therefore use `Server` + `setRequestHandler` directly. The SDK marks `Server` as `@deprecated` in favour of `McpServer`, but in context that annotation means "use `McpServer` unless you have a reason to take over the request lifecycle" — and our custom registry is exactly that reason.
 
 ```ts
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -810,17 +810,17 @@ await server.connect(new StdioServerTransport());
 
 #### Zod v4 compatibility
 
-`@modelcontextprotocol/sdk@1.29.0` supports Zod v4. Our workspace uses Zod v4 uniformly (both `@coodra/contextos-shared` and `@coodra/contextos-mcp-server`), which lets us drop the third-party `zod-to-json-schema` helper in favour of Zod v4's built-in `z.toJSONSchema(schema, { target: 'draft-2020-12' })` — see `apps/mcp-server/src/framework/manifest-from-zod.ts`.
+`@modelcontextprotocol/sdk@1.29.0` supports Zod v4. Our workspace uses Zod v4 uniformly (both `@coodra/shared` and `@coodra/mcp-server`), which lets us drop the third-party `zod-to-json-schema` helper in favour of Zod v4's built-in `z.toJSONSchema(schema, { target: 'draft-2020-12' })` — see `apps/mcp-server/src/framework/manifest-from-zod.ts`.
 
 #### Stdio transport + logger contract (load-bearing)
 
-The stdio transport uses **stdout** exclusively for JSON-RPC frames. A single stray byte on stdout — a `console.log` from our code, a pino line from any transitive dependency — corrupts the transport. The ContextOS mcp-server enforces this invariant in three places:
+The stdio transport uses **stdout** exclusively for JSON-RPC frames. A single stray byte on stdout — a `console.log` from our code, a pino line from any transitive dependency — corrupts the transport. The Coodra mcp-server enforces this invariant in three places:
 
-1. `apps/mcp-server/src/bootstrap/ensure-stderr-logging.ts` — side-effect module imported **first** in `src/index.ts`. Sets `CONTEXTOS_LOG_DESTINATION=stderr` before `@coodra/contextos-shared`'s logger module evaluates.
-2. `packages/shared/src/logger.ts` — reads `CONTEXTOS_LOG_DESTINATION` at module load; `'stderr'` routes pino to fd 2 via `pino.destination({ fd: 2, sync: true })`. Unknown values throw at boot rather than silently defaulting.
+1. `apps/mcp-server/src/bootstrap/ensure-stderr-logging.ts` — side-effect module imported **first** in `src/index.ts`. Sets `COODRA_LOG_DESTINATION=stderr` before `@coodra/shared`'s logger module evaluates.
+2. `packages/shared/src/logger.ts` — reads `COODRA_LOG_DESTINATION` at module load; `'stderr'` routes pino to fd 2 via `pino.destination({ fd: 2, sync: true })`. Unknown values throw at boot rather than silently defaulting.
 3. `apps/mcp-server/__tests__/unit/transports/stdio-stdout-purity.test.ts` — spawns the real entrypoint, sends an `initialize` frame, and asserts every byte on stdout is a valid JSON-RPC frame and every line on stderr is a parseable pino JSON object.
 
-The Dockerfile and `.mcp.json` both set `CONTEXTOS_LOG_DESTINATION=stderr` as a defence-in-depth: even if the bootstrap module were accidentally removed, the env would still be correct.
+The Dockerfile and `.mcp.json` both set `COODRA_LOG_DESTINATION=stderr` as a defence-in-depth: even if the bootstrap module were accidentally removed, the env would still be correct.
 
 **Gotchas**
 
@@ -1161,7 +1161,7 @@ import { auth } from '@clerk/nextjs/server';
 
 export async function callBackend() {
   const { getToken } = auth();
-  const token = await getToken({ template: 'contextos' });
+  const token = await getToken({ template: 'coodra' });
 
   const res = await fetch('https://api.example.com', {
     headers: { Authorization: `Bearer ${token}` },
@@ -1178,17 +1178,17 @@ export async function callBackend() {
 
 ## Validation, Schemas & Resilience
 
-### `@coodra/contextos-policy` (workspace package — landed Module 03 S3)
+### `@coodra/policy` (workspace package — landed Module 03 S3)
 
 **Version:** workspace-internal (no external pin). Lives at `packages/policy/`.
 **Role:** the cache-first policy evaluator + audit-write helper, shared by `apps/mcp-server` (via the `check_policy` tool + the registry's pre/post auto-wrap) and `apps/hooks-bridge` (via the pre-tool-use hook handler). Also owns the discriminated `PolicyClient` / `PolicyInput` / `PolicyResult` / `PolicyDenyError` types.
 
-**Why a new package (not `@coodra/contextos-shared/policy`):** `@coodra/contextos-db` already depends on `@coodra/contextos-shared`. Putting policy in shared would force shared to depend on `@coodra/contextos-db` (for `DbHandle` + the schema tables policy queries), creating a workspace cycle. A separate package that depends on both `shared` and `db` resolves the cycle cleanly. The original Module 03 plan (spec.md) said "policy lives in shared" — that wording is corrected in S3's commit; it's the only structural deviation.
+**Why a new package (not `@coodra/shared/policy`):** `@coodra/db` already depends on `@coodra/shared`. Putting policy in shared would force shared to depend on `@coodra/db` (for `DbHandle` + the schema tables policy queries), creating a workspace cycle. A separate package that depends on both `shared` and `db` resolves the cycle cleanly. The original Module 03 plan (spec.md) said "policy lives in shared" — that wording is corrected in S3's commit; it's the only structural deviation.
 
 **Dep set:**
 
-- `@coodra/contextos-shared` (logger + `IdempotencyKey` value-shape).
-- `@coodra/contextos-db` (DbHandle + schema tables for SELECT policies/policy_rules + INSERT policy_decisions).
+- `@coodra/shared` (logger + `IdempotencyKey` value-shape).
+- `@coodra/db` (DbHandle + schema tables for SELECT policies/policy_rules + INSERT policy_decisions).
 - `cockatiel@3.2.1` exact (timeout + breaker fuse).
 - `drizzle-orm@^0.45.2` (query builder, matches db's pin).
 - `picomatch@4.0.2` exact (path-glob matching at cache-load time).
@@ -1277,18 +1277,18 @@ export const ENRICHMENT_JSON_SCHEMA = zodToJsonSchema(EnrichmentSchema, 'Enrichm
 
 ### cockatiel (circuit breakers & retries)
 
-**Version:** 3.2.1 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the policy module — and with it the cockatiel breaker — to the new `@coodra/contextos-policy` workspace package; the dep migrated with the code. mcp-server now pulls cockatiel transitively through `@coodra/contextos-policy`. Hooks-bridge does the same — no separate breaker instance lives in the hooks-bridge tree. [npmjs](https://www.npmjs.com/package/cockatiel)
+**Version:** 3.2.1 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the policy module — and with it the cockatiel breaker — to the new `@coodra/policy` workspace package; the dep migrated with the code. mcp-server now pulls cockatiel transitively through `@coodra/policy`. Hooks-bridge does the same — no separate breaker instance lives in the hooks-bridge tree. [npmjs](https://www.npmjs.com/package/cockatiel)
 **Install (exact pin):**
 
 ```bash
-pnpm --filter @coodra/contextos-policy add cockatiel@3.2.1 --save-exact
+pnpm --filter @coodra/policy add cockatiel@3.2.1 --save-exact
 ```
 
 **Docs:** <https://www.npmjs.com/package/cockatiel>
 
-#### Circuit breaker policy for DB / LLMs (the policy-engine pattern ContextOS actually uses)
+#### Circuit breaker policy for DB / LLMs (the policy-engine pattern Coodra actually uses)
 
-ContextOS uses the v3.x functional API — `circuitBreaker(handleAll, { halfOpenAfter, breaker })` and `wrap(timeout, circuitBreaker)` for a timeout-then-breaker fuse. This is exactly what `apps/mcp-server/src/lib/policy.ts` builds for the policy-rule DB read path (§7 "Fault Tolerance" + §5 "Policy Evaluation → AP").
+Coodra uses the v3.x functional API — `circuitBreaker(handleAll, { halfOpenAfter, breaker })` and `wrap(timeout, circuitBreaker)` for a timeout-then-breaker fuse. This is exactly what `apps/mcp-server/src/lib/policy.ts` builds for the policy-rule DB read path (§7 "Fault Tolerance" + §5 "Policy Evaluation → AP").
 
 ```ts
 import {
@@ -1326,16 +1326,16 @@ async function evaluateWithBreaker<T>(fn: () => Promise<T>): Promise<T> {
 
 ### @clerk/backend (JWT verification, Node server)
 
-**Version:** 3.3.0 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the auth module — and with it the dep — to `packages/shared/src/auth/`; the dep migrated with the code. mcp-server and hooks-bridge both pull `@clerk/backend` transitively through `@coodra/contextos-shared`. [npmjs](https://www.npmjs.com/package/@clerk/backend)
+**Version:** 3.3.0 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the auth module — and with it the dep — to `packages/shared/src/auth/`; the dep migrated with the code. mcp-server and hooks-bridge both pull `@clerk/backend` transitively through `@coodra/shared`. [npmjs](https://www.npmjs.com/package/@clerk/backend)
 **Install (exact pin):**
 
 ```bash
-pnpm --filter @coodra/contextos-shared add @clerk/backend@3.3.0 --save-exact
+pnpm --filter @coodra/shared add @clerk/backend@3.3.0 --save-exact
 ```
 
 **Docs:** <https://clerk.com/docs/references/backend/overview>
 
-#### `verifyToken` — the ContextOS JWT verification entrypoint
+#### `verifyToken` — the Coodra JWT verification entrypoint
 
 Module 02 `apps/mcp-server/src/lib/auth.ts` calls `createClerkClient({ secretKey, publishableKey }).verifyToken(token)` to authenticate inbound Bearer JWTs. Per §19 + decisions-log 2026-04-22 Q-02-1 the auth chain is: solo-bypass → `X-Local-Hook-Secret` → full Clerk JWT; the Clerk path is step 3 and is the only one that calls this library.
 
@@ -1369,14 +1369,14 @@ const identity = {
 
 ### picomatch (glob matcher for policy-rule path matching)
 
-**Version:** 4.0.2 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the policy module to `@coodra/contextos-policy`; the policy-side picomatch dep moved with it. mcp-server keeps a separate direct dep on picomatch because `tools/get-feature-pack/handler.ts` uses it independently — that's a different consumer, unrelated to the policy-rule path matcher. [npmjs](https://www.npmjs.com/package/picomatch)
+**Version:** 4.0.2 (pinned **exact**; first installed in `apps/mcp-server/package.json` on 2026-04-23 during Module 02 S7b. Module 03 S3 (2026-04-25) moved the policy module to `@coodra/policy`; the policy-side picomatch dep moved with it. mcp-server keeps a separate direct dep on picomatch because `tools/get-feature-pack/handler.ts` uses it independently — that's a different consumer, unrelated to the policy-rule path matcher. [npmjs](https://www.npmjs.com/package/picomatch)
 **Install (exact pin):**
 
 ```bash
-pnpm --filter @coodra/contextos-policy add picomatch@4.0.2 --save-exact
-pnpm --filter @coodra/contextos-policy add -D @types/picomatch@4.0.2 --save-exact
+pnpm --filter @coodra/policy add picomatch@4.0.2 --save-exact
+pnpm --filter @coodra/policy add -D @types/picomatch@4.0.2 --save-exact
 # mcp-server keeps its own (separate use site for feature-pack glob filtering):
-pnpm --filter @coodra/contextos-mcp-server add picomatch@4.0.2 --save-exact
+pnpm --filter @coodra/mcp-server add picomatch@4.0.2 --save-exact
 ```
 
 **Docs:** <https://github.com/micromatch/picomatch>
@@ -1441,8 +1441,8 @@ logger.info({ sessionId, runId, orgId }, 'PreToolUse decision allow');
 **Gotchas**
 
 - For pretty logs in dev, you can pipe through `pino-pretty`; do **not** use pretty transports in production hot path due to performance cost. [libraries](https://libraries.io/npm/pino-api-logger)
-- **Pino 10 is ESM-only.** Consumers must use `import pino from 'pino'` from an ESM context; `require('pino')` is no longer supported. ContextOS's `tsconfig.base.json` sets `module: NodeNext`, which matches Pino 10's expectations. Transitive consumers that still ship CJS will need to be updated or pinned.
-- **`CONTEXTOS_LOG_DESTINATION` env contract** (added 2026-04-23, S5): services that own stdout as a protocol channel — today only `@coodra/contextos-mcp-server` under the MCP stdio transport — set this env to `stderr` before any import of `@coodra/contextos-shared`. `packages/shared/src/logger.ts` reads it at module load and routes pino to fd 2 via `pino.destination({ fd: 2, sync: true })`. Accepted values: unset / `stdout` / `stderr`; anything else throws at boot. See the `@modelcontextprotocol/sdk` entry under Protocols & Transports for the full enforcement story.
+- **Pino 10 is ESM-only.** Consumers must use `import pino from 'pino'` from an ESM context; `require('pino')` is no longer supported. Coodra's `tsconfig.base.json` sets `module: NodeNext`, which matches Pino 10's expectations. Transitive consumers that still ship CJS will need to be updated or pinned.
+- **`COODRA_LOG_DESTINATION` env contract** (added 2026-04-23, S5): services that own stdout as a protocol channel — today only `@coodra/mcp-server` under the MCP stdio transport — set this env to `stderr` before any import of `@coodra/shared`. `packages/shared/src/logger.ts` reads it at module load and routes pino to fd 2 via `pino.destination({ fd: 2, sync: true })`. Accepted values: unset / `stdout` / `stderr`; anything else throws at boot. See the `@modelcontextprotocol/sdk` entry under Protocols & Transports for the full enforcement story.
 
 ***
 
@@ -1450,8 +1450,8 @@ logger.info({ sessionId, runId, orgId }, 'PreToolUse decision allow');
 
 ### TypeScript
 
-**Version:** 6.0.3 (pinned 2026-04-22 in ContextOS; previously unspecified in this reference). [npmjs](https://www.npmjs.com/package/typescript)
-**Install (repo-local dev dependency — ContextOS pattern):**
+**Version:** 6.0.3 (pinned 2026-04-22 in Coodra; previously unspecified in this reference). [npmjs](https://www.npmjs.com/package/typescript)
+**Install (repo-local dev dependency — Coodra pattern):**
 
 ```bash
 pnpm add -Dw typescript@^6.0.3
@@ -1459,7 +1459,7 @@ pnpm add -Dw typescript@^6.0.3
 
 **Docs:** <https://www.typescriptlang.org/docs/>
 
-#### Compiler configuration used by ContextOS
+#### Compiler configuration used by Coodra
 
 The root `tsconfig.base.json` is the source of truth for compiler options; every workspace package extends it. Key options:
 
@@ -1569,8 +1569,8 @@ Config file: `biome.json` or `biome.jsonc` at repo root. [spacejelly](https://sp
 
 ### Turborepo (`turbo`)
 
-**Version:** 2.9.6 (pinned 2026-04-22 in ContextOS; previously unspecified in this reference). [npmjs](https://www.npmjs.com/package/turbo)
-**Install (as a repo-local dev dependency — ContextOS pattern):**
+**Version:** 2.9.6 (pinned 2026-04-22 in Coodra; previously unspecified in this reference). [npmjs](https://www.npmjs.com/package/turbo)
+**Install (as a repo-local dev dependency — Coodra pattern):**
 
 ```bash
 pnpm add -Dw turbo@^2.9.6
@@ -1600,7 +1600,7 @@ Example from monorepo guide: [turborepo](https://turborepo.dev/docs/guides/publi
 }
 ```
 
-> **Gotcha (2.x):** Turborepo 2 renamed the top-level `pipeline` key to `tasks`. Configurations written for 1.x will error. ContextOS uses `tasks`.
+> **Gotcha (2.x):** Turborepo 2 renamed the top-level `pipeline` key to `tasks`. Configurations written for 1.x will error. Coodra uses `tasks`.
 
 Architecture’s `turbo build` in CI aligns with this pattern. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
 
@@ -1612,12 +1612,12 @@ Architecture’s `turbo build` in CI aligns with this pattern. [ppl-ai-file-uplo
 
 ## Graphify CLI
 
-**Nature:** External static analysis CLI invoked via ContextOS CLI; not part of this repository. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+**Nature:** External static analysis CLI invoked via Coodra CLI; not part of this repository. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
 
 Architecture usage: [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
 
 ```bash
-contextos graphify analyze ./my-project
+coodra graphify analyze ./my-project
 
 # internally runs:
 graphify analyze ./my-project --output /tmp/ctx-graph.json
@@ -1762,7 +1762,7 @@ https://auth.atlassian.com/authorize
   ?audience=api.atlassian.com
   &client_id=<env.ATLASSIAN_CLIENT_ID>
   &scope=<space-separated scopes>
-  &redirect_uri=https://app.contextos.dev/api/integrations/atlassian/oauth/callback
+  &redirect_uri=https://app.coodra.dev/api/integrations/atlassian/oauth/callback
   &state=<HMAC-signed CSRF token that encodes orgId + projectSlug + nonce>
   &response_type=code
   &prompt=consent
@@ -1779,7 +1779,7 @@ Content-Type: application/json
   "client_id": "...",
   "client_secret": "...",
   "code": "<code from callback>",
-  "redirect_uri": "https://app.contextos.dev/api/integrations/atlassian/oauth/callback"
+  "redirect_uri": "https://app.coodra.dev/api/integrations/atlassian/oauth/callback"
 }
 ```
 
@@ -1863,7 +1863,7 @@ Authorization: Bearer <access_token>
 Content-Type: application/json
 
 {
-  "url": "https://hooks.contextos.dev/v1/webhooks/atlassian?integration={integrationId}",
+  "url": "https://hooks.coodra.dev/v1/webhooks/atlassian?integration={integrationId}",
   "webhooks": [{
     "events": [
       "jira:issue_created",
@@ -2116,7 +2116,7 @@ project = KAN AND text ~ "oauth"
 #### Gotchas
 
 - String values with spaces require double quotes: `status = "In Progress"`, not `status = In Progress`.
-- `currentUser()` resolves to the OAuth token's owner, not to the ContextOS user or the developer using the agent. If you need per-developer scoping, resolve the Atlassian accountId separately and hardcode it into the JQL.
+- `currentUser()` resolves to the OAuth token's owner, not to the Coodra user or the developer using the agent. If you need per-developer scoping, resolve the Atlassian accountId separately and hardcode it into the JQL.
 - Invalid JQL returns HTTP 400 with a parsing error — the `IntegrationClient` should surface this to the agent verbatim so it can correct the query.
 
 ---
@@ -2325,7 +2325,7 @@ Organization permissions (if the user owns an org):
   Members:         Read-only
 ```
 
-**Lifetime:** up to 1 year, set by the user at generation time. ContextOS's solo UI should remind the user 7 days before expiry.
+**Lifetime:** up to 1 year, set by the user at generation time. Coodra's solo UI should remind the user 7 days before expiry.
 
 **Authentication:** `Authorization: Bearer github_pat_...` on every request — same Octokit setup as team mode, but with `auth: 'github_pat_...'` instead of the `createAppAuth` strategy.
 
@@ -2334,7 +2334,7 @@ Organization permissions (if the user owns an org):
 #### Gotchas
 
 - Fine-grained PATs do NOT work with GitHub Apps' endpoints — if the user accidentally generates a classic PAT, the `GET /app` endpoint (and others gated on App auth) will 404.
-- Some older REST endpoints still require classic PAT scopes (`repo`, `workflow`). For ContextOS's scope (PR reads, CODEOWNERS, branch protection, comments) fine-grained is enough; check a new endpoint before adding it.
+- Some older REST endpoints still require classic PAT scopes (`repo`, `workflow`). For Coodra's scope (PR reads, CODEOWNERS, branch protection, comments) fine-grained is enough; check a new endpoint before adding it.
 
 ---
 
@@ -2427,7 +2427,7 @@ CODEOWNERS is a plain-text file whose precedence within the repo is:
 2. `CODEOWNERS` at the root
 3. `docs/CODEOWNERS`
 
-GitHub uses the first one it finds. The parser in `@coodra/contextos-shared/codeowners.ts` should check all three.
+GitHub uses the first one it finds. The parser in `@coodra/shared/codeowners.ts` should check all three.
 
 #### Syntax (the complete grammar)
 
@@ -2528,7 +2528,7 @@ The `raw` JSONB preserves the original responses so future fields don't require 
 
 ### Octokit suite — the full library set
 
-The ContextOS GitHub client uses multiple Octokit packages. All are maintained by the GitHub DX team.
+The Coodra GitHub client uses multiple Octokit packages. All are maintained by the GitHub DX team.
 
 | Package | Purpose | Install |
 |---|---|---|
@@ -2539,7 +2539,7 @@ The ContextOS GitHub client uses multiple Octokit packages. All are maintained b
 | `@octokit/plugin-throttling` | Auto-handling of primary + secondary rate limits | `npm install @octokit/plugin-throttling` |
 | `@octokit/plugin-retry` | Retry on 5xx + rate-limit responses | `npm install @octokit/plugin-retry` |
 
-**Minimum wiring for ContextOS:**
+**Minimum wiring for Coodra:**
 
 ```typescript
 import { Octokit } from '@octokit/rest';
@@ -2700,4 +2700,4 @@ Per the architecture and limitations of this research:
 
 ***
 
-This reference should give a coding agent enough concrete APIs, configs, and wire-level details to implement ContextOS v2 as described, while clearly marking areas where the architecture’s assumptions must be rechecked against current official docs before implementation. [modelcontextprotocol](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+This reference should give a coding agent enough concrete APIs, configs, and wire-level details to implement Coodra v2 as described, while clearly marking areas where the architecture’s assumptions must be rechecked against current official docs before implementation. [modelcontextprotocol](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)

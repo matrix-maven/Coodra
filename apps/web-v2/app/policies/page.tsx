@@ -36,7 +36,7 @@ export default async function PoliciesPage({
   );
 
   // When NO project is scoped, collapse rules with identical signatures
-  // across projects — most users seed `contextos init` with the bundled
+  // across projects — most users seed `coodra init` with the bundled
   // 25-rule chain, which then fans out to 25*N policy_rules rows. Showing
   // the signature once with a "applies to N projects" chip list is the
   // honest summary; the per-project view is one click away.
@@ -63,7 +63,7 @@ export default async function PoliciesPage({
     <>
       <Topbar
         crumb="Policies"
-        crumbPrefix={scopedProject !== null ? `contextos / ${scopedProject.slug}` : 'contextos'}
+        crumbPrefix={scopedProject !== null ? `coodra / ${scopedProject.slug}` : 'coodra'}
       />
       <section className="screen">
         <div className="head">
@@ -132,7 +132,7 @@ export default async function PoliciesPage({
                 No rules <em>yet</em>.
               </strong>
               Add one below or run{' '}
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos init</span> to seed the
+              <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span> to seed the
               default chain.
             </div>
           ) : (
@@ -463,7 +463,7 @@ interface GroupedRule {
 
 /**
  * Collapse rules with identical (decision, eventType, toolName, pathGlob, reason)
- * across projects. Same `contextos init` baseline fans out to N copies of
+ * across projects. Same `coodra init` baseline fans out to N copies of
  * each rule — showing the signature once with a project chip list is the
  * honest summary. Sorted by (priority ASC, decision DESC) so the densest
  * deny rules surface first.

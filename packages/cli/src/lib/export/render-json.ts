@@ -1,8 +1,8 @@
-import type { RunWithEverything } from '@coodra/contextos-db';
+import type { RunWithEverything } from '@coodra/db';
 
 /**
  * `lib/export/render-json` — pure renderer for
- * `contextos export <runId> --format json`. Per OQ-7 lock the JSON
+ * `coodra export <runId> --format json`. Per OQ-7 lock the JSON
  * format ALWAYS includes the audit trail — machine-readable consumers
  * (CI exports, future SOC2 review tooling) need full fidelity. There
  * is no `--include-audit` toggle for JSON.

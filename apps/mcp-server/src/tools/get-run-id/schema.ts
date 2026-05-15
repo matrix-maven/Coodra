@@ -1,8 +1,8 @@
-import { runKeySegmentSchema } from '@coodra/contextos-shared';
+import { runKeySegmentSchema } from '@coodra/shared';
 import { z } from 'zod';
 
 /**
- * Input schema for `contextos__get_run_id` (§24.4).
+ * Input schema for `coodra__get_run_id` (§24.4).
  *
  * `projectSlug` is the feature-pack-namespaced project identifier
  * (see `context_memory/decisions-log.md` 2026-04-24 12:15 "feature_
@@ -58,7 +58,7 @@ export const getRunIdInputSchema = z
       ),
   })
   .strict()
-  .describe('Input for contextos__get_run_id.');
+  .describe('Input for coodra__get_run_id.');
 
 /**
  * Output schema — discriminated union on `ok`.
@@ -70,7 +70,7 @@ export const getRunIdInputSchema = z
  * tool-failure message. Per user directive Q1 (2026-04-24 14:00):
  * solo mode auto-creates the `projects` row (so this branch only
  * fires in team mode); team mode returns this branch so the user can
- * register the project via the Web App or `contextos init` CLI.
+ * register the project via the Web App or `coodra init` CLI.
  *
  * Why discriminated union rather than throwing: the registry's
  * generic `handler_threw` envelope is reserved for programming bugs
@@ -93,7 +93,7 @@ const getRunIdProjectNotFound = z
     howToFix: z
       .string()
       .min(1)
-      .describe('Agent-surfaceable remediation string — register via Web App or `contextos init`.'),
+      .describe('Agent-surfaceable remediation string — register via Web App or `coodra init`.'),
   })
   .strict();
 

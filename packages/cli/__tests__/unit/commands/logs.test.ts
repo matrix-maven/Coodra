@@ -21,7 +21,7 @@ function makeIo(homePath: string, cap: Capture): LogsIO {
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: homePath,
+    coodraHome: homePath,
   };
 }
 
@@ -42,7 +42,7 @@ let logsDir: string;
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-logs-test-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   logsDir = join(homePath, 'logs');
   mkdirSync(logsDir, { recursive: true });
 });
@@ -60,12 +60,12 @@ describe('runLogsCommand', () => {
     expect(cap.stderr.join('')).toMatch(/mcp-server.*hooks-bridge.*sync-daemon/);
   });
 
-  it('Fixture 2 — known service but missing log file → exit 2 with `contextos start` remediation', async () => {
+  it('Fixture 2 — known service but missing log file → exit 2 with `coodra start` remediation', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() => runLogsCommand('hooks-bridge', {}, makeIo(homePath, cap)));
     expect(code).toBe(EXIT_USER_ACTION_REQUIRED);
     expect(cap.stderr.join('')).toMatch(/log file .* does not exist/);
-    expect(cap.stderr.join('')).toMatch(/contextos start/);
+    expect(cap.stderr.join('')).toMatch(/coodra start/);
   });
 
   it('Fixture 3 — default last-100 read prints every line for a small file', async () => {

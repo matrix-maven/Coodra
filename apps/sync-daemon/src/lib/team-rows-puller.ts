@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
-import { type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/contextos-db';
-import { createLogger, type Logger } from '@coodra/contextos-shared';
-import { featuresRoot, renderFeatureMd } from '@coodra/contextos-shared/features';
+import { type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/db';
+import { createLogger, type Logger } from '@coodra/shared';
+import { featuresRoot, renderFeatureMd } from '@coodra/shared/features';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -617,7 +617,7 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
    * with `status='published'`. The filesystem write is what makes the
    * MCP `list_features` / `get_feature` tools (which read off disk)
    * see new features within ~10s of any teammate authoring them — the
-   * "knowledge artifacts are git-distributed not ContextOS-distributed"
+   * "knowledge artifacts are git-distributed not Coodra-distributed"
    * gap from Phase E's demo audit.
    *
    * Anti-loop guard: when the local DB row's checksum matches the
@@ -767,7 +767,7 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
    * non-sentinel project's cwd as the write target — the same heuristic
    * the MCP-side reader uses today (see `apps/mcp-server/src/lib/
    * feature-pack.ts`). If no project is registered yet, the pull
-   * touches DB only; the next tick after `contextos init` registers a
+   * touches DB only; the next tick after `coodra init` registers a
    * project will retry.
    *
    * Anti-loop: cloud checksum == local checksum → skip (no DB write,

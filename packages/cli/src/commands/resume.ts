@@ -6,14 +6,14 @@ import {
   lookupProjectBySlug,
   softResumeAllKillSwitches,
   softResumeKillSwitch,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos resume` — soft-resume one or more active kill switches.
+ * `coodra resume` — soft-resume one or more active kill switches.
  *
  * Three mutually-exclusive modes:
  *
@@ -39,7 +39,7 @@ export interface ResumeIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_RESUME_IO: ResumeIO = {
@@ -80,7 +80,7 @@ export async function runResumeCommand(options: ResumeOptions, ioOverride?: Resu
       io,
       new CommandError(
         EXIT_USER_RECOVERABLE,
-        'contextos resume requires one of --id <id>, --all, or --scope <scope> [--target <target>]',
+        'coodra resume requires one of --id <id>, --all, or --scope <scope> [--target <target>]',
       ),
       json,
     );
@@ -109,8 +109,8 @@ export async function runResumeCommand(options: ResumeOptions, ioOverride?: Resu
     scope = value as KillSwitchScope;
   }
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   const handle = await openLocalDb(dbPath);
   try {
     let resumed: KillSwitchRecord[] = [];

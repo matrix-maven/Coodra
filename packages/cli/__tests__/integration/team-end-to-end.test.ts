@@ -13,7 +13,7 @@ import {
   postgresSchema,
   type SqliteHandle,
   sqliteSchema,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { eq, sql } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readTeamConfig, upgradeToTeamConfig } from '../../src/lib/team-config.js';

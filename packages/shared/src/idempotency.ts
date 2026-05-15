@@ -91,7 +91,7 @@ export function generateRunKey(args: GenerateRunKeyArgs): string {
  *
  * `sessionId` and `toolUseId` must be non-empty strings that do not contain
  * either `'-'` or `':'` — both characters are structural separators in
- * ContextOS idempotency keys.
+ * Coodra idempotency keys.
  *
  * @throws {ValidationError} if either segment is empty or contains a forbidden char.
  */
@@ -128,7 +128,7 @@ function assertRunEventKeySegment(value: unknown, field: string): asserts value 
  *
  * Module 03 S3 moved this type from `apps/mcp-server/src/framework/
  * idempotency.ts` here so the cross-package `PolicyInput` type (in
- * `@coodra/contextos-policy/types`) can reference it without depending on
+ * `@coodra/policy/types`) can reference it without depending on
  * the mcp-server-specific framework. The mcp-server framework keeps
  * its `IdempotencyKeyBuilder<Input>` + `IdempotencyContext` +
  * `assertIdempotencyKeyBuilder` helpers (those are tool-registration

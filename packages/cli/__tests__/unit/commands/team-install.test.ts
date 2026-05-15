@@ -9,7 +9,7 @@ import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../..
 import { buildProgram } from '../../../src/program.js';
 
 /**
- * Unit tests for `contextos team install` — Module 04 Phase 2 (2026-05-11).
+ * Unit tests for `coodra team install` — Module 04 Phase 2 (2026-05-11).
  *
  * Covers:
  *   - Missing --bootstrap-url → user-action-required exit + clear stderr.
@@ -19,7 +19,7 @@ import { buildProgram } from '../../../src/program.js';
  *     stderr surfaces howToFix verbatim.
  *   - Server returns 200 but bundle shape is wrong → refuse to write
  *     a partial config.
- *   - Happy path → writes ~/.contextos/config.json + .env, prints
+ *   - Happy path → writes ~/.coodra/config.json + .env, prints
  *     welcome message, exits 0.
  *   - Program-level wiring: `buildProgram()` registers a `team install`
  *     subcommand that dispatches to our handler.
@@ -77,7 +77,7 @@ describe('runTeamInstallCommand — argument validation', () => {
   });
 
   it('exits USER_ACTION_REQUIRED when --bootstrap-url is missing and env is empty', async () => {
-    delete process.env.CONTEXTOS_BOOTSTRAP_URL;
+    delete process.env.COODRA_BOOTSTRAP_URL;
     const c = captureIO();
     await expectExit(runTeamInstallCommand({}, c.io), EXIT_USER_ACTION_REQUIRED);
     expect(c.stderr.join('')).toMatch(/missing --bootstrap-url/);
@@ -96,8 +96,8 @@ describe('runTeamInstallCommand — network paths', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    tempHome = mkdtempSync(join(tmpdir(), 'contextos-team-install-'));
-    process.env.CONTEXTOS_HOME = tempHome;
+    tempHome = mkdtempSync(join(tmpdir(), 'coodra-team-install-'));
+    process.env.COODRA_HOME = tempHome;
   });
   afterEach(() => {
     rmSync(tempHome, { recursive: true, force: true });
@@ -186,7 +186,7 @@ describe('runTeamInstallCommand — network paths', () => {
     expect(config.team.clerkOrgSlug).toBe('acme');
     expect(config.team.localHookSecret).toBe('a'.repeat(64));
     const envRaw = readFileSync(join(tempHome, '.env'), 'utf-8');
-    expect(envRaw).toMatch(/CONTEXTOS_MODE=team/);
+    expect(envRaw).toMatch(/COODRA_MODE=team/);
     expect(envRaw).toMatch(/DATABASE_URL=/);
     expect(envRaw).toMatch(/LOCAL_HOOK_SECRET=/);
     const out = c.stdout.join('');

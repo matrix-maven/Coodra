@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { type DbHandle, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger, parseRunDiffFilesChanged, type RunDiffFileEntry } from '@coodra/contextos-shared';
-import { contextPackFilename, defaultContextPacksRoot } from '@coodra/contextos-shared/context-pack-paths';
+import { type DbHandle, sqliteSchema } from '@coodra/db';
+import { createLogger, parseRunDiffFilesChanged, type RunDiffFileEntry } from '@coodra/shared';
+import { contextPackFilename, defaultContextPacksRoot } from '@coodra/shared/context-pack-paths';
 import { asc, eq } from 'drizzle-orm';
 
 /**
@@ -21,19 +21,19 @@ import { asc, eq } from 'drizzle-orm';
  * §1.2 + §6 for the framing.
  *
  * **Phase 4 Fix H (Slice 3 — 2026-05-03 audit):** the auto-save now
- * ALSO materialises a `~/.contextos/packs/<yyyy-mm-dd>-<runId>.md`
+ * ALSO materialises a `~/.coodra/packs/<yyyy-mm-dd>-<runId>.md`
  * file alongside the DB insert. Pre-Fix-H auto-saves landed in DB
  * only — the audit observed 4 packs in DB but only 2 on filesystem
- * (the manually-saved ones). Users opening `~/.contextos/packs/`
+ * (the manually-saved ones). Users opening `~/.coodra/packs/`
  * couldn't see autonomous saves and the closeout grep workflow was
  * broken. Path computation is shared with `lib/context-pack.ts` via
- * `@coodra/contextos-shared/context-pack-paths` so a manual mid-session
+ * `@coodra/shared/context-pack-paths` so a manual mid-session
  * save and the bridge's autonomous SessionEnd save produce the same
  * filename for the same runId (which the `context_packs.run_id` unique
  * constraint catches as a no-op anyway, but matching filenames keep
- * `ls ~/.contextos/packs/` coherent across both write-paths).
+ * `ls ~/.coodra/packs/` coherent across both write-paths).
  *
- * The user can still call `contextos__save_context_pack` mid-session
+ * The user can still call `coodra__save_context_pack` mid-session
  * to overlay a richer narrative — the existing append-only / idempotent
  * logic surfaces the manual pack back unchanged (ADR-007). Per the
  * audit's §9.1 correction, the auto-pack body already enumerates
@@ -64,7 +64,7 @@ export interface AutoContextPackInput {
   readonly db: DbHandle;
   /**
    * Override the on-disk root for the materialised `.md` file.
-   * Defaults to `~/.contextos/packs/` per `defaultContextPacksRoot()`.
+   * Defaults to `~/.coodra/packs/` per `defaultContextPacksRoot()`.
    * Tests pass a tmpdir; production uses the default. (Slice 3.)
    */
   readonly contextPacksRoot?: string;
@@ -412,7 +412,7 @@ export async function saveAutoContextPack(input: AutoContextPackInput): Promise<
 
   // Phase 4 Fix H (Slice 3 — 2026-05-03 audit): materialise to FS so
   // users can see autonomous saves alongside manual ones in
-  // `~/.contextos/packs/`. Failure here is non-fatal — DB row already
+  // `~/.coodra/packs/`. Failure here is non-fatal — DB row already
   // landed, FS is reconcilable. Same posture as the MCP `save_context_pack`
   // tool's store (apps/mcp-server/src/lib/context-pack.ts:303-321).
   // The createdAt used for the filename is `new Date()` rather than the

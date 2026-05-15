@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -14,7 +14,7 @@ import { makeFakeDeps } from '../../helpers/fake-deps.js';
 import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
- * Integration test for `contextos__check_policy` (S14).
+ * Integration test for `coodra__check_policy` (S14).
  *
  * Uses a real `createPolicyClient` against in-memory SQLite migrated
  * to 0003. Policies + policy_rules seeded per test. Validates:
@@ -162,7 +162,7 @@ describe('check_policy — project_not_found soft-failure', () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.error).toBe('project_not_found');
-    expect(out.howToFix).toMatch(/contextos init|projects table/);
+    expect(out.howToFix).toMatch(/coodra init|projects table/);
 
     await flushSetImmediate(h.handle);
     const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);

@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createGetRunIdToolRegistration } from '../../../src/tools/get-run-id/manifest.js';
 import { getRunIdInputSchema } from '../../../src/tools/get-run-id/schema.js';
 
 /**
- * Unit tests for `contextos__get_run_id` — manifest contract + input
+ * Unit tests for `coodra__get_run_id` — manifest contract + input
  * schema boundaries. The DB-backed behaviour is covered in
  * `__tests__/integration/tools/get-run-id.test.ts`.
  */
@@ -15,7 +15,7 @@ import { getRunIdInputSchema } from '../../../src/tools/get-run-id/schema.js';
 // never invoked in these unit tests.
 const fakeDb = { kind: 'sqlite', db: {}, raw: {}, close: () => {} } as unknown as DbHandle;
 
-describe('get_run_id — manifest contract (via @coodra/contextos-shared/test-utils)', () => {
+describe('get_run_id — manifest contract (via @coodra/shared/test-utils)', () => {
   it('satisfies every §24.3 rule (name shape, length, opening, word count, Returns)', () => {
     const registration = createGetRunIdToolRegistration({ db: fakeDb, mode: 'solo' });
     expect(() => assertManifestDescriptionValid(registration, { folderName: 'get-run-id' })).not.toThrow();

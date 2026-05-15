@@ -9,8 +9,8 @@
 | Postgres driver | `postgres` (postgres-js) — pinned by M01 | Same handle the cloud-mode-write integration test exercises since M02 §F3 |
 | ORM | `drizzle-orm` — pinned by M01 | Schema parity tests already gate dialect drift; sync rides on the same row shapes |
 | SQLite driver | `better-sqlite3` + `sqlite-vec` — pinned by M01 | Local handle is unchanged from M03.1 |
-| Worker substrate | `@coodra/contextos-cli/lib/outbox` — landed in M03.1 | OutboxWorker class + lease/retry/dead-letter; reused with `queueKind: 'sync_to_cloud'` |
-| Logger | `pino` (via `@coodra/contextos-shared`) — pinned by M01 | Same structured-log shape across the fleet |
+| Worker substrate | `@coodra/cli/lib/outbox` — landed in M03.1 | OutboxWorker class + lease/retry/dead-letter; reused with `queueKind: 'sync_to_cloud'` |
+| Logger | `pino` (via `@coodra/shared`) — pinned by M01 | Same structured-log shape across the fleet |
 | Validation | `zod` — pinned by M01 | Sync payload shape validation (§S3) |
 | HTTP healthz | `hono` — pinned by M03 | Optional minimal /healthz on sync-daemon for Compose healthchecks (no public surface) |
 | Test runner | `vitest` + `testcontainers` — pinned by M01 + §F3 helper | Sync integration tests and migration tests use the existing pgvector/pgvector:pg16 testcontainer |
@@ -23,11 +23,11 @@ Anything that looks like a "new tech choice" below is **packaging**, not runtime
 |---|---|
 | Base image: `node:22-alpine` for build, `node:22-alpine` for runtime (or `gcr.io/distroless/nodejs22-debian12` if size matters) | Matches `package.json::engines.node`; alpine keeps image small; non-root user enforced |
 | `pnpm` install via corepack | Already the workspace's package manager |
-| `turbo build --filter=@coodra/contextos-<service>` | Existing build pipeline; no new tool |
+| `turbo build --filter=@coodra/<service>` | Existing build pipeline; no new tool |
 | Compose schema: v3.9 | Universally supported by Docker Engine + Podman |
 | Postgres image: `pgvector/pgvector:pg16` | Already used by M02 §F3 integration tests; pgvector required for `context_packs.summary_embedding` |
 | Healthcheck shape: `wget --spider http://localhost:<port>/healthz` | No curl in alpine by default; wget is present |
-| Migration container: `deploy/Dockerfile.cloud-migrate` runs `contextos cloud-migrate` once and exits | Same binary as the runtime services; no Drizzle CLI shipped to ops |
+| Migration container: `deploy/Dockerfile.cloud-migrate` runs `coodra cloud-migrate` once and exits | Same binary as the runtime services; no Drizzle CLI shipped to ops |
 
 **Not used.** Kubernetes manifests, Helm charts, Terraform modules, Pulumi, Docker Swarm. One Compose path is the v1 surface; managed-platform variants (Railway, Fly.io) get a "should also work" pointer.
 

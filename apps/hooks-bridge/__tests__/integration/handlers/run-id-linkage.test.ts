@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -51,7 +51,7 @@ const PROJECT_SLUG = 'verify-f8-linkage';
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
@@ -91,8 +91,8 @@ beforeAll(async () => {
     reason: 'forbidden by F8 linkage test',
   });
 
-  // .contextos.json for the resolver.
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: PROJECT_SLUG }));
+  // .coodra.json for the resolver.
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: PROJECT_SLUG }));
 
   const policy = createPolicyClient({ db: handle, cacheTtlMs: 100 });
   const projectSlugResolver = createProjectSlugResolver({ cacheTtlMs: 100 });

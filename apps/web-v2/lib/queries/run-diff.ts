@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { parseRunDiffFilesChanged, type RunDiffFileEntry } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { parseRunDiffFilesChanged, type RunDiffFileEntry } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';

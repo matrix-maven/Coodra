@@ -60,7 +60,7 @@ let h: Harness;
 beforeAll(async () => {
   const { handle, close: closeDb } = openSqliteHandle();
   // Solo-bypass auth so the SDK Client doesn't need to mint a JWT.
-  const env = buildE2eEnv({ CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
+  const env = buildE2eEnv({ COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
   const boot = await bootForE2E({ db: handle, env, withHttp: true });
   if (!boot.http) throw new Error('expected HTTP transport handle');
 

@@ -1,6 +1,6 @@
-import { type DbHandle, lookupRunId, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import { type DbHandle, lookupRunId, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
+import type { HookEvent } from '@coodra/shared/hooks';
 import { and, eq, ne, sql } from 'drizzle-orm';
 
 import type { HookDispatchResult } from '../app.js';
@@ -49,7 +49,7 @@ import { clearSessionState } from '../lib/session-state.js';
  * with `created: false`. Replaying the event is a no-op.
  *
  * Skipped when:
- *   - projectId is undefined (no `.contextos.json` in cwd) — the
+ *   - projectId is undefined (no `.coodra.json` in cwd) — the
  *     `__global__` sentinel project is not a sensible target for
  *     a per-run Context Pack.
  *   - lookupRunId returns null (SessionStart never fired or the

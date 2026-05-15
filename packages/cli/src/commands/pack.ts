@@ -3,7 +3,7 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { replaceAutoSections } from '../lib/auto-marker/index.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { populateAutoSections } from '../lib/init/auto-populate.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { listAvailableTemplates, resolveTemplatePath } from '../lib/template-paths.js';
@@ -13,7 +13,7 @@ import { renderTemplate } from '../lib/templates/render.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `contextos pack {new|list|show|regenerate|delete}` — admin surface
+ * `coodra pack {new|list|show|regenerate|delete}` — admin surface
  * for `docs/feature-packs/<slug>/` directories. Module 08b S16.
  *
  * Reuses S13's template infrastructure (resolveTemplatePath, loadTemplate,
@@ -68,7 +68,7 @@ export interface PackIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_PACK_IO: PackIO = {
@@ -163,8 +163,8 @@ export async function runPackNewCommand(slug: string, options: PackNewOptions, i
   await writeFile(join(dir, 'techstack.md'), techBody, 'utf8');
 
   // Register / refresh the feature_packs row so MCP search picks it up.
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   if (existsSync(dbPath)) {
     await registerFeaturePackRow(dbPath, sanitized, options.parent ?? null);
   }
@@ -203,8 +203,8 @@ export async function runPackListCommand(options: PackListOptions, ioOverride?: 
   dirs.sort();
 
   // Cross-reference with feature_packs DB rows for is_active.
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   const activeMap = existsSync(dbPath) ? await readActivePacksMap(dbPath) : new Map<string, boolean>();
 
   const out = dirs.map((slug) => {
@@ -311,7 +311,7 @@ export async function runPackRegenerateCommand(
       io,
       json,
       EXIT_USER_RECOVERABLE,
-      `meta.json for ${slug} has no "template" field — pack regenerate needs to know which template to refresh against. Run \`contextos pack new <slug> --template <name>\` to migrate.`,
+      `meta.json for ${slug} has no "template" field — pack regenerate needs to know which template to refresh against. Run \`coodra pack new <slug> --template <name>\` to migrate.`,
     );
   }
   const resolved = resolveTemplatePath(templateName, { cwd });
@@ -417,8 +417,8 @@ export async function runPackDeleteCommand(
   await rm(dir, { recursive: true, force: true });
 
   // Soft-flip the feature_packs row.
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const dbPath = resolveContextosDataDb(homePath);
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const dbPath = resolveCoodraDataDb(homePath);
   let dbAffected = false;
   if (existsSync(dbPath)) {
     dbAffected = await deactivatePackRow(dbPath, slug.trim());

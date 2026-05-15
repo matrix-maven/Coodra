@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// `scripts/bundle.mjs` — produces the publishable `@coodra/contextos-cli` artifact.
+// `scripts/bundle.mjs` — produces the publishable `@coodra/cli` artifact.
 //
 // Why this exists (decision dec_83ba10c1, 2026-05-02): every workspace
 // package in this monorepo is `"private": true`, so the published CLI
-// tarball cannot rely on npm-resolving `@coodra/contextos-{db,shared,policy}` at
+// tarball cannot rely on npm-resolving `@coodra/{db,shared,policy}` at
 // install time. Instead we bundle every workspace + npm dependency into
 // self-contained ESM bundles, leaving only true native modules
 // (better-sqlite3, sqlite-vec) as externals. The user installs
-// `@coodra/contextos-cli`, npm fetches the two native deps from the public
-// registry, and the bundles inside `@coodra/contextos-cli/dist` Just Work.
+// `@coodra/cli`, npm fetches the two native deps from the public
+// registry, and the bundles inside `@coodra/cli/dist` Just Work.
 //
 // Outputs (all under packages/cli/dist):
 //   - dist/index.js            — bundled CLI entry (replaces tsc output)
@@ -19,7 +19,7 @@
 // Run order (wired in package.json#build):
 //   1. tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that
 //      workspace consumers (apps in dev) import via the
-//      `@coodra/contextos-cli/lib/outbox` exports entry.
+//      `@coodra/cli/lib/outbox` exports entry.
 //   2. This script runs and OVERWRITES `dist/index.js` with the bundle,
 //      and writes the `dist/runtime/` tree from scratch.
 //
@@ -96,39 +96,39 @@ async function main() {
   // 1) CLI entry. Overwrites the tsc output. We rebundle (rather than letting
   // tsc emit it) so workspace deps land inlined in the published tarball.
   await bundleEntry(
-    '@coodra/contextos-cli',
+    '@coodra/cli',
     resolve(cliRoot, 'src/index.ts'),
     resolve(cliDist, 'index.js'),
   );
 
-  // 2) mcp-server runtime bundle. Spawned by `contextos start` (HTTP
+  // 2) mcp-server runtime bundle. Spawned by `coodra start` (HTTP
   // transport for daemons) and by Claude Code's `.mcp.json` (stdio transport
   // when the CLI is npm-installed).
   await bundleEntry(
-    '@coodra/contextos-mcp-server',
+    '@coodra/mcp-server',
     resolve(repoRoot, 'apps/mcp-server/src/index.ts'),
     resolve(cliDist, 'runtime/mcp-server/index.js'),
   );
 
-  // 3) hooks-bridge runtime bundle. Spawned by `contextos start` (HTTP).
+  // 3) hooks-bridge runtime bundle. Spawned by `coodra start` (HTTP).
   await bundleEntry(
-    '@coodra/contextos-hooks-bridge',
+    '@coodra/hooks-bridge',
     resolve(repoRoot, 'apps/hooks-bridge/src/index.ts'),
     resolve(cliDist, 'runtime/hooks-bridge/index.js'),
   );
 
-  // 3b) sync-daemon runtime bundle. Spawned by `contextos start` only
-  // when CONTEXTOS_MODE=team (services.ts skips it in solo). Drains the
+  // 3b) sync-daemon runtime bundle. Spawned by `coodra start` only
+  // when COODRA_MODE=team (services.ts skips it in solo). Drains the
   // outbox `sync_to_cloud` queue and pulls cloud → local rows.
   await bundleEntry(
-    '@coodra/contextos-sync-daemon',
+    '@coodra/sync-daemon',
     resolve(repoRoot, 'apps/sync-daemon/src/index.ts'),
     resolve(cliDist, 'runtime/sync-daemon/index.js'),
   );
 
   // 4) Drizzle migration SQL files. The runtime resolver
-  // (`lib/runtime-paths.ts`) sets `CONTEXTOS_MIGRATIONS_DIR` to this
-  // location when launching bundles; `@coodra/contextos-db::migrateSqlite`
+  // (`lib/runtime-paths.ts`) sets `COODRA_MIGRATIONS_DIR` to this
+  // location when launching bundles; `@coodra/db::migrateSqlite`
   // reads the env var and falls back to its package-relative default in
   // dev (workspace) mode.
   const drizzleSrc = resolve(repoRoot, 'packages/db/drizzle');
@@ -150,9 +150,9 @@ async function main() {
   console.log(`bundle: copied templates/ → ${templatesDst}`);
 
   // 6) Web Bundle Initiative W1 (2026-05-13). Bundle apps/web-v2 (Next.js
-  // standalone output) as the fifth runtime so `npm i -g @coodra/contextos-cli`
+  // standalone output) as the fifth runtime so `npm i -g @coodra/cli`
   // ships the dashboard. The standalone tree includes Next.js's nft trace —
-  // workspace packages (@coodra/contextos-db, @coodra/contextos-shared) and
+  // workspace packages (@coodra/db, @coodra/shared) and
   // native bindings (better-sqlite3, sqlite-vec) get copied alongside.
   //
   // Layout produced (because `outputFileTracingRoot` points at the repo root):
@@ -173,7 +173,7 @@ async function main() {
   if (!existsSync(webStandaloneSrc)) {
     throw new Error(
       `bundle: web standalone tree not found at ${webStandaloneSrc}. ` +
-        'Run `pnpm --filter @coodra/contextos-web-v2 build` first (this writes .next/standalone/).',
+        'Run `pnpm --filter @coodra/web-v2 build` first (this writes .next/standalone/).',
     );
   }
   rmSync(webDst, { recursive: true, force: true });

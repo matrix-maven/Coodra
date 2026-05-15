@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { parseClerkRole, type Role } from '@coodra/contextos-shared/auth';
+import { parseClerkRole, type Role } from '@coodra/shared/auth';
 
 import { resolveIdentityMode } from '@/lib/deployment-mode';
 import { requireOrgMatch } from '@/lib/org-guard';
@@ -15,7 +15,7 @@ import { requireOrgMatch } from '@/lib/org-guard';
  *                       No Clerk import even occurs — solo bundles
  *                       don't pay the cold-start cost.
  *
- *   - `local-team`   → read user_id + org_id from ~/.contextos/config.json.
+ *   - `local-team`   → read user_id + org_id from ~/.coodra/config.json.
  *                       Treat the local operator as admin for their own
  *                       machine (single user per laptop). No Clerk
  *                       verification — the local file IS the truth.
@@ -29,7 +29,7 @@ import { requireOrgMatch } from '@/lib/org-guard';
  * and pass the resolved actor down as a prop to children. Calling it
  * multiple times per request is safe but wastes a Clerk round-trip.
  *
- * The return shape (`Actor`) is wider than `@coodra/contextos-shared/auth::Actor`
+ * The return shape (`Actor`) is wider than `@coodra/shared/auth::Actor`
  * because the web app wants `mode` to distinguish "solo" from "team"
  * for UI rendering. The shared package's Actor is used by RBAC
  * helpers (`requireRole`, `assertCanEdit`) which we delegate to.

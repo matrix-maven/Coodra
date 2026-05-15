@@ -1,5 +1,5 @@
 /**
- * `@coodra/contextos-shared/auth/types` — auth-abstraction primitives shared
+ * `@coodra/shared/auth/types` — auth-abstraction primitives shared
  * across services.
  *
  * Module 03 S3 moved this from `apps/mcp-server/src/framework/tool-
@@ -46,5 +46,5 @@ export interface AuthEnv {
   readonly CLERK_SECRET_KEY?: string | undefined;
   readonly CLERK_PUBLISHABLE_KEY?: string | undefined;
   readonly CLERK_JWT_ISSUER?: string | null | undefined;
-  readonly CONTEXTOS_MODE?: 'solo' | 'team' | undefined;
+  readonly COODRA_MODE?: 'solo' | 'team' | undefined;
 }

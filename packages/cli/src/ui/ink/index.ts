@@ -1,5 +1,5 @@
 /**
- * `src/ui/ink/index.ts` — barrel for the ContextOS Ink component
+ * `src/ui/ink/index.ts` — barrel for the Coodra Ink component
  * library. The interactive TUI (`src/tui/`) imports its building blocks
  * from here; one-shot command handlers must NOT import this module —
  * they use the string formatters in `src/ui/format.ts` so their bundle

@@ -13,7 +13,7 @@ const distBin = resolve(here, '..', '..', 'dist', 'index.js');
  * was leaking pino structured logs onto stdout, interleaved with the
  * `✓`/`⚠` human-readable progress UI. Scripted callers piping init's
  * stdout got garbage. Fix landed in `lib/log-destination-shim.ts` —
- * defaults `CONTEXTOS_LOG_DESTINATION=stderr` for the CLI binary's
+ * defaults `COODRA_LOG_DESTINATION=stderr` for the CLI binary's
  * process. This test spawns the real binary with no env override and
  * asserts every stdout byte parses as the human progress format
  * (no leaked JSON).
@@ -27,14 +27,14 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
     const { existsSync } = await import('node:fs');
     if (!existsSync(distBin)) {
       throw new Error(
-        `dist/index.js missing at ${distBin}. Run \`pnpm --filter @coodra/contextos-cli build\` before integration tests.`,
+        `dist/index.js missing at ${distBin}. Run \`pnpm --filter @coodra/cli build\` before integration tests.`,
       );
     }
   });
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-stdout-cwd-'));
-    home = await mkdtemp(join(tmpdir(), 'contextos-stdout-home-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-stdout-cwd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-stdout-home-'));
     await writeFile(join(cwd, 'package.json'), JSON.stringify({ name: 'stdout-purity-test' }));
   });
 
@@ -48,10 +48,10 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
       env: {
         // Strip parent inherits that could route logs differently.
         ...process.env,
-        CONTEXTOS_HOME: join(home, '.contextos'),
-        // Explicitly DO NOT set CONTEXTOS_LOG_DESTINATION — the shim's
+        COODRA_HOME: join(home, '.coodra'),
+        // Explicitly DO NOT set COODRA_LOG_DESTINATION — the shim's
         // job is to default it to stderr without an explicit override.
-        CONTEXTOS_LOG_DESTINATION: undefined,
+        COODRA_LOG_DESTINATION: undefined,
       },
       reject: false,
       timeout: 30_000,
@@ -75,8 +75,8 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
     const result = await execa('node', [distBin, 'doctor', '--json', '--timeout-ms', '500'], {
       env: {
         ...process.env,
-        CONTEXTOS_HOME: join(home, '.contextos-empty'),
-        CONTEXTOS_LOG_DESTINATION: undefined,
+        COODRA_HOME: join(home, '.coodra-empty'),
+        COODRA_LOG_DESTINATION: undefined,
       },
       reject: false,
       timeout: 30_000,
@@ -89,13 +89,13 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
     expect(Array.isArray(parsed.checks)).toBe(true);
   }, 30_000);
 
-  it('explicit CONTEXTOS_LOG_DESTINATION=stdout override still works (escape hatch)', async () => {
+  it('explicit COODRA_LOG_DESTINATION=stdout override still works (escape hatch)', async () => {
     const result = await execa('node', [distBin, 'init', '--project-slug', 'override-test', '--dry-run'], {
       cwd,
       env: {
         ...process.env,
-        CONTEXTOS_HOME: join(home, '.contextos-override'),
-        CONTEXTOS_LOG_DESTINATION: 'stdout',
+        COODRA_HOME: join(home, '.coodra-override'),
+        COODRA_LOG_DESTINATION: 'stdout',
       },
       reject: false,
       timeout: 30_000,

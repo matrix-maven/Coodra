@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 
-import { createPostgresDb } from '@coodra/contextos-db';
+import { createPostgresDb } from '@coodra/db';
 
 /**
  * `apps/web-v2/lib/actions/onboarding.ts` — server action backing the
@@ -12,9 +12,9 @@ import { createPostgresDb } from '@coodra/contextos-db';
  * search params on `/onboarding/team` so the same server-rendered page
  * can render success / error variants without needing a client form
  * helper. The action never persists the URL — the user's CLI command
- * is what writes credentials to `~/.contextos/.env` + `config.json`.
+ * is what writes credentials to `~/.coodra/.env` + `config.json`.
  *
- * Why we still verify here even though `contextos team setup` does the
+ * Why we still verify here even though `coodra team setup` does the
  * same internally: some users will paste their URL into the wizard and
  * try it BEFORE running the CLI. Catching "wrong URL / no schema yet"
  * here saves them from a confusing CLI error trace.

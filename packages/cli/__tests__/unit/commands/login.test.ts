@@ -7,14 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LoginIO } from '../../../src/commands/login.js';
 
 /**
- * Phase G slice G.3 — `contextos login` command tests.
+ * Phase G slice G.3 — `coodra login` command tests.
  *
  * Strategy:
- *   - Hoist-mock `@coodra/contextos-shared/auth` so `writeToken` returns
+ *   - Hoist-mock `@coodra/shared/auth` so `writeToken` returns
  *     a controllable VerifiedClerkClaims shape.
  *   - Hoist-mock the browser-handoff module so `startLoopbackListener`
  *     returns a controllable `tokenPromise`.
- *   - Use a temp home dir; populate ~/.contextos/.env with Clerk env.
+ *   - Use a temp home dir; populate ~/.coodra/.env with Clerk env.
  *   - Capture IO via a stub.
  */
 
@@ -23,8 +23,8 @@ const mockReadVerifiedToken = vi.hoisted(() => vi.fn());
 const mockStartListener = vi.hoisted(() => vi.fn());
 const mockOpenBrowser = vi.hoisted(() => vi.fn());
 
-vi.mock('@coodra/contextos-shared/auth', async () => {
-  const actual = await vi.importActual<typeof import('@coodra/contextos-shared/auth')>('@coodra/contextos-shared/auth');
+vi.mock('@coodra/shared/auth', async () => {
+  const actual = await vi.importActual<typeof import('@coodra/shared/auth')>('@coodra/shared/auth');
   return {
     ...actual,
     writeToken: mockWriteToken,
@@ -115,7 +115,7 @@ describe('runLoginCommand — preconditions', () => {
   it('refuses when CLERK_SECRET_KEY missing', async () => {
     writeEnv('CLERK_PUBLISHABLE_KEY=pk_test\n');
     const { io, captured } = makeIO();
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
     expect(captured.exit).not.toBe(0);
     expect(captured.stderr.join('')).toMatch(/CLERK_SECRET_KEY/);
   });
@@ -123,7 +123,7 @@ describe('runLoginCommand — preconditions', () => {
   it('refuses when CLERK_SECRET_KEY is the solo-bypass sentinel', async () => {
     writeEnv('CLERK_SECRET_KEY=sk_test_replace_me\nCLERK_PUBLISHABLE_KEY=pk_test\n');
     const { io, captured } = makeIO();
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
     expect(captured.stderr.join('')).toMatch(/Clerk env is not configured/);
   });
 
@@ -137,7 +137,7 @@ describe('runLoginCommand — preconditions', () => {
     });
     mockOpenBrowser.mockReturnValue(true);
     mockWriteToken.mockResolvedValue(fakeClaims());
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(
       /__exit__:0/,
     );
     expect(captured.stderr.join('')).toMatch(/DATABASE_URL is not set/);
@@ -159,7 +159,7 @@ describe('runLoginCommand — happy path', () => {
     mockOpenBrowser.mockReturnValue(true);
     mockWriteToken.mockResolvedValue(fakeClaims());
 
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(
       /__exit__:0/,
     );
 
@@ -180,7 +180,7 @@ describe('runLoginCommand — happy path', () => {
     mockOpenBrowser.mockReturnValue(true);
     mockWriteToken.mockResolvedValue(fakeClaims({ email: 'me@team.com', role: 'member' }));
 
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(
       /__exit__:0/,
     );
 
@@ -199,7 +199,7 @@ describe('runLoginCommand — happy path', () => {
     mockWriteToken.mockResolvedValue(fakeClaims());
 
     await expect(
-      runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir }, noOpen: true }, io),
+      runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir }, noOpen: true }, io),
     ).rejects.toThrow(/__exit__:0/);
 
     expect(mockOpenBrowser).not.toHaveBeenCalled();
@@ -217,7 +217,7 @@ describe('runLoginCommand — happy path', () => {
     mockWriteToken.mockResolvedValue(fakeClaims());
 
     await expect(
-      runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir }, webUrl: 'https://team.example.com' }, io),
+      runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir }, webUrl: 'https://team.example.com' }, io),
     ).rejects.toThrow(/__exit__:0/);
 
     const url = mockOpenBrowser.mock.calls[0]?.[0] as string;
@@ -239,7 +239,7 @@ describe('runLoginCommand — failure paths', () => {
       close: () => undefined,
     });
     mockOpenBrowser.mockReturnValue(true);
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
     expect(captured.exit).not.toBe(0);
     expect(captured.stderr.join('')).toMatch(/timed out/);
   });
@@ -253,7 +253,7 @@ describe('runLoginCommand — failure paths', () => {
       close: () => undefined,
     });
     mockOpenBrowser.mockReturnValue(true);
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
     expect(captured.stderr.join('')).toMatch(/state mismatch/);
   });
 
@@ -266,7 +266,7 @@ describe('runLoginCommand — failure paths', () => {
     });
     mockOpenBrowser.mockReturnValue(true);
     mockWriteToken.mockRejectedValue(new Error('JWT signature invalid'));
-    await expect(runLoginCommand({ home: homeDir, env: { CONTEXTOS_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
+    await expect(runLoginCommand({ home: homeDir, env: { COODRA_HOME: homeDir } }, io)).rejects.toThrow(/__exit__/);
     expect(captured.exit).not.toBe(0);
     expect(captured.stderr.join('')).toMatch(/JWT/);
   });

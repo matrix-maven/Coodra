@@ -4,7 +4,7 @@ import type { Check } from '../types.js';
 
 export const dataDbOpensCheck: Check = {
   id: 3,
-  name: 'data.db opens via @coodra/contextos-db::createDb',
+  name: 'data.db opens via @coodra/db::createDb',
   severity: 'red',
   async run(ctx) {
     try {
@@ -13,7 +13,7 @@ export const dataDbOpensCheck: Check = {
       return {
         status: 'red',
         detail: `${ctx.dataDb} does not exist`,
-        remediation: 'Run `contextos init` to create the local SQLite primary store.',
+        remediation: 'Run `coodra init` to create the local SQLite primary store.',
       };
     }
 
@@ -24,7 +24,7 @@ export const dataDbOpensCheck: Check = {
       return {
         status: 'red',
         detail: `createDb failed: ${(err as Error).message}`,
-        remediation: 'data.db is corrupt or unreadable; back it up and re-run `contextos init`.',
+        remediation: 'data.db is corrupt or unreadable; back it up and re-run `coodra init`.',
       };
     }
     try {

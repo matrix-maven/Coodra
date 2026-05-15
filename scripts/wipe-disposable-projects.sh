@@ -1,9 +1,9 @@
 #!/bin/bash
-# Wipe disposable projects from the local ContextOS DB.
+# Wipe disposable projects from the local Coodra DB.
 #
 # Keeps:
 #   __global__       — sentinel, required for orphan-event audit-fallback (F7)
-#   contextos        — the active project
+#   coodra        — the active project
 #   taskforge-demo   — has real decisions + packs
 #   cli              — early M08a dev artifacts
 #
@@ -16,10 +16,10 @@
 
 set -euo pipefail
 
-DB="${1:-$HOME/.contextos/data.db}"
+DB="${1:-$HOME/.coodra/data.db}"
 
 # Slugs to KEEP (everything else gets nuked).
-KEEP_SLUGS="__global__,contextos,taskforge-demo,cli"
+KEEP_SLUGS="__global__,coodra,taskforge-demo,cli"
 
 if [[ ! -f "$DB" ]]; then
   echo "ERROR: db not found at $DB"
@@ -27,7 +27,7 @@ if [[ ! -f "$DB" ]]; then
 fi
 
 echo "========================================"
-echo "ContextOS disposable-project wipe"
+echo "Coodra disposable-project wipe"
 echo "DB: $DB"
 echo "Keeping slugs: $KEEP_SLUGS"
 echo "========================================"

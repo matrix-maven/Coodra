@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // CRITICAL: this import must be FIRST, before anything else. It sets
-// CONTEXTOS_LOG_DESTINATION=stderr so that when @coodra/contextos-shared's
+// COODRA_LOG_DESTINATION=stderr so that when @coodra/shared's
 // logger module is subsequently loaded (transitively via env.ts,
 // tool-registry.ts, stdio.ts), it resolves its destination to fd 2.
 // ES modules hoist imports, so only the order of `import` statements
@@ -10,9 +10,9 @@ import './bootstrap/ensure-stderr-logging.js';
 
 import { randomUUID } from 'node:crypto';
 
-import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
-import { ensureGlobalProject, migrateSqlite } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
+import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 
 import { env } from './config/env.js';
 import type { ContextDeps } from './framework/tool-context.js';
@@ -32,11 +32,11 @@ import { startStdioTransport } from './transports/stdio.js';
 
 const bootLogger = createLogger('mcp-server.boot');
 
-const SERVER_NAME = '@coodra/contextos-mcp-server' as const;
+const SERVER_NAME = '@coodra/mcp-server' as const;
 const SERVER_VERSION = '0.0.0' as const;
 
 /**
- * Process entrypoint for `@coodra/contextos-mcp-server`.
+ * Process entrypoint for `@coodra/mcp-server`.
  *
  * S7a scope (walking skeleton + frozen ToolContext):
  *   - stdio transport only (HTTP deferred to S16).
@@ -68,11 +68,11 @@ async function main(): Promise<void> {
       event: 'boot',
       serverName: SERVER_NAME,
       serverVersion: SERVER_VERSION,
-      mode: env.CONTEXTOS_MODE,
-      logDestination: env.CONTEXTOS_LOG_DESTINATION,
+      mode: env.COODRA_MODE,
+      logDestination: env.COODRA_LOG_DESTINATION,
       nodeEnv: env.NODE_ENV,
     },
-    'starting @coodra/contextos-mcp-server',
+    'starting @coodra/mcp-server',
   );
 
   // --- Build ContextDeps from the lib factories. -----------------------
@@ -84,10 +84,10 @@ async function main(): Promise<void> {
   // Local services always write to local SQLite (system-architecture §1).
   // `mode` is an auth-strategy hint that flows through to the auth
   // chain; it does NOT change the DB routing here. Module 03 S4 closed
-  // verification §8.3 by removing the previous CONTEXTOS_DB_OVERRIDE_MODE
+  // verification §8.3 by removing the previous COODRA_DB_OVERRIDE_MODE
   // stop-gap — the new createDb({ kind: 'local' }) signature makes the
   // override unnecessary.
-  const dbClient = createDbClient({ mode: env.CONTEXTOS_MODE });
+  const dbClient = createDbClient({ mode: env.COODRA_MODE });
   const dbHandle = dbClient.asInternalHandle();
 
   // ---------------------------------------------------------------------
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   const featurePack = createFeaturePackStore({ db: dbHandle });
   const contextPack = createContextPackStore({
     db: dbHandle,
-    ...(env.CONTEXTOS_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.CONTEXTOS_CONTEXT_PACKS_ROOT } : {}),
+    ...(env.COODRA_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.COODRA_CONTEXT_PACKS_ROOT } : {}),
   });
   // Module 03.1: durable-outbox worker. Both the bridge and mcp-server
   // run their own worker (OQ2 — drain ownership). They compete via the
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
   // docs/feature-packs/05-agent-driven-nl-assembly/spec.md.
   const graphify = createGraphifyClient({
     db: dbHandle,
-    ...(env.CONTEXTOS_GRAPHIFY_ROOT ? { graphifyRoot: env.CONTEXTOS_GRAPHIFY_ROOT } : {}),
+    ...(env.COODRA_GRAPHIFY_ROOT ? { graphifyRoot: env.COODRA_GRAPHIFY_ROOT } : {}),
   });
 
   const deps: ContextDeps = Object.freeze({
@@ -157,7 +157,7 @@ async function main(): Promise<void> {
   });
 
   const registry = new ToolRegistry({ deps });
-  registerAllTools(registry, { db: dbHandle, mode: env.CONTEXTOS_MODE });
+  registerAllTools(registry, { db: dbHandle, mode: env.COODRA_MODE });
 
   // ---------------------------------------------------------------------
   // Transport selection (S16). `--transport` CLI flag overrides the env
@@ -275,6 +275,6 @@ main().catch((err: unknown) => {
   // been caught inside `registry.handleCall`; reaching here means
   // startup itself failed.
   const message = err instanceof Error ? `${err.name}: ${err.message}\n${err.stack ?? ''}` : String(err);
-  process.stderr.write(`@coodra/contextos-mcp-server: fatal startup error\n${message}\n`);
+  process.stderr.write(`@coodra/mcp-server: fatal startup error\n${message}\n`);
   process.exit(1);
 });

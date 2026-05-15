@@ -28,7 +28,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-instr-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-instr-'));
   });
   afterEach(() => {
     /* tmp cleaned by OS */
@@ -41,7 +41,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(body).toContain(INSTRUCTION_BLOCK_START);
     expect(body).toContain(INSTRUCTION_BLOCK_END);
     expect(body).toContain('my-proj');
-    expect(body).toContain('contextos__get_run_id');
+    expect(body).toContain('coodra__get_run_id');
   });
 
   it('is idempotent — a second merge with the same slug is unchanged', async () => {
@@ -53,7 +53,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   it('refreshes the block in place, preserving content outside the markers', async () => {
     const userAbove = '# My project rules\n\nAlways use tabs.\n\n';
     const userBelow = '\n\n## My extra section\n\nDeploy on Fridays.\n';
-    const stale = `${INSTRUCTION_BLOCK_START}\nold contextos content\n${INSTRUCTION_BLOCK_END}`;
+    const stale = `${INSTRUCTION_BLOCK_START}\nold coodra content\n${INSTRUCTION_BLOCK_END}`;
     await writeFile(join(cwd, '.windsurfrules'), `${userAbove}${stale}${userBelow}`, 'utf8');
 
     const result = await mergeInstructionFile({ cwd, filename: '.windsurfrules', projectSlug: 'refreshed', dryRun: false });
@@ -62,7 +62,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(body).toContain('Always use tabs.');
     expect(body).toContain('Deploy on Fridays.');
     expect(body).toContain('refreshed');
-    expect(body).not.toContain('old contextos content');
+    expect(body).not.toContain('old coodra content');
     // Exactly one block.
     expect(body.split(INSTRUCTION_BLOCK_START).length).toBe(2);
   });
@@ -110,11 +110,11 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     const block = buildInstructionBlock('the-slug');
     expect(block).toContain('the-slug');
     for (const tool of [
-      'contextos__get_run_id',
-      'contextos__get_feature_pack',
-      'contextos__check_policy',
-      'contextos__record_decision',
-      'contextos__save_context_pack',
+      'coodra__get_run_id',
+      'coodra__get_feature_pack',
+      'coodra__check_policy',
+      'coodra__record_decision',
+      'coodra__save_context_pack',
     ]) {
       expect(block).toContain(tool);
     }

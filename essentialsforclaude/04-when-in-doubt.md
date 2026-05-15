@@ -6,8 +6,8 @@ Uncertainty is normal. What matters is resolving it with the right source. Follo
 
 1. Re-read the relevant section of `system-architecture.md`.
 2. Check `docs/context-packs/` for a prior decision on the same topic.
-3. Call `contextos__search_packs_nl` with the problem description.
-4. Call `contextos__query_run_history` for recent related work.
+3. Call `coodra__search_packs_nl` with the problem description.
+4. Call `coodra__query_run_history` for recent related work.
 5. If **still uncertain, ask the user.** Do not guess. Record the open question in `context_memory/open-questions.md` so the resolution becomes durable.
 
 ## 4.2 Latest library or API mechanics
@@ -34,4 +34,4 @@ Uncertainty is normal. What matters is resolving it with the right source. Follo
 
 Closes verification finding F11 (`docs/verification/2026-04-27-module-01-02-03-verification.md`).
 
-`apps/mcp-server` and `apps/hooks-bridge` are SQLite-only by design — both unconditionally call `createDb({ kind: 'local' })`. There is no env knob, no flag, no boot path that yields a Postgres handle (M03 S4 explicitly removed `CONTEXTOS_DB_OVERRIDE_MODE`). Before authoring a verification step or test that says "boot the binary against Postgres," confirm by reading `apps/*/src/lib/db.ts`. If the apps you're targeting still pass `kind: 'local'`, the cloud-write path lives only in `@coodra/contextos-db::createDb({ kind: 'cloud' })` and is exercised through the package's own integration tests.
+`apps/mcp-server` and `apps/hooks-bridge` are SQLite-only by design — both unconditionally call `createDb({ kind: 'local' })`. There is no env knob, no flag, no boot path that yields a Postgres handle (M03 S4 explicitly removed `COODRA_DB_OVERRIDE_MODE`). Before authoring a verification step or test that says "boot the binary against Postgres," confirm by reading `apps/*/src/lib/db.ts`. If the apps you're targeting still pass `kind: 'local'`, the cloud-write path lives only in `@coodra/db::createDb({ kind: 'cloud' })` and is exercised through the package's own integration tests.

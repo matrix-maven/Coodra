@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__search_packs_nl`.
+ * Input + output schemas for `coodra__search_packs_nl`.
  *
  * Module 05 reshape (2026-05-08): the embedding-supplied semantic-KNN
  * path was removed alongside the abandoned Python NL Assembly service.
@@ -43,7 +43,7 @@ export const searchPacksNlInputSchema = z
       .describe(`Max results (default 50, capped at ${MAX_LIMIT}). Ordered by created_at DESC.`),
   })
   .strict()
-  .describe('Input for contextos__search_packs_nl.');
+  .describe('Input for coodra__search_packs_nl.');
 
 const packResultSchema = z
   .object({

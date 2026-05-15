@@ -1,4 +1,4 @@
-import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { and, count, desc, eq, gt } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -62,7 +62,7 @@ export async function fetchProjectHomeSnapshot(args: {
   readonly projectCwd?: string | null;
 }): Promise<ProjectHomeSnapshot> {
   const handle = createWebDb();
-  const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
 
   const [activeRunsCount, denials24hCount, activeKillSwitches, latestEvents] = await Promise.all([
     countActiveRunsForProject(handle, args.projectId),

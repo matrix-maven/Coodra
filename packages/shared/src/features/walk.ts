@@ -6,11 +6,11 @@ import { FEATURE_SLUG_RE } from './schema.js';
 import type { FeatureFile, FeatureRow } from './types.js';
 
 /**
- * @coodra/contextos-shared/features — filesystem walker.
+ * @coodra/shared/features — filesystem walker.
  *
  * Pure read-side: walks `<projectRoot>/docs/features/` and yields one
  * `FeatureRow` per direct child directory that contains a parseable
- * `feature.md`. Sync because the rest of ContextOS's read-side helpers
+ * `feature.md`. Sync because the rest of Coodra's read-side helpers
  * are sync (matches the meta.json + spec.md scanners in the web app);
  * keeps the bridge's SessionStart hot-path simple.
  *

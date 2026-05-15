@@ -279,6 +279,6 @@ describe('renderIndexMd', () => {
         },
       ],
     });
-    expect(md).toContain('contextos__get_feature({slug:"auth"})');
+    expect(md).toContain('coodra__get_feature({slug:"auth"})');
   });
 });

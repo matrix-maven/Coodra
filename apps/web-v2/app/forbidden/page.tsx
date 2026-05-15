@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
  *                          leaving the app.
  *
  *   reason=org_mismatch  — user is in some org, but not the org this
- *                          deployment is pinned to (CONTEXTOS_EXPECTED_ORG_ID).
+ *                          deployment is pinned to (COODRA_EXPECTED_ORG_ID).
  *                          We show the diagnostic + link them to switch
  *                          orgs in Clerk.
  *
@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic';
  *                              Server-action redirect.
  *
  *   reason=local_only    — they hit an action that only works on a
- *                          developer's laptop (e.g., contextos init),
+ *                          developer's laptop (e.g., coodra init),
  *                          but the deployment is team-hosted.
  */
 
@@ -130,7 +130,7 @@ function reasonLede(reason: string, sp: SearchParams): string {
   if (reason === 'insufficient_role')
     return `That action requires the '${sp.needed ?? '?'}' role. Your current role is '${sp.actor_role ?? '?'}'. Ask the team admin to elevate your Clerk org role.`;
   if (reason === 'local_only')
-    return `${sp.action ?? 'That action'} only runs on a developer's laptop — it writes to ~/.contextos/ or spawns local daemons that the deployment server doesn't have. Use the CLI from your own machine instead.`;
+    return `${sp.action ?? 'That action'} only runs on a developer's laptop — it writes to ~/.coodra/ or spawns local daemons that the deployment server doesn't have. Use the CLI from your own machine instead.`;
   return 'Access denied. This usually means your Clerk account isn’t a member of the right organization for this deployment.';
 }
 
@@ -139,7 +139,7 @@ async function NoOrgBootstrap() {
   // mint their team's org without leaving the app. After creation,
   // Clerk auto-makes them an admin of the new org and updates their
   // session.orgId — they reload the page and the middleware lets
-  // them through (assuming CONTEXTOS_EXPECTED_ORG_ID matches the new
+  // them through (assuming COODRA_EXPECTED_ORG_ID matches the new
   // org id; if the admin pinned a different EXPECTED_ORG_ID they'll
   // need to update the deployment env after creation).
   const { CreateOrganization } = await import('@clerk/nextjs');
@@ -167,7 +167,7 @@ async function NoOrgBootstrap() {
         <p style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.6 }}>
           Use the widget below to create your team's organization. Clerk will name you admin
           automatically. After creation, copy the resulting <code style={inlineMono}>org_…</code> id
-          and set <code style={inlineMono}>CONTEXTOS_EXPECTED_ORG_ID</code> in this deployment's env
+          and set <code style={inlineMono}>COODRA_EXPECTED_ORG_ID</code> in this deployment's env
           (Vercel project settings, fly secrets, docker -e, etc.), then redeploy. Until that
           variable is set to your new org id, the middleware will keep bouncing every signed-in
           user to this page.

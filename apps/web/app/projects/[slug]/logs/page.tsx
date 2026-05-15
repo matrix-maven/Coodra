@@ -26,7 +26,7 @@ export default async function LogsIndexPage({ params }: { params: Promise<{ slug
         }
         subtitle={
           <>
-            Workspace-grain log files (one per ContextOS service). Tailed live via Server-Sent Events. Pick a service to
+            Workspace-grain log files (one per Coodra service). Tailed live via Server-Sent Events. Pick a service to
             open the live tail surface.
           </>
         }

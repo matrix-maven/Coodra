@@ -9,7 +9,7 @@
  * with non-trivial inputs. Records every response on stdout as JSON
  * Lines so the verification report can quote them verbatim.
  *
- * Read-only: writes only to /tmp/contextos-verify-m1-m3/. No source
+ * Read-only: writes only to /tmp/coodra-verify-m1-m3/. No source
  * edits, no commits.
  */
 import { mkdirSync, rmSync } from 'node:fs';
@@ -37,7 +37,7 @@ function emit(label: string, payload: unknown): void {
 }
 
 async function main(): Promise<void> {
-  const verifyRoot = '/tmp/contextos-verify-m1-m3';
+  const verifyRoot = '/tmp/coodra-verify-m1-m3';
   rmSync(verifyRoot, { recursive: true, force: true });
   mkdirSync(verifyRoot, { recursive: true });
 
@@ -56,11 +56,11 @@ async function main(): Promise<void> {
       PATH: process.env.PATH ?? '',
       HOME: process.env.HOME ?? '',
       NODE_ENV: 'production',
-      CONTEXTOS_SQLITE_PATH: sqlitePath,
-      CONTEXTOS_CONTEXT_PACKS_ROOT: contextPacksRoot,
-      CONTEXTOS_GRAPHIFY_ROOT: graphifyRoot,
-      CONTEXTOS_LOG_DESTINATION: 'stderr',
-      CONTEXTOS_MODE: 'solo',
+      COODRA_SQLITE_PATH: sqlitePath,
+      COODRA_CONTEXT_PACKS_ROOT: contextPacksRoot,
+      COODRA_GRAPHIFY_ROOT: graphifyRoot,
+      COODRA_LOG_DESTINATION: 'stderr',
+      COODRA_MODE: 'solo',
       CLERK_SECRET_KEY: 'sk_test_replace_me',
       CLERK_PUBLISHABLE_KEY: 'pk_test_replace_me',
     },

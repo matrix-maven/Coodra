@@ -1,16 +1,16 @@
 import { readdir } from 'node:fs/promises';
 
-import { migrateSqlite, resolveMigrationsFolder } from '@coodra/contextos-db';
+import { migrateSqlite, resolveMigrationsFolder } from '@coodra/db';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosDataDb, resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { readPidStatus } from '../lib/pid-status.js';
 import { bundledMigrationsDir } from '../lib/runtime-paths.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `contextos db migrate` — apply pending Drizzle migrations to
- * `~/.contextos/data.db`.
+ * `coodra db migrate` — apply pending Drizzle migrations to
+ * `~/.coodra/data.db`.
  *
  * Idempotent. Re-running with no pending migrations is a no-op (exit 0).
  *
@@ -18,11 +18,11 @@ import { pc } from '../ui/index.js';
  * `--with-daemons-running` is set. The daemons check uses the
  * existing `pid-status.ts` helper from M08a — alive PID files for
  * any of {mcp-server, hooks-bridge, sync-daemon} block the run with
- * exit 1 + a `contextos stop` remediation pointer.
+ * exit 1 + a `coodra stop` remediation pointer.
  *
  * `--dry-run` reports what would change (file count vs applied count)
  * without invoking the migrator. Useful for operator verification
- * before a `contextos upgrade` flow.
+ * before a `coodra upgrade` flow.
  */
 
 const TRACKED_DAEMON_UNITS = ['mcp-server', 'hooks-bridge', 'sync-daemon'] as const;
@@ -37,7 +37,7 @@ export interface DbMigrateIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   /**
    * Override the migrations directory for tests. Production resolves
    * to the bundled `dist/migrations/sqlite` via `runtime-paths.ts`.
@@ -72,7 +72,7 @@ export async function runDbMigrateCommand(options: DbMigrateOptions, ioOverride?
   const json = options.json === true;
   const dryRun = options.dryRun === true;
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
+  const homePath = io.coodraHome ?? resolveCoodraHome();
 
   // Daemon-running check (skipped when --with-daemons-running OR --dry-run).
   if (!dryRun && options.withDaemonsRunning !== true) {
@@ -97,7 +97,7 @@ export async function runDbMigrateCommand(options: DbMigrateOptions, ioOverride?
       } else {
         io.writeStderr(
           `${pc.red('error')}: ${aliveUnits.length} daemon(s) still running: ${list}.\n` +
-            `  Run \`contextos stop\` first, or pass --with-daemons-running if you understand the risks.\n`,
+            `  Run \`coodra stop\` first, or pass --with-daemons-running if you understand the risks.\n`,
         );
       }
       io.exit(EXIT_USER_RECOVERABLE);
@@ -106,7 +106,7 @@ export async function runDbMigrateCommand(options: DbMigrateOptions, ioOverride?
   }
 
   const migrationsDir: string | null = io.migrationsDir ?? resolveMigrationsDirForCli();
-  const dbPath = resolveContextosDataDb(homePath);
+  const dbPath = resolveCoodraDataDb(homePath);
   // The migration set includes the `sqlite-vec` vec0 virtual table on
   // migration 0001 — opening without the extension errors at apply
   // time. Match init.ts's load posture.
@@ -203,5 +203,5 @@ async function listOnDiskMigrations(dir: string | null): Promise<string[]> {
 }
 
 // Re-export so the program-level wiring can call `resolveMigrationsFolder`
-// for diagnostics if needed without taking another dep on @coodra/contextos-db.
+// for diagnostics if needed without taking another dep on @coodra/db.
 void resolveMigrationsFolder;

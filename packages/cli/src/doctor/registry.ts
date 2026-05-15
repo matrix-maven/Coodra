@@ -1,5 +1,5 @@
 import { nodeVersionCheck } from './checks/01-node-version.js';
-import { contextosDirCheck } from './checks/02-contextos-dir.js';
+import { coodraDirCheck } from './checks/02-coodra-dir.js';
 import { dataDbOpensCheck } from './checks/03-data-db-opens.js';
 import { dbMigrationsHeadCheck } from './checks/04-db-migrations-head.js';
 import { globalProjectCheck } from './checks/05-global-project.js';
@@ -40,24 +40,24 @@ import type { Check } from './types.js';
 
 /**
  * Decision dec_83ba10c1 (2026-05-02): essential checks for the Claude
- * Code + solo-mode happy path. The default `contextos doctor` surface
+ * Code + solo-mode happy path. The default `coodra doctor` surface
  * runs only these. `--full` runs the registry below.
  *
  * Why these nine:
  *   - 1  Node version           — install gate
- *   - 2  ~/.contextos/ writable — install location
+ *   - 2  ~/.coodra/ writable — install location
  *   - 3  data.db opens          — local SQLite primary store
  *   - 4  migrations at head     — schema invariant
  *   - 5  __global__ sentinel    — F7 invariant for unregistered cwds
  *   - 11 hooks-bridge /healthz  — bridge is the autonomy in-path
- *   - 12 project registered     — the cwd has a working .contextos.json
+ *   - 12 project registered     — the cwd has a working .coodra.json
  *   - 14 .mcp.json validity     — Claude Code can spawn the MCP server
  *   - 20 LOCAL_HOOK_SECRET set  — bridge auth contract
  *
  * Everything else: debug invariants (6/7/8), redundant probes (10/17/18),
  * dev-only tooling (19), team-mode-only (24/25/26/27), outbox
  * observability (21/22/23), launch-mode dependent (9/15/16),
- * placeholder (13). All available via `contextos doctor --full`.
+ * placeholder (13). All available via `coodra doctor --full`.
  */
 // Slice 5 (2026-05-03 audit §14.1) adds 28+29 to the essential set —
 // these catch the §3.2 / §9.2 bug class (matcher gate, SessionEnd
@@ -72,7 +72,7 @@ function tagEssential(checks: readonly Check[]): readonly Check[] {
 
 export const ALL_CHECKS: readonly Check[] = tagEssential([
   nodeVersionCheck,
-  contextosDirCheck,
+  coodraDirCheck,
   dataDbOpensCheck,
   dbMigrationsHeadCheck,
   globalProjectCheck,
@@ -114,12 +114,12 @@ export const ALL_CHECKS: readonly Check[] = tagEssential([
   // Web Bundle W1 (2026-05-13) — bundled Next.js standalone /api/healthz.
   webHealthzCheck,
   // Web Bundle W4 (2026-05-13) — Cloudflare tunnel reachability when
-  // CONTEXTOS_PUBLIC_URL is set.
+  // COODRA_PUBLIC_URL is set.
   tunnelReachabilityCheck,
 ]);
 
 /**
- * The default subset run by `contextos doctor` (no `--full`).
+ * The default subset run by `coodra doctor` (no `--full`).
  * Resolved at module load so callers don't pay the filter cost on
  * every invocation.
  */

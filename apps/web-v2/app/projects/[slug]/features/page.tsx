@@ -45,7 +45,7 @@ export default async function ProjectFeaturesPage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / features`} crumbPrefix="contextos / projects" />
+      <Topbar crumb={`${project.slug} / features`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
@@ -56,7 +56,7 @@ export default async function ProjectFeaturesPage({
             <p className="head__lede">
               Each feature is a self-contained knowledge unit — a description that tells the agent <em>when to use it</em>,
               plus a body and any supporting files. The agent reads the index on every SessionStart, then loads a feature
-              body on demand via <code style={mono}>contextos__get_feature</code>.
+              body on demand via <code style={mono}>coodra__get_feature</code>.
             </p>
           </div>
           <div>
@@ -127,7 +127,7 @@ export default async function ProjectFeaturesPage({
           <Banner tone="warn">
             This project has no recorded <code style={mono}>cwd</code> — reads / writes are pointed at the web server&apos;s
             working directory (<code style={mono}>{projectCwd}</code>), which may not be the project&apos;s real folder.
-            Open Claude Code inside the project root once or re-run <code style={mono}>contextos init</code>.
+            Open Claude Code inside the project root once or re-run <code style={mono}>coodra init</code>.
           </Banner>
         ) : null}
 
@@ -163,7 +163,7 @@ export default async function ProjectFeaturesPage({
               <code style={mono}>docs/features/</code> exists but is empty.
             </h2>
             <p style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-dim)', marginBottom: 24 }}>
-              Run <code style={mono}>contextos feature add &lt;slug&gt;</code> from the project root, or click below to
+              Run <code style={mono}>coodra feature add &lt;slug&gt;</code> from the project root, or click below to
               add one via the web wizard.
             </p>
             <Link

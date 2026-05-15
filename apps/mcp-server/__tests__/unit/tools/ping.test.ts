@@ -1,11 +1,11 @@
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
 import { pingToolRegistration } from '../../../src/tools/ping/manifest.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
-describe('ping tool — manifest contract (via @coodra/contextos-shared/test-utils)', () => {
+describe('ping tool — manifest contract (via @coodra/shared/test-utils)', () => {
   it('satisfies every §24.3 rule (name shape, length, opening, word count, Returns)', () => {
     expect(() => assertManifestDescriptionValid(pingToolRegistration, { folderName: 'ping' })).not.toThrow();
   });

@@ -5,17 +5,17 @@ import { createGetRunIdHandler, type GetRunIdHandlerDeps } from './handler.js';
 import { type GetRunIdInput, getRunIdInputSchema, getRunIdOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__get_run_id`.
+ * Registration factory for `coodra__get_run_id`.
  *
  * Factory-shaped rather than a static constant because the handler
- * closes over the process's boot-time `DbHandle` and `CONTEXTOS_MODE`
+ * closes over the process's boot-time `DbHandle` and `COODRA_MODE`
  * (user directive Q1 + Q2 2026-04-24). `src/tools/index.ts::registerAllTools`
  * is the single caller that supplies these deps; test code constructs
  * its own fakes.
  *
  * Description below is verbatim from `system-architecture.md §24.4`.
  * The §24.3 description-anatomy assertion in
- * `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid` is
+ * `@coodra/shared/test-utils::assertManifestDescriptionValid` is
  * the CI guard that this string stays within the rules (imperative
  * opener, 40–120 words, mentions Returns).
  */
@@ -50,7 +50,7 @@ export function createGetRunIdToolRegistration(
 ): ToolRegistration<typeof getRunIdInputSchema, typeof getRunIdOutputSchema> {
   return {
     name: 'get_run_id',
-    title: 'ContextOS: get_run_id',
+    title: 'Coodra: get_run_id',
     description:
       'Call this at the START of any session that will write code, if the current runId is not already in context ' +
       "from a session-start hook. Returns the current in-progress session's runId (UUID) which binds all subsequent " +

@@ -1,4 +1,4 @@
-import type { DbHandle } from '@coodra/contextos-db';
+import type { DbHandle } from '@coodra/db';
 import { describe, expect, it } from 'vitest';
 
 import { createGetRunIdToolRegistration } from '../../../src/tools/get-run-id/manifest.js';

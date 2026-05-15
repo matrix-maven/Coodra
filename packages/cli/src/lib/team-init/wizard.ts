@@ -32,7 +32,7 @@ export interface WizardInput {
   readonly preferredOrgId?: string;
   /** Test override — pass a pre-generated secret to make outputs deterministic. */
   readonly localHookSecret?: string;
-  /** Test override — write under a tmp home instead of `~/.contextos`. */
+  /** Test override — write under a tmp home instead of `~/.coodra`. */
   readonly homeOverride?: string;
 }
 

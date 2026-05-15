@@ -10,9 +10,9 @@ import {
   ensureProject,
   insertKillSwitch,
   migrateSqlite,
-} from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+} from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../../src/app.js';
@@ -67,13 +67,13 @@ interface Harness {
 let h: Harness;
 
 function makeEnv(): AuthEnv {
-  return { CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' };
+  return { COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' };
 }
 
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'm08b-s2-kill-switch-'));
   const slug = 'kill-switch-pre-tool-use';
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });
@@ -268,7 +268,7 @@ describe('PreToolUse + kill-switch evaluator (M08b S2)', () => {
     expect(denyOut.permissionDecision).toBe('deny');
     expect(denyOut.permissionDecisionReason).toBe(`kill_switch_paused:${ks.id}`);
 
-    // Resume by setting resumed_at directly via raw SQL (S3's `contextos resume`
+    // Resume by setting resumed_at directly via raw SQL (S3's `coodra resume`
     // CLI is the production path; this integration test exercises the bridge
     // contract, not the CLI). After resume + cache invalidation, the next
     // PreToolUse falls through to the policy chain and is denied by the

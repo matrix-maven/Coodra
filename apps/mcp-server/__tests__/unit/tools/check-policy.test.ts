@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createCheckPolicyToolRegistration } from '../../../src/tools/check-policy/manifest.js';
 import { checkPolicyInputSchema, checkPolicyOutputSchema } from '../../../src/tools/check-policy/schema.js';
 
 /**
- * Unit tests for `contextos__check_policy` — manifest contract +
+ * Unit tests for `coodra__check_policy` — manifest contract +
  * input schema boundaries + idempotency-key shape + reason-enum +
  * failOpen-derivation + `'ask'`-never-at-M02 schema lock. DB +
  * evaluator behaviour (fail-open paths, audit dedupe, per-projectId

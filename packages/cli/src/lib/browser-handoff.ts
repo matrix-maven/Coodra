@@ -30,7 +30,7 @@ import { URL } from 'node:url';
  *   - Security: the listener accepts exactly one request before dying.
  *     An attacker who captures the URL must hit it within ~milliseconds
  *     of legitimate use, which they can't reliably do.
- *   - Resource: no orphan listeners after a `contextos login` flow.
+ *   - Resource: no orphan listeners after a `coodra login` flow.
  *   - State: state token is single-use both server-side (in cli-login-
  *     state.ts) AND here (the listener dies after one good request).
  */
@@ -114,7 +114,7 @@ async function listenOnRandomPort(
   );
 }
 
-const SUCCESS_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>ContextOS — Signed in</title>
+const SUCCESS_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Coodra — Signed in</title>
 <style>
   body { font-family: ui-monospace, monospace; background: #0a0a0a; color: #e0e0e0; padding: 60px 24px; max-width: 540px; margin: 0 auto; }
   h1 { color: #f4d35e; font-size: 22px; margin: 0 0 16px; }
@@ -123,10 +123,10 @@ const SUCCESS_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Co
 </style></head><body>
 <h1>✓ Signed in</h1>
 <p>Your terminal has your auth token. You can close this tab.</p>
-<p>If something looks wrong, run <code>contextos logout</code> in your terminal and try again.</p>
+<p>If something looks wrong, run <code>coodra logout</code> in your terminal and try again.</p>
 </body></html>`;
 
-const ERROR_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>ContextOS — Sign-in failed</title>
+const ERROR_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Coodra — Sign-in failed</title>
 <style>
   body { font-family: ui-monospace, monospace; background: #0a0a0a; color: #e0e0e0; padding: 60px 24px; max-width: 540px; margin: 0 auto; }
   h1 { color: #ff6b6b; font-size: 22px; margin: 0 0 16px; }
@@ -134,7 +134,7 @@ const ERROR_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Cont
   code { background: #1a1a1a; padding: 2px 6px; border-radius: 2px; color: #f4d35e; }
 </style></head><body>
 <h1>✗ Sign-in failed</h1>
-<p>The redirect did not match the expected state. Return to your terminal and run <code>contextos login</code> again.</p>
+<p>The redirect did not match the expected state. Return to your terminal and run <code>coodra login</code> again.</p>
 </body></html>`;
 
 /**

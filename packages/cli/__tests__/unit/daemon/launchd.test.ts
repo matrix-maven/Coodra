@@ -16,7 +16,7 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-daemon-launchd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-daemon-launchd-'));
   });
 
   afterEach(() => {
@@ -39,7 +39,7 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
     expect(await mgr.isAvailable()).toBe(false);
   });
 
-  it('install writes a plist with com.contextos.<name> label + ProgramArguments + env', async () => {
+  it('install writes a plist with com.coodra.<name> label + ProgramArguments + env', async () => {
     let called: { file: string; args: readonly string[] } | null = null;
     const mgr = new LaunchdDaemonManager({
       homeDir: home,
@@ -50,16 +50,16 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
     });
     await mgr.install({
       name: 'test',
-      command: '/usr/local/bin/contextos-mcp-server',
+      command: '/usr/local/bin/coodra-mcp-server',
       args: ['--transport', 'stdio'],
-      env: { CONTEXTOS_LOG_DESTINATION: 'stderr' },
+      env: { COODRA_LOG_DESTINATION: 'stderr' },
     });
-    const plist = await readFile(join(home, 'Library/LaunchAgents/com.contextos.test.plist'), 'utf8');
-    expect(plist).toContain('<string>com.contextos.test</string>');
-    expect(plist).toContain('<string>/usr/local/bin/contextos-mcp-server</string>');
+    const plist = await readFile(join(home, 'Library/LaunchAgents/com.coodra.test.plist'), 'utf8');
+    expect(plist).toContain('<string>com.coodra.test</string>');
+    expect(plist).toContain('<string>/usr/local/bin/coodra-mcp-server</string>');
     expect(plist).toContain('<string>--transport</string>');
     expect(plist).toContain('<string>stdio</string>');
-    expect(plist).toContain('<key>CONTEXTOS_LOG_DESTINATION</key>');
+    expect(plist).toContain('<key>COODRA_LOG_DESTINATION</key>');
     expect(plist).toContain('<string>stderr</string>');
     expect(plist).toContain('<key>RunAtLoad</key><true/>');
     expect(plist).toContain('<key>KeepAlive</key><true/>');
@@ -69,8 +69,8 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
 
   it('start invokes launchctl bootout-then-bootstrap so re-starts pick up new plists', async () => {
     // Background: launchctl bootstrap is a no-op when the label is
-    // already loaded. A second `contextos start` with a different
-    // CONTEXTOS_HOME used to be silently ignored; the daemon kept its
+    // already loaded. A second `coodra start` with a different
+    // COODRA_HOME used to be silently ignored; the daemon kept its
     // stale env. Fix: bootout-first, then bootstrap. Verify both calls.
     const calls: Array<{ file: string; args: readonly string[] }> = [];
     const mgr = new LaunchdDaemonManager({
@@ -85,11 +85,11 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]?.file).toBe('launchctl');
     expect(calls[0]?.args[0]).toBe('bootout');
-    expect(calls[0]?.args[1]).toMatch(/^gui\/\d+\/com\.contextos\.svc$/);
+    expect(calls[0]?.args[1]).toMatch(/^gui\/\d+\/com\.coodra\.svc$/);
     expect(calls[1]?.file).toBe('launchctl');
     expect(calls[1]?.args[0]).toBe('bootstrap');
     expect(calls[1]?.args[1]).toMatch(/^gui\/\d+$/);
-    expect(String(calls[1]?.args[2])).toContain('com.contextos.svc.plist');
+    expect(String(calls[1]?.args[2])).toContain('com.coodra.svc.plist');
   });
 
   it('status parses pid from `launchctl print` output', async () => {
@@ -120,15 +120,15 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
     });
     await mgr.install({
       name: 'test-logs',
-      command: '/usr/local/bin/contextos-bridge',
+      command: '/usr/local/bin/coodra-bridge',
       args: [],
       env: {},
-      stdoutPath: '/var/test/.contextos/logs/test-logs.log',
-      stderrPath: '/var/test/.contextos/logs/test-logs.log',
+      stdoutPath: '/var/test/.coodra/logs/test-logs.log',
+      stderrPath: '/var/test/.coodra/logs/test-logs.log',
     });
-    const plist = await readFile(join(home, 'Library/LaunchAgents/com.contextos.test-logs.plist'), 'utf8');
-    expect(plist).toContain('<key>StandardOutPath</key><string>/var/test/.contextos/logs/test-logs.log</string>');
-    expect(plist).toContain('<key>StandardErrorPath</key><string>/var/test/.contextos/logs/test-logs.log</string>');
+    const plist = await readFile(join(home, 'Library/LaunchAgents/com.coodra.test-logs.plist'), 'utf8');
+    expect(plist).toContain('<key>StandardOutPath</key><string>/var/test/.coodra/logs/test-logs.log</string>');
+    expect(plist).toContain('<key>StandardErrorPath</key><string>/var/test/.coodra/logs/test-logs.log</string>');
   });
 
   it('install omits StandardErrorPath/StandardOutPath when paths not set (back-compat)', async () => {
@@ -137,7 +137,7 @@ describe('LaunchdDaemonManager — plist write + launchctl wiring', () => {
       execa: fakeExeca(() => ({ exitCode: 0 })),
     });
     await mgr.install({ name: 'no-logs', command: '/x', args: [], env: {} });
-    const plist = await readFile(join(home, 'Library/LaunchAgents/com.contextos.no-logs.plist'), 'utf8');
+    const plist = await readFile(join(home, 'Library/LaunchAgents/com.coodra.no-logs.plist'), 'utf8');
     expect(plist).not.toContain('<key>StandardOutPath</key>');
     expect(plist).not.toContain('<key>StandardErrorPath</key>');
   });

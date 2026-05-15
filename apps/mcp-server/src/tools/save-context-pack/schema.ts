@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input schema for `contextos__save_context_pack`.
+ * Input schema for `coodra__save_context_pack`.
  *
  * Module 05 reshape (2026-05-08): adds optional `meta` object for
  * agent-curated metadata (decisionIds, affectedFiles, testStatus,
@@ -49,7 +49,7 @@ export const saveContextPackInputSchema = z
     meta: metaSchema.optional(),
   })
   .strict()
-  .describe('Input for contextos__save_context_pack.');
+  .describe('Input for coodra__save_context_pack.');
 
 /**
  * Output schema — discriminated union on `ok` per §9.1.2 canonical
@@ -81,9 +81,9 @@ const runNotFoundBranch = z
  * Phase G slice G.6 — auth_required soft-failure.
  *
  * Returned in team mode when no verified Clerk JWT is available on
- * this machine (no `~/.contextos/clerk-token.json`, or the token is
+ * this machine (no `~/.coodra/clerk-token.json`, or the token is
  * expired/tampered). The agent surfaces `howToFix` to the user, who
- * runs `contextos login` and retries.
+ * runs `coodra login` and retries.
  */
 const authRequiredBranch = z
   .object({

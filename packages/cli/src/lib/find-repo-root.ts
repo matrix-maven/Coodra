@@ -4,7 +4,7 @@ import { dirname, join, resolve } from 'node:path';
 /**
  * Walks up from `start` looking for a directory that contains `pnpm-workspace.yaml`.
  * Used by `doctor` checks 9–11 to locate the apps/* binaries when the CLI is run
- * from inside the contextos monorepo. Returns null if no repo root is found
+ * from inside the coodra monorepo. Returns null if no repo root is found
  * (e.g. when the CLI is `npm i -g`-installed from npm registry).
  */
 export async function findRepoRoot(start: string): Promise<string | null> {

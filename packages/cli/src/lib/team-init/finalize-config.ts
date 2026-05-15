@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { resolveContextosConfigJson, resolveContextosHome } from '../contextos-home.js';
+import { resolveCoodraConfigJson, resolveCoodraHome } from '../coodra-home.js';
 import { upgradeToTeamConfig, writeTeamHomeEnv } from '../team-config.js';
 
 /**
@@ -14,10 +14,10 @@ import { upgradeToTeamConfig, writeTeamHomeEnv } from '../team-config.js';
  * them together by:
  *   1. Generating a 32-byte hex local hook secret (unless one was passed
  *      — used for re-init or secret-rotation flows).
- *   2. Writing `~/.contextos/config.json` with the team block.
- *   3. Writing `~/.contextos/.env` with the four env keys
- *      (`CONTEXTOS_MODE`, `DATABASE_URL`, `LOCAL_HOOK_SECRET`,
- *      `CONTEXTOS_TEAM_ORG_ID`) — preserving any non-team entries.
+ *   2. Writing `~/.coodra/config.json` with the team block.
+ *   3. Writing `~/.coodra/.env` with the four env keys
+ *      (`COODRA_MODE`, `DATABASE_URL`, `LOCAL_HOOK_SECRET`,
+ *      `COODRA_TEAM_ORG_ID`) — preserving any non-team entries.
  *
  * Both writes go through `team-config.ts` helpers, which use atomic
  * tmpfile + rename. If a crash lands mid-write, the prior file remains
@@ -43,13 +43,13 @@ export interface FinalizeConfigInput {
   readonly localHookSecret?: string;
   /**
    * Phase H.4 — invite HMAC secret. When the wizard re-runs and the
-   * value is already in `~/.contextos/.env`, we keep it (so previously
+   * value is already in `~/.coodra/.env`, we keep it (so previously
    * minted invites still verify). When absent, a fresh 32-byte hex is
    * generated.
    */
   readonly inviteHmacSecret?: string;
   /**
-   * Phase H.4 — Clerk credentials persisted to `~/.contextos/.env` so
+   * Phase H.4 — Clerk credentials persisted to `~/.coodra/.env` so
    * the local web (next.config.ts shim layers the file into process.env)
    * can verify JWTs without the admin manually setting env vars.
    *
@@ -61,7 +61,7 @@ export interface FinalizeConfigInput {
    */
   readonly clerkSecretKey?: string;
   readonly clerkPublishableKey?: string;
-  /** Override for tests; defaults to the real `~/.contextos` resolution. */
+  /** Override for tests; defaults to the real `~/.coodra` resolution. */
   readonly homeOverride?: string;
 }
 
@@ -79,9 +79,9 @@ export interface FinalizeConfigResult {
 }
 
 /**
- * Phase H.4 — preserve-or-generate the CONTEXTOS_INVITE_HMAC_SECRET +
+ * Phase H.4 — preserve-or-generate the COODRA_INVITE_HMAC_SECRET +
  * other extra-env keys. We read whatever is currently in
- * `~/.contextos/.env` so re-running the wizard doesn't rotate the
+ * `~/.coodra/.env` so re-running the wizard doesn't rotate the
  * invite secret (which would invalidate every previously-minted invite
  * link the admin already shared).
  */
@@ -109,21 +109,21 @@ function readExistingExtras(envPath: string): {
     return v.length > 0 ? v : null;
   };
   return {
-    inviteHmacSecret: grab('CONTEXTOS_INVITE_HMAC_SECRET'),
+    inviteHmacSecret: grab('COODRA_INVITE_HMAC_SECRET'),
     clerkSecretKey: grab('CLERK_SECRET_KEY'),
     clerkPublishableKey: grab('CLERK_PUBLISHABLE_KEY'),
   };
 }
 
 /**
- * Phase H.4 — append-or-update an arbitrary key in `~/.contextos/.env`.
+ * Phase H.4 — append-or-update an arbitrary key in `~/.coodra/.env`.
  * Idempotent — replaces the existing line in place when present,
  * appends to the file end when absent. Atomic via tmp+rename.
  *
  * Mirrors the contract of `writeTeamHomeEnv` for the four primary keys
  * but works generically. Used to land the three Phase H additions:
  *
- *   CONTEXTOS_INVITE_HMAC_SECRET
+ *   COODRA_INVITE_HMAC_SECRET
  *   CLERK_SECRET_KEY
  *   CLERK_PUBLISHABLE_KEY
  *
@@ -132,12 +132,12 @@ function readExistingExtras(envPath: string): {
  * verifier can't reach Clerk's JWKS.
  */
 /**
- * W4 (2026-05-13) — remove a key from `~/.contextos/.env` if present.
+ * W4 (2026-05-13) — remove a key from `~/.coodra/.env` if present.
  * Idempotent: missing file or missing key is a no-op. Atomic via tmp+
  * rename for the same partial-write safety as `upsertEnvKey`.
  *
- * Used by `contextos stop` to peel the ephemeral CONTEXTOS_PUBLIC_URL
- * the tunnel wrote, so a subsequent `contextos start` (without
+ * Used by `coodra stop` to peel the ephemeral COODRA_PUBLIC_URL
+ * the tunnel wrote, so a subsequent `coodra start` (without
  * `--tunnel`) doesn't keep using the now-dead tunnel hostname.
  */
 export function removeEnvKey(envPath: string, key: string): void {
@@ -231,7 +231,7 @@ export function finalizeConfig(input: FinalizeConfigInput): FinalizeConfigResult
     input.homeOverride !== undefined ? { homeOverride: input.homeOverride } : {},
   );
 
-  // Atomic write 2 — ~/.contextos/.env merge for the four primary keys.
+  // Atomic write 2 — ~/.coodra/.env merge for the four primary keys.
   writeTeamHomeEnv(
     {
       databaseUrl: input.databaseUrl,
@@ -241,8 +241,8 @@ export function finalizeConfig(input: FinalizeConfigInput): FinalizeConfigResult
     input.homeOverride !== undefined ? { homeOverride: input.homeOverride } : {},
   );
 
-  const home = input.homeOverride !== undefined ? input.homeOverride : resolveContextosHome();
-  const configPath = resolveContextosConfigJson(home);
+  const home = input.homeOverride !== undefined ? input.homeOverride : resolveCoodraHome();
+  const configPath = resolveCoodraConfigJson(home);
   // .env path is co-located with config.json under the same home.
   const envPath = join(home, '.env');
 
@@ -255,7 +255,7 @@ export function finalizeConfig(input: FinalizeConfigInput): FinalizeConfigResult
       ? input.inviteHmacSecret
       : (existing.inviteHmacSecret ?? randomBytes(32).toString('hex'));
 
-  upsertEnvKey(envPath, 'CONTEXTOS_INVITE_HMAC_SECRET', inviteHmacSecret);
+  upsertEnvKey(envPath, 'COODRA_INVITE_HMAC_SECRET', inviteHmacSecret);
 
   // Phase H.4 — persist Clerk keys to the env file so the local web
   // (next.config.ts shim) and CLI both see them without the admin

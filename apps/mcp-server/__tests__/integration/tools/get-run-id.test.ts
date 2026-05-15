@@ -1,4 +1,4 @@
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -9,7 +9,7 @@ import type { GetRunIdOutput } from '../../../src/tools/get-run-id/schema.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__get_run_id` (S8).
+ * Integration test for `coodra__get_run_id` (S8).
  *
  * Exercises the real handler end-to-end via the `ToolRegistry` — the
  * same dispatch path the stdio transport uses — against an in-memory
@@ -151,7 +151,7 @@ describe('get_run_id — team mode returns project_not_found on unknown slug', (
     expect(out.ok).toBe(false);
     if (!out.ok) {
       expect(out.error).toBe('project_not_found');
-      expect(out.howToFix).toMatch(/Web App|contextos init/);
+      expect(out.howToFix).toMatch(/Web App|coodra init/);
       expect(out.howToFix.length).toBeGreaterThan(0);
     }
     const projects = await h.handle.db

@@ -1,17 +1,17 @@
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { getFeaturePackToolRegistration } from '../../../src/tools/get-feature-pack/manifest.js';
 import { getFeaturePackInputSchema } from '../../../src/tools/get-feature-pack/schema.js';
 
 /**
- * Unit tests for `contextos__get_feature_pack` — manifest contract +
+ * Unit tests for `coodra__get_feature_pack` — manifest contract +
  * input schema boundaries + idempotency-key shape. DB/filesystem
  * behaviour is covered in `__tests__/integration/tools/get-feature-
  * pack.test.ts`.
  */
 
-describe('get_feature_pack — manifest contract (via @coodra/contextos-shared/test-utils)', () => {
+describe('get_feature_pack — manifest contract (via @coodra/shared/test-utils)', () => {
   it('satisfies every §24.3 rule (name shape, length, opening, word count, Returns)', () => {
     expect(() =>
       assertManifestDescriptionValid(getFeaturePackToolRegistration, { folderName: 'get-feature-pack' }),

@@ -18,36 +18,36 @@ _No active blockers as of 2026-04-22 14:35. Docker-daemon absence is tracked in 
 
 ## 2026-05-02 14:51 — workspace `pnpm build` (turbo) fails with cyclic dependency
 
-**Blocks:** Phase 2 verification T1.4. Workspace-level `pnpm build` cannot complete; per-package `pnpm --filter @coodra/contextos-cli build` still works (used by Phase 2 cold-install integration test, which is green).
+**Blocks:** Phase 2 verification T1.4. Workspace-level `pnpm build` cannot complete; per-package `pnpm --filter @coodra/cli build` still works (used by Phase 2 cold-install integration test, which is green).
 
-**Cause:** Phase 2 Step 2 (decision `dec_83ba10c1`) added `@coodra/contextos-mcp-server` and `@coodra/contextos-hooks-bridge` to `@coodra/contextos-cli`'s `devDependencies` so pnpm would symlink them into `node_modules` for esbuild's resolver. But:
-- `apps/mcp-server` and `apps/hooks-bridge` already declare `@coodra/contextos-cli` (workspace:*) in their `dependencies` (for the runtime `@coodra/contextos-cli/lib/outbox` import).
+**Cause:** Phase 2 Step 2 (decision `dec_83ba10c1`) added `@coodra/mcp-server` and `@coodra/hooks-bridge` to `@coodra/cli`'s `devDependencies` so pnpm would symlink them into `node_modules` for esbuild's resolver. But:
+- `apps/mcp-server` and `apps/hooks-bridge` already declare `@coodra/cli` (workspace:*) in their `dependencies` (for the runtime `@coodra/cli/lib/outbox` import).
 - Turbo treats devDependencies as build-graph edges. Result: `cli#build → mcp-server#build → cli#build` and `cli#build → hooks-bridge#build → cli#build`.
 
 ```
-WARNING  Circular package dependency detected: @coodra/contextos-hooks-bridge, @coodra/contextos-cli, @coodra/contextos-mcp-server
+WARNING  Circular package dependency detected: @coodra/hooks-bridge, @coodra/cli, @coodra/mcp-server
 x Cyclic dependency detected
 ```
 
 **Attempted:** Re-ran `pnpm install --frozen-lockfile` cleanly (1s, ✅). The cycle is structural — not a stale-cache artifact.
 
-**Path to unblock (low-risk):** the CLI's `bundle.mjs` reads `apps/{mcp-server,hooks-bridge}/src/index.ts` via absolute path; esbuild does NOT need the apps to be present in `node_modules/@coodra/contextos-`. The `devDependencies` entries can be removed without affecting the bundle. Concretely: drop `@coodra/contextos-mcp-server` and `@coodra/contextos-hooks-bridge` from `packages/cli/package.json#devDependencies`, re-run `pnpm install`, and the cycle disappears. Bundle still produces the same artifacts.
+**Path to unblock (low-risk):** the CLI's `bundle.mjs` reads `apps/{mcp-server,hooks-bridge}/src/index.ts` via absolute path; esbuild does NOT need the apps to be present in `node_modules/@coodra/`. The `devDependencies` entries can be removed without affecting the bundle. Concretely: drop `@coodra/mcp-server` and `@coodra/hooks-bridge` from `packages/cli/package.json#devDependencies`, re-run `pnpm install`, and the cycle disappears. Bundle still produces the same artifacts.
 
-**Path to unblock (higher-risk, deferred):** move the `lib/outbox/*` source out of `@coodra/contextos-cli` and into a new `@coodra/contextos-outbox` shared workspace package. The apps then depend on `@coodra/contextos-outbox` instead of `@coodra/contextos-cli`, breaking the asymmetric dependency entirely. Cleaner long-term but expands surface area beyond what Phase 2 should touch.
+**Path to unblock (higher-risk, deferred):** move the `lib/outbox/*` source out of `@coodra/cli` and into a new `@coodra/outbox` shared workspace package. The apps then depend on `@coodra/outbox` instead of `@coodra/cli`, breaking the asymmetric dependency entirely. Cleaner long-term but expands surface area beyond what Phase 2 should touch.
 
-**Verification status:** treating `pnpm --filter @coodra/contextos-cli build` as the canonical build for Phase 2 verification (it produces the published-tarball artifact). Workspace `pnpm build` is a CI ergonomics concern, not a publish-path correctness concern. Findings report flags this as a yellow blocker.
+**Verification status:** treating `pnpm --filter @coodra/cli build` as the canonical build for Phase 2 verification (it produces the published-tarball artifact). Workspace `pnpm build` is a CI ergonomics concern, not a publish-path correctness concern. Findings report flags this as a yellow blocker.
 
 ## 2026-05-02 14:55 — `.tsbuildinfo` incremental-cache poisons re-builds when `dist/` is wiped without it
 
 **Blocks:** local dev iteration; CI runs that wipe `dist/` without also wiping `.tsbuildinfo` produce silent half-builds (only `.d.ts` emitted, no `.js`).
 
-**Cause:** TypeScript's `incremental: true` (set in `tsconfig.base.json`) writes `.tsbuildinfo` next to the package root. After `rm -rf packages/*/dist` the cache is stale-but-extant; tsc consults it, sees "nothing has changed since the last emit," and skips the JS emit step. The bundle script then fails because `dist/lib/outbox/index.js` (the workspace `@coodra/contextos-cli/lib/outbox` exports target) does not exist on disk.
+**Cause:** TypeScript's `incremental: true` (set in `tsconfig.base.json`) writes `.tsbuildinfo` next to the package root. After `rm -rf packages/*/dist` the cache is stale-but-extant; tsc consults it, sees "nothing has changed since the last emit," and skips the JS emit step. The bundle script then fails because `dist/lib/outbox/index.js` (the workspace `@coodra/cli/lib/outbox` exports target) does not exist on disk.
 
 **Reproduction (T1.4 of the 2026-05-02 verification run):**
 ```
 rm -rf packages/cli/dist                      # leaves .tsbuildinfo
 pnpm exec tsc -p packages/cli/tsconfig.json   # emits only .d.ts files
-node packages/cli/scripts/bundle.mjs           # fails: cannot resolve @coodra/contextos-cli/lib/outbox
+node packages/cli/scripts/bundle.mjs           # fails: cannot resolve @coodra/cli/lib/outbox
 ```
 
 **Attempted:** `rm -rf packages/cli/dist && rm -f packages/cli/.tsbuildinfo && pnpm exec tsc` emits the full output and the bundle succeeds. Reproducible.
@@ -126,7 +126,7 @@ POST same-without-transcript_path-without-source
 → 200 OK
 { "ok": true,
   "hookSpecificOutput": { "permissionDecision": "allow",
-                           "additionalContext": "# ContextOS Feature Pack — stranger-app\n\n## spec.md\n…" } }
+                           "additionalContext": "# Coodra Feature Pack — stranger-app\n\n## spec.md\n…" } }
 # 223 bytes of Feature Pack content. The handler works; the schema gate is the bug.
 ```
 
@@ -134,7 +134,7 @@ POST same-without-transcript_path-without-source
 
 **Verification status:** caught in T4.1 of the 2026-05-02 cold-install verification. **This is the most consequential Phase 2 finding.** It means autonomy goals C1 and C2 DO NOT WORK on real Claude Code traffic. The fix is one line per payload file. NOT applying it as part of this verification run per the user's discipline reminder ("If a check fails, do not patch it to make this run go green"). Phase T4-T6 continue with stripped payloads to keep producing data; every check that depends on real wire format gets a YELLOW/qualified pass with this caveat noted in the findings report.
 
-## ✅ 2026-05-02 14:55 — `contextos init` seeds zero policy rules — RESOLVED by Phase 3 Fix D
+## ✅ 2026-05-02 14:55 — `coodra init` seeds zero policy rules — RESOLVED by Phase 3 Fix D
 
 **Audit 2026-05-04 (M04 pre-S1 review):** `packages/cli/src/commands/init.ts:142` calls `ensureDefaultPolicy(handle, projectResult.id)` (Phase 3 Fix D, 2026-05-02). The helper at `packages/db/src/ensure-default-policy.ts` inserts the baseline rule set described in the original "path to unblock" — denies on `.env` / `**/.env` / `**/.env.production` / `.git/**` / `node_modules/**` for the file-mutating tools (Write, Edit, MultiEdit, NotebookEdit), with `Bash` requiring `ask`. Init-time stdout confirms with `✓ Seeded default policy with N baseline rules`. Phase 4 Fix F (2026-05-03) further hardened by adding the per-event matcher coverage. No further work needed.
 
@@ -144,7 +144,7 @@ POST same-without-transcript_path-without-source
 
 
 
-**Blocks:** Phase 2 autonomy claim about "policy denials surface in-path." A stranger who runs `contextos init` ends up with empty `policies` and `policy_rules` tables. Every PreToolUse decision returns `permissionDecision: 'allow', reason: 'no_rule_matched'`. There is no install-time guidance for the user on how to author a rule.
+**Blocks:** Phase 2 autonomy claim about "policy denials surface in-path." A stranger who runs `coodra init` ends up with empty `policies` and `policy_rules` tables. Every PreToolUse decision returns `permissionDecision: 'allow', reason: 'no_rule_matched'`. There is no install-time guidance for the user on how to author a rule.
 
 **Cause:** `commands/init.ts` calls `ensureGlobalProject` + `ensureProject` but does NOT insert any rows into `policies` / `policy_rules`. The user must do this manually via SQL, a (not-yet-built) admin UI, or a future MCP tool. For verification I seeded a deny rule manually:
 
@@ -167,7 +167,7 @@ These are universal-safe deny rules. They live in `init.ts` as a hardcoded seed 
 
 ## ✅ 2026-05-02 14:55 — `seedFeaturePack` seeds only spec.md — RESOLVED by Phase 3 Fix C
 
-**Audit 2026-05-04 (M04 pre-S1 review):** `packages/cli/src/lib/init/feature-pack-seed.ts:99-109` seeds all four files (`meta.json`, `spec.md`, `implementation.md`, `techstack.md`) per Phase 3 Fix C (2026-05-02), with an in-code citation of this very blocker entry. `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk:139-144` still does `Promise.all([readFile(...), readFile(...), readFile(...), readFile(...)])` (fail-fast on any missing file), so a manually-created pack with only spec.md would still throw `handler_threw` — but that case no longer occurs through the supported `contextos init` path, so it's a latent fragility rather than a blocker. Reserved as M04 S11 cleanup (mirror the bridge's `readMaybe` pattern in mcp-server) for symmetry; not a pre-M04 PR concern.
+**Audit 2026-05-04 (M04 pre-S1 review):** `packages/cli/src/lib/init/feature-pack-seed.ts:99-109` seeds all four files (`meta.json`, `spec.md`, `implementation.md`, `techstack.md`) per Phase 3 Fix C (2026-05-02), with an in-code citation of this very blocker entry. `apps/mcp-server/src/lib/feature-pack.ts::readPackFromDisk:139-144` still does `Promise.all([readFile(...), readFile(...), readFile(...), readFile(...)])` (fail-fast on any missing file), so a manually-created pack with only spec.md would still throw `handler_threw` — but that case no longer occurs through the supported `coodra init` path, so it's a latent fragility rather than a blocker. Reserved as M04 S11 cleanup (mirror the bridge's `readMaybe` pattern in mcp-server) for symmetry; not a pre-M04 PR concern.
 
 ---
 

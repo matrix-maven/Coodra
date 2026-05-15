@@ -1,6 +1,6 @@
 'use server';
 
-import { runStart, runStatus, runStop } from '@coodra/contextos-cli/lib/services';
+import { runStart, runStatus, runStop } from '@coodra/cli/lib/services';
 import { redirect } from 'next/navigation';
 
 import { refuseInTeamHosted } from '@/lib/action-guards';

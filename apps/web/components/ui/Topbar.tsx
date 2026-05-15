@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
  *
  * Pattern: breadcrumbs (mono, dim, with phosphor active leaf) on the
  * left; ⌘K search affordance in the center; trailing actions on the
- * right (Docs link + `contextos start` accent button by default).
+ * right (Docs link + `coodra start` accent button by default).
  *
  * Sticky with a subtle backdrop blur so screen content reads through.
  */

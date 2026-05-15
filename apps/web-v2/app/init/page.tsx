@@ -35,7 +35,7 @@ const IDE_OPTIONS: ReadonlyArray<{ readonly value: string; readonly label: strin
 ];
 
 export default async function InitWizardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  // /init writes ~/.contextos/, .mcp.json, scaffolds docs/feature-packs/
+  // /init writes ~/.coodra/, .mcp.json, scaffolds docs/feature-packs/
   // on the local repo — none of which exist on a team-hosted deployment
   // server. Hide the page so sidebar links / "New project" CTAs don't
   // dead-end on a 500.
@@ -44,7 +44,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <Topbar crumb="New project" crumbPrefix="contextos / init" />
+      <Topbar crumb="New project" crumbPrefix="coodra / init" />
       <section className="screen">
         <div className="head">
           <div>
@@ -53,8 +53,8 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               New <em>project</em>.
             </h1>
             <p className="head__lede">
-              Web parity with <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos init</span>.
-              Provisions <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>~/.contextos/data.db</span>
+              Web parity with <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span>.
+              Provisions <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>~/.coodra/data.db</span>
               , scaffolds a feature pack at{' '}
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
                 {`<cwd>/docs/feature-packs/<slug>/`}
@@ -154,7 +154,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
                 What this <em>will do</em>
               </h3>
-              <Step title="Create project row" body="Inserts into ~/.contextos/data.db so MCP + bridge can find it." />
+              <Step title="Create project row" body="Inserts into ~/.coodra/data.db so MCP + bridge can find it." />
               <Step
                 title="Scaffold feature pack"
                 body="<cwd>/docs/feature-packs/<slug>/{spec,implementation,techstack}.md."
@@ -172,7 +172,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               </h3>
               <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
                 After provisioning, open Claude Code in your repo. The first session will hit{' '}
-                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>contextos start</span> and surface
+                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra start</span> and surface
                 events on this dashboard in real-time.
               </p>
             </div>

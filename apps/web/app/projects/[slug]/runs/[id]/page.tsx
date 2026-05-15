@@ -85,7 +85,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ slug
               <>
                 {' '}
                 · pack landed at{' '}
-                <span className="font-mono text-accent">~/.contextos/packs/run-{run.id.slice(0, 6)}.md</span>
+                <span className="font-mono text-accent">~/.coodra/packs/run-{run.id.slice(0, 6)}.md</span>
               </>
             ) : null}
           </>

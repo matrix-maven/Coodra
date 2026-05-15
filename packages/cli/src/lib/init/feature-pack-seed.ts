@@ -156,7 +156,7 @@ export async function seedFeaturePack(options: SeedFeaturePackOptions): Promise<
   // alongside spec.md + meta.json. Pre-Phase-3 only meta.json + spec.md
   // were written, but apps/mcp-server/src/lib/feature-pack.ts:139-144
   // requires all four files (Promise.all → ENOENT on missing). Result:
-  // every fresh `contextos init` shipped with `get_feature_pack` broken
+  // every fresh `coodra init` shipped with `get_feature_pack` broken
   // out of the gate. Hooks-bridge tolerates missing optional files via
   // its own readMaybe loader, but the MCP-side roundtrip did not.
   outcomes.push(await writeIfAbsent(metaPath, metaBody, options));

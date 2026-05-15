@@ -1,4 +1,4 @@
-/** ContextOS mark — circle, node, horizontal axis. */
+/** Coodra mark — circle, node, horizontal axis. */
 export function BrandMark({ size = 28 }: { size?: number }) {
   return (
     <svg viewBox="0 0 32 32" fill="none" width={size} height={size} aria-hidden="true">

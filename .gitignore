@@ -55,11 +55,11 @@ uv.lock.local
 data/
 /data.db
 
-# --- ContextOS local runtime ---
-.contextos/
+# --- Coodra local runtime ---
+.coodra/
 # F13 closure (verification 2026-04-27): save_context_pack now defaults
-# to ~/.contextos/packs/ (out of repo). Defensive entry below catches
-# any agent that overrides CONTEXTOS_CONTEXT_PACKS_ROOT to point at
+# to ~/.coodra/packs/ (out of repo). Defensive entry below catches
+# any agent that overrides COODRA_CONTEXT_PACKS_ROOT to point at
 # this repo. Hand-named module closeouts (no `-run-` segment) stay
 # tracked in docs/context-packs/.
 docs/context-packs/*-run-*.md

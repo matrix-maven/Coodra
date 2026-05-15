@@ -1,4 +1,4 @@
-import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { and, count, desc, eq, gt } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -32,7 +32,7 @@ export interface DashboardEvent {
 
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const handle = createWebDb();
-  const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
 
   const [activeRunsCount, denials24hCount, killSwitchRows, latestEvents] = await Promise.all([
     countActiveRuns(handle),
@@ -115,7 +115,7 @@ async function fetchLatestEvents(handle: ReturnType<typeof createWebDb>): Promis
 
 /**
  * Stub: returns 0/0 for {red, yellow}. Real impl shells out to
- * `contextos doctor --json` and caches the result for 60s. The shell
+ * `coodra doctor --json` and caches the result for 60s. The shell
  * dependency means this only works in solo (the doctor binary is the
  * developer's local CLI); team mode renders the tile with a caption
  * "Per-developer doctor; no cloud rollup."

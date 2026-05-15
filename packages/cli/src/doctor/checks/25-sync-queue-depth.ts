@@ -19,8 +19,8 @@ export const syncQueueDepthCheck: Check = {
   name: 'sync_to_cloud queue depth (Module 04a sync-daemon)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    if (ctx.env.CONTEXTOS_MODE !== 'team') {
-      return { status: 'skipped', detail: 'CONTEXTOS_MODE != team — no sync queue in solo' };
+    if (ctx.env.COODRA_MODE !== 'team') {
+      return { status: 'skipped', detail: 'COODRA_MODE != team — no sync queue in solo' };
     }
     try {
       await access(ctx.dataDb);
@@ -45,8 +45,8 @@ export const syncQueueDepthCheck: Check = {
           status: 'yellow',
           detail: `${depth} sync row(s) — building up`,
           remediation:
-            'Sync-daemon may be slow or cloud transiently unreachable. Run `contextos status` to confirm sync-daemon is running. ' +
-            'Inspect `<contextos-home>/logs/sync-daemon.log` for `sync_dispatch_*` lines.',
+            'Sync-daemon may be slow or cloud transiently unreachable. Run `coodra status` to confirm sync-daemon is running. ' +
+            'Inspect `<coodra-home>/logs/sync-daemon.log` for `sync_dispatch_*` lines.',
         };
       }
       return {
@@ -54,7 +54,7 @@ export const syncQueueDepthCheck: Check = {
         detail: `${depth} sync row(s) — daemon stuck or cloud down`,
         remediation:
           'Sync queue is not draining. Check check 24 (cloud reachability) for upstream cause. ' +
-          'If cloud is up, restart the daemon (`contextos stop && contextos start`) to reclaim leased rows.',
+          'If cloud is up, restart the daemon (`coodra stop && coodra start`) to reclaim leased rows.',
       };
     } catch (err) {
       const msg = (err as Error).message;

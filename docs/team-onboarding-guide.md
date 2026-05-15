@@ -21,9 +21,9 @@ Supabase + Clerk projects ready.
 | **Your Clerk org id** | After enabling Organizations in Clerk, create an org → `org_…` | Scopes everything. Rows with this `org_id` are visible to teammates with the same `org_id`. |
 
 You do **not** need to provide:
-- A separate "ContextOS account" — there is none. We don't host an account system.
+- A separate "Coodra account" — there is none. We don't host an account system.
 - A paid Supabase or Clerk tier — free is fine for a small team.
-- Any keys ContextOS-managed — the only secret we generate is the local hook secret, automatically, during `team setup`.
+- Any keys Coodra-managed — the only secret we generate is the local hook secret, automatically, during `team setup`.
 
 ---
 
@@ -32,7 +32,7 @@ You do **not** need to provide:
 **Where:** in your terminal, anywhere on your machine.
 
 ```bash
-contextos team setup \
+coodra team setup \
   --database-url 'postgresql://postgres.PROJECT_REF:YOUR_PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres' \
   --user-id 'user_2nKjYourClerkUserId' \
   --org-id 'org_2nKjYourClerkOrgId' \
@@ -46,8 +46,8 @@ What it does, in order:
 3. Applies all 13 Drizzle migrations (creates 14 tables — 12 audit + 2 migration metadata).
 4. Verifies the schema (counts the tables it expects).
 5. Generates a 32-byte random `localHookSecret`.
-6. Writes `~/.contextos/config.json::team` block.
-7. Writes `~/.contextos/.env` with `CONTEXTOS_MODE=team`, `DATABASE_URL`, `LOCAL_HOOK_SECRET`, `CONTEXTOS_TEAM_ORG_ID`.
+6. Writes `~/.coodra/config.json::team` block.
+7. Writes `~/.coodra/.env` with `COODRA_MODE=team`, `DATABASE_URL`, `LOCAL_HOOK_SECRET`, `COODRA_TEAM_ORG_ID`.
 8. Prints the four credentials your teammates need.
 
 Successful output ends with:
@@ -62,13 +62,13 @@ Successful output ends with:
 
 **Save the `local hook secret` somewhere durable.** Re-running `team setup` against the same DB rotates it. Anyone with `(URL, secret)` can write to your team Postgres.
 
-## Phase 2 · Admin appends Clerk keys to `~/.contextos/.env`
+## Phase 2 · Admin appends Clerk keys to `~/.coodra/.env`
 
 Step 1's CLI doesn't touch Clerk credentials. You append them manually so the
 MCP server, Hooks Bridge, and web app all see them at boot:
 
 ```bash
-cat >> ~/.contextos/.env <<'EOF'
+cat >> ~/.coodra/.env <<'EOF'
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_…
 CLERK_PUBLISHABLE_KEY=pk_live_…
 CLERK_SECRET_KEY=sk_live_…
@@ -77,16 +77,16 @@ EOF
 
 > Both `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and **`CLERK_PUBLISHABLE_KEY`** lines are required.
 > The first goes to the browser bundle; the second is what the MCP server's Zod env validator looks for.
-> Skipping the unprefixed one crashes `contextos start` with `CLERK_PUBLISHABLE_KEY required when CLERK_SECRET_KEY is set`.
+> Skipping the unprefixed one crashes `coodra start` with `CLERK_PUBLISHABLE_KEY required when CLERK_SECRET_KEY is set`.
 > *(Verified during the v2 onboarding test — Bob's daemons wouldn't boot until I added this line.)*
 
 ## Phase 3 · Admin runs `init` in their first repo
 
-**Where:** `cd` into the repo you want ContextOS to track. *(Important — running from a different cwd registers ContextOS against whatever `.contextos.json` is in that directory.)*
+**Where:** `cd` into the repo you want Coodra to track. *(Important — running from a different cwd registers Coodra against whatever `.coodra.json` is in that directory.)*
 
 ```bash
 cd ~/projects/my-app
-contextos init --project-slug my-app --ide claude --no-graphify
+coodra init --project-slug my-app --ide claude --no-graphify
 ```
 
 This (a) registers the project in your local SQLite, (b) seeds the 25-rule
@@ -99,7 +99,7 @@ Claude Code hook entries in `~/.claude/settings.json`, (e) enqueues a
 **Still inside the repo dir.**
 
 ```bash
-contextos start
+coodra start
 ```
 
 Spins up three daemons via launchd (macOS) or systemd (Linux) or fallback
@@ -109,7 +109,7 @@ process supervisor:
 - **Hooks Bridge** on `127.0.0.1:3101` — fires SessionStart / PostToolUse / SessionEnd policy + audit work.
 - **Sync Daemon** — drains `pending_jobs` to cloud + pulls teammates' rows from cloud every ~10 s.
 
-Verify with `contextos status`. All three should be `running` and `Mode` should be `team`.
+Verify with `coodra status`. All three should be `running` and `Mode` should be `team`.
 
 ## Phase 5 · Admin opens Claude Code and works
 
@@ -130,10 +130,10 @@ mirrored to your Supabase Postgres by the sync daemon. All writes carry your
 
 ```bash
 cd ~/Coodra/apps/web-v2
-export CONTEXTOS_HOME=$HOME/.contextos
-export CONTEXTOS_MODE=team
-# Source the env that ~/.contextos/.env already has so the dev server sees it:
-set -a; source ~/.contextos/.env; set +a
+export COODRA_HOME=$HOME/.coodra
+export COODRA_MODE=team
+# Source the env that ~/.coodra/.env already has so the dev server sees it:
+set -a; source ~/.coodra/.env; set +a
 pnpm dev
 # Open http://localhost:3001
 ```
@@ -152,14 +152,14 @@ What you see:
 Share **(database URL, org_id, hook_secret, Clerk publishable, Clerk secret)** via 1Password / Bitwarden / Vault. They run on their own machine:
 
 ```bash
-contextos team join \
+coodra team join \
   --user-id 'user_THEIR_clerk_user_id' \
   --org-id 'org_YOUR_org_id' \
   --secret '<the-hook-secret-you-shared>' \
   --database-url 'postgresql://...'
 ```
 
-Then they append their own copy of the three Clerk env lines to `~/.contextos/.env`, run `contextos init` in their repo, and `contextos start`. Within ~10 s, **their sync daemon's team-rows-puller pulls all your existing decisions / packs / runs into their local SQLite**, and from then on every write either of you make is visible to the other within 10 s.
+Then they append their own copy of the three Clerk env lines to `~/.coodra/.env`, run `coodra init` in their repo, and `coodra start`. Within ~10 s, **their sync daemon's team-rows-puller pulls all your existing decisions / packs / runs into their local SQLite**, and from then on every write either of you make is visible to the other within 10 s.
 
 *(Verified during the v2 onboarding test — Bob's first puller tick at +2s pulled `projects=2 runs=2 decisions=1 run_events=18` from cloud.)*
 
@@ -174,8 +174,8 @@ Then they append their own copy of the three Clerk env lines to `~/.contextos/.e
 | Sync Daemon | (no port, queue worker) | team |
 | Web app (dev) | http://127.0.0.1:3001 | team — admin view |
 
-Test home directory: `~/contextos-test-v2-admin-home`
-Test repo: `~/contextos-test-v2-admin`
+Test home directory: `~/coodra-test-v2-admin-home`
+Test repo: `~/coodra-test-v2-admin`
 Cloud project ref: `gyopozvfmggumidptmjr` (your Supabase)
 
 Cloud state right now (verifiable with `psql` against your DATABASE_URL):
@@ -191,10 +191,10 @@ policy_decisions: ~18 entries from the SessionStart policy check
 
 ## Common footguns we hit during the test
 
-1. **Running `contextos start` from the wrong cwd.** If you `cd` somewhere outside your project, your `.env` layering picks up *that* directory's `.env`, which can clobber `CONTEXTOS_MODE=team`. Always `cd` into the project before running `start`.
+1. **Running `coodra start` from the wrong cwd.** If you `cd` somewhere outside your project, your `.env` layering picks up *that* directory's `.env`, which can clobber `COODRA_MODE=team`. Always `cd` into the project before running `start`.
 2. **Forgetting the unprefixed `CLERK_PUBLISHABLE_KEY` line.** The wizard now shows both lines explicitly.
 3. **Two admins on one machine for testing.** launchd labels are per-machine-singletons. To run admin + bob daemons concurrently, either: (a) run them on different machines (real-world), or (b) stop one before starting the other.
-4. **Editing `~/.contextos/.env` while daemons are running.** Daemons read env at boot only. Run `contextos stop && contextos start` after any env edit.
+4. **Editing `~/.coodra/.env` while daemons are running.** Daemons read env at boot only. Run `coodra stop && coodra start` after any env edit.
 
 ---
 
@@ -204,7 +204,7 @@ If you want to reset the cloud back to empty + remove the test homes:
 
 ```bash
 # Stop daemons
-contextos stop
+coodra stop
 
 # Drop cloud schema
 psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS drizzle CASCADE; \
@@ -214,6 +214,6 @@ psql "$DATABASE_URL" -c "DROP SCHEMA IF EXISTS drizzle CASCADE; \
     END LOOP; END \$\$;"
 
 # Remove the verification homes
-rm -rf ~/contextos-test-v2-admin-home ~/contextos-test-v2-bob-home
-rm -rf ~/contextos-test-v2-admin ~/contextos-test-v2-bob
+rm -rf ~/coodra-test-v2-admin-home ~/coodra-test-v2-bob-home
+rm -rf ~/coodra-test-v2-admin ~/coodra-test-v2-bob
 ```

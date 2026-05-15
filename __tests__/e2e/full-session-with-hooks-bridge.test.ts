@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
-import { sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
+import { OutboxWorker } from '@coodra/cli/lib/outbox';
+import { sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { and, eq } from 'drizzle-orm';
@@ -25,13 +25,13 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
 /**
  * Module 03 S14: full session lifecycle through Modules 01 + 02 + 03.
  *
- * Walks the entire ContextOS observation loop in one test — proves
+ * Walks the entire Coodra observation loop in one test — proves
  * the read surface (mcp-server) and the write surface (hooks-bridge)
  * cooperate against a shared SQLite without interference, and that
  * the materialised artefacts on disk + in DB form a coherent record.
  *
  *   1. seed `projects` + a deny-rule policy in the shared DB.
- *   2. write a `.contextos.json` pointing at the project slug in a
+ *   2. write a `.coodra.json` pointing at the project slug in a
  *      synthesised cwd directory (so the resolver can find it).
  *   3. POST SessionStart → runs row 'in_progress'.
  *   4. POST PreToolUse for src/auth/x.ts → deny (rule matched);
@@ -64,10 +64,10 @@ beforeAll(async () => {
   // Shared sqlite + project tmp dir.
   const cwd = mkdtempSync(join(tmpdir(), 'e2e-hooks-bridge-'));
   const slug = `e2e-proj-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const { handle, close: closeDb } = openSqliteHandle();
-  const env = buildE2eEnv({ CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
+  const env = buildE2eEnv({ COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' });
   const bootMcp = await bootForE2E({ db: handle, env, withHttp: true });
   if (!bootMcp.http) throw new Error('expected http transport');
 
@@ -124,7 +124,7 @@ beforeAll(async () => {
   const userPromptSubmit = createUserPromptSubmitHandler({ runRecorder, projectSlugResolver, db: handle });
   const dispatch = composeDispatch({ preToolUse, postToolUse, sessionStart, sessionEnd, userPromptSubmit });
   const { hono } = buildApp({
-    env: { CONTEXTOS_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' },
+    env: { COODRA_MODE: 'solo', CLERK_SECRET_KEY: 'sk_test_replace_me' },
     dispatch,
   });
 

@@ -1,4 +1,4 @@
-import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { and, count, desc, eq, gt, ne, notLike, sql } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -83,8 +83,8 @@ export interface DashboardRun {
 export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
   const handle = createWebDb();
   // Resolve mode from the deployment-mode helper (the only authority that
-  // also recognizes `CONTEXTOS_DEPLOYMENT=team-hosted`). Reading
-  // `process.env.CONTEXTOS_MODE` here would silently render the dashboard
+  // also recognizes `COODRA_DEPLOYMENT=team-hosted`). Reading
+  // `process.env.COODRA_MODE` here would silently render the dashboard
   // as solo on team-hosted deployments because that env var only ships
   // in the local-team .env file.
   const { resolveDeploymentMode } = await import('@/lib/deployment-mode');

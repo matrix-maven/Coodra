@@ -1,5 +1,5 @@
 /**
- * Typed error hierarchy for ContextOS services.
+ * Typed error hierarchy for Coodra services.
  *
  * Every service throws specific subclasses. HTTP handlers translate these
  * into status codes via `error.statusCode`; MCP tool handlers translate

@@ -7,7 +7,7 @@ import { verifyInviteToken } from '@/lib/invite-token';
 /**
  * `/auth/cli-login` — Phase G browser-handoff endpoint.
  *
- * The CLI's `contextos login` command opens this URL in the user's
+ * The CLI's `coodra login` command opens this URL in the user's
  * default browser. After Clerk sign-in completes, the page mints a
  * long-lived JWT and redirects back to the CLI's loopback HTTP
  * listener at `http://127.0.0.1:<port>/?token=<jwt>&state=<state>`.
@@ -15,10 +15,10 @@ import { verifyInviteToken } from '@/lib/invite-token';
  * Query parameters:
  *   • port    — 1024-65535, the loopback port the CLI is listening on
  *   • state   — random URL-safe token (16-128 chars) the CLI generates
- *               on each `contextos login` invocation. Echoed back to
+ *               on each `coodra login` invocation. Echoed back to
  *               the loopback URL; the CLI verifies match before
  *               accepting the token.
- *   • invite  — OPTIONAL. The invite-token from `contextos team join`.
+ *   • invite  — OPTIONAL. The invite-token from `coodra team join`.
  *               When present, the page enforces that the signed-in
  *               Clerk user's primary email matches the invite's email.
  *
@@ -32,21 +32,21 @@ import { verifyInviteToken } from '@/lib/invite-token';
  *      laptop.
  *   4. Invite-email gate: if `invite` is supplied, the signed-in
  *      user's email must match. Prevents an attacker from running
- *      `contextos team join <invite-url>` on their own laptop using
+ *      `coodra team join <invite-url>` on their own laptop using
  *      a stolen invite URL but their own Clerk account.
  *
- * The JWT minted via `getToken({ template: 'contextos_cli' })`. That
+ * The JWT minted via `getToken({ template: 'coodra_cli' })`. That
  * template must exist in the Clerk dashboard with token lifetime ≥
  * 24h. If the template is missing, the page surfaces a remediation
  * error pointing at the dashboard setup step.
  *
  * Solo mode (no Clerk): the page returns a 404-equivalent error;
- * `contextos login` is only meaningful in team mode.
+ * `coodra login` is only meaningful in team mode.
  */
 
 export const dynamic = 'force-dynamic';
 
-const CLI_JWT_TEMPLATE = 'contextos_cli';
+const CLI_JWT_TEMPLATE = 'coodra_cli';
 const PORT_MIN = 1024;
 const PORT_MAX = 65535;
 const STATE_MIN_LEN = 16;
@@ -96,7 +96,7 @@ export default async function CliLoginPage({ searchParams }: PageProps) {
   if (mode === 'local-solo') {
     return renderError(
       'solo_mode',
-      'This route only exists in team mode. ContextOS is currently running in solo mode (no Clerk). The `contextos login` command should not be called in solo mode.',
+      'This route only exists in team mode. Coodra is currently running in solo mode (no Clerk). The `coodra login` command should not be called in solo mode.',
     );
   }
 
@@ -152,7 +152,7 @@ export default async function CliLoginPage({ searchParams }: PageProps) {
   if (!consumeCliLoginState(state)) {
     return renderError(
       'state_already_consumed',
-      'This authorization URL has already been used. Return to your terminal and run `contextos login` again to start a fresh flow.',
+      'This authorization URL has already been used. Return to your terminal and run `coodra login` again to start a fresh flow.',
     );
   }
 
@@ -238,8 +238,8 @@ function renderError(code: RenderedError['code'], message: RenderedError['messag
         ERROR · {code}
       </p>
       <p style={{ marginTop: 28, fontSize: 13, color: 'var(--ink-mute, #888)', lineHeight: 1.65 }}>
-        Return to your terminal and re-run <code style={{ fontFamily: 'var(--mono, ui-monospace)' }}>contextos login</code>.
-        Your CLI listener will time out after 5 minutes; if it's already gone, the new <code>contextos login</code> will
+        Return to your terminal and re-run <code style={{ fontFamily: 'var(--mono, ui-monospace)' }}>coodra login</code>.
+        Your CLI listener will time out after 5 minutes; if it's already gone, the new <code>coodra login</code> will
         spin up a fresh one.
       </p>
     </main>

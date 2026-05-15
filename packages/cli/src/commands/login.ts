@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 
-import { readVerifiedToken, writeToken } from '@coodra/contextos-shared/auth';
+import { readVerifiedToken, writeToken } from '@coodra/shared/auth';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { BrowserHandoffError, openBrowser, startLoopbackListener } from '../lib/browser-handoff.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { readTeamConfig, upgradeToTeamConfig, writeTeamHomeEnv } from '../lib/team-config.js';
 import { pc } from '../ui/index.js';
@@ -16,7 +16,7 @@ import { pc } from '../ui/index.js';
  *
  * Flow:
  *
- *   1. Read `~/.contextos/.env` for web URL + DATABASE_URL + LOCAL_HOOK_SECRET.
+ *   1. Read `~/.coodra/.env` for web URL + DATABASE_URL + LOCAL_HOOK_SECRET.
  *      These must already be set by `team init` (admin) or `team join`
  *      (member). `login` only refreshes the auth token; it doesn't
  *      bootstrap the env. If env is missing, prints what to do and exits
@@ -32,20 +32,20 @@ import { pc } from '../ui/index.js';
  *      with the JWT.
  *
  *   6. Call `writeToken(jwt, webUrl)` from shared — this verifies the
- *      JWT signature + claims and writes `~/.contextos/clerk-token.json`
+ *      JWT signature + claims and writes `~/.coodra/clerk-token.json`
  *      with mode 0600.
  *
- *   7. Update `~/.contextos/config.json::mode = 'team'` and the legacy
+ *   7. Update `~/.coodra/config.json::mode = 'team'` and the legacy
  *      team-block fields (derived from the verified JWT claims) for
  *      backward compat with daemons that still read config.json.
  *
- *   8. Print a one-line confirmation. The user runs `contextos start`
+ *   8. Print a one-line confirmation. The user runs `coodra start`
  *      (or it's already running and picks up the new token on next
  *      operation).
  *
  * The flow is idempotent: if a valid token already exists, the user
  * still gets a fresh one. To skip the round-trip when a token is
- * already valid, run `contextos status` first.
+ * already valid, run `coodra status` first.
  *
  * Edge cases handled:
  *   - .env missing (no team setup yet) → recoverable exit + help text
@@ -96,7 +96,7 @@ export const DEFAULT_LOGIN_IO: LoginIO = {
 };
 
 export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = DEFAULT_LOGIN_IO): Promise<never> {
-  const home = resolveContextosHome({
+  const home = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env: options.env ?? process.env,
   });
@@ -106,7 +106,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
   const homeEnv = loadHomeEnv(home);
   const env: NodeJS.ProcessEnv = { ...homeEnv, ...(options.env ?? process.env) };
 
-  const webUrl = options.webUrl ?? env.CONTEXTOS_WEB_URL ?? 'http://localhost:3001';
+  const webUrl = options.webUrl ?? env.COODRA_WEB_URL ?? 'http://localhost:3001';
   const clerkSecret = env.CLERK_SECRET_KEY;
   const clerkPubKey = env.CLERK_PUBLISHABLE_KEY;
   const databaseUrl = env.DATABASE_URL;
@@ -120,15 +120,15 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
     clerkPubKey.length === 0
   ) {
     io.writeStderr(
-      `${pc.red('contextos login')}: Clerk env is not configured on this machine.\n` +
+      `${pc.red('coodra login')}: Clerk env is not configured on this machine.\n` +
         `\n` +
         `  Required:\n` +
         `    CLERK_SECRET_KEY (sk_test_… or sk_live_…)\n` +
         `    CLERK_PUBLISHABLE_KEY (pk_test_… or pk_live_…)\n` +
         `\n` +
-        `  These must be set in ${home}/.env before \`contextos login\` is meaningful.\n` +
-        `  If you're a team admin setting up for the first time, run \`contextos team init\` instead.\n` +
-        `  If you're a teammate, accept an invite via \`contextos team join <invite-url>\`.\n`,
+        `  These must be set in ${home}/.env before \`coodra login\` is meaningful.\n` +
+        `  If you're a team admin setting up for the first time, run \`coodra team init\` instead.\n` +
+        `  If you're a teammate, accept an invite via \`coodra team join <invite-url>\`.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -140,7 +140,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
   if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
     io.writeStderr(
       `${pc.yellow('warn:')} DATABASE_URL is not set in ${home}/.env. ` +
-        `After login completes, team-mode sync will not work. Run \`contextos team init\` (admin) or \`contextos team join <invite>\` (member) to bootstrap full team config.\n`,
+        `After login completes, team-mode sync will not work. Run \`coodra team init\` (admin) or \`coodra team join <invite>\` (member) to bootstrap full team config.\n`,
     );
   }
   if (typeof localHookSecret !== 'string' || localHookSecret.length === 0) {
@@ -151,7 +151,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
 
   // 2. Generate state + start listener
   const state = randomBytes(STATE_BYTES).toString('base64url');
-  io.writeStdout(`${pc.gray(`contextos login → opening browser at ${webUrl}…`)}\n`);
+  io.writeStdout(`${pc.gray(`coodra login → opening browser at ${webUrl}…`)}\n`);
 
   let listener;
   try {
@@ -160,7 +160,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
       timeoutMs: options.timeoutMs ?? TIMEOUT_MS,
     });
   } catch (err) {
-    io.writeStderr(`${pc.red('contextos login:')} could not start local listener: ${(err as Error).message}\n`);
+    io.writeStderr(`${pc.red('coodra login:')} could not start local listener: ${(err as Error).message}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
@@ -184,12 +184,12 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
     token = await listener.tokenPromise;
   } catch (err) {
     if (err instanceof BrowserHandoffError) {
-      io.writeStderr(`${pc.red('contextos login:')} ${err.message}\n`);
+      io.writeStderr(`${pc.red('coodra login:')} ${err.message}\n`);
       if (err.code === 'timeout') {
-        io.writeStderr(`  Re-run \`contextos login\` and complete sign-in in the browser within 5 minutes.\n`);
+        io.writeStderr(`  Re-run \`coodra login\` and complete sign-in in the browser within 5 minutes.\n`);
       } else if (err.code === 'state_mismatch') {
         io.writeStderr(
-          `  This usually means a stale browser tab redirected to your listener. Re-run \`contextos login\`.\n`,
+          `  This usually means a stale browser tab redirected to your listener. Re-run \`coodra login\`.\n`,
         );
       }
       return io.exit(EXIT_USER_RECOVERABLE);
@@ -203,8 +203,8 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
     claims = await writeToken(token, webUrl, { homeOverride: home });
   } catch (err) {
     io.writeStderr(
-      `${pc.red('contextos login:')} captured token failed verification: ${(err as Error).message}\n` +
-        `  This usually means the Clerk JWT template 'contextos_cli' is not yet configured. ` +
+      `${pc.red('coodra login:')} captured token failed verification: ${(err as Error).message}\n` +
+        `  This usually means the Clerk JWT template 'coodra_cli' is not yet configured. ` +
         `Create it in Clerk dashboard → Configure → JWT Templates with token lifetime 86400 (24h) and include org_id + org_role + email claims.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
@@ -229,7 +229,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
     { homeOverride: home },
   );
 
-  // 7. Idempotent re-write of .env so CONTEXTOS_MODE=team etc. survive
+  // 7. Idempotent re-write of .env so COODRA_MODE=team etc. survive
   //    a future stale-config recovery. Only do this if we have the env
   //    values to write — first-login on a teammate machine that came
   //    via `team join` will have already done this.
@@ -254,7 +254,7 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
     `\n${pc.green('✓')} Signed in as ${pc.cyan(claims.email ?? claims.userId)} (${pc.gray(claims.role)})\n` +
       `  Org: ${pc.gray(claims.orgId)}\n` +
       `  Token expires: ${pc.gray(claims.expiresAt.toISOString())}\n` +
-      `  Run \`contextos start\` to bring daemons up (or restart if already running).\n`,
+      `  Run \`coodra start\` to bring daemons up (or restart if already running).\n`,
   );
 
   return io.exit(EXIT_OK);

@@ -3,8 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import type { Logger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import type { Logger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import type { GraphifyClient } from '../framework/tool-context.js';
@@ -45,11 +45,11 @@ const graphifyLogger = createMcpLogger('lib-graphify');
 const GRAPHIFY_MISSING_HOWTO = 'run `graphify scan` at repo root' as const;
 
 function defaultGraphifyRoot(): string {
-  return join(homedir(), '.contextos', 'graphify');
+  return join(homedir(), '.coodra', 'graphify');
 }
 
 export interface CreateGraphifyClientDeps {
-  /** Root directory for `<slug>/graph.json` lookups. Defaults to `~/.contextos/graphify`. */
+  /** Root directory for `<slug>/graph.json` lookups. Defaults to `~/.coodra/graphify`. */
   readonly graphifyRoot?: string;
   /** DbHandle used to resolve `runId` → project slug inside `expandContext`. */
   readonly db: DbHandle;
@@ -99,7 +99,7 @@ export function createGraphifyClient(deps: CreateGraphifyClientDeps): GraphifyCl
     throw new TypeError('createGraphifyClient requires an options object');
   }
   if (!deps.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
-    throw new TypeError('createGraphifyClient: deps.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createGraphifyClient: deps.db must be a DbHandle from @coodra/db');
   }
 
   const log = deps.logger ?? graphifyLogger;

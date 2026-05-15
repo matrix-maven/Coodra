@@ -2,7 +2,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
@@ -14,7 +14,7 @@ import type { QueryDecisionsOutput } from '../../../src/tools/query-decisions/sc
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__query_decisions` (Slice 4 — 2026-05-03 audit).
+ * Integration test for `coodra__query_decisions` (Slice 4 — 2026-05-03 audit).
  *
  * Real SQLite migrated. Two projects + two runs per project so we can
  * exercise both project scoping AND runId-narrow filtering. Decisions
@@ -134,7 +134,7 @@ describe('query_decisions — project_not_found soft-failure', () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.error).toBe('project_not_found');
-    expect(out.howToFix).toMatch(/contextos init|projects table/);
+    expect(out.howToFix).toMatch(/coodra init|projects table/);
   });
 });
 

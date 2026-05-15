@@ -1,4 +1,4 @@
-import type { RunWithEverything } from '@coodra/contextos-db';
+import type { RunWithEverything } from '@coodra/db';
 
 /**
  * Computes the wall-clock high-water-mark for a run's state — the
@@ -33,7 +33,7 @@ export function runStateLastModified(snapshot: RunWithEverything): Date {
 
 /**
  * Serializes a run snapshot for the polling endpoint. Dates → ISO
- * strings; nulls preserved; nothing dropped. Mirrors `contextos export
+ * strings; nulls preserved; nothing dropped. Mirrors `coodra export
  * --format json` shape (M08b S12) so consumers can switch between the
  * CLI and the web endpoint without re-shaping.
  */

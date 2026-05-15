@@ -2,9 +2,9 @@
 // that transitively reaches the shared logger.
 import './bootstrap/ensure-stderr-logging.js';
 
-import { OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
-import { createDb, type PostgresHandle, type SqliteHandle } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { OutboxWorker } from '@coodra/cli/lib/outbox';
+import { createDb, type PostgresHandle, type SqliteHandle } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 
 import { env } from './config/env.js';
 import { createSyncDispatchHandler } from './lib/dispatch.js';
@@ -25,7 +25,7 @@ import { createTeamRowsPuller } from './lib/team-rows-puller.js';
  *
  * The sync-daemon does NOT migrate either DB. Local SQLite migrations
  * land at bridge + mcp-server boot. Cloud Postgres migrations are run
- * out-of-band by `contextos cloud-migrate` (M04a S1) before the daemon
+ * out-of-band by `coodra cloud-migrate` (M04a S1) before the daemon
  * starts.
  */
 
@@ -59,31 +59,31 @@ async function main(): Promise<void> {
     db: localDb,
     dispatchHandler: createSyncDispatchHandler({ localDb, cloudDb }),
     queueFilter: ['sync_to_cloud'],
-    tickMs: env.CONTEXTOS_SYNC_TICK_MS,
-    leaseMs: env.CONTEXTOS_SYNC_LEASE_MS,
+    tickMs: env.COODRA_SYNC_TICK_MS,
+    leaseMs: env.COODRA_SYNC_LEASE_MS,
   });
 
   worker.start();
   bootLogger.info(
     {
       event: 'sync_worker_started',
-      tickMs: env.CONTEXTOS_SYNC_TICK_MS,
-      leaseMs: env.CONTEXTOS_SYNC_LEASE_MS,
+      tickMs: env.COODRA_SYNC_TICK_MS,
+      leaseMs: env.COODRA_SYNC_LEASE_MS,
     },
     'sync-daemon: OutboxWorker started; sync_to_cloud queue draining',
   );
 
   // (4) M04 S8a — kill_switches cloud → local poller (extends M04a OQ-1
   // from one-way push to bidirectional sync). Polls cloud every 5s
-  // (configurable via CONTEXTOS_SYNC_TICK_MS); upserts new rows into
+  // (configurable via COODRA_SYNC_TICK_MS); upserts new rows into
   // local SQLite by id; never deletes (resumed rows are soft-flipped).
   const killSwitchPuller = createKillSwitchPuller({
     localDb,
     cloudDb,
-    intervalMs: env.CONTEXTOS_SYNC_TICK_MS,
+    intervalMs: env.COODRA_SYNC_TICK_MS,
   });
   bootLogger.info(
-    { event: 'kill_switch_puller_started', intervalMs: env.CONTEXTOS_SYNC_TICK_MS },
+    { event: 'kill_switch_puller_started', intervalMs: env.COODRA_SYNC_TICK_MS },
     'sync-daemon: kill_switches cloud → local poller started (M04 S8a)',
   );
 
@@ -95,10 +95,10 @@ async function main(): Promise<void> {
   const teamRowsPuller = createTeamRowsPuller({
     localDb,
     cloudDb,
-    intervalMs: env.CONTEXTOS_SYNC_TICK_MS,
+    intervalMs: env.COODRA_SYNC_TICK_MS,
   });
   bootLogger.info(
-    { event: 'team_rows_puller_started', intervalMs: env.CONTEXTOS_SYNC_TICK_MS },
+    { event: 'team_rows_puller_started', intervalMs: env.COODRA_SYNC_TICK_MS },
     'sync-daemon: runs/decisions/context_packs/run_events cloud → local poller started (M04 Phase 4 / Caveat 1)',
   );
 

@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { type DbHandle, lookupProjectBySlug, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { InternalError, type Logger } from '@coodra/contextos-shared';
+import { type DbHandle, lookupProjectBySlug, postgresSchema, sqliteSchema } from '@coodra/db';
+import { InternalError, type Logger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
@@ -434,7 +434,7 @@ export function createFeaturePackStore(deps: CreateFeaturePackStoreDeps): Featur
     throw new TypeError('createFeaturePackStore requires an options object');
   }
   if (!deps.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
-    throw new TypeError('createFeaturePackStore: deps.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createFeaturePackStore: deps.db must be a DbHandle from @coodra/db');
   }
   const log = deps.logger ?? featurePackLogger;
   const root = deps.featurePacksRoot ?? defaultFeaturePacksRoot();
@@ -462,7 +462,7 @@ export function createFeaturePackStore(deps: CreateFeaturePackStoreDeps): Featur
   async function resolveRootForSlug(slug: string): Promise<string> {
     try {
       // Lookup by slug in projects table. The slug → cwd mapping is
-      // populated by `contextos init` and bridge SessionStart cwd
+      // populated by `coodra init` and bridge SessionStart cwd
       // backfill (see `apps/hooks-bridge/src/lib/session-state.ts`).
       const project = await lookupProjectBySlug(deps.db, slug);
       if (project !== null && project.cwd !== null) {

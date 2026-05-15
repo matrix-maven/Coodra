@@ -1,6 +1,6 @@
 # `/projects` and `/projects/[id]` — Project admin (S6)
 
-CLI parity: `contextos project {list, show, reset}`.
+CLI parity: `coodra project {list, show, reset}`.
 
 ## `/projects` — desktop
 
@@ -14,7 +14,7 @@ CLI parity: `contextos project {list, show, reset}`.
 │                                                                                         │
 │  ┌──────────────────────────┐  ┌──────────────────────────┐  ┌──────────────────────────┐
 │  │                          │  │                          │  │                          │
-│  │  verify-m08b             │  │  contextos               │  │  __global__              │
+│  │  verify-m08b             │  │  coodra               │  │  __global__              │
 │  │  ^^^^^^^^^^^^            │  │  ^^^^^^^^^                │  │  ^^^^^^^^^^^^             │
 │  │  --font-mono 500 text-2xl│  │                           │  │                           │
 │  │                          │  │                          │  │  (sentinel — F7)         │
@@ -99,7 +99,7 @@ CLI parity: `contextos project {list, show, reset}`.
 ## Reset semantics
 
 - Counts pre-flight via SELECT before the user types-to-confirm. Updates if user toggles "Also delete policies".
-- `__global__` project: the Reset tab is replaced with a banner: "The `__global__` sentinel project (F7 invariant) cannot be reset from this UI. To clear `__global__` rows, run `contextos project reset __global__ --force` after backing up data.db."
+- `__global__` project: the Reset tab is replaced with a banner: "The `__global__` sentinel project (F7 invariant) cannot be reset from this UI. To clear `__global__` rows, run `coodra project reset __global__ --force` after backing up data.db."
 - Reset button is disabled until the user types the project slug verbatim (case-sensitive; copy-paste works). Activates 320ms `--motion-route` to draw eye to it.
 - After reset: server action returns the deleted-rows JSON; UI shows a success toast with the breakdown ("Deleted 47 runs, 1,284 events…") and navigates back to `/projects`.
 

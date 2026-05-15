@@ -1,6 +1,6 @@
 /**
  * `packages/cli/src/lib/pack/index.ts` — library promotion of the
- * `contextos pack regenerate` and `contextos pack delete` commands
+ * `coodra pack regenerate` and `coodra pack delete` commands
  * for in-process consumption (M04 Phase 2 S5 / spec §10).
  *
  * Same wrapping pattern as `lib/init/index.ts`: capture stdout/stderr,
@@ -123,7 +123,7 @@ export async function runPackRegenerate(input: RunPackRegenerateInput): Promise<
     return {
       ok: false,
       error: 'pack_not_found',
-      howToFix: `No pack at docs/feature-packs/${input.slug}/. Verify the slug or scaffold one with \`contextos pack new ${input.slug}\`.`,
+      howToFix: `No pack at docs/feature-packs/${input.slug}/. Verify the slug or scaffold one with \`coodra pack new ${input.slug}\`.`,
       exitCode,
       stdout,
       stderr,
@@ -133,7 +133,7 @@ export async function runPackRegenerate(input: RunPackRegenerateInput): Promise<
     ok: false,
     error: 'unknown_failure',
     howToFix:
-      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Pack regenerate failed; check ~/.contextos/logs/.',
+      stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Pack regenerate failed; check ~/.coodra/logs/.',
     exitCode,
     stdout,
     stderr,
@@ -226,7 +226,7 @@ export async function runPackDelete(input: RunPackDeleteInput): Promise<RunPackD
   return {
     ok: false,
     error: 'unknown_failure',
-    howToFix: stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Pack delete failed; check ~/.contextos/logs/.',
+    howToFix: stderr.split('\n').slice(0, 3).join(' ').slice(0, 240) || 'Pack delete failed; check ~/.coodra/logs/.',
     exitCode,
     stdout,
     stderr,

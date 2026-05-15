@@ -29,8 +29,8 @@ bash /Users/abishaikc/Coodra/presentation/setup.sh
 # → wait for "✅ Demo ready."
 
 # 2. Confirm daemons are healthy
-contextos status
-contextos doctor          # essential 11 checks should all be green
+coodra status
+coodra doctor          # essential 11 checks should all be green
 
 # 3. Boot the Web App (separate terminal, leave running)
 cd /Users/abishaikc/Coodra/apps/web
@@ -43,16 +43,16 @@ pnpm dev
 | Pane | Purpose | What's running |
 |---|---|---|
 | **A** | Commands you'll type | `cd ~/taskforge-demo` |
-| **B** | Live hook activity | `contextos logs hooks --follow` |
+| **B** | Live hook activity | `coodra logs hooks --follow` |
 | **C** | Claude Code | Open `~/taskforge-demo/` in Claude Code |
 | **D** | Web App | `http://localhost:3000` in a browser tab |
 
 If you only have a single screen: pop B + D into a second monitor. The audience needs to *see* B and D, not just A and C.
 
 **Final pre-flight tap (10 sec each):**
-- Pane C → run `/mcp` → confirm `contextos` shows up with **10 tools** (`ping`, `get_run_id`, `get_feature_pack`, `save_context_pack`, `search_packs_nl`, `record_decision`, `query_decisions`, `query_run_history`, `check_policy`, `query_codebase_graph`)
+- Pane C → run `/mcp` → confirm `coodra` shows up with **10 tools** (`ping`, `get_run_id`, `get_feature_pack`, `save_context_pack`, `search_packs_nl`, `record_decision`, `query_decisions`, `query_run_history`, `check_policy`, `query_codebase_graph`)
 - Pane D → confirm the picker shows a green "All systems operational" pill
-- Pane B → confirm `contextos logs hooks --follow` is tailing (you'll see hook events scroll once Claude Code starts)
+- Pane B → confirm `coodra logs hooks --follow` is tailing (you'll see hook events scroll once Claude Code starts)
 
 You're ready when all four panes look idle.
 
@@ -64,13 +64,13 @@ You're ready when all four panes look idle.
 
 > "Today's AI coding agents — Claude Code, Cursor, Copilot, Windsurf — are powerful, but they're amnesiac and ungoverned. Every Monday someone re-explains what the codebase is. Files get touched that shouldn't. Decisions are forgotten across sessions. There's no audit trail when leadership asks 'what did the AI actually do this quarter?'
 >
-> ContextOS is the coordination layer that fixes that. Three things: it gives any AI agent persistent project context, it enforces real policy on every tool call, and it produces a queryable audit trail of every decision. It works with any MCP-compatible agent. It's local-first, your code never leaves the machine. Let me show you the whole thing in 18 minutes — empty directory to fully-instrumented agent workspace, with a stakeholder dashboard at the end."
+> Coodra is the coordination layer that fixes that. Three things: it gives any AI agent persistent project context, it enforces real policy on every tool call, and it produces a queryable audit trail of every decision. It works with any MCP-compatible agent. It's local-first, your code never leaves the machine. Let me show you the whole thing in 18 minutes — empty directory to fully-instrumented agent workspace, with a stakeholder dashboard at the end."
 
 **Why this matters:** Frames the rest as solving real pain, not selling tech.
 
 ---
 
-## Phase 1 — Install ContextOS into a fresh project (90 seconds)
+## Phase 1 — Install Coodra into a fresh project (90 seconds)
 
 **You do (Pane A):**
 
@@ -84,16 +84,16 @@ ls ~/taskforge-demo
 
 ```bash
 ls -la ~/taskforge-demo
-cat ~/taskforge-demo/.contextos.json
+cat ~/taskforge-demo/.coodra.json
 ls ~/taskforge-demo/docs/feature-packs/taskforge-demo/
 ```
 
-**You say:** *"Actually I lied — this isn't quite empty. I ran `contextos init` 30 seconds before stage. Here's what that single command did."*
+**You say:** *"Actually I lied — this isn't quite empty. I ran `coodra init` 30 seconds before stage. Here's what that single command did."*
 
 **Point at:**
-- `.mcp.json` → "Claude Code, Cursor, Windsurf will all auto-connect to ContextOS in this directory."
-- `.contextos.json` → "Registers this project with the local daemon. Includes a slug — the durable handle this project keeps for the rest of its life."
-- `~/.contextos/data.db` → "Local SQLite store. The primary store, not a cache. Your runs, decisions, audit log all live here. Nothing leaves the machine until *you* opt in to team mode."
+- `.mcp.json` → "Claude Code, Cursor, Windsurf will all auto-connect to Coodra in this directory."
+- `.coodra.json` → "Registers this project with the local daemon. Includes a slug — the durable handle this project keeps for the rest of its life."
+- `~/.coodra/data.db` → "Local SQLite store. The primary store, not a cache. Your runs, decisions, audit log all live here. Nothing leaves the machine until *you* opt in to team mode."
 - `docs/feature-packs/taskforge-demo/` → "The project's spec, implementation plan, tech stack — markdown on disk, version-controlled with the repo."
 
 **You do:**
@@ -103,25 +103,25 @@ ls ~/taskforge-demo/docs/feature-packs/taskforge-demo/
 # → spec.md  implementation.md  techstack.md  meta.json
 ```
 
-**You say:** *"This is a tier-1 Feature Pack — three structured files plus metadata. We also support tier-2 (one markdown file) and tier-3 (a folder of arbitrary markdown). Drop ANY shape on disk, ContextOS classifies it, indexes it, serves it to agents on demand. Everyone wins because the same handover format works for every team."*
+**You say:** *"This is a tier-1 Feature Pack — three structured files plus metadata. We also support tier-2 (one markdown file) and tier-3 (a folder of arbitrary markdown). Drop ANY shape on disk, Coodra classifies it, indexes it, serves it to agents on demand. Everyone wins because the same handover format works for every team."*
 
 **Why this matters:** One command = full instrumentation. No config sprawl. Same shape works whether the team has 1 markdown file or a 30-doc Notion export.
 
 ---
 
-## Phase 2 — Operational X-ray with `contextos doctor` (60 seconds)
+## Phase 2 — Operational X-ray with `coodra doctor` (60 seconds)
 
 **You do (Pane A):**
 
 ```bash
-contextos doctor
+coodra doctor
 ```
 
-**You say:** *"Before any agent runs, let's see what ContextOS knows about its own state. This is the essential subset — 11 checks, the Claude Code happy path."*
+**You say:** *"Before any agent runs, let's see what Coodra knows about its own state. This is the essential subset — 11 checks, the Claude Code happy path."*
 
 **Point at the output:**
 - ✓ Node version
-- ✓ ~/.contextos/ writable
+- ✓ ~/.coodra/ writable
 - ✓ data.db opens
 - ✓ migrations at head
 - ✓ __global__ sentinel project (the F7 invariant — handles unregistered cwds gracefully)
@@ -135,7 +135,7 @@ contextos doctor
 **You do:**
 
 ```bash
-contextos doctor --full | head -50
+coodra doctor --full | head -50
 ```
 
 **You say:** *"`--full` runs all 39 checks — observability for outbox depth, kill-switch state, sync queue lag, dead-letter escalation, stale runs, pack-coverage ratio, the full picture. This is Phase A of an audit-as-you-go program: every problem we ever debug becomes a permanent doctor check the next morning. The system never lets the same bug bite twice."*
@@ -150,7 +150,7 @@ contextos doctor --full | head -50
 
 **You do:** Run `/mcp` in Claude Code.
 
-**Point at the output:** `contextos` server connected, **10 tools** advertised.
+**Point at the output:** `coodra` server connected, **10 tools** advertised.
 
 **You say:** *"Ten MCP tools available to Claude. Things like `get_feature_pack`, `record_decision`, `query_decisions` — that one's the read-side memory primitive — `check_policy`, `save_context_pack`. Claude calls these autonomously when relevant — no scripted prompts, the tool descriptions are written so the agent knows when each is appropriate."*
 
@@ -189,7 +189,7 @@ contextos doctor --full | head -50
 **You do (Pane A) once Claude finishes:**
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT description, rationale FROM decisions ORDER BY created_at DESC LIMIT 3;"
 ```
 
@@ -200,7 +200,7 @@ sqlite3 ~/.contextos/data.db \
 **Now — the architectural shift we shipped this week (call it out explicitly):**
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT id, source, prompt_text, state FROM intents ORDER BY created_at DESC LIMIT 3;"
 ```
 
@@ -222,12 +222,12 @@ sqlite3 ~/.contextos/data.db \
 
 **Point at Pane B:** the `pre_tool_use_decision` event with `permissionDecision: 'deny'`, `matchedRuleId: rule_default_block_env_write`.
 
-**You say:** *"That's not a warning. The bridge intercepted the tool call before it executed and denied it. The policy was seeded the moment I ran `contextos init` — every project gets a 25-rule baseline that blocks writes to `.env`, `.git/**`, `node_modules/**`, against every file-mutating tool: Write, Edit, MultiEdit, NotebookEdit. No configuration on my end. Defaults that work."*
+**You say:** *"That's not a warning. The bridge intercepted the tool call before it executed and denied it. The policy was seeded the moment I ran `coodra init` — every project gets a 25-rule baseline that blocks writes to `.env`, `.git/**`, `node_modules/**`, against every file-mutating tool: Write, Edit, MultiEdit, NotebookEdit. No configuration on my end. Defaults that work."*
 
 **You do (Pane A):**
 
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT tool_name, permission_decision, reason, matched_rule_id
    FROM policy_decisions
    ORDER BY created_at DESC LIMIT 5;"
@@ -248,7 +248,7 @@ sqlite3 ~/.contextos/data.db \
 **You do (Pane A):**
 
 ```bash
-contextos pause --mode hard --scope tool --target Bash
+coodra pause --mode hard --scope tool --target Bash
 ```
 
 **Output:** `kill switch installed: ks_<id> — scope=tool, target=Bash, mode=hard, indefinite`
@@ -264,13 +264,13 @@ contextos pause --mode hard --scope tool --target Bash
 **You do:**
 
 ```bash
-contextos resume       # resumes the only active switch
-contextos status       # confirm the switch is gone
+coodra resume       # resumes the only active switch
+coodra status       # confirm the switch is gone
 ```
 
 **Why this matters:** Operator confidence. "What if the agent does something we didn't anticipate?" answered with a 30-second toggle.
 
-> **One Phase-A nuance worth mentioning if asked:** *the audit caught a self-lockout pattern where I locked myself out of my own dev loop with `contextos pause --mode hard --scope global`. The CLI now defaults `--scope` to `project` so a stray pause from inside a project never globally bricks your tooling. That's the kind of bug ContextOS is designed to find — and never let happen twice.*
+> **One Phase-A nuance worth mentioning if asked:** *the audit caught a self-lockout pattern where I locked myself out of my own dev loop with `coodra pause --mode hard --scope global`. The CLI now defaults `--scope` to `project` so a stray pause from inside a project never globally bricks your tooling. That's the kind of bug Coodra is designed to find — and never let happen twice.*
 
 ---
 
@@ -316,9 +316,9 @@ cat ~/taskforge-demo/docs/context-packs/$(ls -t ~/taskforge-demo/docs/context-pa
 **You do (Pane A):**
 
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM decisions WHERE project_id IN (SELECT id FROM projects WHERE slug='taskforge-demo');"
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM intents WHERE state='resolved';"
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post';"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM decisions WHERE project_id IN (SELECT id FROM projects WHERE slug='taskforge-demo');"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM intents WHERE state='resolved';"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post';"
 ```
 
 **Point at the counts.** "X decisions, Y resolved intents, Z tool events. Every one of them queryable."
@@ -340,7 +340,7 @@ sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post'
 - The taskforge-demo project card — click it
 - Project mode (solo / team), last activity, run counts
 
-**You say:** *"This pulls from the same `contextos doctor` we ran in Phase 2. Same source of truth, different surface."*
+**You say:** *"This pulls from the same `coodra doctor` we ran in Phase 2. Same source of truth, different surface."*
 
 ### 9.2 — Project overview (45 sec)
 
@@ -372,16 +372,16 @@ sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post'
 **Point at:**
 - **Feature Packs** — the taskforge-demo pack, classified as tier-1, with parent inheritance graph
 - **Context Packs** — the auto-saved digest from Phase 7, plus any agent-saved narrative recaps
-- **Drag-drop** any markdown file here to register a new tier-2 pack — same as `contextos pack scan` in CLI
+- **Drag-drop** any markdown file here to register a new tier-2 pack — same as `coodra pack scan` in CLI
 
-**You say:** *"Same drag-drop ergonomics as Notion. Whatever shape your team's docs are in — single file, three-file template, folder of essays — ContextOS classifies and indexes them so an agent can serve them on request."*
+**You say:** *"Same drag-drop ergonomics as Notion. Whatever shape your team's docs are in — single file, three-file template, folder of essays — Coodra classifies and indexes them so an agent can serve them on request."*
 
 ### 9.5 — Policies (30 sec)
 
 **Click `Policies`.**
 
 **Point at:**
-- The 25-rule baseline policy seeded by `contextos init`
+- The 25-rule baseline policy seeded by `coodra init`
 - The `.env` deny rule we just hit live
 - The unique-constraint badge (Phase 4 Fix K — every (event_type, tool, glob, agent_type) tuple is unique, no duplicate rules ever)
 
@@ -429,7 +429,7 @@ sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post'
 >
 > **Four** — The web app is a single pane of glass over runs, decisions, intents, packs, policies, kill switches, and doctor. Operator never needs a terminal.
 >
-> ContextOS works with any MCP-compatible agent — Claude Code today, Cursor and Windsurf already work, every other one tomorrow. Solo install is a single npm command and one `contextos init`. Team mode adds a managed cloud Postgres + sync daemon for shared org state — same architecture, no migration. Open source. Local-first. Your code never leaves the machine until you opt in.
+> Coodra works with any MCP-compatible agent — Claude Code today, Cursor and Windsurf already work, every other one tomorrow. Solo install is a single npm command and one `coodra init`. Team mode adds a managed cloud Postgres + sync daemon for shared org state — same architecture, no migration. Open source. Local-first. Your code never leaves the machine until you opt in.
 >
 > The audit suite I keep mentioning isn't future work — Phase A, B, C all shipped this week. Phase D is the audit-as-you-go program: every doctor check, every CI guardrail, every schema-parity test gets added the morning after we debug a problem. The system gets harder to break, and we never lose progress to regression."
 
@@ -442,11 +442,11 @@ sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post'
 | Symptom | 30-second fix |
 |---|---|
 | `/mcp` shows nothing in Claude Code | `Cmd+Q` Claude Code, reopen. The `.mcp.json` change requires IDE restart. |
-| `contextos start` says "already running" | `contextos stop && contextos start` |
-| Policy deny doesn't fire | Pane B will show why. `sqlite3 ~/.contextos/data.db "SELECT count(*) FROM policy_rules"` should be **25**, not less. |
+| `coodra start` says "already running" | `coodra stop && coodra start` |
+| Policy deny doesn't fire | Pane B will show why. `sqlite3 ~/.coodra/data.db "SELECT count(*) FROM policy_rules"` should be **25**, not less. |
 | Claude doesn't auto-call MCP tools | Be more explicit in the next prompt: *"Before answering, check the Feature Pack."* Tool descriptions are written for *natural* triggering but stakeholders won't know if you nudge. |
-| Web app shows "Status unknown" | The doctor report failed to run. `contextos doctor` from a terminal — the error message is verbatim. Most common cause: daemons aren't started. |
-| `contextos pause` locks you out of typing | Phase A.1 fix landed — `--scope` defaults to `project` from cwd. If you somehow still hit a global lock, open a new terminal and `contextos resume --id <ks_id>` (the install at `/Users/abishaikc/Coodra/...` is unaffected by the project's own switch). |
+| Web app shows "Status unknown" | The doctor report failed to run. `coodra doctor` from a terminal — the error message is verbatim. Most common cause: daemons aren't started. |
+| `coodra pause` locks you out of typing | Phase A.1 fix landed — `--scope` defaults to `project` from cwd. If you somehow still hit a global lock, open a new terminal and `coodra resume --id <ks_id>` (the install at `/Users/abishaikc/Coodra/...` is unaffected by the project's own switch). |
 
 If something catastrophic happens and live demo dies, **fall back to the architecture itself**: walk through the .mcp.json, the Feature Pack, the audit tables. The system is the demo even without a running agent.
 
@@ -476,7 +476,7 @@ Stakeholders sometimes ask "but what about X?" Answers ready:
 │                                  │  > prompt 2 ...                  │
 ├──────────────────────────────────┼──────────────────────────────────┤
 │  Pane B — Live hooks log         │  Pane D — Web App                │
-│  contextos logs hooks --follow   │  http://localhost:3000           │
+│  coodra logs hooks --follow   │  http://localhost:3000           │
 │  ▸ pre_tool_use_decision         │  [Project picker]                │
 │  ▸ session_start_recorded        │  [taskforge-demo →]              │
 │  ▸ feature_pack_injected         │                                  │
@@ -511,6 +511,6 @@ Pane B and Pane D are the *visual upgrade*. Without them, you can still run the 
 
 If a stakeholder interrupts at any point with *"in plain English, what's this thing?"* — you stop the demo and say:
 
-> "ContextOS makes AI coding agents enterprise-safe. Three things: it gives agents persistent project context they don't already have, it enforces real policy on every tool they call — not advice, actual blocks — and it produces a queryable audit trail of every decision they make. Local-first, works with any MCP-compatible agent, single command to install."
+> "Coodra makes AI coding agents enterprise-safe. Three things: it gives agents persistent project context they don't already have, it enforces real policy on every tool they call — not advice, actual blocks — and it produces a queryable audit trail of every decision they make. Local-first, works with any MCP-compatible agent, single command to install."
 
 Memorize that. It's the answer when the demo gets paused.

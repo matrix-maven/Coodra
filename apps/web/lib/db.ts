@@ -1,12 +1,12 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-import { createDb, type DbHandle } from '@coodra/contextos-db';
+import { createDb, type DbHandle } from '@coodra/db';
 
 /**
  * `apps/web/lib/db.ts` — storage adapter per spec §7 + OQ-1 lock.
  *
- * Solo mode → direct better-sqlite3 against `~/.contextos/data.db`.
+ * Solo mode → direct better-sqlite3 against `~/.coodra/data.db`.
  * Team mode → Drizzle pg pool against `DATABASE_URL`.
  *
  * Module-level cache: one DbHandle per Node.js process. In team mode this
@@ -24,19 +24,19 @@ let cached: DbHandle | undefined;
 
 export function createWebDb(): DbHandle {
   if (cached !== undefined) return cached;
-  const mode = process.env.CONTEXTOS_MODE ?? 'solo';
+  const mode = process.env.COODRA_MODE ?? 'solo';
   if (mode === 'team') {
     const url = process.env.DATABASE_URL;
     if (typeof url !== 'string' || url.length === 0) {
       throw new Error(
-        'createWebDb: CONTEXTOS_MODE=team requires DATABASE_URL. Set it in apps/web/.env.local (copy from repo-root .env).',
+        'createWebDb: COODRA_MODE=team requires DATABASE_URL. Set it in apps/web/.env.local (copy from repo-root .env).',
       );
     }
     cached = createDb({ kind: 'cloud', postgres: { databaseUrl: url } });
     return cached;
   }
   // Solo
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const path = resolve(home, 'data.db');
   cached = createDb({ kind: 'local', sqlite: { path } });
   return cached;
@@ -44,7 +44,7 @@ export function createWebDb(): DbHandle {
 
 /**
  * Test-only helper to clear the cached handle. Production code never
- * calls this; tests use it between cases that swap CONTEXTOS_MODE.
+ * calls this; tests use it between cases that swap COODRA_MODE.
  */
 export function _clearWebDbCache(): void {
   cached?.close();

@@ -82,7 +82,7 @@ These are documented so Modules 02–07 don't re-verify. Each will be installed 
 - **Next.js 16 Server Actions and caching changes.** Compared to Next.js 15: `unstable_cache` behavior hardened; `use server` directive rules tightened. Module 04 will validate against the Next.js 16 migration guide before implementing any server action.
 - **Drizzle requires separate dialect imports.** `drizzle-orm/better-sqlite3` vs `drizzle-orm/postgres-js`; mixing them is an error. `schema/sqlite.ts` uses `sqlite-core`; `schema/postgres.ts` uses `pg-core`. The schema-parity unit test is the single guard against drift.
 - **`postgres-js` + Supabase Supavisor pooler** requires `prepare: false`. Not exercised in Module 01; carried forward.
-- **`CONTEXTOS_MODE` must default to `'solo'`.** Team-mode without explicit opt-in would silently pull `DATABASE_URL` into code paths that expect local SQLite.
+- **`COODRA_MODE` must default to `'solo'`.** Team-mode without explicit opt-in would silently pull `DATABASE_URL` into code paths that expect local SQLite.
 - **sqlite-vec is not installed in Module 01.** The `context_packs.summary_embedding` column is `text` in SQLite until Module 02 loads `vec0`. pgvector `vector(384)` is only used in the Postgres schema and is created by the initial Postgres migration.
 
 ## Version-bump policy (amendment B)

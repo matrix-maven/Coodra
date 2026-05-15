@@ -1,12 +1,12 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { assertManifestDescriptionValid } from '@coodra/contextos-shared/test-utils';
+import type { DbHandle } from '@coodra/db';
+import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
 import { createQueryDecisionsToolRegistration } from '../../../src/tools/query-decisions/manifest.js';
 import { queryDecisionsInputSchema } from '../../../src/tools/query-decisions/schema.js';
 
 /**
- * Unit tests for `contextos__query_decisions` (Slice 4 — 2026-05-03 audit).
+ * Unit tests for `coodra__query_decisions` (Slice 4 — 2026-05-03 audit).
  * Manifest contract + input schema boundaries + idempotency-key shape +
  * factory construction contract. DB behaviour (project resolve, INNER
  * JOIN runs, query LIKE filter, runId narrow filter, DESC order, limit)

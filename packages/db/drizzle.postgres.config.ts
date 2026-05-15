@@ -14,7 +14,7 @@ export default defineConfig({
   schema: './src/schema/postgres.ts',
   out: './drizzle/postgres',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://contextos:contextos_dev_password@127.0.0.1:5432/contextos',
+    url: process.env.DATABASE_URL ?? 'postgres://coodra:coodra_dev_password@127.0.0.1:5432/coodra',
   },
   extensionsFilters: ['postgis'],
   verbose: true,

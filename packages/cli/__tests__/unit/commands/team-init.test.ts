@@ -32,13 +32,13 @@ vi.mock('../../../src/lib/team-init/finalize-config.js', () => ({
   finalizeConfig: vi.fn().mockReturnValue({
     localHookSecret: 'f'.repeat(64),
     inviteHmacSecret: 'g'.repeat(64),
-    configPath: '/tmp/home/.contextos/config.json',
-    envPath: '/tmp/home/.contextos/.env',
+    configPath: '/tmp/home/.coodra/config.json',
+    envPath: '/tmp/home/.coodra/.env',
     joinedAt: 1700000000000,
   }),
 }));
 vi.mock('../../../src/lib/team-init/clerk-jwt-template.js', () => ({
-  ensureContextosCliJwtTemplate: vi.fn().mockResolvedValue({
+  ensureCoodraCliJwtTemplate: vi.fn().mockResolvedValue({
     ok: true,
     status: 'already_exists',
     templateId: 'jtpl_mocked',
@@ -85,16 +85,16 @@ let prevHome: string | undefined;
 beforeEach(async () => {
   homeDir = mkdtempSync(join(tmpdir(), 'team-init-cli-'));
   mkdirSync(homeDir, { recursive: true });
-  prevHome = process.env.CONTEXTOS_HOME;
-  process.env.CONTEXTOS_HOME = homeDir;
+  prevHome = process.env.COODRA_HOME;
+  process.env.COODRA_HOME = homeDir;
   const mocks = await getMocks();
   mocks.bootstrapPostgres.mockReset();
   mocks.bootstrapClerk.mockReset();
 });
 
 afterEach(() => {
-  if (prevHome === undefined) delete process.env.CONTEXTOS_HOME;
-  else process.env.CONTEXTOS_HOME = prevHome;
+  if (prevHome === undefined) delete process.env.COODRA_HOME;
+  else process.env.COODRA_HOME = prevHome;
 });
 
 describe('runTeamInitCommand', () => {

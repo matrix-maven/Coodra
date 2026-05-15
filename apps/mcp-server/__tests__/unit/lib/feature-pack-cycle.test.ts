@@ -2,8 +2,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite } from '@coodra/contextos-db';
-import { InternalError } from '@coodra/contextos-shared';
+import { migrateSqlite } from '@coodra/db';
+import { InternalError } from '@coodra/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createDbClient } from '../../../src/lib/db.js';

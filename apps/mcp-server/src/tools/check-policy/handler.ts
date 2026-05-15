@@ -1,13 +1,13 @@
-import type { PolicyDecisionPayloadV1, RunIdResolution } from '@coodra/contextos-cli/lib/outbox';
-import { type DbHandle, postgresSchema, scheduleAuditWriteWithSync, sqliteSchema } from '@coodra/contextos-db';
-import { buildPolicyDecisionIdempotencyKey } from '@coodra/contextos-policy';
-import { createLogger } from '@coodra/contextos-shared';
+import type { PolicyDecisionPayloadV1, RunIdResolution } from '@coodra/cli/lib/outbox';
+import { type DbHandle, postgresSchema, scheduleAuditWriteWithSync, sqliteSchema } from '@coodra/db';
+import { buildPolicyDecisionIdempotencyKey } from '@coodra/policy';
+import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { CheckPolicyInput, CheckPolicyOutput } from './schema.js';
 
 /**
- * Handler factory for `contextos__check_policy` (§24.4, S14).
+ * Handler factory for `coodra__check_policy` (§24.4, S14).
  *
  * S14 is the long-deferred first caller of `recordPolicyDecision`
  * (exported from `lib/policy.ts` since S7b — see
@@ -126,7 +126,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
         ok: false,
         error: 'project_not_found',
         howToFix:
-          'Register the project via the CLI (`contextos init`) or verify the slug matches an existing entry in the projects table.',
+          'Register the project via the CLI (`coodra init`) or verify the slug matches an existing entry in the projects table.',
       };
     }
 

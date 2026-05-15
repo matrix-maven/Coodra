@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
+import { OutboxWorker } from '@coodra/cli/lib/outbox';
 import {
   createPostgresDb,
   createSqliteDb,
@@ -15,7 +15,7 @@ import {
   scheduleAuditWriteWithSync,
   scheduleDurableWrite,
   sqliteSchema,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -117,7 +117,7 @@ let cloud: PostgresHandle;
     // separate path; for this isolated test we seed it directly).
     await cloud.db
       .insert(
-        cloud.kind === 'postgres' ? (await import('@coodra/contextos-db')).postgresSchema.projects : ({} as never),
+        cloud.kind === 'postgres' ? (await import('@coodra/db')).postgresSchema.projects : ({} as never),
       )
       .values({ id: projectId, slug: project!.slug, orgId: project!.orgId, name: project!.name })
       .onConflictDoNothing();
@@ -142,7 +142,7 @@ let cloud: PostgresHandle;
     await worker.stop();
 
     // Cloud should now have the runs row.
-    const { postgresSchema: pg } = await import('@coodra/contextos-db');
+    const { postgresSchema: pg } = await import('@coodra/db');
     const cloudRows = await cloud.db.select().from(pg.runs).where(eq(pg.runs.id, runId));
     expect(cloudRows).toHaveLength(1);
     expect(cloudRows[0]?.sessionId).toBe('s1');
@@ -185,7 +185,7 @@ let cloud: PostgresHandle;
         .limit(1)
     )[0];
     const projectId = project!.id;
-    const { postgresSchema: pg } = await import('@coodra/contextos-db');
+    const { postgresSchema: pg } = await import('@coodra/db');
     await cloud.db
       .insert(pg.projects)
       .values({ id: projectId, slug: project!.slug, orgId: project!.orgId, name: project!.name })
@@ -229,7 +229,7 @@ let cloud: PostgresHandle;
         .limit(1)
     )[0];
     const projectId = project!.id;
-    const { postgresSchema: pg } = await import('@coodra/contextos-db');
+    const { postgresSchema: pg } = await import('@coodra/db');
     await cloud.db
       .insert(pg.projects)
       .values({ id: projectId, slug: project!.slug, orgId: project!.orgId, name: project!.name })

@@ -10,11 +10,11 @@
 >
 > **Prerequisites:**
 > - Postgres reachable at `DATABASE_URL` with migrations 0015-0018 applied
-> - Clerk app configured with a `contextos_cli` JWT template (24h TTL,
+> - Clerk app configured with a `coodra_cli` JWT template (24h TTL,
 >   includes `org_id` + `org_role` + `email` claims)
-> - `CONTEXTOS_INVITE_HMAC_SECRET` set in the web's env (≥ 32 bytes hex)
-> - `CONTEXTOS_EXPECTED_ORG_ID` matches the team's Clerk org_id
-> - The CLI bundle is built (`pnpm --filter @coodra/contextos-cli build`)
+> - `COODRA_INVITE_HMAC_SECRET` set in the web's env (≥ 32 bytes hex)
+> - `COODRA_EXPECTED_ORG_ID` matches the team's Clerk org_id
+> - The CLI bundle is built (`pnpm --filter @coodra/cli build`)
 > - Two test accounts in Clerk: an admin and a basic_member, both in
 >   the same org
 
@@ -30,18 +30,18 @@ the **acceptance gate** for shipping Phase G.
 ### Act 1 — Solo developer (~5 min)
 
 ```bash
-# Fresh laptop: pretend ~/.contextos doesn't exist
-export CONTEXTOS_HOME=/tmp/phase-g-solo
+# Fresh laptop: pretend ~/.coodra doesn't exist
+export COODRA_HOME=/tmp/phase-g-solo
 mkdir -p /tmp/phase-g-solo
 
 mkdir -p /tmp/phase-g-solo-proj && cd /tmp/phase-g-solo-proj
-contextos init                     # solo mode, no Clerk
-contextos start
-contextos feature add greet --description "Greet a person by name"
+coodra init                     # solo mode, no Clerk
+coodra start
+coodra feature add greet --description "Greet a person by name"
 ```
 
 **What to verify:**
-- `~/.contextos/config.json` has `"mode": "solo"`, no `team` block, no
+- `~/.coodra/config.json` has `"mode": "solo"`, no `team` block, no
   `clerk-token.json` file alongside it
 - Web at http://localhost:3001 returns 200 with no Clerk redirect
 - The `features` page shows `greet`
@@ -51,20 +51,20 @@ contextos feature add greet --description "Greet a person by name"
 ### Act 2 — Solo → team init (admin) (~10 min)
 
 ```bash
-contextos team init                # opens browser wizard
+coodra team init                # opens browser wizard
                                    # admin signs into Clerk
                                    # picks/creates an org
                                    # provides Postgres URL
                                    # writes everything
 # After completion:
-contextos login                    # browser handoff captures JWT
-                                   # writes ~/.contextos/clerk-token.json
-contextos start                    # restarts daemons in team mode
+coodra login                    # browser handoff captures JWT
+                                   # writes ~/.coodra/clerk-token.json
+coodra start                    # restarts daemons in team mode
 ```
 
 **What to verify:**
-- `~/.contextos/clerk-token.json` exists, mode 0600
-- `contextos org status` prints email + org + role = admin
+- `~/.coodra/clerk-token.json` exists, mode 0600
+- `coodra org status` prints email + org + role = admin
 - Web at http://localhost:3001 redirects to `/auth/sign-in` (unauthed)
 - Sign in via browser → web renders admin UI
 - CLI writes (`feature add`, `pack publish`) stamp with admin's
@@ -83,13 +83,13 @@ Admin side:
 2. Click "Invite", enter `teammate@your-test-domain.com`, role=member
 3. Copy the invite URL
 
-Teammate side (simulated via isolated `CONTEXTOS_HOME`):
+Teammate side (simulated via isolated `COODRA_HOME`):
 ```bash
-export CONTEXTOS_HOME=/tmp/phase-g-teammate
+export COODRA_HOME=/tmp/phase-g-teammate
 mkdir -p /tmp/phase-g-teammate
 mkdir -p /tmp/phase-g-teammate-proj && cd /tmp/phase-g-teammate-proj
 
-contextos team join '<the-invite-url>'
+coodra team join '<the-invite-url>'
 # Browser opens at /install/<token>
 # Sign in as teammate@your-test-domain.com (Clerk's hosted UI)
 # After sign-in, CLI captures the JWT, fetches install bundle,
@@ -108,7 +108,7 @@ contextos team join '<the-invite-url>'
   single-use)
 - Teammate's CLI `feature add caching-strategy` writes a row in cloud
   with `created_by_user_id` = teammate's clerkUserId
-- Switch back to admin's `CONTEXTOS_HOME`, open web `/features` →
+- Switch back to admin's `COODRA_HOME`, open web `/features` →
   both admin's `ship-checklist` AND teammate's `caching-strategy`
   appear, correctly attributed
 
@@ -159,14 +159,14 @@ These are **acknowledged-but-deferred** work items for Phase G+1 / H:
    `feature_packs.org_id` is the foundation; Phase G+1 adds the WHERE
    filters in sync-daemon + web queries.
 
-5. **`contextos org switch` is browser-mediated only.** The user
+5. **`coodra org switch` is browser-mediated only.** The user
    picks the target org in Clerk's UI. There's no `--org=<slug>`
    non-interactive switch (Clerk doesn't expose that for member-side
    org selection).
 
-6. **No automatic `contextos login` prompt.** When a token expires,
+6. **No automatic `coodra login` prompt.** When a token expires,
    the CLI / MCP / bridge return `auth_required` soft-failures with
-   the howToFix message. The user runs `contextos login` manually.
+   the howToFix message. The user runs `coodra login` manually.
 
 ---
 
@@ -196,22 +196,22 @@ regressions land.
 ### "I'm stuck in a bad auth state"
 
 ```bash
-contextos logout                # tear down team state
-rm -f ~/.contextos/clerk-token.json   # safety net
-contextos login                 # fresh login
+coodra logout                # tear down team state
+rm -f ~/.coodra/clerk-token.json   # safety net
+coodra login                 # fresh login
 ```
 
-### "The Clerk JWT template `contextos_cli` doesn't exist"
+### "The Clerk JWT template `coodra_cli` doesn't exist"
 
-The `contextos login` flow surfaces this as a clear error. Resolution:
+The `coodra login` flow surfaces this as a clear error. Resolution:
 
 1. Open Clerk dashboard → Configure → JWT Templates → New
-2. Name: `contextos_cli`
+2. Name: `coodra_cli`
 3. Token lifetime: 86400 seconds (24h)
 4. Claims: include `org_id`, `org_role`, `email` (defaults from the
    session JWT)
 5. Save + redeploy if needed
-6. Re-run `contextos login`
+6. Re-run `coodra login`
 
 ### "Cloud Postgres rows have NULL created_by_user_id"
 
@@ -219,10 +219,10 @@ If you see NULL attribution after Phase G ships, the row was written
 either by:
 - The legacy MCP path (pre-Phase-G install with stale code)
 - Solo mode (intentional — solo writes NULL)
-- A daemon that started BEFORE `contextos login` (the daemon caches
-  identity at boot; restart with `contextos stop && contextos start`)
+- A daemon that started BEFORE `coodra login` (the daemon caches
+  identity at boot; restart with `coodra stop && coodra start`)
 
 The Phase G migration story: any laptop that had `config.json::team`
-populated before upgrading needs to run `contextos login` once. The
+populated before upgrading needs to run `coodra login` once. The
 on-disk identity migrates automatically — the verified JWT supersedes
 the trusted-but-unverified config.json reads.

@@ -64,7 +64,7 @@ export default async function NewProjectPackPage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / new pack`} crumbPrefix="contextos / projects" />
+      <Topbar crumb={`${project.slug} / new pack`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
@@ -107,13 +107,13 @@ export default async function NewProjectPackPage({
             This project has no recorded <code style={mono}>cwd</code>. Uploads will land under the web server&apos;s
             working directory (<code style={mono}>{projectCwd}</code>), which may not be the project&apos;s real folder.
             Open a Claude Code session inside the project root once so the bridge can record it, or re-run{' '}
-            <code style={mono}>contextos init</code>.
+            <code style={mono}>coodra init</code>.
           </div>
         ) : null}
 
         {primaryIsStub ? (
           <div className="banner">
-            The primary pack is a <code style={mono}>contextos init</code> template stub. Uploading with the default
+            The primary pack is a <code style={mono}>coodra init</code> template stub. Uploading with the default
             slug below will silently replace it (no force-overwrite needed) — the action treats stubs as the
             obvious replace-target. Auto-link is treated as off when replacing a stub.
           </div>

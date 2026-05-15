@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { asc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -12,7 +12,7 @@ import type { RecordDecisionOutput } from '../../../src/tools/record-decision/sc
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__record_decision` (S13).
+ * Integration test for `coodra__record_decision` (S13).
  *
  * Exercises the real handler end-to-end via the `ToolRegistry`
  * against an in-memory SQLite DB migrated to 0003 and seeded with a

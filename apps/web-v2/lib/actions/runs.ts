@@ -1,6 +1,6 @@
 'use server';
 
-import { cancelRun } from '@coodra/contextos-db';
+import { cancelRun } from '@coodra/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
@@ -55,7 +55,7 @@ export async function cancelAllInProgressRunsAction(formData: FormData): Promise
   const returnTo = String(formData.get('returnTo') ?? '/');
   const handle = createWebDb();
   // Pull the in-flight rows directly so we can scope by project.
-  const { listRunsForProject } = await import('@coodra/contextos-db');
+  const { listRunsForProject } = await import('@coodra/db');
   const filter =
     typeof projectId === 'string' && projectId.length > 0
       ? { status: 'in_progress' as const, projectId, limit: 1000 }

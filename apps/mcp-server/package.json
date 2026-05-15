@@ -1,13 +1,13 @@
 {
-  "name": "@coodra/contextos-mcp-server",
+  "name": "@coodra/mcp-server",
   "version": "0.0.0",
   "private": true,
-  "description": "ContextOS MCP server — stdio transport (S5 walking skeleton), tool-registration framework with enforced invariants, typed env config, Clerk + solo-bypass auth chain (wired in later slices).",
+  "description": "Coodra MCP server — stdio transport (S5 walking skeleton), tool-registration framework with enforced invariants, typed env config, Clerk + solo-bypass auth chain (wired in later slices).",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "contextos-mcp-server": "./dist/index.js"
+    "coodra-mcp-server": "./dist/index.js"
   },
   "files": [
     "dist"
@@ -16,7 +16,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "lint": "biome check .",
-    "dev": "CONTEXTOS_LOG_DESTINATION=stderr tsx watch src/index.ts",
+    "dev": "COODRA_LOG_DESTINATION=stderr tsx watch src/index.ts",
     "start": "node dist/index.js",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -24,10 +24,10 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@coodra/contextos-cli": "workspace:*",
-    "@coodra/contextos-db": "workspace:*",
-    "@coodra/contextos-policy": "workspace:*",
-    "@coodra/contextos-shared": "workspace:*",
+    "@coodra/cli": "workspace:*",
+    "@coodra/db": "workspace:*",
+    "@coodra/policy": "workspace:*",
+    "@coodra/shared": "workspace:*",
     "@hono/node-server": "2.0.0",
     "@modelcontextprotocol/sdk": "1.29.0",
     "drizzle-orm": "^0.45.2",

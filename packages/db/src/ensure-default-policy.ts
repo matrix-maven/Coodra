@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
@@ -8,7 +8,7 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 /**
  * `packages/db/src/ensure-default-policy` — seeds a baseline Policy
  * + first-match-wins rule set for a project so a fresh
- * `contextos init` ships with real policy enforcement on day one.
+ * `coodra init` ships with real policy enforcement on day one.
  *
  * Phase 3 Fix D (2026-05-02 — closes Phase 2 verification finding
  * F5/F8): pre-Phase-3 init created the project row but inserted
@@ -53,7 +53,7 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
  *     - Existing rules (including any user-modified or user-added
  *       ones) are NEVER deleted or updated.
  *
- *   Re-running `contextos init` on a Phase 3 install brings the
+ *   Re-running `coodra init` on a Phase 3 install brings the
  *   default rule set up to current. Re-running on an already-current
  *   install is a no-op (`rulesInserted: 0`).
  *
@@ -68,7 +68,7 @@ const seedLogger = createLogger('db.ensure-default-policy');
 
 const DEFAULT_POLICY_NAME = '__default__' as const;
 const DEFAULT_POLICY_DESCRIPTION =
-  'Default policy seeded by `contextos init` (Phase 3 Fix D + Phase 4 Fix F, 2026-05-02). ' +
+  'Default policy seeded by `coodra init` (Phase 3 Fix D + Phase 4 Fix F, 2026-05-02). ' +
   'Denies file-mutating tools (Write, Edit, MultiEdit, NotebookEdit) writing to ' +
   '.env / **/.env / .git/** / **/.git/** / node_modules/** / **/node_modules/**; ' +
   'asks before Bash. Edit via `policy` UI or by writing custom rules with higher priority.';

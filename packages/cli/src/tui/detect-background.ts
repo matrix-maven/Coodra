@@ -1,11 +1,11 @@
 /**
  * `src/tui/detect-background.ts` — best-effort terminal background
  * detection via the OSC 11 query, used by the TUI to auto-pick the
- * light vs. dark accent set without the user setting `CONTEXTOS_THEME`.
+ * light vs. dark accent set without the user setting `COODRA_THEME`.
  *
  * Why only the TUI: the TUI is interactive and owns raw stdin, so a
  * sub-150ms probe is invisible. One-shot commands stay synchronous —
- * they rely on `COLORFGBG` + the `CONTEXTOS_THEME` override + the
+ * they rely on `COLORFGBG` + the `COODRA_THEME` override + the
  * always-safe `unknown` palette, and must not pay a probe per run.
  *
  * The probe is *best-effort by construction*: it writes `ESC ] 11 ; ?`

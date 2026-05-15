@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__list_context_packs` (M05 §5.1).
+ * Input + output schemas for `coodra__list_context_packs` (M05 §5.1).
  *
  * Pagination via opaque cursor: base64 of `{lastCreatedAt, lastId}`
  * tuple. The handler validates the cursor's structural shape and falls
@@ -32,7 +32,7 @@ export const listContextPacksInputSchema = z
       .describe('Opaque cursor from a prior call. Pass to fetch the next page.'),
   })
   .strict()
-  .describe('Input for contextos__list_context_packs.');
+  .describe('Input for coodra__list_context_packs.');
 
 const packRowSchema = z
   .object({

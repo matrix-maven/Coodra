@@ -28,7 +28,7 @@ import { getDoctorReport } from '@/lib/queries/doctor';
  * against the dev server's cwd. ?scope=full toggles to the 35-check
  * registry; ?autorefresh=1 sets a meta http-equiv refresh (5s).
  *
- * Doctor checks today probe ~/.contextos/, the local data.db, the
+ * Doctor checks today probe ~/.coodra/, the local data.db, the
  * bridge & MCP server health, IDE registration, and pending-job
  * depth — all workspace-grain. The page lives at /projects/[slug]/
  * doctor for navigation symmetry; per-project filtering arrives when
@@ -150,7 +150,7 @@ export default async function DoctorPage({
       </Section>
 
       <p className="text-xs text-text-tertiary">
-        contextos home: <span className="font-mono">{report.contextosHome}</span> · cwd:{' '}
+        coodra home: <span className="font-mono">{report.coodraHome}</span> · cwd:{' '}
         <span className="font-mono">{report.cwd}</span> · version <span className="font-mono">{report.version}</span>
       </p>
     </PageShell>

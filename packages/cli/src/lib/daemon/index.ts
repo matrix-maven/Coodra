@@ -9,8 +9,8 @@ export { SystemdDaemonManager } from './systemd.js';
 export type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
 export interface SelectDaemonManagerOptions {
-  /** Resolved ~/.contextos/ — used by the fallback for PID files. */
-  readonly contextosHome: string;
+  /** Resolved ~/.coodra/ — used by the fallback for PID files. */
+  readonly coodraHome: string;
   /** Override for tests. */
   readonly platform?: NodeJS.Platform;
 }
@@ -34,5 +34,5 @@ export async function selectDaemonManager(options: SelectDaemonManagerOptions): 
     if (await systemd.isAvailable()) return systemd;
   }
 
-  return new FallbackDaemonManager({ contextosHome: options.contextosHome });
+  return new FallbackDaemonManager({ coodraHome: options.coodraHome });
 }

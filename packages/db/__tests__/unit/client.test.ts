@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { ValidationError } from '@coodra/contextos-shared';
+import { ValidationError } from '@coodra/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createDb, createSqliteDb, resolveSqlitePath } from '../../src/client.js';
@@ -16,8 +16,8 @@ describe('resolveSqlitePath', () => {
   });
 
   it('expands a leading ~ to the home directory', () => {
-    const resolved = resolveSqlitePath('~/.contextos/data.db');
-    expect(resolved).toMatch(/\.contextos\/data\.db$/);
+    const resolved = resolveSqlitePath('~/.coodra/data.db');
+    expect(resolved).toMatch(/\.coodra\/data\.db$/);
     expect(resolved.startsWith('~')).toBe(false);
   });
 
@@ -29,19 +29,19 @@ describe('resolveSqlitePath', () => {
 
   /**
    * Locks integration finding 2026-04-27 (post-08a walk): the bridge +
-   * mcp-server daemons spawned by `contextos start` were ignoring the
-   * CONTEXTOS_HOME plist env var and writing audit rows to the user's
-   * real `~/.contextos/data.db`. Doctor read the test home, daemons
+   * mcp-server daemons spawned by `coodra start` were ignoring the
+   * COODRA_HOME plist env var and writing audit rows to the user's
+   * real `~/.coodra/data.db`. Doctor read the test home, daemons
    * wrote elsewhere, the two surfaces silently disagreed.
    */
-  describe('CONTEXTOS_HOME / CONTEXTOS_SQLITE_PATH precedence', () => {
+  describe('COODRA_HOME / COODRA_SQLITE_PATH precedence', () => {
     const originals: Record<string, string | undefined> = {};
 
     beforeEach(() => {
-      originals.CONTEXTOS_SQLITE_PATH = process.env.CONTEXTOS_SQLITE_PATH;
-      originals.CONTEXTOS_HOME = process.env.CONTEXTOS_HOME;
-      delete process.env.CONTEXTOS_SQLITE_PATH;
-      delete process.env.CONTEXTOS_HOME;
+      originals.COODRA_SQLITE_PATH = process.env.COODRA_SQLITE_PATH;
+      originals.COODRA_HOME = process.env.COODRA_HOME;
+      delete process.env.COODRA_SQLITE_PATH;
+      delete process.env.COODRA_HOME;
     });
 
     afterEach(() => {
@@ -55,38 +55,38 @@ describe('resolveSqlitePath', () => {
     });
 
     it('1) explicit `input` argument wins over both env vars', () => {
-      process.env.CONTEXTOS_SQLITE_PATH = '/env/sqlite/path/data.db';
-      process.env.CONTEXTOS_HOME = '/env/home/.contextos';
+      process.env.COODRA_SQLITE_PATH = '/env/sqlite/path/data.db';
+      process.env.COODRA_HOME = '/env/home/.coodra';
       expect(resolveSqlitePath('/explicit/data.db')).toBe('/explicit/data.db');
     });
 
-    it('2) CONTEXTOS_SQLITE_PATH env var wins over CONTEXTOS_HOME', () => {
-      process.env.CONTEXTOS_SQLITE_PATH = '/env/sqlite/path/data.db';
-      process.env.CONTEXTOS_HOME = '/env/home/.contextos';
+    it('2) COODRA_SQLITE_PATH env var wins over COODRA_HOME', () => {
+      process.env.COODRA_SQLITE_PATH = '/env/sqlite/path/data.db';
+      process.env.COODRA_HOME = '/env/home/.coodra';
       expect(resolveSqlitePath(undefined)).toBe('/env/sqlite/path/data.db');
     });
 
-    it('3) CONTEXTOS_HOME env var resolves to <home>/data.db when no other override', () => {
-      process.env.CONTEXTOS_HOME = '/env/home/.contextos';
-      expect(resolveSqlitePath(undefined)).toBe('/env/home/.contextos/data.db');
+    it('3) COODRA_HOME env var resolves to <home>/data.db when no other override', () => {
+      process.env.COODRA_HOME = '/env/home/.coodra';
+      expect(resolveSqlitePath(undefined)).toBe('/env/home/.coodra/data.db');
     });
 
-    it('4) falls back to ~/.contextos/data.db when neither env var is set', () => {
+    it('4) falls back to ~/.coodra/data.db when neither env var is set', () => {
       const resolved = resolveSqlitePath(undefined);
-      expect(resolved).toMatch(/\.contextos\/data\.db$/);
+      expect(resolved).toMatch(/\.coodra\/data\.db$/);
       // Must not be the test-home value when env was cleared.
       expect(resolved.startsWith('/env/')).toBe(false);
     });
 
     it('treats empty-string env values as unset (defensive)', () => {
-      process.env.CONTEXTOS_SQLITE_PATH = '';
-      process.env.CONTEXTOS_HOME = '/env/home/.contextos';
-      expect(resolveSqlitePath(undefined)).toBe('/env/home/.contextos/data.db');
+      process.env.COODRA_SQLITE_PATH = '';
+      process.env.COODRA_HOME = '/env/home/.coodra';
+      expect(resolveSqlitePath(undefined)).toBe('/env/home/.coodra/data.db');
     });
 
-    it('CONTEXTOS_SQLITE_PATH=:memory: passes through even with CONTEXTOS_HOME set', () => {
-      process.env.CONTEXTOS_SQLITE_PATH = ':memory:';
-      process.env.CONTEXTOS_HOME = '/env/home/.contextos';
+    it('COODRA_SQLITE_PATH=:memory: passes through even with COODRA_HOME set', () => {
+      process.env.COODRA_SQLITE_PATH = ':memory:';
+      process.env.COODRA_HOME = '/env/home/.coodra';
       expect(resolveSqlitePath(undefined)).toBe(':memory:');
     });
   });
@@ -139,7 +139,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
   let dbPath: string;
 
   beforeEach(() => {
-    tmp = mkdtempSync(join(tmpdir(), 'contextos-db-'));
+    tmp = mkdtempSync(join(tmpdir(), 'coodra-db-'));
     dbPath = join(tmp, 'test.db');
   });
 
@@ -270,10 +270,10 @@ describe('createDb (kind discriminator — Module 03 S4)', () => {
   });
 
   it("defaults to kind: 'local' when no options are supplied", () => {
-    const previousMode = process.env.CONTEXTOS_MODE;
-    const previousPath = process.env.CONTEXTOS_SQLITE_PATH;
-    delete process.env.CONTEXTOS_MODE;
-    process.env.CONTEXTOS_SQLITE_PATH = ':memory:';
+    const previousMode = process.env.COODRA_MODE;
+    const previousPath = process.env.COODRA_SQLITE_PATH;
+    delete process.env.COODRA_MODE;
+    process.env.COODRA_SQLITE_PATH = ':memory:';
     try {
       const handle = createDb();
       try {
@@ -282,11 +282,11 @@ describe('createDb (kind discriminator — Module 03 S4)', () => {
         if (handle.kind === 'sqlite') handle.close();
       }
     } finally {
-      if (previousMode !== undefined) process.env.CONTEXTOS_MODE = previousMode;
+      if (previousMode !== undefined) process.env.COODRA_MODE = previousMode;
       if (previousPath !== undefined) {
-        process.env.CONTEXTOS_SQLITE_PATH = previousPath;
+        process.env.COODRA_SQLITE_PATH = previousPath;
       } else {
-        delete process.env.CONTEXTOS_SQLITE_PATH;
+        delete process.env.COODRA_SQLITE_PATH;
       }
     }
   });

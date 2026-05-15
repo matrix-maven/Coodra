@@ -22,7 +22,7 @@ describe('seedFeaturePack — file completeness (Phase 3 Fix C)', () => {
   let cwd: string;
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), 'contextos-feature-pack-seed-'));
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-feature-pack-seed-'));
   });
 
   afterEach(() => {

@@ -3,8 +3,8 @@ import {
   findKillSwitchMatchingEvent,
   type KillSwitchRecord,
   listActiveKillSwitches,
-} from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+} from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 
 /**
  * `apps/hooks-bridge/src/lib/kill-switch-evaluator` — short-circuit
@@ -33,7 +33,7 @@ import { createLogger } from '@coodra/contextos-shared';
  *
  * Cache TTL: 5 seconds by default — much shorter than the policy
  * client's 60s because pause/resume should feel instantaneous to
- * the operator (a 60s wait between `contextos pause` and "the
+ * the operator (a 60s wait between `coodra pause` and "the
  * agent is now denied" is a UX failure). The cache key is the
  * projectId (or a sentinel for null projects so unregistered cwds
  * still get O(1) hits).
@@ -67,7 +67,7 @@ export interface CreateKillSwitchEvaluatorDeps {
 }
 
 export interface KillSwitchEvaluationInput {
-  /** Resolved project id from `projectSlugResolver`. `null` when no `.contextos.json` is present. */
+  /** Resolved project id from `projectSlugResolver`. `null` when no `.coodra.json` is present. */
   readonly projectId: string | null;
   readonly toolName: string;
   readonly agentType: string;

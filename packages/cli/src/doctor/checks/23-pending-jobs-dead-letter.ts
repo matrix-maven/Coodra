@@ -56,7 +56,7 @@ export const pendingJobsDeadLetterCheck: Check = {
           status: 'red',
           detail: `dead-letter escalated to RED: ${reason}`,
           remediation:
-            'Inspect dead rows: `sqlite3 <contextos-home>/data.db "SELECT id, queue, attempts, last_error FROM pending_jobs WHERE status=\'dead\'"`. ' +
+            'Inspect dead rows: `sqlite3 <coodra-home>/data.db "SELECT id, queue, attempts, last_error FROM pending_jobs WHERE status=\'dead\'"`. ' +
             'Each dead row carries `last_error` from the final attempt — common causes: payload schema drift (programming bug), FK pointing at a deleted runs row. ' +
             "Manual remediation: fix the root cause, then `DELETE FROM pending_jobs WHERE status='dead'`. " +
             'A single dead row older than 1h triggers RED to flag accumulating dead-letters that were ignored.',
@@ -68,7 +68,7 @@ export const pendingJobsDeadLetterCheck: Check = {
         status: 'yellow',
         detail: `${dead} dead row(s) (oldest ${formatAge(oldestAgeSec)})`,
         remediation:
-          'Inspect with: `sqlite3 <contextos-home>/data.db "SELECT id, queue, attempts, last_error FROM pending_jobs WHERE status=\'dead\'"`. ' +
+          'Inspect with: `sqlite3 <coodra-home>/data.db "SELECT id, queue, attempts, last_error FROM pending_jobs WHERE status=\'dead\'"`. ' +
           'Each row carries `last_error` from its final attempt. ' +
           'The dead-letter check escalates to RED when count > 10 OR any row is older than 1h.',
       };

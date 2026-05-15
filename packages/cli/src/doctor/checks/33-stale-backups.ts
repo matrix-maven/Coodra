@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import type { Check } from '../types.js';
 
 /**
- * Module 08b S18 check 33 — stale `~/.contextos/backups/*.bak.*` files.
+ * Module 08b S18 check 33 — stale `~/.coodra/backups/*.bak.*` files.
  *
  * YELLOW when any backup file is older than 30 days. Reports total
  * size so the operator can decide whether to manually clean.
@@ -15,10 +15,10 @@ import type { Check } from '../types.js';
  */
 export const staleBackupsCheck: Check = {
   id: 33,
-  name: 'No stale backups under ~/.contextos/backups/ (>30d) (M08b)',
+  name: 'No stale backups under ~/.coodra/backups/ (>30d) (M08b)',
   severity: 'green-or-yellow',
   async run(ctx) {
-    const backupsDir = join(ctx.contextosHome, 'backups');
+    const backupsDir = join(ctx.coodraHome, 'backups');
     if (!existsSync(backupsDir)) {
       return { status: 'green', detail: 'no backups directory yet' };
     }

@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ContextDeps, FeaturePackStore } from '../../../src/framework/tool-context.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
@@ -13,7 +13,7 @@ import type { GetFeaturePackOutput } from '../../../src/tools/get-feature-pack/s
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__get_feature_pack` (S9).
+ * Integration test for `coodra__get_feature_pack` (S9).
  *
  * Exercises the real handler end-to-end via the `ToolRegistry` — the
  * same dispatch path the stdio transport uses — against an in-memory

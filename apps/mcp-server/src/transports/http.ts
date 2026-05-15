@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import { getRequestListener } from '@hono/node-server';
 import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -14,7 +14,7 @@ import { mapAgentType } from '../lib/agent-type.js';
 import { SOLO_IDENTITY, verifyClerkJwt, verifyLocalHookSecret } from '../lib/auth.js';
 
 /**
- * HTTP (Streamable HTTP) transport for `@coodra/contextos-mcp-server` (S16).
+ * HTTP (Streamable HTTP) transport for `@coodra/mcp-server` (S16).
  *
  * Design decisions:
  *
@@ -80,7 +80,7 @@ type AuthOutcome =
 
 async function authenticate(req: IncomingMessage, env: McpServerEnv): Promise<AuthOutcome> {
   // Layer 1: solo-bypass sentinel. Identity is fixed SOLO_IDENTITY.
-  if (env.CLERK_SECRET_KEY === 'sk_test_replace_me' || env.CONTEXTOS_MODE === 'solo') {
+  if (env.CLERK_SECRET_KEY === 'sk_test_replace_me' || env.COODRA_MODE === 'solo') {
     return { authenticated: true, source: 'solo-bypass', userId: SOLO_IDENTITY.userId };
   }
 
@@ -261,7 +261,7 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
       url,
       requestedPort: port,
       boundPort,
-      mode: env.CONTEXTOS_MODE,
+      mode: env.COODRA_MODE,
       sessionId,
       toolCount: opts.registry.size(),
     },

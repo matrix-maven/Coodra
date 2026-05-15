@@ -14,7 +14,7 @@ import { scanProjectEnvForStaleMode, stripStaleModeFromProjectEnv } from '../../
  *      no-op; subsequent reads see the file unchanged.
  *   2. Preserving surrounding state: comments, blank lines, unrelated
  *      env keys (MCP_SERVER_PORT etc.) survive the strip. Only the
- *      target CONTEXTOS_MODE line(s) go.
+ *      target COODRA_MODE line(s) go.
  *   3. The "no file" + "file without the key" baselines: scan reports
  *      `staleModeValue=null` for both, and strip is a no-op.
  */
@@ -34,15 +34,15 @@ describe('scanProjectEnvForStaleMode', () => {
     expect(result.envPath).toBe(join(cwd, '.env'));
   });
 
-  it('returns staleModeValue=null when .env exists but has no CONTEXTOS_MODE line', () => {
+  it('returns staleModeValue=null when .env exists but has no COODRA_MODE line', () => {
     writeFileSync(join(cwd, '.env'), 'MCP_SERVER_PORT=3100\nHOOKS_BRIDGE_PORT=3101\n', 'utf8');
     const result = scanProjectEnvForStaleMode(cwd);
     expect(result.exists).toBe(true);
     expect(result.staleModeValue).toBeNull();
   });
 
-  it('returns the stale CONTEXTOS_MODE value when present', () => {
-    writeFileSync(join(cwd, '.env'), 'CONTEXTOS_MODE=solo\nMCP_SERVER_PORT=3100\n', 'utf8');
+  it('returns the stale COODRA_MODE value when present', () => {
+    writeFileSync(join(cwd, '.env'), 'COODRA_MODE=solo\nMCP_SERVER_PORT=3100\n', 'utf8');
     const result = scanProjectEnvForStaleMode(cwd);
     expect(result.exists).toBe(true);
     expect(result.staleModeValue).toBe('solo');
@@ -50,21 +50,21 @@ describe('scanProjectEnvForStaleMode', () => {
 });
 
 describe('stripStaleModeFromProjectEnv', () => {
-  it('strips a single CONTEXTOS_MODE line and preserves the rest of the file', () => {
+  it('strips a single COODRA_MODE line and preserves the rest of the file', () => {
     const envPath = join(cwd, '.env');
     writeFileSync(
       envPath,
-      '# project-local overrides\nMCP_SERVER_PORT=3100\nCONTEXTOS_MODE=solo\nHOOKS_BRIDGE_PORT=3101\n',
+      '# project-local overrides\nMCP_SERVER_PORT=3100\nCOODRA_MODE=solo\nHOOKS_BRIDGE_PORT=3101\n',
       'utf8',
     );
     const result = stripStaleModeFromProjectEnv(envPath);
     expect(result.stripped).toBe(true);
-    expect(result.removedLines).toEqual(['CONTEXTOS_MODE=solo']);
+    expect(result.removedLines).toEqual(['COODRA_MODE=solo']);
     const after = readFileSync(envPath, 'utf8');
     expect(after).toContain('# project-local overrides');
     expect(after).toContain('MCP_SERVER_PORT=3100');
     expect(after).toContain('HOOKS_BRIDGE_PORT=3101');
-    expect(after).not.toContain('CONTEXTOS_MODE');
+    expect(after).not.toContain('COODRA_MODE');
   });
 
   it('is idempotent — running on an already-clean file is a no-op', () => {
@@ -76,7 +76,7 @@ describe('stripStaleModeFromProjectEnv', () => {
     expect(first.removedLines).toEqual([]);
     expect(readFileSync(envPath, 'utf8')).toBe(initial);
     // Re-running after a successful strip is also a no-op.
-    writeFileSync(envPath, 'CONTEXTOS_MODE=team\nFOO=bar\n', 'utf8');
+    writeFileSync(envPath, 'COODRA_MODE=team\nFOO=bar\n', 'utf8');
     expect(stripStaleModeFromProjectEnv(envPath).stripped).toBe(true);
     const cleanBody = readFileSync(envPath, 'utf8');
     const reRun = stripStaleModeFromProjectEnv(envPath);
@@ -85,22 +85,22 @@ describe('stripStaleModeFromProjectEnv', () => {
     expect(readFileSync(envPath, 'utf8')).toBe(cleanBody);
   });
 
-  it('handles multiple CONTEXTOS_MODE occurrences and collapses left-behind blank lines', () => {
+  it('handles multiple COODRA_MODE occurrences and collapses left-behind blank lines', () => {
     const envPath = join(cwd, '.env');
     writeFileSync(
       envPath,
-      'CONTEXTOS_MODE=solo\n\nMCP_SERVER_PORT=3100\n\nCONTEXTOS_MODE=team\nHOOKS_BRIDGE_PORT=3101\n',
+      'COODRA_MODE=solo\n\nMCP_SERVER_PORT=3100\n\nCOODRA_MODE=team\nHOOKS_BRIDGE_PORT=3101\n',
       'utf8',
     );
     const result = stripStaleModeFromProjectEnv(envPath);
     expect(result.stripped).toBe(true);
-    expect(result.removedLines).toEqual(['CONTEXTOS_MODE=solo', 'CONTEXTOS_MODE=team']);
+    expect(result.removedLines).toEqual(['COODRA_MODE=solo', 'COODRA_MODE=team']);
     const after = readFileSync(envPath, 'utf8');
     // No double-blank lines from the gaps left behind by the strip.
     expect(after).not.toMatch(/\n\n\n/);
     // The remaining keys survive.
     expect(after).toContain('MCP_SERVER_PORT=3100');
     expect(after).toContain('HOOKS_BRIDGE_PORT=3101');
-    expect(after).not.toContain('CONTEXTOS_MODE');
+    expect(after).not.toContain('COODRA_MODE');
   });
 });

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { postgresSchema, sqliteSchema } from '@coodra/db';
 import { desc, eq, sql } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';

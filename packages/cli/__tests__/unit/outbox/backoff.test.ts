@@ -13,7 +13,7 @@ import {
  * doctor dead-letter check (S4) thresholds and the Module 03.1
  * spec.
  */
-describe('@coodra/contextos-cli outbox/backoff', () => {
+describe('@coodra/cli outbox/backoff', () => {
   it('encodes the 1s/5s/30s/5min/30min schedule and 6 max attempts', () => {
     expect(RETRY_DELAYS_MS).toEqual([1_000, 5_000, 30_000, 5 * 60_000, 30 * 60_000]);
     expect(MAX_ATTEMPTS_DEFAULT).toBe(6);

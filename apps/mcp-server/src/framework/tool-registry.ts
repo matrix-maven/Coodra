@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { createLogger, runKeySegmentSchema } from '@coodra/contextos-shared';
+import { createLogger, runKeySegmentSchema } from '@coodra/shared';
 import type { z } from 'zod';
 
 import {
@@ -453,7 +453,7 @@ export class ToolRegistry {
 
     // 2026-05-08: write a `run_events` row for every successful MCP tool
     // call. Closes the visibility gap where the agent's
-    // `contextos__record_decision` / `save_context_pack` / etc. were
+    // `coodra__record_decision` / `save_context_pack` / etc. were
     // invisible in the run timeline (only Bash/Edit/Write showed up via
     // the bridge's PostToolUse hook).
     //
@@ -474,7 +474,7 @@ export class ToolRegistry {
       void this.deps.runRecorder
         .record({
           runId: inputRunId,
-          toolName: `contextos__${name}`,
+          toolName: `coodra__${name}`,
           phase: 'mcp_call',
           sessionId,
           idempotencyKey,

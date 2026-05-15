@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, type DbHandle, ensureProject, migrateSqlite, SOLO_ORG_ID, sqliteSchema } from '../../src/index.js';
 
 /**
- * Locks integration finding 2026-04-27 (post-08a walk): `contextos init`
+ * Locks integration finding 2026-04-27 (post-08a walk): `coodra init`
  * must seed a real `projects` row for the user's slug, not just the
  * `__global__` sentinel. Without this row the bridge would fall back to
  * `__global__` for every audit and per-project filtering silently
@@ -31,7 +31,7 @@ afterAll(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('@coodra/contextos-db::ensureProject', () => {
+describe('@coodra/db::ensureProject', () => {
   it('inserts a row on a fresh slug and returns created:true', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const result = await ensureProject(handle, { slug: 'fresh-slug' });

@@ -38,7 +38,7 @@ export const staleRunsCheck: Check = {
       if (code === 'ENOENT' || code === 'SQLITE_CANTOPEN') {
         return {
           status: 'yellow',
-          detail: `${ctx.dataDb} not found — run \`contextos init\` first.`,
+          detail: `${ctx.dataDb} not found — run \`coodra init\` first.`,
         };
       }
       return { status: 'yellow', detail: `cannot open ${ctx.dataDb}: ${(err as Error).message}` };
@@ -60,7 +60,7 @@ export const staleRunsCheck: Check = {
         return {
           status: 'yellow',
           detail: `cannot read runs table: ${(err as Error).message}`,
-          remediation: 'Run `contextos init` to apply migrations and seed the schema.',
+          remediation: 'Run `coodra init` to apply migrations and seed the schema.',
         };
       }
       if (count === 0) {

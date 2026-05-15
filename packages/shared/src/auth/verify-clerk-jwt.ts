@@ -6,7 +6,7 @@ import { parseClerkRole, type Role } from './roles.js';
 import type { AuthEnv } from './types.js';
 
 /**
- * `@coodra/contextos-shared/auth/verify-clerk-jwt` — Phase G foundation.
+ * `@coodra/shared/auth/verify-clerk-jwt` — Phase G foundation.
  *
  * Wraps `@clerk/backend::verifyToken` with three pieces of glue every
  * Phase G consumer (CLI, MCP child, hooks-bridge, sync-daemon) needs:

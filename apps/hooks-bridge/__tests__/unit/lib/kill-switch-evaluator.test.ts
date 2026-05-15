@@ -1,4 +1,4 @@
-import { createDb, type DbHandle, insertKillSwitch, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, type DbHandle, insertKillSwitch, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { createKillSwitchEvaluator } from '../../../src/lib/kill-switch-evaluator.js';

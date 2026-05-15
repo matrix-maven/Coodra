@@ -2,10 +2,10 @@ import { execa } from 'execa';
 
 /**
  * `packages/cli/src/lib/npm-view` — thin wrapper around
- * `npm view @coodra/contextos-cli version --json`.
+ * `npm view @coodra/cli version --json`.
  *
  * One outbound HTTPS GET to registry.npmjs.org per call. Used by
- * `contextos upgrade` (M08b S7) to compare the installed version
+ * `coodra upgrade` (M08b S7) to compare the installed version
  * against the latest published version.
  *
  * `--json` ensures stdout is a parseable string regardless of the
@@ -19,7 +19,7 @@ import { execa } from 'execa';
  */
 
 export interface NpmViewOptions {
-  /** npm package name. Defaults to `@coodra/contextos-cli`. */
+  /** npm package name. Defaults to `@coodra/cli`. */
   readonly packageName?: string;
   /** Override the npm binary for tests. */
   readonly npmBin?: string;
@@ -43,7 +43,7 @@ export class NpmViewError extends Error {
 }
 
 export async function npmViewVersion(options: NpmViewOptions = {}): Promise<string> {
-  const packageName = options.packageName ?? '@coodra/contextos-cli';
+  const packageName = options.packageName ?? '@coodra/cli';
   const npmBin = options.npmBin ?? 'npm';
   const timeout = options.timeoutMs ?? 5_000;
 

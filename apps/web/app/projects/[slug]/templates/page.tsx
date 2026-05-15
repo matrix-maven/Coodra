@@ -57,7 +57,7 @@ export default async function TemplatesPage({
         subtitle={
           <>
             Templates ship with policy seeds, hook scripts, and a starter feature pack. Pick one — the CLI does the
-            rest. Or run <span className="font-mono text-accent">contextos template install &lt;path&gt;</span> against{' '}
+            rest. Or run <span className="font-mono text-accent">coodra template install &lt;path&gt;</span> against{' '}
             <span className="font-mono text-accent">{project.slug}</span>.
           </>
         }

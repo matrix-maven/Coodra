@@ -11,13 +11,13 @@ export const dynamic = 'force-dynamic';
 /**
  * `/onboarding/team/join` — connect this machine to an *existing* team.
  *
- * The web flow that mirrors `contextos team join`. Used in three
+ * The web flow that mirrors `coodra team join`. Used in three
  * scenarios:
  *
  *   1. Admin sets up the team on Machine A; later opens the web app
  *      on Machine B (new laptop, restored backup) and needs to bring
  *      that machine into the same team. They paste their credential
- *      bundle and the page writes ~/.contextos/config.json + .env.
+ *      bundle and the page writes ~/.coodra/config.json + .env.
  *
  *   2. New member receives the credential bundle from the admin via
  *      a secrets manager and uses this page (or the equivalent CLI
@@ -47,15 +47,15 @@ export default async function TeamJoinPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  // The page writes ~/.contextos/config.json + .env on the local
-  // laptop. On a deployed server there's no ~/.contextos. Hide.
+  // The page writes ~/.coodra/config.json + .env on the local
+  // laptop. On a deployed server there's no ~/.coodra. Hide.
   if (resolveDeploymentMode() === 'team-hosted') notFound();
   const sp = await searchParams;
   const alreadyTeam = resolveEffectiveMode() === 'team';
 
   return (
     <>
-      <Topbar crumb="Connect to existing team" crumbPrefix="contextos / onboarding" />
+      <Topbar crumb="Connect to existing team" crumbPrefix="coodra / onboarding" />
       <section className="screen">
         <div className="head">
           <div>
@@ -161,8 +161,8 @@ export default async function TeamJoinPage({
               required
             />
             <FieldHint>
-              The 32-byte hex string the admin generated at <code style={inlineMono}>contextos team setup</code> time.
-              Same value as in their <code style={inlineMono}>~/.contextos/.env</code> under{' '}
+              The 32-byte hex string the admin generated at <code style={inlineMono}>coodra team setup</code> time.
+              Same value as in their <code style={inlineMono}>~/.coodra/.env</code> under{' '}
               <code style={inlineMono}>LOCAL_HOOK_SECRET</code>. <strong>This is a sensitive secret.</strong>
             </FieldHint>
 
@@ -179,13 +179,13 @@ export default async function TeamJoinPage({
           <SidePanel
             title={<>What this <em>does</em></>}
             rows={[
-              { k: '1 · validates Postgres', v: 'SELECT 1 + counts the 12 ContextOS tables. Catches typos before they corrupt your local config.' },
-              { k: '2 · writes config.json', v: '~/.contextos/config.json::team — the file every contextos CLI command consults.' },
-              { k: '3 · writes .env', v: '~/.contextos/.env — CONTEXTOS_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET, CONTEXTOS_TEAM_ORG_ID.' },
+              { k: '1 · validates Postgres', v: 'SELECT 1 + counts the 12 Coodra tables. Catches typos before they corrupt your local config.' },
+              { k: '2 · writes config.json', v: '~/.coodra/config.json::team — the file every coodra CLI command consults.' },
+              { k: '3 · writes .env', v: '~/.coodra/.env — COODRA_MODE=team, DATABASE_URL, LOCAL_HOOK_SECRET, COODRA_TEAM_ORG_ID.' },
               { k: '4 · redirects', v: 'You land on the team-mode dashboard. Sidebar flips to green "● Team workspace".' },
               {
                 k: 'note · Clerk keys',
-                v: 'After this, manually append NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY + CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY to ~/.contextos/.env. The admin shares those too — they\'re the same for every teammate.',
+                v: 'After this, manually append NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY + CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY to ~/.coodra/.env. The admin shares those too — they\'re the same for every teammate.',
               },
             ]}
           />
@@ -234,7 +234,7 @@ export default async function TeamJoinPage({
               overflowX: 'auto',
             }}
           >
-{`contextos team join \\
+{`coodra team join \\
   --user-id user_yours \\
   --org-id org_team \\
   --secret <64-char-hex> \\
@@ -262,7 +262,7 @@ function explainError(sp: SearchParams): string {
     return `Connection failed: ${msg}. Verify the URL is exactly what your admin shared.`;
   if (err === 'schema_probe_failed') return `Connected, but schema query failed — ${msg}.`;
   if (err === 'schema_missing')
-    return `Connected, but ${sp.joinMissing ?? 'some'} required ContextOS tables are missing. This usually means the admin hasn't run \`contextos team setup\` against this Postgres yet, or you pasted the wrong DATABASE_URL.`;
+    return `Connected, but ${sp.joinMissing ?? 'some'} required Coodra tables are missing. This usually means the admin hasn't run \`coodra team setup\` against this Postgres yet, or you pasted the wrong DATABASE_URL.`;
   if (err === 'write_failed') return `Could not write local config: ${msg}.`;
   return msg.length > 0 ? msg : 'Unknown error.';
 }

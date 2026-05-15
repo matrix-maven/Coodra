@@ -51,7 +51,7 @@ export interface InsertRunRow {
   /**
    * Module 04 Phase 4 — Clerk user id of the human owning the session.
    * NULL on solo mode + pre-Phase-4 rows. Stamped by the bridge from
-   * `~/.contextos/config.json::team.clerkUserId` at SessionStart.
+   * `~/.coodra/config.json::team.clerkUserId` at SessionStart.
    */
   readonly createdByUserId?: string | null;
 }

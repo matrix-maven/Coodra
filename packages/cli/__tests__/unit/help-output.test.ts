@@ -7,29 +7,29 @@ import { VERSION } from '../../src/version.js';
  * contract — reviewers see exactly what changes here in PRs. If a slice
  * intentionally changes the surface, update the snapshot in the same commit.
  */
-describe('contextos --help (snapshot-locked surface)', () => {
+describe('coodra --help (snapshot-locked surface)', () => {
   it('renders the top-level program help text', () => {
     const program = buildProgram();
     const help = program.helpInformation();
     expect(help).toMatchInlineSnapshot(`
-      "Usage: contextos [options] [command]
+      "Usage: coodra [options] [command]
 
-      ContextOS CLI — install, configure, run, and diagnose ContextOS on your machine.
+      Coodra CLI — install, configure, run, and diagnose Coodra on your machine.
 
       Options:
-        -v, --version             Print the @coodra/contextos-cli version and exit.
+        -v, --version             Print the @coodra/cli version and exit.
         -h, --help                Show help for a command.
 
       Commands:
-        init [options]            Initialise ContextOS in the current project (writes
-                                  ~/.contextos/, .mcp.json, .contextos.json, .env).
+        init [options]            Initialise Coodra in the current project (writes
+                                  ~/.coodra/, .mcp.json, .coodra.json, .env).
         start [options]           Start MCP Server + Hooks Bridge + Web Dashboard (+
                                   Sync Daemon in team mode) as background daemons.
-        stop [options]            Stop ContextOS daemons. Idempotent.
+        stop [options]            Stop Coodra daemons. Idempotent.
         status [options]          Print unified project + service state for the
                                   current cwd.
         login [options]           Browser-handoff Clerk login. Writes
-                                  ~/.contextos/clerk-token.json and switches mode to
+                                  ~/.coodra/clerk-token.json and switches mode to
                                   team.
         org                       Multi-org user commands. Status + switch the active
                                   Clerk org bound to this laptop.
@@ -63,28 +63,27 @@ describe('contextos --help (snapshot-locked surface)', () => {
         feature                   Manage docs/features/<slug>/ — skill-style knowledge
                                   units the agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
-        uninstall [options]       Reverse \`contextos init\`: remove \`__contextos__\`
-                                  matchers from ~/.claude/settings.json + \`contextos\`
-                                  server from .mcp.json. Default-safe (preserves data
-                                  + config + feature/context packs); --purge removes
-                                  ~/.contextos/.
-        upgrade [options]         Check for a newer @coodra/contextos-cli on npm. Does
-                                  NOT self-update — prints the install command. After
+        uninstall [options]       Reverse \`coodra init\`: remove \`__coodra__\` matchers
+                                  from ~/.claude/settings.json + \`coodra\` server from
+                                  .mcp.json. Default-safe (preserves data + config +
+                                  feature/context packs); --purge removes ~/.coodra/.
+        upgrade [options]         Check for a newer @coodra/cli on npm. Does NOT
+                                  self-update — prints the install command. After
                                   install, re-run to apply migrations + restart
                                   daemons.
         logs [options] <service>  Tail or print recent lines from
-                                  ~/.contextos/logs/<service>.log. Pure file-read; no
-                                  DB. Service ∈ {mcp-server, hooks-bridge,
-                                  sync-daemon, web}.
-        pause [options]           Pause ContextOS enforcement on the local machine via
-                                  a row in \`kill_switches\`. Hard mode (default)
-                                  denies; soft mode allows + audits. Local-only (M08b
-                                  OQ-8); cross-developer sync is M04.
+                                  ~/.coodra/logs/<service>.log. Pure file-read; no DB.
+                                  Service ∈ {mcp-server, hooks-bridge, sync-daemon,
+                                  web}.
+        pause [options]           Pause Coodra enforcement on the local machine via a
+                                  row in \`kill_switches\`. Hard mode (default) denies;
+                                  soft mode allows + audits. Local-only (M08b OQ-8);
+                                  cross-developer sync is M04.
         resume [options]          Resume one or more active kill switches. Use --id,
                                   --all, or --scope[/--target].
         team                      Team-mode commands. Bodies land when team mode is
                                   reachable end-to-end (post-Module 04).
-        ui                        Launch the interactive ContextOS terminal UI (tabs:
+        ui                        Launch the interactive Coodra terminal UI (tabs:
                                   terminal · commands · status).
         help [command]            display help for command
       "
@@ -122,9 +121,9 @@ describe('contextos --help (snapshot-locked surface)', () => {
     const help = login?.helpInformation() ?? '';
     expect(help).toContain('[token]');
     expect(help).toContain('--server <url>');
-    // Phase G — `team login` is now an alias for `contextos login`. The
+    // Phase G — `team login` is now an alias for `coodra login`. The
     // help text marks the legacy args as deprecated.
-    expect(help).toMatch(/alias for `contextos login`/);
+    expect(help).toMatch(/alias for `coodra login`/);
     expect(help).toMatch(/deprecated/);
   });
 
@@ -140,7 +139,7 @@ describe('contextos --help (snapshot-locked surface)', () => {
   });
 });
 
-describe('contextos --version', () => {
+describe('coodra --version', () => {
   it('returns the VERSION constant (sourced from package.json via prebuild)', () => {
     const program = buildProgram();
     expect(program.version()).toBe(VERSION);

@@ -31,7 +31,7 @@ You always know which mode you're in because the web UI looks different.
 
 | | **Solo workspace** | **Team workspace** |
 |---|---|---|
-| Sidebar header | grey "Solo workspace" / "This machine" / `~/.contextos/data.db · click to upgrade` | accent-green "● Team workspace" / your org slug / `syncing every 10 s · click for members` |
+| Sidebar header | grey "Solo workspace" / "This machine" / `~/.coodra/data.db · click to upgrade` | accent-green "● Team workspace" / your org slug / `syncing every 10 s · click for members` |
 | Dashboard eyebrow | `/00 · SOLO WORKSPACE` | `/00 · TEAM WORKSPACE · YOUR-ORG` |
 | Dashboard headline | "Your **local** context." | "Your **team's** context." |
 | Dashboard lede | "Recorded on this machine. Local-first SQLite, no cloud, no sign-in." | "From every member of your org — mirrored to your Postgres, attributed to who wrote it, queryable by every teammate's next agent session." |
@@ -39,9 +39,9 @@ You always know which mode you're in because the web UI looks different.
 | `/settings/team` | **404** (intentional — no team to manage) | full org info + member list |
 | Sync queue link | hidden (no outbox to drain) | visible (it's the sync heartbeat) |
 | Mode-switch link | "Switch to team" CTA in sidebar Upgrade group | "Mode picker" link in System group |
-| Storage | `~/.contextos/data.db` (SQLite, primary) | local SQLite primary + your Supabase Postgres (mirror) |
+| Storage | `~/.coodra/data.db` (SQLite, primary) | local SQLite primary + your Supabase Postgres (mirror) |
 | Sign-in | none | Clerk JWT (your project) |
-| Cost to ContextOS | $0 | $0 |
+| Cost to Coodra | $0 | $0 |
 | Cost to you | $0 | whatever Supabase + Clerk charge for the resources you use |
 
 The bridge, MCP server, and sync daemon ship with both modes. **Only the
@@ -78,7 +78,7 @@ you create) → viewer. Anything else (Clerk default `org:basic_member`)
 │   Admin's machine        │     │   Member's machine        │
 │  ┌──────────────────┐    │     │  ┌──────────────────┐     │
 │  │  Local SQLite    │ ←┐ │     │  │  Local SQLite    │ ←┐  │
-│  │  ~/.contextos/   │  │ │     │  │  ~/.contextos/   │  │  │
+│  │  ~/.coodra/   │  │ │     │  │  ~/.coodra/   │  │  │
 │  │  data.db         │  │ │     │  │  data.db         │  │  │
 │  └─────┬────────────┘  │ │     │  └─────┬────────────┘  │  │
 │        │ writes        │ │     │        │ writes        │  │
@@ -129,9 +129,9 @@ feature is a directory under `<repo>/docs/features/<slug>/` containing:
 
 The pattern is **directly modeled on Anthropic skills**. Agents read a cheap
 INDEX (slug + name + description, ~ a few hundred bytes per feature) at
-SessionStart, then call `contextos__get_feature(slug)` to load one
+SessionStart, then call `coodra__get_feature(slug)` to load one
 feature's full body when a relevant prompt arrives. They call
-`contextos__get_feature_file(slug, path)` for supporting files on demand.
+`coodra__get_feature_file(slug, path)` for supporting files on demand.
 The agent never has to read every byte the team has written; it loads what
 it needs, when it needs it.
 
@@ -157,7 +157,7 @@ The frontmatter `description` field is **load-bearing**:
 name: stripe-payments
 description: |
   Use this when implementing Stripe checkout, webhooks, customer subscriptions,
-  payment-method management, or refund flows. Covers the contextos-stripe wrapper
+  payment-method management, or refund flows. Covers the coodra-stripe wrapper
   that lives in apps/payments/lib/stripe/.
 whenNotToUse: |
   Don't use for non-Stripe payment paths (PayPal lives under `paypal-payments`).
@@ -179,7 +179,7 @@ team grow to hundreds of features without bloat.
 |---|---|---|
 | **Web `/packs/new`** (becomes `/features/new` after the rename) | Form-based authoring with frontmatter validation, body editor, supporting-file uploads. Saves to `docs/features/<slug>/` on disk + enqueues sync | admin (canonical) / member (own) |
 | **Web `/packs/<slug>`** (will become `/features/<slug>`) | Edit existing feature, regenerate frontmatter, attach supporting files | same |
-| **CLI `contextos feature add <slug>`** | Scaffold a new feature directory + boilerplate `feature.md` from the terminal | same |
+| **CLI `coodra feature add <slug>`** | Scaffold a new feature directory + boilerplate `feature.md` from the terminal | same |
 | **Direct edit** | Open the feature directory in your editor, edit any `.md`. The bridge regenerates the INDEX on its stale-mtime check | same |
 
 ### How features get distributed (the honest gap)
@@ -190,7 +190,7 @@ content travels via **git** — your team's repo. Members run `git pull`,
 the new feature dir lands on disk, the bridge picks it up next time it
 regenerates the INDEX.
 
-**Why it works:** every team using ContextOS already has a git repo for
+**Why it works:** every team using Coodra already has a git repo for
 their code. Putting features under version control next to the code is
 the right place for them — they describe the code.
 
@@ -205,7 +205,7 @@ puller pulls files lazily on first access via the `get_feature` /
 
 ### What `init` writes today (and the legacy 3-file scaffold)
 
-`contextos init` still scaffolds the old-style 3-file pack
+`coodra init` still scaffolds the old-style 3-file pack
 (`docs/feature-packs/<project-slug>/{spec,implementation,techstack}.md`).
 That's a vestige of M01 before the skill-style features layer landed. The
 `feature_packs` cloud table covers both — it tracks any directory under
@@ -267,7 +267,7 @@ teammate opens the URL
   → server provisions: row in `team_invites` (jti, orgId, role,
     used_at = now), row in Clerk org membership
   → server hands the teammate a one-shot bootstrap script:
-      contextos team join \
+      coodra team join \
         --invite-token <single-use-bootstrap> \
         --user-id <teammate's clerk user_id, derived>
   → teammate runs the script; CLI does the secret-exchange against
@@ -324,23 +324,23 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 | 2 | **Web `/onboarding/team` Step 1** | Read instructions, create your Supabase project, copy the Session-pooler URL (port 5432, NOT 6543) |
 | 3 | **Web `/onboarding/team` Step 2** | Paste URL → page runs `SELECT 1` + 12-table schema probe. On a fresh project, schema is missing — that's expected |
 | 4 | **Web `/onboarding/team` Step 3** | Read instructions, create Clerk app, enable Organizations, create your org. Note your `user_id`, `org_id`, publishable key, secret key |
-| 5 | **CLI** | Run `contextos team setup --database-url ... --user-id ... --org-id ...`. CLI applies all 13 migrations, generates hook secret, writes `~/.contextos/config.json` + `.env` |
-| 6 | **CLI** | Append the three Clerk env lines to `~/.contextos/.env` (publishable [×2 with NEXT_PUBLIC_ prefix and unprefixed], secret) |
+| 5 | **CLI** | Run `coodra team setup --database-url ... --user-id ... --org-id ...`. CLI applies all 13 migrations, generates hook secret, writes `~/.coodra/config.json` + `.env` |
+| 6 | **CLI** | Append the three Clerk env lines to `~/.coodra/.env` (publishable [×2 with NEXT_PUBLIC_ prefix and unprefixed], secret) |
 | 7 | **Web `/onboarding/team` Step 5** | Wizard shows the credential block to share. Copy to 1Password / Bitwarden |
 
 ### Day 0 · First project setup (one-time per repo)
 
 | # | Where | Action |
 |---|---|---|
-| 8 | **CLI** in your repo | `contextos init --project-slug my-app --ide claude`. Registers project locally, scaffolds an empty feature-pack dir, wires Claude Code hooks |
-| 9 | **CLI** | `contextos start`. Spawns MCP :3100 + Hooks Bridge :3101 + Sync Daemon |
+| 8 | **CLI** in your repo | `coodra init --project-slug my-app --ide claude`. Registers project locally, scaffolds an empty feature-pack dir, wires Claude Code hooks |
+| 9 | **CLI** | `coodra start`. Spawns MCP :3100 + Hooks Bridge :3101 + Sync Daemon |
 | 10 | **Web** any URL | Confirm the sidebar shows green "● Team workspace" + your org slug; dashboard eyebrow says "TEAM WORKSPACE" |
 
 ### Day 0 · Author the first feature
 
 | # | Where | Action |
 |---|---|---|
-| 11 | **Web `/packs/new`** (or CLI `contextos feature add`) | Pick a template or start blank. Set `slug`, `description` (the trigger blurb agents see at session start), `whenNotToUse`, `maturity`, `owners`, `tags`. Draft the body |
+| 11 | **Web `/packs/new`** (or CLI `coodra feature add`) | Pick a template or start blank. Set `slug`, `description` (the trigger blurb agents see at session start), `whenNotToUse`, `maturity`, `owners`, `tags`. Draft the body |
 | 12 | **Web `/packs/[slug]`** | Hit Save → server action writes `feature.md` to `docs/features/<slug>/` + writes the `feature_packs` row + enqueues sync_to_cloud |
 | 13 | (Behind the scenes) | Sync daemon pushes the metadata row to cloud within ~1s. Every teammate's puller pulls metadata within 10s. **Important: today the teammate still needs `git pull` to get the actual file body — see §4 for the gap and fix** |
 
@@ -355,15 +355,15 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 
 | # | Where | Action |
 |---|---|---|
-| 16 | **Web `/settings/team`** → *Add another teammate* panel | The pre-formatted `contextos team join` snippet shows your org_id baked in |
+| 16 | **Web `/settings/team`** → *Add another teammate* panel | The pre-formatted `coodra team join` snippet shows your org_id baked in |
 | 17 | Out-of-band (1Password / signed channel) | Send teammate (DB URL, hook secret, both Clerk keys). **Hook secret is shown only at `team setup` time** — see §5 for redesign |
-| 18 | (Wait) | Teammate runs `contextos team join`, `init`, `start`. Within 10 s of their first SessionStart you'll see their `created_by_user_id` show up under `/settings/team` → *Members observed locally* |
+| 18 | (Wait) | Teammate runs `coodra team join`, `init`, `start`. Within 10 s of their first SessionStart you'll see their `created_by_user_id` show up under `/settings/team` → *Members observed locally* |
 
 ### Day 1+ · Daily product development
 
 | Activity | Where | What you actually do |
 |---|---|---|
-| Open the IDE | (no contextos UI) | Open Claude Code in your repo. Bridge auto-fires SessionStart, agent gets feature INDEX + recent decisions injected |
+| Open the IDE | (no coodra UI) | Open Claude Code in your repo. Bridge auto-fires SessionStart, agent gets feature INDEX + recent decisions injected |
 | Make architectural choices | Agent calls `record_decision` | You see them appear on `/decisions` within ~10s |
 | Pair with teammate | **Web `/decisions`** | Read what they decided, see "Decided by Alice" badges. Filter by project. Search before contradicting |
 | Audit a denied write | **Web `/runs/[id]`** | Open the run, scroll events, find the deny verdict. Adjust policy if false positive |
@@ -374,9 +374,9 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 
 | What | Where | Why |
 |---|---|---|
-| Rotate the hook secret | **CLI** `contextos team setup --database-url <same>` | If you suspect leak. Re-run setup with same URL → new secret. Teammates rerun `team join` with new secret to re-sync |
+| Rotate the hook secret | **CLI** `coodra team setup --database-url <same>` | If you suspect leak. Re-run setup with same URL → new secret. Teammates rerun `team join` with new secret to re-sync |
 | Remove a teammate | Clerk dashboard (out of band) | Remove from your Clerk org; their next sign-in fails. Their LOCAL SQLite still has data — that's their machine |
-| Rebuild the cloud schema | **CLI** `contextos team setup --database-url <new-url>` | Migrate to a different Postgres |
+| Rebuild the cloud schema | **CLI** `coodra team setup --database-url <new-url>` | Migrate to a different Postgres |
 
 ---
 
@@ -390,10 +390,10 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 |---|---|---|
 | 1 | (Out of band) | Receive (DB URL, hook secret, Clerk keys) from your admin |
 | 2 | (Out of band) | Sign in to Clerk; admin invites you to their Clerk org |
-| 3 | **CLI** | `contextos team join --user-id user_YOURS --org-id org_THEIRS --secret ... --database-url ...`. Writes `~/.contextos/config.json` + `.env` |
-| 4 | **CLI** | Append the same three Clerk env lines to `~/.contextos/.env` |
-| 5 | **CLI** in your repo | `contextos init --project-slug ... --ide claude` |
-| 6 | **CLI** | `contextos start`. Sync daemon's first puller tick (~2 s) pulls everything the team has decided so far into your local SQLite |
+| 3 | **CLI** | `coodra team join --user-id user_YOURS --org-id org_THEIRS --secret ... --database-url ...`. Writes `~/.coodra/config.json` + `.env` |
+| 4 | **CLI** | Append the same three Clerk env lines to `~/.coodra/.env` |
+| 5 | **CLI** in your repo | `coodra init --project-slug ... --ide claude` |
+| 6 | **CLI** | `coodra start`. Sync daemon's first puller tick (~2 s) pulls everything the team has decided so far into your local SQLite |
 
 ### Day 0 · Onboard yourself by reading
 
@@ -408,9 +408,9 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 
 | Activity | Where | What you actually do |
 |---|---|---|
-| Open the IDE | (no contextos UI) | Same as admin — Claude Code in your repo, bridge fires SessionStart |
+| Open the IDE | (no coodra UI) | Same as admin — Claude Code in your repo, bridge fires SessionStart |
 | Agent reads context | Automatic | Bridge injects feature INDEX + recent decisions (last 7 days, this project) into agent's first turn |
-| Agent loads a feature on demand | Automatic | When agent's planner decides, it calls `contextos__get_feature(slug)`; bridge returns feature.md body |
+| Agent loads a feature on demand | Automatic | When agent's planner decides, it calls `coodra__get_feature(slug)`; bridge returns feature.md body |
 | Make architectural choices | Agent calls `record_decision` | Stamped with **your** Clerk user_id. Visible to teammates within ~10s |
 | End of session | Agent calls `save_context_pack` | A narrative recap. Visible on `/context-packs` with your "Authored by" badge |
 | Pause your own session | **Web `/kill-switches`** | Toggle for your project + agent_type. Bridge refuses PreToolUse until you resume |
@@ -446,7 +446,7 @@ actions still need RBAC guards added — see §11.)*
 
 ---
 
-## 9. Where each ContextOS feature is accessed
+## 9. Where each Coodra feature is accessed
 
 This is the master cheat-sheet. Search this section when stuck on
 "where do I do X?"
@@ -454,19 +454,19 @@ This is the master cheat-sheet. Search this section when stuck on
 ### Project lifecycle
 | Action | Web | CLI |
 |---|---|---|
-| Create a project | `/init` | `contextos init` |
-| List projects | `/projects` | `contextos project list` |
+| Create a project | `/init` | `coodra init` |
+| List projects | `/projects` | `coodra project list` |
 | One project's overview | `/projects/[slug]` | — |
-| Rename / reset / delete a project | `/projects/[slug]` | `contextos project rename/reset/delete` |
+| Rename / reset / delete a project | `/projects/[slug]` | `coodra project rename/reset/delete` |
 | Switch which project you're in | Sidebar → project pill | (cd into that repo) |
 
 ### Features (the skill library)
 | Action | Web | CLI |
 |---|---|---|
-| Browse all features | `/packs` (will become `/features`) | `contextos feature list` |
+| Browse all features | `/packs` (will become `/features`) | `coodra feature list` |
 | Read one feature | `/packs/[slug]` | `cat docs/features/<slug>/feature.md` |
-| Author from template | `/packs/new` | `contextos feature add <slug>` |
-| Edit / save | `/packs/[slug]` (edit form) | edit files + `contextos feature index` |
+| Author from template | `/packs/new` | `coodra feature add <slug>` |
+| Edit / save | `/packs/[slug]` (edit form) | edit files + `coodra feature index` |
 | Pull team's features to your machine | (today: `git pull`) | (today: `git pull`) |
 | Agent's lazy load | (auto on session start: INDEX) | — |
 | Agent's full load | (auto on demand: `get_feature` MCP tool) | — |
@@ -492,52 +492,52 @@ This is the master cheat-sheet. Search this section when stuck on
 |---|---|---|
 | Browse all runs | `/runs` | — |
 | Single run drill-down | `/runs/[id]` | — |
-| Cancel stuck `in_progress` runs | Dashboard *Cancel N stuck* | `contextos run cancel-stuck` |
-| Tail logs | `/projects/[slug]` log streams | `contextos logs <service>` |
+| Cancel stuck `in_progress` runs | Dashboard *Cancel N stuck* | `coodra run cancel-stuck` |
+| Tail logs | `/projects/[slug]` log streams | `coodra logs <service>` |
 
 ### Policies (governance — admin only)
 | Action | Web | CLI | Roles |
 |---|---|---|---|
-| Browse rules | `/policies` | `contextos policy list` | all |
-| Add a rule | `/policies` *Add rule* | `contextos policy add` | admin |
-| Toggle active | `/policies` toggle | `contextos policy set-active` | admin |
-| Delete a rule | `/policies` delete | `contextos policy delete` | admin |
+| Browse rules | `/policies` | `coodra policy list` | all |
+| Add a rule | `/policies` *Add rule* | `coodra policy add` | admin |
+| Toggle active | `/policies` toggle | `coodra policy set-active` | admin |
+| Delete a rule | `/policies` delete | `coodra policy delete` | admin |
 
 ### Kill switches
 | Action | Web | CLI | Roles |
 |---|---|---|---|
-| List | `/kill-switches` | `contextos pause status` | all |
-| Pause | `/kill-switches` *Pause* | `contextos pause` | member (own) / admin (any) |
-| Resume | `/kill-switches` *Resume* | `contextos resume` | member (own) / admin (any) |
+| List | `/kill-switches` | `coodra pause status` | all |
+| Pause | `/kill-switches` *Pause* | `coodra pause` | member (own) / admin (any) |
+| Resume | `/kill-switches` *Resume* | `coodra resume` | member (own) / admin (any) |
 
 ### Sync queue (debugging)
 | Action | Web | CLI |
 |---|---|---|
-| Queue depth + dead-letter | `/sync` | `contextos doctor` checks 25/26/27 |
-| Retry a dead job | `/sync` *Retry* | `contextos cloud-migrate retry` |
+| Queue depth + dead-letter | `/sync` | `coodra doctor` checks 25/26/27 |
+| Retry a dead job | `/sync` *Retry* | `coodra cloud-migrate retry` |
 
 ### Workspace + diagnostics
 | Action | Web | CLI |
 |---|---|---|
-| Service status | `/workspace` | `contextos status` |
-| Doctor diagnostic | (run from CLI) | `contextos doctor` |
-| Start / stop services | Topbar *contextos start* | `contextos start` / `stop` |
-| Tail any service log | `/workspace` log panel | `contextos logs <service>` |
+| Service status | `/workspace` | `coodra status` |
+| Doctor diagnostic | (run from CLI) | `coodra doctor` |
+| Start / stop services | Topbar *coodra start* | `coodra start` / `stop` |
+| Tail any service log | `/workspace` log panel | `coodra logs <service>` |
 
 ### Settings
 | Action | Web | CLI |
 |---|---|---|
-| Workspace defaults (mode, ports, log level) | `/settings/workspace` | edit `~/.contextos/.env` |
-| Team config + members | `/settings/team` (team mode only; 404s in solo) | `cat ~/.contextos/config.json` |
-| Reconfigure team | `/onboarding/team` (re-runnable) | `contextos team setup --database-url <same>` |
-| Leave team | (no UI) | `contextos team leave` |
+| Workspace defaults (mode, ports, log level) | `/settings/workspace` | edit `~/.coodra/.env` |
+| Team config + members | `/settings/team` (team mode only; 404s in solo) | `cat ~/.coodra/config.json` |
+| Reconfigure team | `/onboarding/team` (re-runnable) | `coodra team setup --database-url <same>` |
+| Leave team | (no UI) | `coodra team leave` |
 
 ### Onboarding
 | Action | Web | CLI |
 |---|---|---|
 | First-run mode picker | `/welcome` | — |
-| Solo confirm + next steps | `/onboarding/solo` | `contextos init` |
-| Full team-mode wizard | `/onboarding/team` | `contextos team setup` (or `team join` for teammates) |
+| Solo confirm + next steps | `/onboarding/solo` | `coodra init` |
+| Full team-mode wizard | `/onboarding/team` | `coodra team setup` (or `team join` for teammates) |
 
 ---
 
@@ -549,9 +549,9 @@ A real two-person Monday-Tuesday:
 MONDAY
 ─────────────────────────────────────────────────────────────────
 09:00  Admin creates Supabase + Clerk projects                  Web /onboarding/team Step 1-3
-09:05  Admin runs `contextos team setup`                        CLI
-09:10  Admin runs `contextos init` in apps/payments             CLI
-09:12  Admin runs `contextos start`                             CLI
+09:05  Admin runs `coodra team setup`                        CLI
+09:10  Admin runs `coodra init` in apps/payments             CLI
+09:12  Admin runs `coodra start`                             CLI
 09:15  Admin authors feature "stripe-payments"                  Web /packs/new
        (writes docs/features/stripe-payments/feature.md +
         a few supporting files; commits to git)
@@ -567,7 +567,7 @@ MONDAY
 
 12:00  Admin sends Member the credential block                  Out-of-band (1Password)
 12:02  Member git-clones the repo                               git clone
-12:05  Member runs `contextos team join`                        CLI on member's machine
+12:05  Member runs `coodra team join`                        CLI on member's machine
 12:08  Member's first puller tick pulls cloud → local           (auto, ~10s)
        Member's local now has admin's project, run, 4 decisions, context pack
        AND knows about "stripe-payments" feature (metadata only — body
@@ -575,7 +575,7 @@ MONDAY
 12:10  Member opens web app → reads /decisions to catch up      Web /decisions
        Sees "Decided by Alice" on every row
 
-14:00  Member runs `contextos init` in apps/auth                CLI
+14:00  Member runs `coodra init` in apps/auth                CLI
 14:05  Member opens Claude Code → first agent session           (IDE)
 14:06  Bridge fires SessionStart → no feature for apps/auth     (auto, INDEX is empty for this project)
 14:30  Member records 6 decisions for the auth module           MCP record_decision
@@ -620,12 +620,12 @@ your local SQLite is doing all the cross-machine jobs simultaneously
 ## 11. What's there vs what still needs work
 
 ### Fully working today (verified end-to-end against your real Supabase)
-- ✓ `contextos team setup` against any Supabase URL — applies all 13 migrations, generates hook secret, writes config + .env
-- ✓ `contextos init` in a repo (project + 25 default policy rules + Claude hook entries + sync_to_cloud enqueue)
-- ✓ `contextos start` (all 3 daemons, team mode)
+- ✓ `coodra team setup` against any Supabase URL — applies all 13 migrations, generates hook secret, writes config + .env
+- ✓ `coodra init` in a repo (project + 25 default policy rules + Claude hook entries + sync_to_cloud enqueue)
+- ✓ `coodra start` (all 3 daemons, team mode)
 - ✓ SessionStart hook → bridge fires + creates run row stamped with caller's user_id
 - ✓ MCP `record_decision` (stdio + http) → local SQLite + sync to cloud, both with user_id
-- ✓ `contextos team join` for a second member, hook secret matches admin's
+- ✓ `coodra team join` for a second member, hook secret matches admin's
 - ✓ Bidirectional sync — admin's writes pulled by member's puller, member's writes pulled by admin's puller, ~10s in either direction
 - ✓ Web-v2 mode-aware layout — solo and team workspaces look distinctly different (sidebar header, dashboard hero, nav groups)
 - ✓ Web-v2 `/onboarding/team` 5-step wizard with real verify against Supabase
@@ -645,7 +645,7 @@ your local SQLite is doing all the cross-machine jobs simultaneously
 - ⚠ **Invite security as described in §5.** Today: shared org-wide secret, no expiry, no revocation, plaintext sharing. Fix: per-teammate JWTs + Supabase RLS as designed in §5.
 
 ### Aspirational — design exists, code doesn't
-- ⨯ **Migration view for solo→team conversion.** `contextos team migrate` works in CLI; web has no progress UI. Admin running migration runs blind today.
+- ⨯ **Migration view for solo→team conversion.** `coodra team migrate` works in CLI; web has no progress UI. Admin running migration runs blind today.
 - ⨯ **Cross-team feed filtering UI.** `/decisions` and `/context-packs` data carries user_id but no "filter by member" select dropdown.
 - ⨯ **Real-time updates.** Web pages are server-rendered with `force-dynamic`. No SSE/WebSocket pushing live updates as decisions land. You refresh to see your teammate's just-recorded decision.
 - ⨯ **Sync health card on dashboard.** Data exists (`fetchSyncSnapshot`); dashboard doesn't render it.
@@ -668,8 +668,8 @@ That's the "demo-ready → ship-ready for a real second teammate" delta.
 
 ## 12. The self-hosted reality — answers to "but how does ___ get in?"
 
-> ContextOS is **MIT, fully self-hosted, BYO-everything**. There is **no
-> ContextOS-operated service** anywhere in the picture. No team
+> Coodra is **MIT, fully self-hosted, BYO-everything**. There is **no
+> Coodra-operated service** anywhere in the picture. No team
 > directory. No SaaS auth. No central registry. This section answers
 > the questions that exposes.
 
@@ -678,7 +678,7 @@ That's the "demo-ready → ship-ready for a real second teammate" delta.
 A team is the tuple **(your Postgres URL, your Clerk org_id)**. Anyone
 holding both — *plus* membership in the Clerk org — is part of the team.
 There is nothing global to look up. Nothing to register. Nothing
-ContextOS could lose for you because we never had it.
+Coodra could lose for you because we never had it.
 
 This is by design. The trade is concrete: you own your data and your
 auth completely; you also own the cost of safe credential storage.
@@ -690,14 +690,14 @@ their Clerk role lets them do once connected, not how they connect.
 
 | Scenario | What they do |
 |---|---|
-| Admin set up the team on Machine A. Now opens Machine B. | Open `/onboarding/team/join` (or run `contextos team join`). Paste the credential bundle. Done. Their Clerk role (`org:admin`) is unchanged — same admin, just on a different laptop. |
+| Admin set up the team on Machine A. Now opens Machine B. | Open `/onboarding/team/join` (or run `coodra team join`). Paste the credential bundle. Done. Their Clerk role (`org:admin`) is unchanged — same admin, just on a different laptop. |
 | New member onboarding | Receive bundle from admin via 1Password. Paste into `/onboarding/team/join`. Same form, same outcome. Their Clerk role is `org:basic_member`. |
 | Viewer (PM, exec, designer) | If their team runs the *team-hosted shared web* deployment pattern (§12.5), they don't install anything — open the team's web URL, sign in via Clerk, the deployment scopes everything to their org_id and gates writes by their role. If they want a local copy of the dashboards, they paste the bundle just like a member. |
 | Anyone who lost their config | Re-paste the bundle. The form overwrites local config. No "recover" flow needed because the bundle IS the recovery key. |
 
 ### 12.3 The Clerk integration model
 
-**Each team brings their own Clerk app and their own organization.** ContextOS
+**Each team brings their own Clerk app and their own organization.** Coodra
 ships zero Clerk credentials, runs zero Clerk webhook endpoints, and operates
 zero Clerk dashboards. Everything Clerk-related happens against the team's own
 project at `dashboard.clerk.com`.
@@ -714,7 +714,7 @@ What this means concretely:
 - **Role mapping:** Clerk's built-in `org:admin` and `org:basic_member` plus a
   custom `org:viewer` role the admin creates. Mapping table in
   `packages/shared/src/auth/roles.ts` (`parseClerkRole`).
-- **No ContextOS Clerk app.** There's nothing to "log into ContextOS" with.
+- **No Coodra Clerk app.** There's nothing to "log into Coodra" with.
   You log into your team's Clerk app.
 
 ### 12.4 What auth does a user need to log into the team workspace?
@@ -724,7 +724,7 @@ Two distinct credentials, used for different layers:
 | Credential | What it gates | Stored where |
 |---|---|---|
 | Clerk session JWT (signed by team's Clerk app) | Web-app reads + writes (`/decisions`, `/policies`, server actions). Browser cookie after sign-in. | Browser local storage / cookies |
-| Local hook secret (in `~/.contextos/.env`) | Local CLI process ↔ local Hooks Bridge HTTP handshake on `127.0.0.1:3101`. Never leaves the machine. | `~/.contextos/.env::LOCAL_HOOK_SECRET` |
+| Local hook secret (in `~/.coodra/.env`) | Local CLI process ↔ local Hooks Bridge HTTP handshake on `127.0.0.1:3101`. Never leaves the machine. | `~/.coodra/.env::LOCAL_HOOK_SECRET` |
 
 The web app's per-developer-local pattern uses the local config (no Clerk
 sign-in required because there's only one user on the machine — the env IS
@@ -742,8 +742,8 @@ question.
 
 In the team-hosted pattern, the server runs the same web app codebase but with
 deployment env vars (DATABASE_URL + Clerk keys) instead of reading
-`~/.contextos/.env`. Visitors hit the team's URL — `https://contextos.acme.com`
-or `https://acme-contextos.vercel.app` — sign in via Clerk, and the web reads
+`~/.coodra/.env`. Visitors hit the team's URL — `https://coodra.acme.com`
+or `https://acme-coodra.vercel.app` — sign in via Clerk, and the web reads
 their session.
 
 The "global recognition" you asked about IS this URL. Anyone with the URL +
@@ -773,8 +773,8 @@ This is the worked example for "admin lost his laptop, has a new one, has the
 5. Form runs SELECT 1 + table count against your Postgres.
 6. On success, web action calls upgradeToTeamConfig + writeTeamHomeEnv.
 7. Redirect to / with `?joined=ok&org=...`. Dashboard banner confirms.
-8. Append Clerk keys (3 lines) to ~/.contextos/.env. Manual today.
-9. cd into your project, run `contextos start`.
+8. Append Clerk keys (3 lines) to ~/.coodra/.env. Manual today.
+9. cd into your project, run `coodra start`.
 10. You're back. Same role, same data, same teammates.
 ```
 
@@ -806,7 +806,7 @@ Until these land, the machine-recovery flow above is the operating reality.
 ### 13.1 The two-line summary
 
 **Identity is a Clerk-minted `user_id` that gets baked into
-`~/.contextos/config.json` on each machine and stamped on every cloud
+`~/.coodra/config.json` on each machine and stamped on every cloud
 Postgres row via `created_by_user_id`. The web app reads identity from
 the local config (per-developer pattern) or from a Clerk session
 (team-hosted pattern). Clerk is the only layer where cryptographic
@@ -816,11 +816,11 @@ verification happens.**
 
 | Stage | Where it happens | What's stored | Who consumes it |
 |---|---|---|---|
-| **1 · Born** | `dashboard.clerk.com` (Clerk-side) | Clerk database mints `user_2nKj…` (user) and `org_2nKj…` (org) | Clerk only — ContextOS never sees the creation event |
-| **2 · Bound to laptop** | `contextos team setup --user-id …` writes two files | `~/.contextos/config.json::team.clerkUserId`, `clerkOrgId`. Same fields in `~/.contextos/.env::CONTEXTOS_TEAM_ORG_ID` | Daemons at boot, web app at request time |
+| **1 · Born** | `dashboard.clerk.com` (Clerk-side) | Clerk database mints `user_2nKj…` (user) and `org_2nKj…` (org) | Clerk only — Coodra never sees the creation event |
+| **2 · Bound to laptop** | `coodra team setup --user-id …` writes two files | `~/.coodra/config.json::team.clerkUserId`, `clerkOrgId`. Same fields in `~/.coodra/.env::COODRA_TEAM_ORG_ID` | Daemons at boot, web app at request time |
 | **3 · Daemons read at boot** | `apps/mcp-server/src/lib/actor-identity.ts::getActorIdentity()` and the hooks-bridge mirror | Held in process memory of each daemon | Tool-handler code paths that need to stamp writes |
 | **4 · Stamped on every write** | MCP handler line `createdByUserId: actor.userId` (`apps/mcp-server/src/tools/record-decision/handler.ts:218`, plus `save_context_pack`, kill-switch pause/resume, etc.) | Local SQLite `decisions.created_by_user_id`, then synced to cloud Postgres `decisions.created_by_user_id` | Web app's "Decided by" / "Authored by" badges; future RLS policies; audit log queries |
-| **5 · Web reads viewer identity** | `apps/web-v2/lib/auth.ts::getActor()` — branches on mode | (a) per-dev local: read from `~/.contextos/config.json` via `readTeamConfig()`. (b) team-hosted: read from Clerk JWT via `auth()` from `@clerk/nextjs/server` | Layout passes `viewerUserId` to every page; ActorBadge compares per row |
+| **5 · Web reads viewer identity** | `apps/web-v2/lib/auth.ts::getActor()` — branches on mode | (a) per-dev local: read from `~/.coodra/config.json` via `readTeamConfig()`. (b) team-hosted: read from Clerk JWT via `auth()` from `@clerk/nextjs/server` | Layout passes `viewerUserId` to every page; ActorBadge compares per row |
 | **6 · Compared per row** | `apps/web-v2/components/ActorBadge.tsx` | `isYou = viewerUserId === row.createdByUserId` | Renders "You" / `user_…` badge |
 | **7 · Verification** | (a) per-dev: NONE — local file is the truth. (b) team-hosted: Clerk middleware verifies JWT signature against Clerk's public key + checks org membership | — | Gates web reads + writes; tool calls trust the local config |
 | **8 · Revocation** | (a) per-dev: rotate hook secret in `team setup`, distribute new value out-of-band. (b) team-hosted: admin removes user from Clerk org → next sign-in fails. Existing rows in audit tables stay attributed to the removed user (append-only, ADR-007) | — | — |
@@ -833,16 +833,16 @@ verification happens.**
 │   - The mint of `user_…` and `org_…` strings.                    │
 │   - The signing key for JWTs.                                    │
 │   - The org-membership table.                                    │
-│   ContextOS never holds the signing key. We only verify          │
+│   Coodra never holds the signing key. We only verify          │
 │   signatures with the publishable key.                           │
 └──────────────────────────────────────────────────────────────────┘
                                 │
                                 ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│ Each user's laptop (~/.contextos/)                               │
+│ Each user's laptop (~/.coodra/)                               │
 │   config.json::team.clerkUserId   ← "user_2nKj…"                 │
 │   config.json::team.clerkOrgId    ← "org_2nKj…"                  │
-│   .env::CONTEXTOS_TEAM_ORG_ID     ← "org_2nKj…"                  │
+│   .env::COODRA_TEAM_ORG_ID     ← "org_2nKj…"                  │
 │   Read at daemon boot + every tool call. Trusted unverified —    │
 │   the file IS the source of truth on this machine.               │
 └──────────────────────────────────────────────────────────────────┘
@@ -860,7 +860,7 @@ verification happens.**
                                 ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │ Web app at render time                                           │
-│   Per-developer pattern: reads ~/.contextos/config.json,         │
+│   Per-developer pattern: reads ~/.coodra/config.json,         │
 │     trusts the user_id named there.                              │
 │   Team-hosted pattern: reads the Clerk session cookie,           │
 │     verifies the JWT, gets the real user_id from there.          │
@@ -872,7 +872,7 @@ verification happens.**
 ### 13.4 The one place verification ACTUALLY happens
 
 In the per-developer pattern, **nothing is verified**. If you copy someone's
-`~/.contextos/.env` to your machine, you become them as far as ContextOS is
+`~/.coodra/.env` to your machine, you become them as far as Coodra is
 concerned. The trust boundary is "this is my laptop and only I have access
 to my files." That's a real boundary — your laptop's filesystem
 permissions — but it's not cryptographic.
@@ -896,7 +896,7 @@ CLI process on Alice's laptop ────HTTP POST 127.0.0.1:3101───→ H
                                   X-Local-Hook-Secret: <hex>
 ```
 
-The bridge compares the header to `~/.contextos/.env::LOCAL_HOOK_SECRET`.
+The bridge compares the header to `~/.coodra/.env::LOCAL_HOOK_SECRET`.
 If mismatch, 403. That's it.
 
 It's shared across the team because every teammate's bridge needs to trust
@@ -908,8 +908,8 @@ shared cloud DB. But it never gates web sign-in. Web sign-in is Clerk's job.
 | Question | Answer |
 |---|---|
 | Where does Alice's user_id come from? | Clerk minted it when she signed up |
-| Where does the system *store* her user_id? | (a) Clerk's database — Clerk's copy. (b) `~/.contextos/config.json` on each laptop she uses — local copy. (c) Inside every audit row she writes — historical copy |
-| When she runs `record_decision`, how is her id attached? | MCP handler calls `getActorIdentity()` which reads `~/.contextos/config.json`; the user_id is set as `created_by_user_id` on the inserted row |
+| Where does the system *store* her user_id? | (a) Clerk's database — Clerk's copy. (b) `~/.coodra/config.json` on each laptop she uses — local copy. (c) Inside every audit row she writes — historical copy |
+| When she runs `record_decision`, how is her id attached? | MCP handler calls `getActorIdentity()` which reads `~/.coodra/config.json`; the user_id is set as `created_by_user_id` on the inserted row |
 | When Bob opens the web and sees Alice's decision, how does the page know it was hers? | The row's `created_by_user_id` says so |
 | When Bob sees "You" on his own decision, how is that decided? | `getActor()` returns Bob's id; ActorBadge compares; match → "You" |
 | Can Alice impersonate Bob in her local config? | Yes — and her writes would land as Bob on cloud. The trust boundary is "her laptop." Cryptographic verification only happens at Clerk web sign-in (Pattern B) |

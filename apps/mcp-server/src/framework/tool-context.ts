@@ -1,6 +1,6 @@
-import type { PolicyClient } from '@coodra/contextos-policy';
-import type { Logger } from '@coodra/contextos-shared';
-import type { AuthClient, Identity } from '@coodra/contextos-shared/auth';
+import type { PolicyClient } from '@coodra/policy';
+import type { Logger } from '@coodra/shared';
+import type { AuthClient, Identity } from '@coodra/shared/auth';
 
 import type { IdempotencyKey } from './idempotency.js';
 
@@ -56,7 +56,7 @@ import type { IdempotencyKey } from './idempotency.js';
 export interface DbClient {
   /**
    * The Drizzle instance, already bound to the mode-specific driver
-   * (@coodra/contextos-db's SQLite + better-sqlite3 or Postgres + postgres.js).
+   * (@coodra/db's SQLite + better-sqlite3 or Postgres + postgres.js).
    * Typed as `unknown` here to avoid baking the driver choice into the
    * ToolContext interface; `lib/db.ts` re-exports a typed version for
    * lib-internal consumers that need it.
@@ -66,8 +66,8 @@ export interface DbClient {
   close(): Promise<void>;
 }
 
-// `Identity`, `AuthClient` moved to `@coodra/contextos-shared/auth` and
-// `PolicyClient` moved to `@coodra/contextos-policy` in Module 03 S3 so
+// `Identity`, `AuthClient` moved to `@coodra/shared/auth` and
+// `PolicyClient` moved to `@coodra/policy` in Module 03 S3 so
 // `apps/hooks-bridge` can use the same shapes without depending on
 // `apps/mcp-server`. Re-exported here so existing imports
 // (`import type { Identity } from '../framework/tool-context.js'`)
@@ -139,7 +139,7 @@ export interface RunRecorder {
     toolName: string;
     /**
      * 'pre'/'post' — Claude Code-style hook events (bridge-driven).
-     * 'mcp_call' — agent invoked a contextos__* MCP tool. Added 2026-05-08
+     * 'mcp_call' — agent invoked a coodra__* MCP tool. Added 2026-05-08
      * to close the visibility gap where MCP tool calls were invisible in
      * the run timeline (only Bash/Edit/Write showed up via PostToolUse).
      */

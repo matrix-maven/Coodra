@@ -1,6 +1,6 @@
 'use server';
 
-import { runTemplateInstall } from '@coodra/contextos-cli/lib/template';
+import { runTemplateInstall } from '@coodra/cli/lib/template';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 

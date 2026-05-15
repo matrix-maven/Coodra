@@ -21,7 +21,7 @@ function makeIo(args: { homePath: string; cwd: string; settingsPath: string; cap
       args.cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: args.homePath,
+    coodraHome: args.homePath,
     cwd: args.cwd,
     bridgePort: 3101,
     settingsPath: args.settingsPath,
@@ -46,7 +46,7 @@ let settingsPath: string;
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-uninstall-int-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   projectCwd = join(cwd, 'project');
   settingsPath = join(cwd, '.claude-settings.json');
   mkdirSync(homePath, { recursive: true });
@@ -59,8 +59,8 @@ afterEach(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('contextos uninstall integration', () => {
-  it('Fixture 1 — removes contextos-owned hook entries from claude settings (URL match)', async () => {
+describe('coodra uninstall integration', () => {
+  it('Fixture 1 — removes coodra-owned hook entries from claude settings (URL match)', async () => {
     const settings = {
       hooks: {
         SessionStart: [
@@ -110,17 +110,17 @@ describe('contextos uninstall integration', () => {
       otherKey: string;
     };
     expect(next.otherKey).toBe('preserved');
-    expect(next.hooks.SessionStart).toBeUndefined(); // had only contextos entry → key removed
+    expect(next.hooks.SessionStart).toBeUndefined(); // had only coodra entry → key removed
     expect(next.hooks.PreToolUse).toHaveLength(1);
     expect(next.hooks.PreToolUse?.[0]?.matcher).toBe('OtherTool');
   });
 
-  it('Fixture 2 — removes contextos entry from .mcp.json; preserves other servers', async () => {
+  it('Fixture 2 — removes coodra entry from .mcp.json; preserves other servers', async () => {
     writeFileSync(
       join(projectCwd, '.mcp.json'),
       JSON.stringify({
         mcpServers: {
-          contextos: { command: 'node', args: ['/path/to/runtime'] },
+          coodra: { command: 'node', args: ['/path/to/runtime'] },
           otherServer: { command: 'other', args: [] },
         },
       }),
@@ -135,11 +135,11 @@ describe('contextos uninstall integration', () => {
     const next = JSON.parse(readFileSync(join(projectCwd, '.mcp.json'), 'utf8')) as {
       mcpServers: Record<string, unknown>;
     };
-    expect(next.mcpServers).not.toHaveProperty('contextos');
+    expect(next.mcpServers).not.toHaveProperty('coodra');
     expect(next.mcpServers).toHaveProperty('otherServer');
   });
 
-  it('Fixture 3 — default-safe: preserves ~/.contextos/data.db + config.json', async () => {
+  it('Fixture 3 — default-safe: preserves ~/.coodra/data.db + config.json', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
       runUninstallCommand({ json: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
@@ -149,7 +149,7 @@ describe('contextos uninstall integration', () => {
     expect(existsSync(join(homePath, 'config.json'))).toBe(true);
   });
 
-  it('Fixture 4 — --purge removes ~/.contextos/ entirely', async () => {
+  it('Fixture 4 — --purge removes ~/.coodra/ entirely', async () => {
     expect(existsSync(homePath)).toBe(true);
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>

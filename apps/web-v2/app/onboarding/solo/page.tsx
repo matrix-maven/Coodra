@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * just bouncing to dashboard. Two roles:
  *
  *   1. Confirm the user that solo mode needs nothing else from them.
- *   2. Tell them the next operational step: `contextos init` in their
+ *   2. Tell them the next operational step: `coodra init` in their
  *      first project, then open Claude Code to see traces flow in.
  *
  * If a project already exists, we show "you already have N projects"
@@ -29,7 +29,7 @@ export default async function SoloOnboardingPage() {
 
   return (
     <>
-      <Topbar crumb="Solo mode" crumbPrefix="contextos / onboarding" />
+      <Topbar crumb="Solo mode" crumbPrefix="coodra / onboarding" />
       <section className="screen">
         <div className="head">
           <div>
@@ -38,15 +38,15 @@ export default async function SoloOnboardingPage() {
               You’re <em>set</em>.
             </h1>
             <p className="head__lede">
-              Solo mode runs entirely on this machine. No accounts, no cloud, no setup remaining. ContextOS is already
-              listening on <code style={inlineMono}>~/.contextos/data.db</code> for whatever your agent does next.
+              Solo mode runs entirely on this machine. No accounts, no cloud, no setup remaining. Coodra is already
+              listening on <code style={inlineMono}>~/.coodra/data.db</code> for whatever your agent does next.
             </p>
           </div>
           <div>
             <div className="head__meta">
               <strong>local-only</strong>
               <br />
-              ~/.contextos/data.db
+              ~/.coodra/data.db
               <br />v 0.1
             </div>
             <div className="head__actions">
@@ -115,7 +115,7 @@ export default async function SoloOnboardingPage() {
                     </>
                   }
                   body="cd into your repo, run the command. Same outcome; some users prefer staying in the shell."
-                  code="contextos init --slug my-app --ide claude"
+                  code="coodra init --slug my-app --ide claude"
                 />
               </>
             )}
@@ -128,8 +128,8 @@ export default async function SoloOnboardingPage() {
               </h3>
               <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.65 }}>
                 Open your repo in Claude Code, Cursor, or Windsurf. The first session will hit{' '}
-                <code style={inlineMono}>contextos start</code> and traces appear here in real-time. Decisions and
-                context packs land in <code style={inlineMono}>~/.contextos/data.db</code>; future sessions read them on
+                <code style={inlineMono}>coodra start</code> and traces appear here in real-time. Decisions and
+                context packs land in <code style={inlineMono}>~/.coodra/data.db</code>; future sessions read them on
                 start so the agent has prior context before writing new code.
               </p>
             </div>
@@ -138,8 +138,8 @@ export default async function SoloOnboardingPage() {
               <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
                 Where things <em>live</em>
               </h3>
-              <FactRow label="Database" value="~/.contextos/data.db" />
-              <FactRow label="Logs" value="~/.contextos/logs/" />
+              <FactRow label="Database" value="~/.coodra/data.db" />
+              <FactRow label="Logs" value="~/.coodra/logs/" />
               <FactRow label="Per-project" value="<repo>/docs/feature-packs/" />
               <FactRow label="Hooks" value="~/.claude/settings.json" last />
             </div>

@@ -24,7 +24,7 @@
 | `zod-to-json-schema` | dropped | Replaced by Zod v4's native `z.toJSONSchema()` in S5 (decisions-log 2026-04-23). Not installed. |
 | `@clerk/backend` | `3.3.0` **exact** | Server-side JWT verification via the top-level `verifyToken(token, { secretKey })` helper (NOT `ClerkClient.verifyToken`, which does not exist — see decisions-log 2026-04-24). Installed in S7b. Exact pin (no caret) — auth-critical library. Supersedes the original `^3.2.13` plan. |
 | `picomatch` | `4.0.2` **exact** | Policy-rule path/tool-name glob matcher compiled once per rule at cache-load time in `lib/policy.ts`. Installed in S7b. Exact pin per amendment-B — glob semantics govern policy decisions. |
-| `drizzle-orm` | `^0.45.2` | Query builder used by `lib/policy.ts` to SELECT policies + policy_rules rows and INSERT policy_decisions with `onConflictDoNothing`. Installed in S7b. Caret pin matches `@coodra/contextos-db`'s own pin. |
+| `drizzle-orm` | `^0.45.2` | Query builder used by `lib/policy.ts` to SELECT policies + policy_rules rows and INSERT policy_decisions with `onConflictDoNothing`. Installed in S7b. Caret pin matches `@coodra/db`'s own pin. |
 
 `apps/mcp-server/package.json` devDependencies:
 
@@ -49,8 +49,8 @@ Every new/updated version above is amended in `External api and library referenc
 | Commit | Reference changes |
 |---|---|
 | S4 (`feat(db): sqlite-vec virtual table...`) | `sqlite-vec` pin + load snippet + brute-force-KNN gotcha |
-| S5 (`feat(mcp-server): scaffold...`) | MCP SDK new entry, Pino `CONTEXTOS_LOG_DESTINATION` gotcha. Zod v4 replaces `zod-to-json-schema` (dropped). HTTP-transport deps (Hono, @hono/node-server, ajv, ajv-formats, testcontainers) deferred to S16/S17. |
-| S6 (`feat(shared): assertManifestDescriptionValid...`) | `system-architecture.md §24.3` amended to "40–80 word soft target, 120-word hard maximum" per Q-02-6; §24.8 safeguard 1 updated to reference `@coodra/contextos-shared/test-utils`. |
+| S5 (`feat(mcp-server): scaffold...`) | MCP SDK new entry, Pino `COODRA_LOG_DESTINATION` gotcha. Zod v4 replaces `zod-to-json-schema` (dropped). HTTP-transport deps (Hono, @hono/node-server, ajv, ajv-formats, testcontainers) deferred to S16/S17. |
+| S6 (`feat(shared): assertManifestDescriptionValid...`) | `system-architecture.md §24.3` amended to "40–80 word soft target, 120-word hard maximum" per Q-02-6; §24.8 safeguard 1 updated to reference `@coodra/shared/test-utils`. |
 | S7a (`feat(mcp-server): S7a — freeze ToolContext...`) | No reference changes; lib-factory infra only. |
 | S7b (`feat(mcp-server): S7b — real Clerk/local-hook auth + cache-first policy engine with breaker`) | `cockatiel` rewritten for 3.2.1 exact + timeout-fuse pattern; `@clerk/backend` new subsection at 3.3.0 exact + top-level `verifyToken` snippet + "wired but not live-validated" flag; `picomatch` new subsection at 4.0.2 exact + compile-at-cache-load pattern + picomatch-over-minimatch rationale. |
 

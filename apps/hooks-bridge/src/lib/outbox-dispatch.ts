@@ -2,14 +2,14 @@ import {
   type CreateOutboxDispatchHandlerDeps,
   createOutboxDispatchHandler,
   type OutboxDispatchHandler,
-} from '@coodra/contextos-cli/lib/outbox';
-import type { DbHandle } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+} from '@coodra/cli/lib/outbox';
+import type { DbHandle } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 
 /**
  * `apps/hooks-bridge/src/lib/outbox-dispatch` — bridge-side factory
  * for the durable outbox dispatch handler. Wraps the canonical
- * dispatcher in `@coodra/contextos-cli/lib/outbox` with the bridge's child
+ * dispatcher in `@coodra/cli/lib/outbox` with the bridge's child
  * logger so log lines are tagged correctly. The actual queue routing
  * lives in the canonical dispatcher (both bridge and mcp-server
  * MUST run identical dispatch logic — they compete for the same

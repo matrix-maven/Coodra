@@ -2,13 +2,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, migrateSqlite } from '@coodra/contextos-db';
+import { createDb, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { type DbBackupIO, runDbBackupCommand } from '../../src/commands/db-backup.js';
 import { type DbRestoreIO, runDbRestoreCommand } from '../../src/commands/db-restore.js';
 import { EXIT_BACKUP_RESTORE_PRECONDITION, EXIT_OK, EXIT_USER_RECOVERABLE } from '../../src/exit-codes.js';
-import { resolveContextosDataDb } from '../../src/lib/contextos-home.js';
+import { resolveCoodraDataDb } from '../../src/lib/coodra-home.js';
 
 interface Capture {
   stdout: string[];
@@ -24,7 +24,7 @@ function backupIo(home: string, cap: Capture): DbBackupIO {
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: home,
+    coodraHome: home,
   };
 }
 
@@ -36,7 +36,7 @@ function restoreIo(home: string, cap: Capture): DbRestoreIO {
       cap.exitCode = code;
       throw new Error(`__exit__:${code}`);
     },
-    contextosHome: home,
+    coodraHome: home,
   };
 }
 
@@ -60,7 +60,7 @@ let logsDir: string;
 
 beforeEach(async () => {
   cwd = mkdtempSync(join(tmpdir(), 'cli-db-backup-int-'));
-  homePath = join(cwd, '.contextos');
+  homePath = join(cwd, '.coodra');
   pidsDir = join(homePath, 'pids');
   logsDir = join(homePath, 'logs');
   mkdirSync(pidsDir, { recursive: true });
@@ -68,7 +68,7 @@ beforeEach(async () => {
   // Seed a real SQLite DB at the canonical path so VACUUM INTO has something to copy.
   const handle = createDb({
     kind: 'local',
-    sqlite: { path: resolveContextosDataDb(homePath), loadVecExtension: true },
+    sqlite: { path: resolveCoodraDataDb(homePath), loadVecExtension: true },
   });
   if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
   migrateSqlite(handle.db, REPO_DRIZZLE_SQLITE);
@@ -83,8 +83,8 @@ afterEach(() => {
   if (cwd) rmSync(cwd, { recursive: true, force: true });
 });
 
-describe('contextos db backup + db restore integration', () => {
-  it('Fixture 1 — default single-file backup writes a .sqlite under ~/.contextos/backups/', async () => {
+describe('coodra db backup + db restore integration', () => {
+  it('Fixture 1 — default single-file backup writes a .sqlite under ~/.coodra/backups/', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() => runDbBackupCommand({ json: true }, backupIo(homePath, cap)));
     expect(code).toBe(EXIT_OK);
@@ -127,7 +127,7 @@ describe('contextos db backup + db restore integration', () => {
     // Mutate the live DB so we can verify the restore reverts the change.
     const handle = createDb({
       kind: 'local',
-      sqlite: { path: resolveContextosDataDb(homePath), loadVecExtension: true },
+      sqlite: { path: resolveCoodraDataDb(homePath), loadVecExtension: true },
     });
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     handle.raw
@@ -143,13 +143,13 @@ describe('contextos db backup + db restore integration', () => {
     expect(rcode).toBe(EXIT_OK);
 
     // Verify the post-restore DB matches the backup byte-for-byte.
-    const targetBytes = readFileSync(resolveContextosDataDb(homePath));
+    const targetBytes = readFileSync(resolveCoodraDataDb(homePath));
     expect(targetBytes.equals(backupBytes)).toBe(true);
 
     // Verify the doomed row is gone (proves the live DB was actually replaced).
     const verify = createDb({
       kind: 'local',
-      sqlite: { path: resolveContextosDataDb(homePath), loadVecExtension: true },
+      sqlite: { path: resolveCoodraDataDb(homePath), loadVecExtension: true },
     });
     if (verify.kind !== 'sqlite') throw new Error('expected sqlite');
     const rows = verify.raw.prepare(`SELECT slug FROM projects WHERE slug = ?`).all('should-be-gone-after-restore');
@@ -190,7 +190,7 @@ describe('contextos db backup + db restore integration', () => {
     await expectExit(() => runDbBackupCommand({ json: true }, backupIo(homePath, bcap)));
     const { destination } = JSON.parse(bcap.stdout.join('')) as { destination: string };
 
-    const targetPath = resolveContextosDataDb(homePath);
+    const targetPath = resolveCoodraDataDb(homePath);
     const beforeRestoreBytes = readFileSync(targetPath);
 
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };

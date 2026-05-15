@@ -1,6 +1,6 @@
 # `/packs` and `/packs/[slug]` — Pack browser (S7)
 
-CLI parity: `contextos pack {list, show, regenerate, delete}`.
+CLI parity: `coodra pack {list, show, regenerate, delete}`.
 
 ## `/packs` — desktop
 
@@ -68,7 +68,7 @@ CLI parity: `contextos pack {list, show, regenerate, delete}`.
 │  spec.md (default tab — markdown rendered)                                              │
 │  ──────                                                                                 │
 │                                                                                         │
-│  # Module 04 — Web App (apps/web admin + audit-trail UI for ContextOS) — Spec           │
+│  # Module 04 — Web App (apps/web admin + audit-trail UI for Coodra) — Spec           │
 │                                                                                         │
 │  > Status: kickoff (2026-05-03). No implementation slice has landed yet…                │
 │                                                                                         │

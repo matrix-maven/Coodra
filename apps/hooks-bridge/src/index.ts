@@ -3,10 +3,10 @@
 // import in the file.
 import './bootstrap/ensure-stderr-logging.js';
 
-import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/contextos-cli/lib/outbox';
-import { ensureGlobalProject, migrateSqlite } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import { createLogger } from '@coodra/contextos-shared';
+import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
+import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import { createLogger } from '@coodra/shared';
 import { serve } from '@hono/node-server';
 
 import { buildApp } from './app.js';
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   // (3) Open DB.
   const sqlitePath = resolveSqlitePathFromEnv(env);
   const dbClient = createHooksBridgeDbClient({
-    mode: env.CONTEXTOS_MODE,
+    mode: env.COODRA_MODE,
     ...(sqlitePath !== undefined ? { sqlitePath } : {}),
   });
 
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
 
   // F7 closure (verification 2026-04-27): seed the __global__ sentinel
   // project so the bridge can audit decisions for unregistered cwds
-  // (no .contextos.json) without violating policy_decisions.project_id
+  // (no .coodra.json) without violating policy_decisions.project_id
   // NOT NULL FK. Idempotent.
   await ensureGlobalProject(dbClient.handle);
 
@@ -86,11 +86,11 @@ async function main(): Promise<void> {
     kick: () => outboxWorker.kick(),
     // M04 Phase 2 S1 (F3 root-cause fix): mode passed so the
     // recorder's defensive implicit session_open uses the right
-    // value. Falls back to 'solo' if env.CONTEXTOS_MODE is undefined.
-    mode: env.CONTEXTOS_MODE ?? 'solo',
+    // value. Falls back to 'solo' if env.COODRA_MODE is undefined.
+    mode: env.COODRA_MODE ?? 'solo',
     // M04 Phase 4: human-actor identity for `created_by_user_id`
-    // stamping in team mode. Reads from `~/.contextos/config.json`
-    // on every call so a `contextos team migrate` mid-run picks up
+    // stamping in team mode. Reads from `~/.coodra/config.json`
+    // on every call so a `coodra team migrate` mid-run picks up
     // the new identity without a bridge restart.
     resolveActorIdentity: getActorIdentity,
   });
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     runRecorder,
     projectSlugResolver,
     db: dbClient.handle,
-    mode: env.CONTEXTOS_MODE,
+    mode: env.COODRA_MODE,
   });
   const sessionEnd = createSessionEndHandler({ runRecorder, projectSlugResolver, db: dbClient.handle });
   const userPromptSubmit = createUserPromptSubmitHandler({ runRecorder, projectSlugResolver, db: dbClient.handle });
@@ -144,7 +144,7 @@ async function main(): Promise<void> {
       event: 'listener_started',
       host: env.HOOKS_BRIDGE_HOST,
       port: env.HOOKS_BRIDGE_PORT,
-      mode: env.CONTEXTOS_MODE,
+      mode: env.COODRA_MODE,
       startedAt: serverStartedAt.toISOString(),
     },
     `hooks-bridge listening on http://${env.HOOKS_BRIDGE_HOST}:${env.HOOKS_BRIDGE_PORT}`,

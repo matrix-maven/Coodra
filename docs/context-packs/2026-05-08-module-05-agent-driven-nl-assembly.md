@@ -11,7 +11,7 @@ The original M05 plan called for a Python FastAPI service hosting `sentence-tran
 **Slices delivered:**
 
 1. **S1 — Schema additions (`0009_m05_agent_driven.sql`).**
-   Added `context_packs.source` (TEXT, default 'agent', enum 'agent' | 'bridge_auto'), `context_packs.meta` (TEXT, JSON-encoded), and four optional columns on `decisions` (`context`, `impact`, `confidence`, `reversible`). Migration applied to live `~/.contextos/data.db` and recorded in `__drizzle_migrations`. Drizzle journal updated for both dialects.
+   Added `context_packs.source` (TEXT, default 'agent', enum 'agent' | 'bridge_auto'), `context_packs.meta` (TEXT, JSON-encoded), and four optional columns on `decisions` (`context`, `impact`, `confidence`, `reversible`). Migration applied to live `~/.coodra/data.db` and recorded in `__drizzle_migrations`. Drizzle journal updated for both dialects.
 
 2. **S4 — `search_packs_nl` simplified.** Dropped the embedding input parameter, the embedding-dim-mismatch soft-failure branch, and the `no_embeddings_yet` notice. LIKE scope widened to `title + content_excerpt + first 2KB of content`. Default limit raised 10 → 50. Output rows now include the `source` field so agents can prefer agent-authored narratives.
 
@@ -100,7 +100,7 @@ The original M05 plan called for a Python FastAPI service hosting `sentence-tran
 
 - `pnpm typecheck` clean across mcp-server, hooks-bridge, web-v2, sync-daemon, cli
 - CLI rebuild succeeds (`packages/cli/dist/runtime/{mcp-server,hooks-bridge}/` updated)
-- `contextos start` brings services up healthy (MCP 3100 ✓, Bridge 3101 ✓)
+- `coodra start` brings services up healthy (MCP 3100 ✓, Bridge 3101 ✓)
 - MCP `tools/list` returns 12 entries with proper schemas (verified via stdio probe)
 - Real lifecycle test: `get_run_id` → `record_decision` (with confidence/impact/reversible) → `save_context_pack` (with meta) all succeed; DB inspection shows correct persistence
 - Web dashboard renders coverage strip at 88% (real data)

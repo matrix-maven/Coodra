@@ -4,7 +4,7 @@
 # Phase G.1 functional test — token storage + Clerk JWT verification.
 #
 # What it proves:
-#   1. The on-disk shape of ~/.contextos/clerk-token.json round-trips through
+#   1. The on-disk shape of ~/.coodra/clerk-token.json round-trips through
 #      writeToken/readVerifiedToken without corruption.
 #   2. File mode is 0600 (no other user can read the JWT).
 #   3. A tampered signature byte is detected (readVerifiedToken returns null).
@@ -14,7 +14,7 @@
 #
 # Run modes:
 #   • REAL mode (preferred): the developer has previously run
-#     `contextos login` and ~/.contextos/clerk-token.json exists with a
+#     `coodra login` and ~/.coodra/clerk-token.json exists with a
 #     valid JWT. The test borrows that JWT (with a backup/restore guard)
 #     to exercise every assertion end-to-end against real Clerk.
 #
@@ -36,12 +36,12 @@ set -euo pipefail
 SLICE="G.1"
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# Stub home — never touches the developer's real ~/.contextos
-STUB_HOME=$(mktemp -d -t "contextos-${SLICE}-stub.XXXXXX")
+# Stub home — never touches the developer's real ~/.coodra
+STUB_HOME=$(mktemp -d -t "coodra-${SLICE}-stub.XXXXXX")
 trap 'rm -rf "$STUB_HOME" 2>/dev/null || true' EXIT
 
 # Real home — only touched if user opts in by having a logged-in session
-REAL_HOME="${CONTEXTOS_HOME:-$HOME/.contextos}"
+REAL_HOME="${COODRA_HOME:-$HOME/.coodra}"
 REAL_TOKEN="$REAL_HOME/clerk-token.json"
 
 PASS=0
@@ -59,14 +59,14 @@ assert_skip() { yel "  ⊘ SKIP — $*"; SKIP=$((SKIP + 1)); }
 
 # ---------------------------------------------------------------------------
 # Helper: run a node snippet against the workspace-resolved shared package.
-# Output goes to stdout. The script sets CONTEXTOS_HOME so the token store
+# Output goes to stdout. The script sets COODRA_HOME so the token store
 # reads/writes the stub dir.
 # ---------------------------------------------------------------------------
 runner() {
   local home="$1"
   local snippet="$2"
   cd "$REPO_ROOT"
-  CONTEXTOS_HOME="$home" node --input-type=module -e "$snippet"
+  COODRA_HOME="$home" node --input-type=module -e "$snippet"
 }
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ hdr "Mode A — stub home (no Clerk required)"
 # brittle. Each snippet prints a sentinel like "RESULT=NO" that we grep.
 echo "A.1: hasStoredToken on empty home should be false"
 OUT=$(runner "$STUB_HOME" "
-import { hasStoredToken } from '@coodra/contextos-shared/auth';
+import { hasStoredToken } from '@coodra/shared/auth';
 console.log('RESULT=' + (hasStoredToken() ? 'YES' : 'NO'));
 " 2>&1)
 if echo "$OUT" | grep -q "^RESULT=NO$"; then assert_pass "RESULT=NO"; else assert_fail "got: $OUT"; fi
@@ -87,7 +87,7 @@ if echo "$OUT" | grep -q "^RESULT=NO$"; then assert_pass "RESULT=NO"; else asser
 # A.2: readVerifiedToken returns null on empty dir
 echo "A.2: readVerifiedToken on empty home should be null"
 OUT=$(runner "$STUB_HOME" "
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+import { readVerifiedToken } from '@coodra/shared/auth';
 const c = await readVerifiedToken();
 console.log('RESULT=' + (c === null ? 'NULL' : 'NOT_NULL'));
 " 2>&1)
@@ -96,7 +96,7 @@ if echo "$OUT" | grep -q "^RESULT=NULL$"; then assert_pass "returned null"; else
 # A.3: deleteToken is idempotent (no-op when missing)
 echo "A.3: deleteToken on empty home should not throw"
 OUT=$(runner "$STUB_HOME" "
-import { deleteToken } from '@coodra/contextos-shared/auth';
+import { deleteToken } from '@coodra/shared/auth';
 deleteToken();
 console.log('RESULT=OK');
 " 2>&1)
@@ -106,7 +106,7 @@ if echo "$OUT" | grep -q "^RESULT=OK$"; then assert_pass "idempotent delete on m
 echo "A.4: malformed token file should return null (not throw)"
 echo "{ not json" > "$STUB_HOME/clerk-token.json"
 OUT=$(runner "$STUB_HOME" "
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+import { readVerifiedToken } from '@coodra/shared/auth';
 const c = await readVerifiedToken();
 console.log('RESULT=' + (c === null ? 'NULL' : 'NOT_NULL'));
 " 2>&1)
@@ -117,7 +117,7 @@ rm -f "$STUB_HOME/clerk-token.json"
 echo "A.5: schema-invalid JSON should return null"
 echo '{"version":1,"token":"a"}' > "$STUB_HOME/clerk-token.json"
 OUT=$(runner "$STUB_HOME" "
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+import { readVerifiedToken } from '@coodra/shared/auth';
 const c = await readVerifiedToken();
 console.log('RESULT=' + (c === null ? 'NULL' : 'NOT_NULL'));
 " 2>&1)
@@ -125,16 +125,16 @@ if echo "$OUT" | grep -q "^RESULT=NULL$"; then assert_pass "returned null on sch
 rm -f "$STUB_HOME/clerk-token.json"
 
 # ---------------------------------------------------------------------------
-hdr "Mode B — real home (requires \`contextos login\` first)"
+hdr "Mode B — real home (requires \`coodra login\` first)"
 # ---------------------------------------------------------------------------
 
 if [ ! -f "$REAL_HOME/.env" ] || ! grep -q '^CLERK_SECRET_KEY=' "$REAL_HOME/.env" 2>/dev/null; then
   assert_skip "no $REAL_HOME/.env with CLERK_SECRET_KEY — cannot exercise real Clerk verify"
 elif [ ! -f "$REAL_TOKEN" ]; then
-  assert_skip "no $REAL_TOKEN — run \`contextos login\` (after G.3 lands) to enable this test"
+  assert_skip "no $REAL_TOKEN — run \`coodra login\` (after G.3 lands) to enable this test"
 else
   # Backup real token + restore on exit
-  BACKUP=$(mktemp -t "contextos-${SLICE}-backup.XXXXXX")
+  BACKUP=$(mktemp -t "coodra-${SLICE}-backup.XXXXXX")
   cp "$REAL_TOKEN" "$BACKUP"
   RESTORE_CMD="cp '$BACKUP' '$REAL_TOKEN' && chmod 600 '$REAL_TOKEN' && rm -f '$BACKUP'"
   trap "$RESTORE_CMD; rm -rf '$STUB_HOME' 2>/dev/null || true" EXIT
@@ -142,13 +142,13 @@ else
   # B.1: readVerifiedToken returns claims for the existing token
   echo "B.1: readVerifiedToken on real token returns parsed claims"
   OUT=$(runner "$REAL_HOME" "
-  import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+  import { readVerifiedToken } from '@coodra/shared/auth';
   const c = await readVerifiedToken();
   if (c === null) { console.log('RESULT=NULL'); }
   else { console.log('RESULT=' + JSON.stringify({ userId: c.userId, orgId: c.orgId, role: c.role, email: c.email })); }
   " 2>&1)
   if echo "$OUT" | grep -q "^RESULT=NULL$"; then
-    assert_fail "real token failed to verify — likely expired. Re-run \`contextos login\`."
+    assert_fail "real token failed to verify — likely expired. Re-run \`coodra login\`."
   elif echo "$OUT" | grep -q '^RESULT=.*"userId"'; then
     CLAIMS_LINE=$(echo "$OUT" | grep '^RESULT=' | head -1)
     assert_pass "claims: ${CLAIMS_LINE#RESULT=}"
@@ -179,7 +179,7 @@ else
   " 2>&1 || true
 
   OUT=$(runner "$REAL_HOME" "
-  import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+  import { readVerifiedToken } from '@coodra/shared/auth';
   const c = await readVerifiedToken();
   console.log('RESULT=' + (c === null ? 'NULL' : 'NOT_NULL'));
   " 2>&1)
@@ -196,7 +196,7 @@ else
   # B.4: deleteToken removes the file
   echo "B.4: deleteToken clears the file"
   OUT=$(runner "$REAL_HOME" "
-  import { deleteToken, hasStoredToken } from '@coodra/contextos-shared/auth';
+  import { deleteToken, hasStoredToken } from '@coodra/shared/auth';
   deleteToken();
   console.log('RESULT=' + (hasStoredToken() ? 'STILL_PRESENT' : 'DELETED'));
   " 2>&1)

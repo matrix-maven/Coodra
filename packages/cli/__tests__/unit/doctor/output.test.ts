@@ -4,7 +4,7 @@ import type { DoctorReport } from '../../../src/doctor/types.js';
 
 const sampleReport: DoctorReport = {
   version: '0.0.0-test',
-  contextosHome: '/tmp/contextos',
+  coodraHome: '/tmp/coodra',
   cwd: '/tmp/work/myapp',
   checks: [
     { id: 1, name: 'Node', severity: 'red', status: 'green', durationMs: 5 },
@@ -33,8 +33,8 @@ describe('formatHuman', () => {
     const out = plain(formatHuman(sampleReport));
     // command title carries the version; header rows carry home + cwd.
     expect(out).toContain('Doctor');
-    expect(out).toContain('@coodra/contextos-cli 0.0.0-test');
-    expect(out).toContain('/tmp/contextos');
+    expect(out).toContain('@coodra/cli 0.0.0-test');
+    expect(out).toContain('/tmp/coodra');
     expect(out).toContain('/tmp/work/myapp');
     // each check renders by id + name.
     expect(out).toMatch(/1\s+Node/);

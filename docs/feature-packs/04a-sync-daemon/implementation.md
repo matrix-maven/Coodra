@@ -18,14 +18,14 @@ Pause. Wait for OQ sign-off.
 
 **Goal:** the cloud database can receive a freshly-migrated stack with no manual intervention.
 
-- Add `contextos cloud-migrate` command in `packages/cli/src/commands/cloud-migrate.ts`. Reads `DATABASE_URL` from env, opens a Postgres handle via `createDb({kind:'cloud'})`, runs `migrate(handle.db, { migrationsFolder: <pkg-path>/drizzle/postgres })` from `drizzle-orm/postgres-js/migrator`. Idempotent (drizzle's migration table dedupes).
+- Add `coodra cloud-migrate` command in `packages/cli/src/commands/cloud-migrate.ts`. Reads `DATABASE_URL` from env, opens a Postgres handle via `createDb({kind:'cloud'})`, runs `migrate(handle.db, { migrationsFolder: <pkg-path>/drizzle/postgres })` from `drizzle-orm/postgres-js/migrator`. Idempotent (drizzle's migration table dedupes).
 - Wire it into `packages/cli/src/program.ts` and the help/version surfaces.
 - New unit test under `packages/cli/__tests__/unit/commands/cloud-migrate.test.ts` (against a testcontainers Postgres).
 - Existing migration files unchanged — this slice is the operator-runnable wrapper, not a new schema.
 
-**Verify:** `pnpm --filter @coodra/contextos-cli test:unit` green. `DATABASE_URL=... pnpm exec contextos cloud-migrate` against a fresh postgres lands all 4 migrations.
+**Verify:** `pnpm --filter @coodra/cli test:unit` green. `DATABASE_URL=... pnpm exec coodra cloud-migrate` against a fresh postgres lands all 4 migrations.
 
-**Commit:** `feat(cli): contextos cloud-migrate runs Drizzle pg migrations idempotently`.
+**Commit:** `feat(cli): coodra cloud-migrate runs Drizzle pg migrations idempotently`.
 
 ---
 
@@ -35,12 +35,12 @@ Pause. Wait for OQ sign-off.
 
 - Extend `scheduleDurableWrite` (or wrap it via a thin helper `scheduleAuditWriteWithSync` that ALSO enqueues the sync job) at the 7 callsites M03.1 enumerated. The audit-destination INSERT is local-only; the paired sync job carries a reference to the destination row by id + table-name.
 - Sync job payload shape: `{ table: 'policy_decisions' | 'run_events' | 'runs' | 'decisions' | 'context_packs', rowId: string, idempotencyKey?: string }`. Daemon SELECTs the row from local SQLite by id at dispatch time (so the payload stays small and a row mutation between enqueue and dispatch is harmless — last-write-wins on the SQLite side, but local writes are append-only so no mutations exist).
-- Solo mode (CONTEXTOS_MODE=solo): the paired enqueue is a no-op (gated by env). No daemon, no sync.
+- Solo mode (COODRA_MODE=solo): the paired enqueue is a no-op (gated by env). No daemon, no sync.
 - Unit + integration tests:
   - `packages/db/__tests__/integration/schedule-audit-write-with-sync.test.ts` — asserts both jobs land for one logical audit; only the audit job lands in solo mode.
   - Bridge + MCP integration tests pick up the paired enqueue automatically (they assert audit destination state, which is unchanged).
 
-**Verify:** `pnpm --filter @coodra/contextos-db test:integration` green; bridge + MCP integration green; M03.1 crash-safety harness still passes (M03.1 path untouched).
+**Verify:** `pnpm --filter @coodra/db test:integration` green; bridge + MCP integration green; M03.1 crash-safety harness still passes (M03.1 path untouched).
 
 **Commit:** `feat(db,bridge,mcp-server): paired sync_to_cloud enqueue at M03.1 audit callsites (team mode only)`.
 
@@ -51,7 +51,7 @@ Pause. Wait for OQ sign-off.
 **Goal:** new `apps/sync-daemon` package boots, opens dual handles, runs an OutboxWorker against the `sync_to_cloud` queue, dispatches to cloud Postgres, drains.
 
 - New package `apps/sync-daemon` with `package.json`, `tsconfig.json`, `src/index.ts`, `src/lib/dispatch.ts`.
-- `src/index.ts`: parse env (`DATABASE_URL` required, `CONTEXTOS_HOME` optional), open `localDb = createDb({kind:'local'})` + `cloudDb = createDb({kind:'cloud', postgres: {databaseUrl}})`, instantiate `OutboxWorker` with `queueKind: 'sync_to_cloud'`, dispatch handler from `lib/dispatch.ts`. Start. SIGTERM → await worker.stop() → close both handles.
+- `src/index.ts`: parse env (`DATABASE_URL` required, `COODRA_HOME` optional), open `localDb = createDb({kind:'local'})` + `cloudDb = createDb({kind:'cloud', postgres: {databaseUrl}})`, instantiate `OutboxWorker` with `queueKind: 'sync_to_cloud'`, dispatch handler from `lib/dispatch.ts`. Start. SIGTERM → await worker.stop() → close both handles.
 - `src/lib/dispatch.ts`: factory `createSyncDispatchHandler({localDb, cloudDb, logger})` returning an `OutboxDispatchHandler`. For each job:
   1. SELECT row from local by `(table, rowId)`.
   2. INSERT into cloud table with ON CONFLICT DO NOTHING (per table's natural unique key — `id` for run_events / context_packs, `idempotency_key` for policy_decisions / decisions, `(project_id, session_id)` for runs which uses UPSERT).
@@ -60,7 +60,7 @@ Pause. Wait for OQ sign-off.
 - Tests:
   - `apps/sync-daemon/__tests__/integration/dispatch.test.ts` — spin a SQLite in-memory + a testcontainers postgres; enqueue 5 sync jobs across 5 tables; tick the worker; assert 5 cloud rows landed; tick again, assert no duplicates.
   - `apps/sync-daemon/__tests__/integration/cloud-unreachable.test.ts` — break the cloud handle mid-tick; assert jobs go to retry; restore; assert eventual drain.
-- Wire `pnpm --filter @coodra/contextos-sync-daemon` into the workspace + turbo pipeline (build + test:unit + test:integration). Lint passes.
+- Wire `pnpm --filter @coodra/sync-daemon` into the workspace + turbo pipeline (build + test:unit + test:integration). Lint passes.
 
 **Verify:** new package's tests green; existing tests unaffected.
 
@@ -68,17 +68,17 @@ Pause. Wait for OQ sign-off.
 
 ---
 
-## Slice S4 — sync-daemon lifecycle managed by `contextos start`
+## Slice S4 — sync-daemon lifecycle managed by `coodra start`
 
-**Goal:** `contextos start` in team mode launches sync-daemon as a third managed process; `contextos stop` cleanly shuts it down; `contextos status` reports its PID.
+**Goal:** `coodra start` in team mode launches sync-daemon as a third managed process; `coodra stop` cleanly shuts it down; `coodra status` reports its PID.
 
 - Extend `packages/cli/src/lib/services.ts` with the sync-daemon entry (port-less; same plist/systemd/fallback supervision as bridge + mcp-server).
-- New PID file at `~/.contextos/run/sync-daemon.pid`.
+- New PID file at `~/.coodra/run/sync-daemon.pid`.
 - Status output adds a row.
 - Update existing `start`/`stop`/`status` command tests to cover the third service.
-- Solo mode: `contextos start` skips the sync-daemon entry (no `DATABASE_URL` expected).
+- Solo mode: `coodra start` skips the sync-daemon entry (no `DATABASE_URL` expected).
 
-**Verify:** `pnpm --filter @coodra/contextos-cli test:unit` green; manual smoke (`contextos start && contextos status && contextos stop`) shows three services in team mode, two in solo.
+**Verify:** `pnpm --filter @coodra/cli test:unit` green; manual smoke (`coodra start && coodra status && coodra stop`) shows three services in team mode, two in solo.
 
 **Commit:** `feat(cli): supervise sync-daemon as third managed process in team mode`.
 
@@ -121,10 +121,10 @@ Pause. Wait for OQ sign-off.
 **Goal:** team-mode stack is `docker compose up`-installable.
 
 - `deploy/Dockerfile.mcp-server`, `deploy/Dockerfile.hooks-bridge`, `deploy/Dockerfile.sync-daemon` — multi-stage; pnpm fetch + install + turbo build → distroless or alpine runtime; non-root user; healthcheck for the two HTTP services.
-- `deploy/Dockerfile.cloud-migrate` — one-shot image that runs `contextos cloud-migrate`. Used as a Compose `command` for first-boot migration.
-- `deploy/compose.yaml` — postgres (pgvector/pgvector:pg16), one-shot cloud-migrate (depends_on postgres healthy, exits 0), then mcp-server + hooks-bridge + sync-daemon (depends_on cloud-migrate completed). Bind mount `~/.contextos` for SQLite parity. Healthchecks on the HTTP services.
+- `deploy/Dockerfile.cloud-migrate` — one-shot image that runs `coodra cloud-migrate`. Used as a Compose `command` for first-boot migration.
+- `deploy/compose.yaml` — postgres (pgvector/pgvector:pg16), one-shot cloud-migrate (depends_on postgres healthy, exits 0), then mcp-server + hooks-bridge + sync-daemon (depends_on cloud-migrate completed). Bind mount `~/.coodra` for SQLite parity. Healthchecks on the HTTP services.
 - `deploy/.env.example` — every var commented.
-- `docs/deploy/self-host.md` — happy-path operator guide. Covers: clone + cd into deploy/, copy .env.example → .env, fill DATABASE_URL + LOCAL_HOOK_SECRET + CONTEXTOS_MODE=team, `docker compose up -d`, smoke test (`curl /healthz` against bridge + mcp-server, `docker compose exec sync-daemon contextos doctor`).
+- `docs/deploy/self-host.md` — happy-path operator guide. Covers: clone + cd into deploy/, copy .env.example → .env, fill DATABASE_URL + LOCAL_HOOK_SECRET + COODRA_MODE=team, `docker compose up -d`, smoke test (`curl /healthz` against bridge + mcp-server, `docker compose exec sync-daemon coodra doctor`).
 - Lint: `hadolint` on the Dockerfiles (added to CI as a non-blocking job for v1).
 - CI: a new GitHub workflow job that builds the three Dockerfiles on PR (cache-aware; only runs if `apps/**` or `deploy/**` changed).
 
@@ -140,7 +140,7 @@ Pause. Wait for OQ sign-off.
 
 - `__tests__/integration/manual/verify-sync-roundtrip.ts` — per spec §4. Spawns bridge + sync-daemon subprocesses against a Compose-launched (or testcontainers) Postgres; fires hooks; polls cloud for rows; runs the disconnect/reconnect variant.
 - Re-run the existing harness suite (`verify-phase5-closed-loop.ts`, `verify-outbox-crash-safety.ts`, `verify-f5-live.ts`) against `main` post-merge.
-- New context pack `docs/context-packs/<date>-module-04a-sync-daemon.md` covering: scope, files touched, decisions (the 7 OQ outcomes), tests added, harness output. Save via `contextos__save_context_pack`.
+- New context pack `docs/context-packs/<date>-module-04a-sync-daemon.md` covering: scope, files touched, decisions (the 7 OQ outcomes), tests added, harness output. Save via `coodra__save_context_pack`.
 - `context_memory/current-session.md` updated; "Next action: Module 04b (Web App) kickoff per `docs/feature-packs/04b-web-app/spec.md`."
 
 **Verify:** all four manual harnesses pass. `pnpm exec turbo run typecheck lint test:unit` green. Bridge + MCP + sync-daemon integration green. e2e green. Doctor on the running stack reports 0 RED, 0 YELLOW.

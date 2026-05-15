@@ -31,7 +31,7 @@ import { z } from 'zod';
  *     the SHA-256 output size and the standard minimum. We enforce it
  *     in `assertInviteSecret()` and surface a remediation message at
  *     module load so deployments that forgot to set
- *     `CONTEXTOS_INVITE_HMAC_SECRET` fail loud, not silently.
+ *     `COODRA_INVITE_HMAC_SECRET` fail loud, not silently.
  *
  * The module is `server-only` because the HMAC secret must never leak
  * to a client bundle. Importing this from a client component is a
@@ -75,10 +75,10 @@ const MIN_SECRET_BYTES = 32;
  * password works.
  */
 function loadInviteSecret(): Buffer {
-  const raw = process.env.CONTEXTOS_INVITE_HMAC_SECRET;
+  const raw = process.env.COODRA_INVITE_HMAC_SECRET;
   if (typeof raw !== 'string' || raw.length === 0) {
     throw new InviteSecretMissingError(
-      "CONTEXTOS_INVITE_HMAC_SECRET is not set. Generate one with `openssl rand -hex 32` and add it to the deployment env, then redeploy.",
+      "COODRA_INVITE_HMAC_SECRET is not set. Generate one with `openssl rand -hex 32` and add it to the deployment env, then redeploy.",
     );
   }
   // Prefer hex when the string looks like hex (64 chars, [0-9a-f]).
@@ -89,7 +89,7 @@ function loadInviteSecret(): Buffer {
   const buf = Buffer.from(raw, 'utf-8');
   if (buf.length < MIN_SECRET_BYTES) {
     throw new InviteSecretMissingError(
-      `CONTEXTOS_INVITE_HMAC_SECRET is too short (${buf.length} bytes < ${MIN_SECRET_BYTES}). Regenerate with \`openssl rand -hex 32\`.`,
+      `COODRA_INVITE_HMAC_SECRET is too short (${buf.length} bytes < ${MIN_SECRET_BYTES}). Regenerate with \`openssl rand -hex 32\`.`,
     );
   }
   return buf;
@@ -150,7 +150,7 @@ export function signInviteToken(payload: InviteTokenPayload): string {
  *   - `bad_payload`          → payload JSON didn't validate against schema
  *   - `expired`              → payload.exp < now
  *   - `secret_misconfigured` → env secret missing / too short (rare,
- *                              admin should re-set CONTEXTOS_INVITE_HMAC_SECRET)
+ *                              admin should re-set COODRA_INVITE_HMAC_SECRET)
  */
 export type VerifyResult =
   | { readonly ok: true; readonly payload: InviteTokenPayload }
@@ -197,7 +197,7 @@ export function verifyInviteToken(token: string, nowSeconds: number): VerifyResu
       ok: false,
       reason: 'bad_signature',
       howToFix:
-        'The invite token signature does not match. Ask the admin to mint a new invite (the link may have been tampered with, or the deployment has a different `CONTEXTOS_INVITE_HMAC_SECRET`).',
+        'The invite token signature does not match. Ask the admin to mint a new invite (the link may have been tampered with, or the deployment has a different `COODRA_INVITE_HMAC_SECRET`).',
     };
   }
 

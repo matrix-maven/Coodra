@@ -1,4 +1,4 @@
-import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
+import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { and, count, desc, eq, gt, inArray } from 'drizzle-orm';
 
 import { tryGetActor } from '@/lib/auth';
@@ -40,7 +40,7 @@ const SENTINEL_PROJECT_SLUGS: ReadonlySet<string> = new Set(['__global__']);
 
 export async function fetchPickerSnapshot(): Promise<PickerSnapshot> {
   const handle = createWebDb();
-  const mode = (process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
 
   // Phase-isolation fix (2026-05-11): scope project listings to the
   // current actor's org_id so solo-era projects don't bleed into the

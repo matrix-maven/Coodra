@@ -50,7 +50,7 @@ Services: `postgres` (`pgvector/pgvector:pg16`) and `redis` (`redis:7-alpine`). 
 
 ### S5 — `.mcp.json` stub
 
-Valid JSON, single server entry named `contextos` pointing to `http://127.0.0.1:3100/mcp`, plus a `_comment` field noting the server is implemented by Module 02 and connection failures are expected until then.
+Valid JSON, single server entry named `coodra` pointing to `http://127.0.0.1:3100/mcp`, plus a `_comment` field noting the server is implemented by Module 02 and connection failures are expected until then.
 
 **Files:** `.mcp.json`.
 
@@ -58,7 +58,7 @@ Valid JSON, single server entry named `contextos` pointing to `http://127.0.0.1:
 
 ### S6 — `packages/shared`
 
-Package `@coodra/contextos-shared`.
+Package `@coodra/shared`.
 
 **Files:** `packages/shared/package.json`, `packages/shared/tsconfig.json`, `packages/shared/src/index.ts`, `packages/shared/src/logger.ts`, `packages/shared/src/config.ts`, `packages/shared/src/errors/index.ts` (`AppError`, `ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `InternalError`), `packages/shared/src/idempotency.ts` (exactly `generateRunKey({ projectId, sessionId })` and `generateRunEventKey({ sessionId, toolUseId, phase })` — no other helpers until needed), and matching `__tests__/unit/*.test.ts`.
 
@@ -66,7 +66,7 @@ Package `@coodra/contextos-shared`.
 
 - `logger.ts` — produces JSON output with `level`, `time`, `msg`; `child()` carries context through.
 - `errors/` — each error class has the correct `name`, preserves `cause`, and is `instanceof AppError`.
-- `config.ts` — missing required env throws via Zod; defaults populate correctly; `CONTEXTOS_MODE` defaults to `solo`.
+- `config.ts` — missing required env throws via Zod; defaults populate correctly; `COODRA_MODE` defaults to `solo`.
 - `idempotency.ts` — `generateRunKey` output matches `^run:[^:]+:[^:]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`. `generateRunEventKey` output matches `^[^:-]+-[^:-]+-(pre|post)$`. Both are UUID v4 where applicable (`run_id`), and deterministic for stable inputs where applicable (`run_event_id`).
 
 **Reference updates in the same commit** (amendment B):
@@ -79,15 +79,15 @@ Package `@coodra/contextos-shared`.
 
 ### S7 — `packages/db`
 
-Package `@coodra/contextos-db`.
+Package `@coodra/db`.
 
 **Files:** `packages/db/package.json`, `packages/db/tsconfig.json`, `packages/db/drizzle.sqlite.config.ts`, `packages/db/drizzle.postgres.config.ts`, `packages/db/src/schema/sqlite.ts`, `packages/db/src/schema/postgres.ts`, `packages/db/src/schema/index.ts` (dialect-aware re-export), `packages/db/src/client.ts` (`createDb()` factory), `packages/db/src/migrate.ts` (programmatic migrator for Vitest + CLI), `packages/db/__tests__/unit/schema-parity.test.ts`, and the generated migrations under `packages/db/drizzle/sqlite/` and `packages/db/drizzle/postgres/`.
 
 **Commands run in this step:**
 
 ```bash
-pnpm --filter @coodra/contextos-db exec drizzle-kit generate --config=drizzle.sqlite.config.ts
-pnpm --filter @coodra/contextos-db exec drizzle-kit generate --config=drizzle.postgres.config.ts
+pnpm --filter @coodra/db exec drizzle-kit generate --config=drizzle.sqlite.config.ts
+pnpm --filter @coodra/db exec drizzle-kit generate --config=drizzle.postgres.config.ts
 ```
 
 The produced SQL is committed.
@@ -121,14 +121,14 @@ pnpm install
 pnpm lint
 pnpm typecheck
 pnpm test:unit
-pnpm --filter @coodra/contextos-db run schema:parity   # alias for the parity test, same thing run alone
+pnpm --filter @coodra/db run schema:parity   # alias for the parity test, same thing run alone
 ```
 
 All four must pass before moving to S11. Any failure triggers a fix commit on this branch — never a workaround.
 
 ### S11 — Module 01 Context Pack
 
-Write `docs/context-packs/2026-04-22-module-01-foundation.md` using `docs/context-packs/template.md`. Since `contextos__save_context_pack` is not yet callable (Module 02 hasn't shipped), this is a manual write per user Step 2.
+Write `docs/context-packs/2026-04-22-module-01-foundation.md` using `docs/context-packs/template.md`. Since `coodra__save_context_pack` is not yet callable (Module 02 hasn't shipped), this is a manual write per user Step 2.
 
 **Commit:** `docs(01-foundation): module 01 context pack`.
 
@@ -151,4 +151,4 @@ If any step introduces a regression discovered after its commit, fix forward via
 - After each design decision: append to `context_memory/decisions-log.md` with timestamp, decision, rationale, alternatives.
 - Open questions and blockers go to `context_memory/open-questions.md` / `context_memory/blockers.md`.
 
-Once Module 02 ships, the ContextOS MCP tools take over the decision/pack-recording role and the manual discipline is only the fallback path.
+Once Module 02 ships, the Coodra MCP tools take over the decision/pack-recording role and the manual discipline is only the fallback path.

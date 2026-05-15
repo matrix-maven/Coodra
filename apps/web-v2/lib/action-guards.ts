@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { requireRole, type Role } from '@coodra/contextos-shared/auth';
+import { requireRole, type Role } from '@coodra/shared/auth';
 import { redirect } from 'next/navigation';
 
 import { type Actor, getActor } from '@/lib/auth';
@@ -12,9 +12,9 @@ import { resolveDeploymentMode } from '@/lib/deployment-mode';
  *
  *   - `refuseInTeamHosted(action)` — some server actions only make
  *     sense on a local developer's laptop (spawning the MCP server,
- *     writing ~/.contextos/.env, calling `contextos init`). In
+ *     writing ~/.coodra/.env, calling `coodra init`). In
  *     `team-hosted` mode the web app runs on a server with no local
- *     daemons, no ~/.contextos directory, and no business writing to
+ *     daemons, no ~/.coodra directory, and no business writing to
  *     it. We refuse with a redirect to a help page instead of letting
  *     a confused operator silently corrupt their deployment.
  *
@@ -32,8 +32,8 @@ import { resolveDeploymentMode } from '@/lib/deployment-mode';
  * Refuse the action if the deployment is `team-hosted`. Use on actions
  * that are inherently local-laptop operations:
  *   - starting/stopping daemons (services.ts)
- *   - contextos init (init.ts)
- *   - team join (team-join.ts) — config writes go to ~/.contextos, which
+ *   - coodra init (init.ts)
+ *   - team join (team-join.ts) — config writes go to ~/.coodra, which
  *     doesn't exist on the deployment server
  *   - cancel-stuck-runs that touches local SQLite
  */

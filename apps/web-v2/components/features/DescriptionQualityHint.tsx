@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 /**
  * Real-time quality score for a feature description, mirroring the
- * heuristics in `@coodra/contextos-shared/features/schema::validateFrontmatterQuality`.
+ * heuristics in `@coodra/shared/features/schema::validateFrontmatterQuality`.
  *
  * The hint reads the value of the `description` field by id, debounces
  * on input, and renders a colour-coded score plus per-rule pass/fail
@@ -21,7 +21,7 @@ import { useEffect, useState } from 'react';
  *     `yaml` + `zod` for ~no runtime benefit. The 4 regex checks
  *     re-implemented here are 30 lines.
  *
- * If the rule set in `@coodra/contextos-shared` evolves, the canonical
+ * If the rule set in `@coodra/shared` evolves, the canonical
  * source is the server-side check; surface drift via a unit test on
  * `validateFrontmatterQuality` and update both sites in lock-step.
  */

@@ -1,7 +1,7 @@
 import { ForbiddenError } from '../errors/index.js';
 
 /**
- * `@coodra/contextos-shared/auth/roles` — Module 04 Phase 4 RBAC.
+ * `@coodra/shared/auth/roles` — Module 04 Phase 4 RBAC.
  *
  * Tier 2.5 — three Clerk roles enforced at the server-action boundary.
  * The web app (apps/web), the bridge (apps/hooks-bridge), and the MCP
@@ -20,7 +20,7 @@ import { ForbiddenError } from '../errors/index.js';
  */
 
 /**
- * The three roles ContextOS recognizes. Ordered by privilege ascending
+ * The three roles Coodra recognizes. Ordered by privilege ascending
  * (viewer < member < admin) so `ROLE_RANK[role]` gives a comparable
  * number.
  */
@@ -60,7 +60,7 @@ export interface Actor {
    *   - `solo-bypass`  — synthetic __solo__ user (no real identity)
    *   - `clerk`        — verified Clerk session JWT (team-hosted web)
    *   - `local-hook`   — local hook-secret-authenticated HTTP request
-   *   - `local-config` — read from ~/.contextos/config.json on this
+   *   - `local-config` — read from ~/.coodra/config.json on this
    *                      machine (per-developer local web pattern)
    */
   readonly source: 'solo-bypass' | 'clerk' | 'local-hook' | 'local-config';

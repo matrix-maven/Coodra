@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__read_context_pack` (M05 §5.2).
+ * Input + output schemas for `coodra__read_context_pack` (M05 §5.2).
  *
  * Caller supplies EITHER `packId` OR `runId` (Zod refine catches both /
  * neither). Output discriminated on `found`:
@@ -39,7 +39,7 @@ export const readContextPackInputSchema = z
     message: 'Provide exactly one of packId or runId.',
     path: ['packId'],
   })
-  .describe('Input for contextos__read_context_pack.');
+  .describe('Input for coodra__read_context_pack.');
 
 const decisionRowSchema = z
   .object({

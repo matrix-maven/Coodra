@@ -5,7 +5,7 @@ import { pc } from '../ui/index.js';
 import { VERSION } from '../version.js';
 
 /**
- * `contextos upgrade` — version-aware orchestration that complements
+ * `coodra upgrade` — version-aware orchestration that complements
  * the user's npm install command.
  *
  * Three states:
@@ -15,14 +15,14 @@ import { VERSION } from '../version.js';
  *        unless --no-restart. Exit 0.
  *   2. Newer version published than what's installed
  *      → print the install command for the user to run
- *        (`npm i -g @coodra/contextos-cli@<v>`). Exit 2 (user action).
+ *        (`npm i -g @coodra/cli@<v>`). Exit 2 (user action).
  *   3. `npm view` fails (network outage, registry 5xx)
  *      → print the failure + exit 1. The user can retry.
  *
  * The CLI does NOT self-update. Two reasons:
  *   - On Windows, npm cannot reliably overwrite a binary that's
  *     currently executing.
- *   - On Linux/macOS, the user's `node_modules/.bin/contextos`
+ *   - On Linux/macOS, the user's `node_modules/.bin/coodra`
  *     symlink points at a half-written file mid-update.
  * The user runs the npm command; the CLI orchestrates everything
  * else (db migrate, daemon restart) on next invocation.
@@ -103,7 +103,7 @@ export async function runUpgradeCommand(options: UpgradeOptions, ioOverride?: Up
   }
 
   if (semver.gt(published, installed)) {
-    const installCommand = `npm i -g @coodra/contextos-cli@${published}`;
+    const installCommand = `npm i -g @coodra/cli@${published}`;
     if (json) {
       const payload: UpgradeJson = {
         ok: true,
@@ -117,7 +117,7 @@ export async function runUpgradeCommand(options: UpgradeOptions, ioOverride?: Up
       io.writeStdout(
         `${pc.yellow('!')} Newer version available: ${installed} → ${published}.\n` +
           `  Run: ${pc.cyan(installCommand)}\n` +
-          `  Then re-run \`contextos upgrade\` to apply migrations + restart daemons.\n`,
+          `  Then re-run \`coodra upgrade\` to apply migrations + restart daemons.\n`,
       );
     }
     io.exit(EXIT_USER_ACTION_REQUIRED);

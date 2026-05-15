@@ -102,7 +102,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
     <>
       <Topbar
         crumb={`${project.slug} / features / ${featureSlug} / ${relPath}`}
-        crumbPrefix="contextos / projects"
+        crumbPrefix="coodra / projects"
       />
       <section className="screen">
         <div className="head">
@@ -113,7 +113,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
             </h1>
             <p className="head__lede">
               Supporting file under <code style={mono}>{featureSlug}</code>. The agent reads this on demand via{' '}
-              <code style={mono}>contextos__get_feature_file</code>.
+              <code style={mono}>coodra__get_feature_file</code>.
             </p>
           </div>
           <div>

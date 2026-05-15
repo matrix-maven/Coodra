@@ -1,6 +1,6 @@
 # `/templates` — Template browser (S7)
 
-CLI parity: `contextos template {list, install}`.
+CLI parity: `coodra template {list, install}`.
 
 ## Desktop
 
@@ -37,7 +37,7 @@ CLI parity: `contextos template {list, install}`.
 │  │  M08b verification template                                                     │    │
 │  │  languages: javascript                                                          │    │
 │  │  @auto sections: overview                                                       │    │
-│  │  ~/.contextos/templates/verify-custom                                           │    │
+│  │  ~/.coodra/templates/verify-custom                                           │    │
 │  └─────────────────────────────────────────────────────────────────────────────────┘    │
 │                                                                                         │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
@@ -83,7 +83,7 @@ Click → dialog opens (full-screen on mobile, centered modal on desktop):
 
 - Server action calls `installTemplate` (M08b S17 helper).
 - Validation errors (missing files, invalid template.json schema) appear inline below the path input as `<ErrorBanner severity="error">`.
-- On success: dialog dismisses, toast "Installed 'my-template' at ~/.contextos/templates/my-template", new card appears in the list.
+- On success: dialog dismisses, toast "Installed 'my-template' at ~/.coodra/templates/my-template", new card appears in the list.
 
 ## Mobile
 
@@ -91,4 +91,4 @@ Cards stack full-width. INSTALL FROM PATH button moves below the filter row.
 
 ## Solo vs team
 
-Templates are per-machine (under `~/.contextos/templates/`), not synced. Solo and team see the same template list — they're not org-scoped.
+Templates are per-machine (under `~/.coodra/templates/`), not synced. Solo and team see the same template list — they're not org-scoped.

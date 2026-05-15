@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
-import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/contextos-db';
+import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq, sql } from 'drizzle-orm';
 
 import type { MigrationCounts, MigrationPlan, SlugConflict } from './types.js';

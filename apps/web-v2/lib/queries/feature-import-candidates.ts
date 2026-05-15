@@ -3,14 +3,14 @@ import 'server-only';
 import { existsSync, readdirSync, readFileSync, statSync, type Stats } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
 
-import { FEATURE_SLUG_RE, walkFeatures } from '@coodra/contextos-shared/features';
+import { FEATURE_SLUG_RE, walkFeatures } from '@coodra/shared/features';
 
 /**
  * `apps/web-v2/lib/queries/feature-import-candidates.ts` — scan a
  * project's filesystem for markdown documents that look like good
  * candidates for promotion to a skill-style feature.
  *
- * Path B of the onboarding plan: when a user lands in ContextOS with
+ * Path B of the onboarding plan: when a user lands in Coodra with
  * an existing project that already has scattered docs (`docs/auth.md`,
  * `specs/payments-spec.md`, `architecture/csv-import.md`), we don't
  * want them to start over from a blank wizard. We scan the project,

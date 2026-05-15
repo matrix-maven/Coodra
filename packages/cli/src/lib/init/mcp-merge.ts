@@ -20,18 +20,18 @@ export interface BuildMcpEntryOptions {
    * runtime resolver detected a bundled deploy. `null` when the CLI
    * is running from a workspace checkout — in that case the bundled
    * mcp-server's `MIGRATIONS_FOLDER.sqlite` resolves correctly via
-   * `@coodra/contextos-db`'s own `import.meta.url`.
+   * `@coodra/db`'s own `import.meta.url`.
    */
   readonly migrationsDir?: string | null;
   /**
-   * Absolute path to the resolved CONTEXTOS_HOME. When set, the spawned
+   * Absolute path to the resolved COODRA_HOME. When set, the spawned
    * MCP server reads/writes the project's local SQLite (in this home)
-   * instead of the user's default `~/.contextos/` — eliminating the
+   * instead of the user's default `~/.coodra/` — eliminating the
    * split-brain where the bridge's audit chain lives in the project home
    * but the MCP server's record_decision / save_context_pack writes go
    * to a totally different SQLite database.
    */
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
   /**
    * Phase F.6+ (2026-05-12) — machine mode. When set to 'team', the MCP
    * child process spawned by Claude Code knows to enqueue `sync_to_cloud`
@@ -39,8 +39,8 @@ export interface BuildMcpEntryOptions {
    * sync-daemon pushes them to cloud Postgres.
    *
    * Without this, Claude Code's MCP child inherits its env from Claude's
-   * shell — which doesn't auto-load ~/.contextos/.env. Result:
-   * CONTEXTOS_MODE defaults to 'solo' inside the child, sync skips, every
+   * shell — which doesn't auto-load ~/.coodra/.env. Result:
+   * COODRA_MODE defaults to 'solo' inside the child, sync skips, every
    * decision/pack stays local-only, teammates never see admin's work.
    * Symptom: web /decisions and /context-packs render empty even after
    * the user successfully ran the MCP tools.
@@ -51,7 +51,7 @@ export interface BuildMcpEntryOptions {
    * actually only needs the local SQLite handle, but the sync-daemon
    * (which dispatches the queue) needs DATABASE_URL. We inline it here
    * so even an MCP child run from a shell that hasn't sourced
-   * ~/.contextos/.env still has it for any cloud-direct paths.
+   * ~/.coodra/.env still has it for any cloud-direct paths.
    */
   readonly databaseUrl?: string;
   /**
@@ -63,43 +63,43 @@ export interface BuildMcpEntryOptions {
   readonly localHookSecret?: string;
 }
 
-export interface ContextosMcpEntry {
+export interface CoodraMcpEntry {
   readonly command: string;
   readonly args?: string[];
   readonly env?: Record<string, string>;
 }
 
 /**
- * Build the canonical `contextos` entry for `.mcp.json`. The bundled
+ * Build the canonical `coodra` entry for `.mcp.json`. The bundled
  * mcp-server binary path is resolved by the init command and passed in
- * verbatim. Pre dec_83ba10c1 we wrote a `npx -y @coodra/contextos-cli
+ * verbatim. Pre dec_83ba10c1 we wrote a `npx -y @coodra/cli
  * mcp-stdio` fallback when no monorepo was detected — that subcommand
  * never existed, so npm-installed users got a `.mcp.json` that Claude
  * Code could not spawn. With bundled dists the runtime is always on
- * disk inside the @coodra/contextos-cli package, so the fallback is gone and
+ * disk inside the @coodra/cli package, so the fallback is gone and
  * init fails loudly when the binary cannot be located.
  */
-export function buildContextosMcpEntry(options: BuildMcpEntryOptions): ContextosMcpEntry {
+export function buildCoodraMcpEntry(options: BuildMcpEntryOptions): CoodraMcpEntry {
   const env: Record<string, string> = {
-    CONTEXTOS_LOG_DESTINATION: 'stderr',
+    COODRA_LOG_DESTINATION: 'stderr',
     CLERK_SECRET_KEY: options.clerkSecretKey,
   };
   if (typeof options.migrationsDir === 'string' && options.migrationsDir.length > 0) {
-    // Tells the bundled mcp-server's `@coodra/contextos-db::MIGRATIONS_FOLDER`
+    // Tells the bundled mcp-server's `@coodra/db::MIGRATIONS_FOLDER`
     // where to find drizzle SQL files (the bundle inlines the code but
     // not the SQL — those land under <cli-dist>/runtime/drizzle/).
-    env.CONTEXTOS_MIGRATIONS_DIR = options.migrationsDir;
+    env.COODRA_MIGRATIONS_DIR = options.migrationsDir;
   }
-  if (typeof options.contextosHome === 'string' && options.contextosHome.length > 0) {
+  if (typeof options.coodraHome === 'string' && options.coodraHome.length > 0) {
     // CRITICAL: when Claude Code spawns the MCP server via this entry, the
     // child process inherits its env from Claude Code's environment (NOT
-    // from the user's shell that ran `contextos init`). Without an explicit
-    // CONTEXTOS_HOME here the MCP server defaults to `~/.contextos/`, so
+    // from the user's shell that ran `coodra init`). Without an explicit
+    // COODRA_HOME here the MCP server defaults to `~/.coodra/`, so
     // every decision/context_pack the agent records via record_decision /
     // save_context_pack lands in the user's REAL home — not the project's
-    // home. The bridge writes to the configured CONTEXTOS_HOME, the MCP
-    // writes to ~/.contextos: split-brain. Pin the home explicitly.
-    env.CONTEXTOS_HOME = options.contextosHome;
+    // home. The bridge writes to the configured COODRA_HOME, the MCP
+    // writes to ~/.coodra: split-brain. Pin the home explicitly.
+    env.COODRA_HOME = options.coodraHome;
   }
   // Phase F.6+ (2026-05-12) — pin team-mode + cloud creds in the MCP
   // child env. See option docblocks above for the rationale. Without
@@ -107,7 +107,7 @@ export function buildContextosMcpEntry(options: BuildMcpEntryOptions): Contextos
   // save_context_pack call skips the sync_to_cloud enqueue, leaving
   // cloud Postgres empty even though local SQLite has the rows.
   if (options.mode === 'team') {
-    env.CONTEXTOS_MODE = 'team';
+    env.COODRA_MODE = 'team';
   }
   if (typeof options.databaseUrl === 'string' && options.databaseUrl.length > 0) {
     env.DATABASE_URL = options.databaseUrl;
@@ -123,7 +123,7 @@ export function buildContextosMcpEntry(options: BuildMcpEntryOptions): Contextos
 }
 
 /** True when both entries are byte-for-byte equal under JSON canonicalisation. */
-export function isContextosEntryEqual(a: ContextosMcpEntry, b: unknown): boolean {
+export function isCoodraEntryEqual(a: CoodraMcpEntry, b: unknown): boolean {
   if (typeof b !== 'object' || b === null) return false;
   return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 }
@@ -142,13 +142,13 @@ function canonical(value: unknown): unknown {
 
 export interface MergeMcpJsonOptions {
   readonly cwd: string;
-  readonly entry: ContextosMcpEntry;
+  readonly entry: CoodraMcpEntry;
   readonly force: boolean;
   readonly dryRun: boolean;
 }
 
 /**
- * Idempotent merge of the `contextos` entry into `<cwd>/.mcp.json` per
+ * Idempotent merge of the `coodra` entry into `<cwd>/.mcp.json` per
  * spec §11 Decision 3. Returns the WriteOutcome describing what happened.
  */
 export async function mergeMcpJson(options: MergeMcpJsonOptions): Promise<WriteOutcome> {
@@ -156,9 +156,9 @@ export async function mergeMcpJson(options: MergeMcpJsonOptions): Promise<WriteO
   const exists = await pathExists(path);
 
   if (!exists) {
-    const baseline = { mcpServers: { contextos: options.entry } };
+    const baseline = { mcpServers: { coodra: options.entry } };
     if (!options.dryRun) await writeFile(path, `${JSON.stringify(baseline, null, 2)}\n`, 'utf8');
-    return { path, action: 'wrote', notes: 'created baseline .mcp.json with contextos entry' };
+    return { path, action: 'wrote', notes: 'created baseline .mcp.json with coodra entry' };
   }
 
   const raw = await readFile(path, 'utf8');
@@ -174,30 +174,30 @@ export async function mergeMcpJson(options: MergeMcpJsonOptions): Promise<WriteO
   }
 
   const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
-  const existingContextos = servers.contextos;
+  const existingCoodra = servers.coodra;
 
   if (options.force) {
-    parsed.mcpServers = { ...servers, contextos: options.entry };
+    parsed.mcpServers = { ...servers, coodra: options.entry };
     if (!options.dryRun) await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-    return { path, action: 'forced', notes: 'overwrote .mcp.json with baseline contextos entry' };
+    return { path, action: 'forced', notes: 'overwrote .mcp.json with baseline coodra entry' };
   }
 
-  if (existingContextos === undefined) {
-    parsed.mcpServers = { ...servers, contextos: options.entry };
+  if (existingCoodra === undefined) {
+    parsed.mcpServers = { ...servers, coodra: options.entry };
     if (!options.dryRun) await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-    return { path, action: 'merged', notes: 'added contextos entry to existing .mcp.json' };
+    return { path, action: 'merged', notes: 'added coodra entry to existing .mcp.json' };
   }
 
-  if (isContextosEntryEqual(options.entry, existingContextos)) {
-    return { path, action: 'unchanged', notes: 'contextos entry already matches baseline' };
+  if (isCoodraEntryEqual(options.entry, existingCoodra)) {
+    return { path, action: 'unchanged', notes: 'coodra entry already matches baseline' };
   }
 
-  // Drift: existing contextos entry differs from baseline. Without `--force`
+  // Drift: existing coodra entry differs from baseline. Without `--force`
   // we preserve the user's edits (Decision 3 — "never destroys user edits").
   return {
     path,
     action: 'unchanged',
-    notes: 'contextos entry exists with custom config; pass --force to overwrite with baseline',
+    notes: 'coodra entry exists with custom config; pass --force to overwrite with baseline',
   };
 }
 
@@ -211,14 +211,14 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 /**
- * Module 08b S8 — `contextos uninstall` reverse for `.mcp.json`.
+ * Module 08b S8 — `coodra uninstall` reverse for `.mcp.json`.
  *
- * Removes the `contextos` key from `mcpServers` if present. Leaves
+ * Removes the `coodra` key from `mcpServers` if present. Leaves
  * every other server entry untouched. Returns a WriteOutcome
  * describing what happened (action='unchanged' on no-op, 'merged'
  * when the entry was actually removed, 'wrote' is unused).
  *
- * Idempotent: re-running on a file with no `contextos` entry is
+ * Idempotent: re-running on a file with no `coodra` entry is
  * action='unchanged'.
  */
 export async function removeMcpJson(options: { cwd: string; dryRun: boolean }): Promise<WriteOutcome> {
@@ -240,16 +240,16 @@ export async function removeMcpJson(options: { cwd: string; dryRun: boolean }): 
   }
 
   const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
-  if (!Object.hasOwn(servers, 'contextos')) {
-    return { path, action: 'unchanged', notes: 'no contextos entry to remove' };
+  if (!Object.hasOwn(servers, 'coodra')) {
+    return { path, action: 'unchanged', notes: 'no coodra entry to remove' };
   }
 
   const next: Record<string, unknown> = { ...servers };
-  delete next.contextos;
+  delete next.coodra;
   parsed.mcpServers = next;
 
   if (!options.dryRun) {
     await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
   }
-  return { path, action: 'merged', notes: 'removed contextos entry from .mcp.json' };
+  return { path, action: 'merged', notes: 'removed coodra entry from .mcp.json' };
 }

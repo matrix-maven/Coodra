@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import { and, desc, eq, lt, or } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -11,7 +11,7 @@ import {
 } from './schema.js';
 
 /**
- * Handler factory for `contextos__list_context_packs`.
+ * Handler factory for `coodra__list_context_packs`.
  *
  * Module 05 §5.1. Pagination via opaque base64 cursor encoding
  * `{lastCreatedAt: number_ms, lastId: string}`. The keyset condition
@@ -95,7 +95,7 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
         ok: false,
         error: 'project_not_found',
         howToFix:
-          'Register this project via the Web App or run `contextos init` in the project root before retrying.',
+          'Register this project via the Web App or run `coodra init` in the project root before retrying.',
       };
     }
 

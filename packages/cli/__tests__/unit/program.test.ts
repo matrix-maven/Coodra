@@ -40,7 +40,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'stop',
       'team',
       'template',
-      // Terminal-UI redesign — `contextos ui` launches the interactive TUI.
+      // Terminal-UI redesign — `coodra ui` launches the interactive TUI.
       'ui',
       'uninstall',
       'upgrade',
@@ -82,7 +82,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     const templateSub = templateCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(templateSub).toEqual(['install', 'list']);
 
-    // 2026-05-08 — features admin under `contextos feature`.
+    // 2026-05-08 — features admin under `coodra feature`.
     const featureCmd = program.commands.find((c) => c.name() === 'feature');
     expect(featureCmd).toBeDefined();
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
@@ -99,7 +99,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     await expect(
       program.parseAsync([
         'node',
-        'contextos',
+        'coodra',
         'cloud-migrate',
         '--database-url',
         'postgres://u:p@h/db',
@@ -118,7 +118,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       throw new Error('__exit__:0');
     };
     const program = buildProgram({ runDoctor: fakeRunDoctor });
-    await expect(program.parseAsync(['node', 'contextos', 'doctor', '--json'])).rejects.toThrow('__exit__:0');
+    await expect(program.parseAsync(['node', 'coodra', 'doctor', '--json'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ json: true });
   });
@@ -131,7 +131,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     };
     const program = buildProgram({ runInit: fakeRunInit });
     await expect(
-      program.parseAsync(['node', 'contextos', 'init', '--project-slug', 'demo', '--dry-run']),
+      program.parseAsync(['node', 'coodra', 'init', '--project-slug', 'demo', '--dry-run']),
     ).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ projectSlug: 'demo', dryRun: true });
@@ -144,7 +144,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       throw new Error('__exit__:0');
     };
     const program = buildProgram({ runStart: fakeRunStart });
-    await expect(program.parseAsync(['node', 'contextos', 'start', '--no-mcp'])).rejects.toThrow('__exit__:0');
+    await expect(program.parseAsync(['node', 'coodra', 'start', '--no-mcp'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ mcp: false });
   });
@@ -156,7 +156,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       throw new Error('__exit__:0');
     };
     const program = buildProgram({ runStop: fakeRunStop });
-    await expect(program.parseAsync(['node', 'contextos', 'stop', '--service', 'mcp-server'])).rejects.toThrow(
+    await expect(program.parseAsync(['node', 'coodra', 'stop', '--service', 'mcp-server'])).rejects.toThrow(
       '__exit__:0',
     );
     expect(calls).toHaveLength(1);
@@ -170,14 +170,14 @@ describe('buildProgram — full surface (post-S8)', () => {
       throw new Error('__exit__:0');
     };
     const program = buildProgram({ runStatus: fakeRunStatus });
-    await expect(program.parseAsync(['node', 'contextos', 'status', '--json'])).rejects.toThrow('__exit__:0');
+    await expect(program.parseAsync(['node', 'coodra', 'status', '--json'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ json: true });
   });
 
   it('wires `team login` to the Phase G login runner (legacy token+server flags accepted but token ignored)', async () => {
     // Phase G replaced the stub-based team-login with `runLoginCommand`.
-    // `team login` is now a backward-compat alias for `contextos login` —
+    // `team login` is now a backward-compat alias for `coodra login` —
     // the legacy `[token]` argument is silently dropped (Phase G captures
     // the token via browser handoff). `--server` maps to `webUrl`.
     const calls: Array<unknown> = [];
@@ -187,7 +187,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     };
     const program = buildProgram({ runLogin: fakeRunLogin });
     await expect(
-      program.parseAsync(['node', 'contextos', 'team', 'login', 'legacy-tok', '--server', 'https://x.example']),
+      program.parseAsync(['node', 'coodra', 'team', 'login', 'legacy-tok', '--server', 'https://x.example']),
     ).rejects.toThrow('__exit__:2');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ webUrl: 'https://x.example' });
@@ -196,14 +196,14 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(calls[0]).not.toHaveProperty('token');
   });
 
-  it('wires `team logout` to the Phase G logout runner (alias for `contextos logout`)', async () => {
+  it('wires `team logout` to the Phase G logout runner (alias for `coodra logout`)', async () => {
     let called = false;
     const fakeRunLogout = async () => {
       called = true;
       throw new Error('__exit__:2');
     };
     const program = buildProgram({ runLogout: fakeRunLogout });
-    await expect(program.parseAsync(['node', 'contextos', 'team', 'logout'])).rejects.toThrow('__exit__:2');
+    await expect(program.parseAsync(['node', 'coodra', 'team', 'logout'])).rejects.toThrow('__exit__:2');
     expect(called).toBe(true);
   });
 
@@ -214,7 +214,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       throw new Error('__exit__:0');
     };
     const program = buildProgram({ runLogout: fakeRunLogout });
-    await expect(program.parseAsync(['node', 'contextos', 'logout'])).rejects.toThrow('__exit__:0');
+    await expect(program.parseAsync(['node', 'coodra', 'logout'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
   });
 

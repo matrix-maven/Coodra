@@ -2,22 +2,22 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosHome } from '../lib/contextos-home.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { listAvailableTemplates } from '../lib/template-paths.js';
 import { loadTemplate, TemplateLoadError } from '../lib/templates/load-template.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `contextos template {list|install}` — admin surface for the
+ * `coodra template {list|install}` — admin surface for the
  * feature-pack templates library. Module 08b S17.
  *
  * `template list` walks both tiers (user-installed under
- * `~/.contextos/templates/<name>/` + bundled under
+ * `~/.coodra/templates/<name>/` + bundled under
  * `<cli-dist>/templates/<name>/`), shows source + name + description
  * + supported languages.
  *
  * `template install <source>` copies a local directory into
- * `~/.contextos/templates/<name>/` so it persists across projects.
+ * `~/.coodra/templates/<name>/` so it persists across projects.
  * Refuses to overwrite a bundled template's name (e.g. you can't
  * install a custom `generic` that shadows the bundled one — pick a
  * different name with `--name <override>`).
@@ -59,7 +59,7 @@ export interface TemplateIO {
   readonly writeStdout: (chunk: string) => void;
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
-  readonly contextosHome?: string;
+  readonly coodraHome?: string;
 }
 
 export const DEFAULT_TEMPLATE_IO: TemplateIO = {
@@ -77,8 +77,8 @@ export const DEFAULT_TEMPLATE_IO: TemplateIO = {
 export async function runTemplateListCommand(options: TemplateListOptions, ioOverride?: TemplateIO): Promise<void> {
   const io = ioOverride ?? DEFAULT_TEMPLATE_IO;
   const json = options.json === true;
-  const homePath = io.contextosHome ?? resolveContextosHome();
-  const all = listAvailableTemplates({ contextosHome: homePath });
+  const homePath = io.coodraHome ?? resolveCoodraHome();
+  const all = listAvailableTemplates({ coodraHome: homePath });
   const enriched = await Promise.all(
     all.map(async (t) => {
       try {
@@ -176,7 +176,7 @@ export async function runTemplateInstallCommand(
     );
   }
 
-  const homePath = io.contextosHome ?? resolveContextosHome();
+  const homePath = io.coodraHome ?? resolveCoodraHome();
   const userTemplatesRoot = join(homePath, 'templates');
   const targetDir = join(userTemplatesRoot, installName);
 
@@ -216,7 +216,7 @@ export async function runTemplateInstallCommand(
       );
     }
     io.writeStdout(
-      `  Use it: ${pc.cyan(`contextos init --template ${installName}`)} or ${pc.cyan(`contextos pack new <slug> --template ${installName}`)}\n`,
+      `  Use it: ${pc.cyan(`coodra init --template ${installName}`)} or ${pc.cyan(`coodra pack new <slug> --template ${installName}`)}\n`,
     );
   }
   io.exit(EXIT_OK);

@@ -8,8 +8,8 @@
 
 ```bash
 bash /Users/abishaikc/Coodra/presentation/setup.sh
-contextos status
-contextos doctor
+coodra status
+coodra doctor
 ```
 
 Separate terminal:
@@ -19,7 +19,7 @@ cd /Users/abishaikc/Coodra/apps/web && pnpm dev
 
 Pane B:
 ```bash
-cd ~/taskforge-demo && contextos logs hooks --follow
+cd ~/taskforge-demo && coodra logs hooks --follow
 ```
 
 ---
@@ -29,7 +29,7 @@ cd ~/taskforge-demo && contextos logs hooks --follow
 ```bash
 ls ~/taskforge-demo
 ls -la ~/taskforge-demo
-cat ~/taskforge-demo/.contextos.json
+cat ~/taskforge-demo/.coodra.json
 ls ~/taskforge-demo/docs/feature-packs/taskforge-demo/
 ```
 
@@ -38,8 +38,8 @@ ls ~/taskforge-demo/docs/feature-packs/taskforge-demo/
 ## Phase 2 — Doctor (Pane A)
 
 ```bash
-contextos doctor
-contextos doctor --full | head -50
+coodra doctor
+coodra doctor --full | head -50
 ```
 
 ---
@@ -66,10 +66,10 @@ Let's build the storage layer per the implementation plan's Slice 2. Use the con
 
 After Claude finishes, in Pane A:
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT description, rationale FROM decisions ORDER BY created_at DESC LIMIT 3;"
 
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT id, source, prompt_text, state FROM intents ORDER BY created_at DESC LIMIT 3;"
 ```
 
@@ -84,7 +84,7 @@ Add a `.env` file at the project root with TASKFORGE_HOME=/tmp/taskforge-demo so
 
 After Claude reports the deny, in Pane A:
 ```bash
-sqlite3 ~/.contextos/data.db \
+sqlite3 ~/.coodra/data.db \
   "SELECT tool_name, permission_decision, reason, matched_rule_id
    FROM policy_decisions
    ORDER BY created_at DESC LIMIT 5;"
@@ -95,7 +95,7 @@ sqlite3 ~/.contextos/data.db \
 ## Phase 6 — Kill switch (Pane A, then Pane C, then Pane A)
 
 ```bash
-contextos pause --mode hard --scope tool --target Bash
+coodra pause --mode hard --scope tool --target Bash
 ```
 
 In Pane C:
@@ -105,8 +105,8 @@ Run `npm install` and tell me what it outputs.
 
 After Claude reports it can't run Bash, back in Pane A:
 ```bash
-contextos resume
-contextos status
+coodra resume
+coodra status
 ```
 
 ---
@@ -137,9 +137,9 @@ What did we decide about storage in the previous session, and why?
 
 In Pane A while Claude responds:
 ```bash
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM decisions WHERE project_id IN (SELECT id FROM projects WHERE slug='taskforge-demo');"
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM intents WHERE state='resolved';"
-sqlite3 ~/.contextos/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post';"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM decisions WHERE project_id IN (SELECT id FROM projects WHERE slug='taskforge-demo');"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM intents WHERE state='resolved';"
+sqlite3 ~/.coodra/data.db "SELECT COUNT(*) FROM run_events WHERE phase='post';"
 ```
 
 ---
@@ -168,7 +168,7 @@ Click order, top-to-bottom:
 
 ## If interrupted: "in plain English what is this?"
 
-> "ContextOS makes AI coding agents enterprise-safe. Three things: persistent project context they don't already have, real policy enforcement on every tool call — not advice, actual blocks — and a queryable audit trail of every decision. Local-first, works with any MCP agent, single command to install."
+> "Coodra makes AI coding agents enterprise-safe. Three things: persistent project context they don't already have, real policy enforcement on every tool call — not advice, actual blocks — and a queryable audit trail of every decision. Local-first, works with any MCP agent, single command to install."
 
 ---
 

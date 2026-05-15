@@ -8,7 +8,7 @@ describe('FallbackDaemonManager — real-spawn integration', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-daemon-fallback-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-daemon-fallback-'));
     await mkdir(join(home, 'pids'), { recursive: true });
   });
 
@@ -17,7 +17,7 @@ describe('FallbackDaemonManager — real-spawn integration', () => {
   });
 
   it('install + start + status + stop lifecycle against `node -e "setInterval(...)"`', async () => {
-    const mgr = new FallbackDaemonManager({ contextosHome: home });
+    const mgr = new FallbackDaemonManager({ coodraHome: home });
 
     expect(await mgr.isAvailable()).toBe(true);
 
@@ -58,13 +58,13 @@ describe('FallbackDaemonManager — real-spawn integration', () => {
 
   it('start force-restarts when already running so a re-installed unit picks up the new env', async () => {
     // The OLD contract was "start is idempotent — second call no-ops".
-    // That was a bug: after `contextos start` is invoked a second time
-    // with a different CONTEXTOS_HOME, the previously-spawned process
+    // That was a bug: after `coodra start` is invoked a second time
+    // with a different COODRA_HOME, the previously-spawned process
     // continued to serve the OLD env and the new install() was silently
     // ignored. The contract is now: `start` always tears down any prior
     // instance first, then spawns fresh against the latest installed
     // unit. Verify the second start produces a different PID.
-    const mgr = new FallbackDaemonManager({ contextosHome: home });
+    const mgr = new FallbackDaemonManager({ coodraHome: home });
     await mgr.install({
       name: 'idempo',
       command: process.execPath,
@@ -83,12 +83,12 @@ describe('FallbackDaemonManager — real-spawn integration', () => {
   });
 
   it('status returns stopped when no PID file exists', async () => {
-    const mgr = new FallbackDaemonManager({ contextosHome: home });
+    const mgr = new FallbackDaemonManager({ coodraHome: home });
     expect((await mgr.status('never-installed')).state).toBe('stopped');
   });
 
   it('start throws when no unit was installed', async () => {
-    const mgr = new FallbackDaemonManager({ contextosHome: home });
+    const mgr = new FallbackDaemonManager({ coodraHome: home });
     await expect(mgr.start('not-here')).rejects.toThrow(/no unit installed/);
   });
 });

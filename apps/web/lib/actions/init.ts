@@ -1,6 +1,6 @@
 'use server';
 
-import { runInit } from '@coodra/contextos-cli/lib/init';
+import { runInit } from '@coodra/cli/lib/init';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -9,7 +9,7 @@ import { z } from 'zod';
  * wizard (M04 Phase 2 S3).
  *
  * Wraps the library-promoted `runInit()` from
- * `@coodra/contextos-cli/lib/init`. Form-side validation re-uses the
+ * `@coodra/cli/lib/init`. Form-side validation re-uses the
  * same slug regex as the CLI's `sanitizeSlug` so failures are caught
  * before the heavy init pipeline runs.
  *

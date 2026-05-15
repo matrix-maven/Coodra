@@ -3,7 +3,7 @@ import {
   type DecisionWithProject,
   type ListDecisionsFilter,
   listAllDecisions,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 

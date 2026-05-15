@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 
 /**
  * `apps/hooks-bridge/src/lib/feature-pack-loader.ts` — slim
@@ -127,7 +127,7 @@ export async function loadFeaturePackForSession(options: LoadFeaturePackOptions)
     return null;
   }
 
-  const sections: string[] = [`# ContextOS Feature Pack — ${options.projectSlug}`];
+  const sections: string[] = [`# Coodra Feature Pack — ${options.projectSlug}`];
   sections.push('## spec.md');
   sections.push(spec.trim());
   if (implementation !== null) {

@@ -1,4 +1,4 @@
-import { ConflictError, InternalError, UnauthorizedError, ValidationError } from '@coodra/contextos-shared';
+import { ConflictError, InternalError, UnauthorizedError, ValidationError } from '@coodra/shared';
 import { describe, expect, it } from 'vitest';
 
 import { mcpErrorResult, NotImplementedError } from '../../../src/lib/errors.js';

@@ -1,4 +1,4 @@
-import { AppError, InternalError, isAppError } from '@coodra/contextos-shared';
+import { AppError, InternalError, isAppError } from '@coodra/shared';
 
 /**
  * `apps/mcp-server/src/lib/errors.ts` — error-shape translation for

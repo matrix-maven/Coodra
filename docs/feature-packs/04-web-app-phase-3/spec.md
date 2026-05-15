@@ -38,8 +38,8 @@ During Phase 3, the redesign work in `apps/web/` revealed enough architectural d
 ## Verification
 
 ```bash
-pnpm --filter @coodra/contextos-web dev    # apps/web on :3000 (deprecated, still functional)
-pnpm --filter @coodra/contextos-web-v2 dev # apps/web-v2 on :3001 (canonical)
+pnpm --filter @coodra/web dev    # apps/web on :3000 (deprecated, still functional)
+pnpm --filter @coodra/web-v2 dev # apps/web-v2 on :3001 (canonical)
 ```
 
-Both apps run against the same local SQLite (`~/.contextos/data.db`) or `DATABASE_URL` Postgres. Mode toggle via `CONTEXTOS_MODE`.
+Both apps run against the same local SQLite (`~/.coodra/data.db`) or `DATABASE_URL` Postgres. Mode toggle via `COODRA_MODE`.

@@ -5,7 +5,7 @@ import { createQueryRunDiffHandler, type QueryRunDiffHandlerDeps } from './handl
 import { type QueryRunDiffInput, queryRunDiffInputSchema, queryRunDiffOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__query_run_diff` (Module 06).
+ * Registration factory for `coodra__query_run_diff` (Module 06).
  *
  * Read-only tool — idempotency key kind `readonly`. Reads the run_diffs
  * row written by the hooks-bridge SessionEnd runner and returns it (or
@@ -26,7 +26,7 @@ export function createQueryRunDiffToolRegistration(
 ): ToolRegistration<typeof queryRunDiffInputSchema, typeof queryRunDiffOutputSchema> {
   return {
     name: 'query_run_diff',
-    title: 'ContextOS: query_run_diff',
+    title: 'Coodra: query_run_diff',
     description:
       'Call this when assembling a session recap and you need to know which functions, classes, imports, and tests changed during a run — i.e. exactly what edits the agent made on disk. ' +
       'Returns the unified `git diff` (scoped to files the agent touched in Edit/Write/MultiEdit calls) plus per-file metadata (additions, deletions, status). ' +

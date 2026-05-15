@@ -4,9 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * Phase G slice G.6 — `apps/mcp-server/src/lib/actor-identity.ts` tests.
  *
  * Two dependencies are mocked at module load:
- *   - `@coodra/contextos-shared/auth::readVerifiedToken` — controls
+ *   - `@coodra/shared/auth::readVerifiedToken` — controls
  *     whether a Clerk JWT exists + verifies on this machine.
- *   - `@coodra/contextos-cli/lib/team-config::readTeamConfig` —
+ *   - `@coodra/cli/lib/team-config::readTeamConfig` —
  *     controls the legacy config.json::team block (deprecation
  *     fallback).
  *
@@ -20,9 +20,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockReadVerifiedToken = vi.hoisted(() => vi.fn());
 const mockReadTeamConfig = vi.hoisted(() => vi.fn());
 
-vi.mock('@coodra/contextos-shared/auth', async () => {
-  const actual = await vi.importActual<typeof import('@coodra/contextos-shared/auth')>(
-    '@coodra/contextos-shared/auth',
+vi.mock('@coodra/shared/auth', async () => {
+  const actual = await vi.importActual<typeof import('@coodra/shared/auth')>(
+    '@coodra/shared/auth',
   );
   return {
     ...actual,
@@ -30,7 +30,7 @@ vi.mock('@coodra/contextos-shared/auth', async () => {
   };
 });
 
-vi.mock('@coodra/contextos-cli/lib/team-config', async () => ({
+vi.mock('@coodra/cli/lib/team-config', async () => ({
   readTeamConfig: mockReadTeamConfig,
 }));
 
@@ -128,7 +128,7 @@ describe('requireActorIdentityForTeamMode', () => {
     const result = await requireActorIdentityForTeamMode();
     expect(result.kind).toBe('auth_required');
     if (result.kind === 'auth_required') {
-      expect(result.howToFix).toMatch(/contextos login/);
+      expect(result.howToFix).toMatch(/coodra login/);
     }
   });
 

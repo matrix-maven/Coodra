@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle } from '@coodra/contextos-db';
+import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { ContextDeps, GraphifyClient } from '../../../src/framework/tool-context.js';
@@ -14,7 +14,7 @@ import type { QueryCodebaseGraphOutput } from '../../../src/tools/query-codebase
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `contextos__query_codebase_graph` (S15).
+ * Integration test for `coodra__query_codebase_graph` (S15).
  *
  * Uses a real `createGraphifyClient` against a temp `graphifyRoot`
  * plus an in-memory SQLite handle migrated to 0003 with a projects
@@ -107,7 +107,7 @@ describe('query_codebase_graph — project_not_found soft-failure', () => {
     expect(out.ok).toBe(false);
     if (out.ok) return;
     expect(out.error).toBe('project_not_found');
-    expect(out.howToFix).toMatch(/contextos init|projects table/);
+    expect(out.howToFix).toMatch(/coodra init|projects table/);
   });
 });
 

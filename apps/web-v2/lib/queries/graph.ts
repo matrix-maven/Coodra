@@ -12,7 +12,7 @@ import { join } from 'node:path';
  * the URL-bound project.
  *
  * Per ADR-010: the producer (graphify CLI) is third-party and not yet
- * bundled with ContextOS. Operators must `npm i -g graphify` and run
+ * bundled with Coodra. Operators must `npm i -g graphify` and run
  * `graphify scan` at repo root to populate the index. The page renders
  * an empty-state CTA with this command when no graph.json is present.
  */
@@ -61,11 +61,11 @@ const HOWTO_INSTALL = 'npm install -g graphify';
 const HOWTO_RUN = 'graphify scan';
 
 function defaultGraphifyRoot(): string {
-  return join(homedir(), '.contextos', 'graphify');
+  return join(homedir(), '.coodra', 'graphify');
 }
 
 function graphifyRoot(): string {
-  const override = process.env.CONTEXTOS_GRAPHIFY_ROOT;
+  const override = process.env.COODRA_GRAPHIFY_ROOT;
   if (typeof override === 'string' && override.length > 0) return override;
   return defaultGraphifyRoot();
 }

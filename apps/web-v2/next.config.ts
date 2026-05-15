@@ -9,31 +9,31 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Phase F.6+ (2026-05-12) — auto-load ~/.contextos/.env on web boot.
+ * Phase F.6+ (2026-05-12) — auto-load ~/.coodra/.env on web boot.
  *
- * Without this, the operator has to pass CONTEXTOS_MODE,
- * CONTEXTOS_TEAM_ORG_ID, DATABASE_URL etc. inline when starting `pnpm
+ * Without this, the operator has to pass COODRA_MODE,
+ * COODRA_TEAM_ORG_ID, DATABASE_URL etc. inline when starting `pnpm
  * dev`, which is brittle (forget the env → web runs in solo, role
  * checks silently disabled, identity wrong). Auto-loading mirrors what
- * the daemons already do via @coodra/contextos-shared::loadHomeEnv and
+ * the daemons already do via @coodra/shared::loadHomeEnv and
  * keeps the three surfaces (daemons / web / CLI) in lockstep.
  *
- * Precedence: ~/.contextos/.env OVERRIDES the web's .env.local for
- * ContextOS-managed keys (CONTEXTOS_*, LOCAL_HOOK_SECRET, DATABASE_URL,
+ * Precedence: ~/.coodra/.env OVERRIDES the web's .env.local for
+ * Coodra-managed keys (COODRA_*, LOCAL_HOOK_SECRET, DATABASE_URL,
  * CLERK_*). The machine config is the source of truth — .env.local is
- * developer convenience and gets overruled. For non-ContextOS keys
+ * developer convenience and gets overruled. For non-Coodra keys
  * we preserve .env.local (existing-env-wins).
  *
  * Why this asymmetry: the apps/web-v2/.env.local ships with
- * CONTEXTOS_MODE=solo as a baseline; without override, the web stays
+ * COODRA_MODE=solo as a baseline; without override, the web stays
  * in solo even after the user has run `team init`. That's exactly the
  * "I'm in team mode but the web shows solo" symptom we just hit.
  */
-function loadContextosHomeEnv(): void {
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+function loadCoodraHomeEnv(): void {
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const envPath = resolve(home, '.env');
   if (!existsSync(envPath)) return;
-  const CONTEXTOS_MANAGED_PREFIX = /^(CONTEXTOS_|CLERK_|LOCAL_HOOK_SECRET$|DATABASE_URL$|NEXT_PUBLIC_CLERK_)/;
+  const COODRA_MANAGED_PREFIX = /^(COODRA_|CLERK_|LOCAL_HOOK_SECRET$|DATABASE_URL$|NEXT_PUBLIC_CLERK_)/;
   try {
     const raw = readFileSync(envPath, 'utf8');
     for (const line of raw.split(/\r?\n/)) {
@@ -43,16 +43,16 @@ function loadContextosHomeEnv(): void {
       if (eq <= 0) continue;
       const key = trimmed.slice(0, eq).trim();
       const value = trimmed.slice(eq + 1).trim();
-      // ContextOS-managed keys: home env wins (override .env.local).
+      // Coodra-managed keys: home env wins (override .env.local).
       // Everything else: existing env wins (preserve dev overrides).
-      if (!CONTEXTOS_MANAGED_PREFIX.test(key) && process.env[key] !== undefined) continue;
+      if (!COODRA_MANAGED_PREFIX.test(key) && process.env[key] !== undefined) continue;
       process.env[key] = value;
     }
   } catch {
     // ignore — web will boot in whatever env it has.
   }
 }
-loadContextosHomeEnv();
+loadCoodraHomeEnv();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -65,10 +65,10 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Next.js's monorepo support is keyed off `outputFileTracingRoot` —
   // pin it to the repo root so the tracer follows the workspace symlinks
-  // for `@coodra/contextos-db` + `@coodra/contextos-shared` and copies
+  // for `@coodra/db` + `@coodra/shared` and copies
   // their compiled `dist/` into the standalone output.
   outputFileTracingRoot: resolve(__dirname, '..', '..'),
-  transpilePackages: ['@coodra/contextos-db', '@coodra/contextos-shared'],
+  transpilePackages: ['@coodra/db', '@coodra/shared'],
   // Native bindings (better-sqlite3) and packages that ship platform-
   // specific loadable extensions (sqlite-vec) must NOT be webpack-bundled
   // by Next.js — bundling breaks the .node / .dylib / .so loader paths.

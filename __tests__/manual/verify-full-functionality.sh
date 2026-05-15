@@ -10,13 +10,13 @@
 #   - Bridge route is `/v1/hooks/claude-code`, not `/hooks`.
 #   - Claude Code payload schema is `.strict()` and rejects `agent_type`.
 #   - LOCAL_HOOK_SECRET lives at <cwd>/.env (where init writes), not at
-#     <CONTEXTOS_HOME>/.env. (Finding A: closed; loader reads both paths.)
+#     <COODRA_HOME>/.env. (Finding A: closed; loader reads both paths.)
 #   - launchd's KeepAlive will respawn a kill-9'd daemon ~1s later, so
-#     the doctor negative-control for check 11 uses `contextos stop`
+#     the doctor negative-control for check 11 uses `coodra stop`
 #     instead.
 #
-# Production safety: this script uses CONTEXTOS_HOME=$HOME/.contextos-test
-# and ports 3200/3201 to avoid collision with any live ContextOS install
+# Production safety: this script uses COODRA_HOME=$HOME/.coodra-test
+# and ports 3200/3201 to avoid collision with any live Coodra install
 # on 3100/3101. Cleanup at the end removes everything it created.
 #
 # Run from the repo root after `pnpm install` + `pnpm build`:
@@ -32,11 +32,11 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 CLI_BIN="$REPO_ROOT/packages/cli/dist/index.js"
-TEST_HOME="$HOME/.contextos-functest-sh"
-TEST_PROJECT="$HOME/contextos-functest-sh"
+TEST_HOME="$HOME/.coodra-functest-sh"
+TEST_PROJECT="$HOME/coodra-functest-sh"
 MCP_PORT=3200
 BRIDGE_PORT=3201
-SLUG="contextos-functest-sh"
+SLUG="coodra-functest-sh"
 MCP_URL="http://127.0.0.1:${MCP_PORT}"
 BRIDGE_URL="http://127.0.0.1:${BRIDGE_PORT}/v1/hooks/claude-code"
 
@@ -46,9 +46,9 @@ yel()   { printf "\033[1;33m%s\033[0m\n" "$*"; }
 hdr()   { printf "\n\033[1;36m=== %s ===\033[0m\n" "$*"; }
 
 # Run the CLI against the isolated home + ports without depending on the
-# global `contextos` symlink (which a fresh checkout may not have).
-contextos() {
-  CONTEXTOS_HOME="$TEST_HOME" \
+# global `coodra` symlink (which a fresh checkout may not have).
+coodra() {
+  COODRA_HOME="$TEST_HOME" \
     MCP_SERVER_PORT="$MCP_PORT" \
     HOOKS_BRIDGE_PORT="$BRIDGE_PORT" \
     node "$CLI_BIN" "$@"
@@ -57,7 +57,7 @@ contextos() {
 cleanup() {
   hdr "cleanup"
   if [ -f "$CLI_BIN" ]; then
-    (cd "$TEST_PROJECT" 2>/dev/null && contextos stop || true) > /dev/null 2>&1 || true
+    (cd "$TEST_PROJECT" 2>/dev/null && coodra stop || true) > /dev/null 2>&1 || true
   fi
   rm -rf "$TEST_HOME" "$TEST_PROJECT"
   green "cleanup done — production state untouched"
@@ -75,25 +75,25 @@ pnpm lint > /dev/null
 green "lint"
 pnpm test:unit > /dev/null 2>&1
 green "test:unit"
-pnpm --filter @coodra/contextos-db run check:migration-lock > /dev/null
+pnpm --filter @coodra/db run check:migration-lock > /dev/null
 green "migration-lock"
 
 # ---------------------------------------------------------------------------
 # Step 2 — bootstrap
 # ---------------------------------------------------------------------------
-hdr "Step 2 — contextos init in a fresh project (non-monorepo cwd)"
+hdr "Step 2 — coodra init in a fresh project (non-monorepo cwd)"
 rm -rf "$TEST_HOME" "$TEST_PROJECT"
 mkdir -p "$TEST_PROJECT"
 cd "$TEST_PROJECT"
 git init -q
 echo "# functest-sh" > README.md
 
-contextos init > /tmp/init.log 2>&1 || (cat /tmp/init.log; exit 1)
+coodra init > /tmp/init.log 2>&1 || (cat /tmp/init.log; exit 1)
 green "init"
 
-# Init writes .env to <cwd>/.env. <CONTEXTOS_HOME>/.env is NOT written by init.
+# Init writes .env to <cwd>/.env. <COODRA_HOME>/.env is NOT written by init.
 [ -f "$TEST_PROJECT/.env" ] || { red "expected $TEST_PROJECT/.env to exist"; exit 1; }
-[ -f "$TEST_PROJECT/.contextos.json" ] || { red "missing .contextos.json"; exit 1; }
+[ -f "$TEST_PROJECT/.coodra.json" ] || { red "missing .coodra.json"; exit 1; }
 [ -f "$TEST_PROJECT/.mcp.json" ] || { red "missing .mcp.json"; exit 1; }
 [ -f "$TEST_HOME/data.db" ] || { red "missing data.db"; exit 1; }
 green "init artifacts present"
@@ -101,9 +101,9 @@ green "init artifacts present"
 # ---------------------------------------------------------------------------
 # Step 3 — start from the project dir (validates fix 4ac68fc)
 # ---------------------------------------------------------------------------
-hdr "Step 3 — contextos start from a non-monorepo cwd"
+hdr "Step 3 — coodra start from a non-monorepo cwd"
 cd "$TEST_PROJECT"
-contextos start > /tmp/start.log 2>&1 || (cat /tmp/start.log; red "start failed"; exit 1)
+coodra start > /tmp/start.log 2>&1 || (cat /tmp/start.log; red "start failed"; exit 1)
 sleep 1
 curl -sf "${MCP_URL}/healthz" > /dev/null || { red "mcp /healthz unreachable"; exit 1; }
 curl -sf "http://127.0.0.1:${BRIDGE_PORT}/healthz" > /dev/null || { red "bridge /healthz unreachable"; exit 1; }
@@ -112,8 +112,8 @@ green "both daemons healthy on :${MCP_PORT} / :${BRIDGE_PORT}"
 # ---------------------------------------------------------------------------
 # Step 4 — doctor (LOCAL_HOOK_SECRET check 20 must be GREEN post-Finding-A fix)
 # ---------------------------------------------------------------------------
-hdr "Step 4 — contextos doctor"
-DOCTOR_OUT=$(contextos doctor 2>&1 || true)
+hdr "Step 4 — coodra doctor"
+DOCTOR_OUT=$(coodra doctor 2>&1 || true)
 echo "$DOCTOR_OUT" | grep -E "^[✓⚠✗·]\s+20\." | head -1
 if echo "$DOCTOR_OUT" | grep -qE "^✓\s+20\."; then
   green "check 20 (LOCAL_HOOK_SECRET present) GREEN — Finding A confirmed closed"
@@ -204,7 +204,7 @@ cp "$TEST_HOME/data.db" "$TEST_HOME/data.db.backup"
 
 # Test A — F7
 sqlite3 "$TEST_HOME/data.db" "DELETE FROM projects WHERE slug='__global__';"
-TEST_A_OUT=$(contextos doctor 2>&1 || true)
+TEST_A_OUT=$(coodra doctor 2>&1 || true)
 if echo "$TEST_A_OUT" | grep -qE "^✗\s+5\."; then
   green "Test A — delete __global__ → check 5 RED (F7)"
 else
@@ -217,7 +217,7 @@ cp "$TEST_HOME/data.db.backup" "$TEST_HOME/data.db"
 # Test B — F8
 ORPHAN_ID=$(sqlite3 "$TEST_HOME/data.db" "SELECT id FROM run_events WHERE run_id IS NOT NULL LIMIT 1;")
 sqlite3 "$TEST_HOME/data.db" "UPDATE run_events SET run_id=NULL WHERE id='$ORPHAN_ID';"
-TEST_B_OUT=$(contextos doctor 2>&1 || true)
+TEST_B_OUT=$(coodra doctor 2>&1 || true)
 if echo "$TEST_B_OUT" | grep -qE "^✗\s+7\."; then
   green "Test B — orphan run_event → check 7 RED (F8)"
 else
@@ -229,24 +229,24 @@ cp "$TEST_HOME/data.db.backup" "$TEST_HOME/data.db"
 rm "$TEST_HOME/data.db.backup"
 
 # Test C — daemons stopped (NOT kill -9; launchd's KeepAlive respawns)
-contextos stop > /dev/null 2>&1
+coodra stop > /dev/null 2>&1
 sleep 1
-TEST_C_OUT=$(contextos doctor 2>&1 || true)
+TEST_C_OUT=$(coodra doctor 2>&1 || true)
 if echo "$TEST_C_OUT" | grep -qE "^⚠\s+11\."; then
-  green "Test C — contextos stop → check 11 YELLOW (ECONNREFUSED)"
+  green "Test C — coodra stop → check 11 YELLOW (ECONNREFUSED)"
 else
   red "Test C regression — check 11 didn't go yellow after stop"
   echo "$TEST_C_OUT" | grep -E "^[✓⚠✗·]\s+1[01]\." -A 2 || true
   exit 1
 fi
-contextos start > /dev/null 2>&1
+coodra start > /dev/null 2>&1
 sleep 1
 
 # ---------------------------------------------------------------------------
 # Step 10 — daemon survives terminal close
 # ---------------------------------------------------------------------------
 hdr "Step 10 — daemon survives a fresh subshell (no inherited shell state)"
-env -i HOME="$HOME" PATH="$PATH" CONTEXTOS_HOME="$TEST_HOME" \
+env -i HOME="$HOME" PATH="$PATH" COODRA_HOME="$TEST_HOME" \
   MCP_SERVER_PORT="$MCP_PORT" HOOKS_BRIDGE_PORT="$BRIDGE_PORT" \
   bash -c "node '$CLI_BIN' status 2>&1 | grep -E 'running' >/dev/null" \
   || { red "daemons did NOT survive subshell"; exit 1; }

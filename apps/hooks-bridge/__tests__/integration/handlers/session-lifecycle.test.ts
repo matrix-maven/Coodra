@@ -3,9 +3,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -53,7 +53,7 @@ let h: Harness;
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
@@ -61,7 +61,7 @@ function makeEnv(): AuthEnv {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'session-lifecycle-test-'));
   const slug = `test-proj-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });

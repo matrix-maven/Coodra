@@ -1,7 +1,7 @@
 /**
  * Module 03.1 — public types for the durable audit outbox worker.
  *
- * The worker is in `@coodra/contextos-cli` (this package) because both the
+ * The worker is in `@coodra/cli` (this package) because both the
  * `apps/hooks-bridge` and `apps/mcp-server` daemons import it: code
  * shared between two apps lives in a `packages/*` package, and the
  * CLI package already houses daemon abstractions, so adding a new
@@ -91,7 +91,7 @@ export const AUDIT_QUEUE_KINDS = [
 
 /**
  * Module 04a — paired sync-to-cloud job. Enqueued alongside each audit
- * write at the M03.1 callsites when `CONTEXTOS_MODE=team`. The
+ * write at the M03.1 callsites when `COODRA_MODE=team`. The
  * sync-daemon's dispatcher (Module 04a S3) reads the row from local
  * SQLite by the lookup key and pushes it to cloud Postgres.
  *

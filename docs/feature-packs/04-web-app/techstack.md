@@ -26,8 +26,8 @@
   "better-sqlite3": "workspace:*",
   "postgres": "workspace:*",
   "zod": "workspace:*",
-  "@coodra/contextos-shared": "workspace:*",
-  "@coodra/contextos-db": "workspace:*"
+  "@coodra/shared": "workspace:*",
+  "@coodra/db": "workspace:*"
 }
 ```
 
@@ -37,8 +37,8 @@
 - `@clerk/nextjs` 6 — the v6 line ships native Next.js 15 App Router + middleware support. Older versions require Pages-Router shims.
 - `@supabase/supabase-js` + `@supabase/ssr` — the user's preferred SSR pattern (per `~/.claude/.../memory/supabase-project.md`). `@supabase/ssr` is the canonical bridge for Next.js App Router.
 - `tailwindcss` 4 + `@tailwindcss/postcss` — v4's CSS-first config is the right fit for the brand-token-as-CSS-vars approach (spec §11). v4 also drops the runtime JS, smaller bundles.
-- `drizzle-orm`, `better-sqlite3`, `postgres`, `zod` — all already workspace deps via `@coodra/contextos-db`. Re-declared to keep `apps/web`'s package.json self-documenting; same versions resolve via pnpm workspace protocol.
-- `@coodra/contextos-shared`, `@coodra/contextos-db` — workspace deps for the storage adapter, errors, logger.
+- `drizzle-orm`, `better-sqlite3`, `postgres`, `zod` — all already workspace deps via `@coodra/db`. Re-declared to keep `apps/web`'s package.json self-documenting; same versions resolve via pnpm workspace protocol.
+- `@coodra/shared`, `@coodra/db` — workspace deps for the storage adapter, errors, logger.
 
 **No CSS-in-JS runtime.** No styled-components, no Emotion, no vanilla-extract. Tailwind v4 + the brand-token CSS variables cover everything. Server Components + utility classes is the modern pattern.
 
@@ -111,21 +111,21 @@
 `apps/web/lib/db.ts`:
 
 ```ts
-import { createDb, type DbHandle } from '@coodra/contextos-db';
-import { resolveContextosDataDb, resolveContextosHome } from '@coodra/contextos-shared';
+import { createDb, type DbHandle } from '@coodra/db';
+import { resolveCoodraDataDb, resolveCoodraHome } from '@coodra/shared';
 
 let cached: DbHandle | undefined;
 
 export function createWebDb(): DbHandle {
   if (cached) return cached;
-  if (process.env.CONTEXTOS_MODE === 'team') {
+  if (process.env.COODRA_MODE === 'team') {
     cached = createDb({
       kind: 'cloud',
       postgres: { url: process.env.DATABASE_URL!, max: 10, idleTimeout: 30, connectTimeout: 5 },
     });
   } else {
-    const home = resolveContextosHome({ env: process.env, platform: process.platform });
-    cached = createDb({ kind: 'local', sqlite: { path: resolveContextosDataDb(home) } });
+    const home = resolveCoodraHome({ env: process.env, platform: process.platform });
+    cached = createDb({ kind: 'local', sqlite: { path: resolveCoodraDataDb(home) } });
   }
   return cached;
 }
@@ -133,13 +133,13 @@ export function createWebDb(): DbHandle {
 
 In team mode, the module-level cache means one Drizzle pool per process. Next.js spawns one Node.js process per worker; a small pool (`max: 10`) per worker is appropriate for the v1 traffic profile (single-org, ~10 concurrent operators).
 
-In solo mode, the SQLite handle is opened lazily on first request. better-sqlite3's WAL mode (already enabled by `@coodra/contextos-db` boot) means concurrent reads from the web don't block writes from the bridge.
+In solo mode, the SQLite handle is opened lazily on first request. better-sqlite3's WAL mode (already enabled by `@coodra/db` boot) means concurrent reads from the web don't block writes from the bridge.
 
 ## Build + bundle posture
 
-- `pnpm --filter @coodra/contextos-web build` — Next.js production build; outputs to `apps/web/.next/`.
-- `pnpm --filter @coodra/contextos-web start` — production server on `:3000`.
-- `pnpm --filter @coodra/contextos-web dev` — dev server with HMR.
+- `pnpm --filter @coodra/web build` — Next.js production build; outputs to `apps/web/.next/`.
+- `pnpm --filter @coodra/web start` — production server on `:3000`.
+- `pnpm --filter @coodra/web dev` — dev server with HMR.
 - Turbo cache keyed on workspace deps + lockfile + source file hashes (per existing `turbo.json` pattern).
 
 **Native module bundling note:** `better-sqlite3` cannot be bundled into a Next.js edge-runtime route. Every route that imports `apps/web/lib/db.ts` must declare `runtime = 'nodejs'` (the App Router default; explicit declaration is defensive). M04 has zero edge routes — all are Node runtime.

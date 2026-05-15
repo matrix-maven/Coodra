@@ -203,7 +203,7 @@ export default async function ProjectHomePage({ params }: { params: Promise<{ sl
             >
               <CodeBlock
                 size="sm"
-                html={`<span class="cm"># .contextos.json</span>
+                html={`<span class="cm"># .coodra.json</span>
 <span class="ck">{</span>
   <span class="ck">"slug"</span>: <span class="cw">"${project.slug}"</span>,
   <span class="ck">"projectId"</span>: <span class="cw">"${project.id.slice(0, 8)}…"</span>,

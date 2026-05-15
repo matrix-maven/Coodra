@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { runKeySegmentSchema } from '../idempotency.js';
 
 /**
- * `@coodra/contextos-shared/hooks/event` — the canonical normalized hook
+ * `@coodra/shared/hooks/event` — the canonical normalized hook
  * shape per `system-architecture.md` §3.4. Every per-agent adapter in
  * `adapters/` produces one of these. Every downstream handler in
  * `apps/hooks-bridge/src/handlers/` consumes one of these.
@@ -44,7 +44,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *   - `toolInput` — passthrough of the agent's payload.tool_input,
  *      shape unspecified (handlers Zod-validate per use).
  *   - `cwd` — extracted from the agent's payload when present, used to
- *      resolve `projectSlug` from `<cwd>/.contextos.json` later.
+ *      resolve `projectSlug` from `<cwd>/.coodra.json` later.
  *   - `projectSlug` — looked up by hooks-bridge AFTER the adapter, so
  *      always undefined when the adapter emits the HookEvent. Kept
  *      on the schema so downstream code has a stable place to put

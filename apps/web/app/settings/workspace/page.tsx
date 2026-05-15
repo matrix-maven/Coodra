@@ -37,7 +37,7 @@ interface SearchParams {
 
 export default async function WorkspaceSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const mode = process.env.CONTEXTOS_MODE === 'team' ? 'team' : 'solo';
+  const mode = process.env.COODRA_MODE === 'team' ? 'team' : 'solo';
   const isSolo = mode === 'solo';
 
   const [statusResult, doctorReport] = await Promise.all([
@@ -61,7 +61,7 @@ export default async function WorkspaceSettingsPage({ searchParams }: { searchPa
         }
         subtitle={
           <>
-            All ContextOS daemons running on this machine. Start, stop, tail logs. Solo mode runs MCP + Hooks; team mode
+            All Coodra daemons running on this machine. Start, stop, tail logs. Solo mode runs MCP + Hooks; team mode
             adds Sync. Mode: <span className="font-mono text-accent">{mode}</span> · service control{' '}
             {isSolo ? 'enabled' : 'remote-managed'}.
           </>
@@ -161,10 +161,10 @@ export default async function WorkspaceSettingsPage({ searchParams }: { searchPa
         <Card size="md">
           <Section title={<>Environment</>} compact>
             <dl className="flex flex-col">
-              <Field label="CONTEXTOS_MODE" value={mode} />
+              <Field label="COODRA_MODE" value={mode} />
               <Field label="DATABASE_URL" value={process.env.DATABASE_URL ? '*** (set)' : 'not set'} />
-              <Field label="CONTEXTOS_LOGS_DIR" value={process.env.CONTEXTOS_LOGS_DIR ?? '~/.contextos/logs'} />
-              <Field label="CONTEXTOS_PACKS_ROOT" value={process.env.CONTEXTOS_PACKS_ROOT ?? 'walked from cwd'} />
+              <Field label="COODRA_LOGS_DIR" value={process.env.COODRA_LOGS_DIR ?? '~/.coodra/logs'} />
+              <Field label="COODRA_PACKS_ROOT" value={process.env.COODRA_PACKS_ROOT ?? 'walked from cwd'} />
             </dl>
           </Section>
         </Card>

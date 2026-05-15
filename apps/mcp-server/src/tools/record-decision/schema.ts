@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `contextos__record_decision` (§24.4, S13).
+ * Input + output schemas for `coodra__record_decision` (§24.4, S13).
  *
  * Input caps are defensive — oversized inputs fail Zod validation and
  * surface through the registry's generic `invalid_input` envelope.
@@ -56,7 +56,7 @@ export const recordDecisionInputSchema = z
     reversible: z.boolean().optional(),
   })
   .strict()
-  .describe('Input for contextos__record_decision.');
+  .describe('Input for coodra__record_decision.');
 
 /**
  * Output schema — discriminated union on `ok` per §9.1.2 canonical
@@ -90,7 +90,7 @@ const runNotFoundBranch = z
  *
  * Returned in team mode when no verified Clerk JWT is available on
  * this machine. The agent surfaces `howToFix` to the user, who runs
- * `contextos login` and retries.
+ * `coodra login` and retries.
  */
 const authRequiredBranch = z
   .object({

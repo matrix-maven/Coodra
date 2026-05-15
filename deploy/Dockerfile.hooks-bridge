@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
-# ContextOS Hooks Bridge — Module 03 image.
-# Build: docker build -f deploy/Dockerfile.hooks-bridge -t contextos/hooks-bridge:dev .
+# Coodra Hooks Bridge — Module 03 image.
+# Build: docker build -f deploy/Dockerfile.hooks-bridge -t coodra/hooks-bridge:dev .
 
 FROM node:22-alpine AS build
 RUN apk add --no-cache python3 make g++ libc6-compat
@@ -12,14 +12,14 @@ COPY pnpm-lock.yaml package.json pnpm-workspace.yaml turbo.json tsconfig.base.js
 COPY apps ./apps
 COPY packages ./packages
 RUN pnpm install --frozen-lockfile
-RUN pnpm exec turbo run build --filter=@coodra/contextos-hooks-bridge
+RUN pnpm exec turbo run build --filter=@coodra/hooks-bridge
 
 FROM node:22-alpine AS runtime
 RUN apk add --no-cache libstdc++ libc6-compat
 
 WORKDIR /app
 ENV NODE_ENV=production
-ENV CONTEXTOS_LOG_DESTINATION=stderr
+ENV COODRA_LOG_DESTINATION=stderr
 ENV HOOKS_BRIDGE_HOST=0.0.0.0
 ENV HOOKS_BRIDGE_PORT=3101
 

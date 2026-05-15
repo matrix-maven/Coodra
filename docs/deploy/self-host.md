@@ -1,13 +1,13 @@
-# Self-Hosting ContextOS (Team Mode)
+# Self-Hosting Coodra (Team Mode)
 
-This guide walks one operator through bringing up the ContextOS team-mode stack on their own infrastructure using Docker Compose. The canonical happy path is **Docker Compose**; Railway / Fly.io / any other platform that runs Docker images can derive from this guide. Reference: Module 04a Open Question 5.
+This guide walks one operator through bringing up the Coodra team-mode stack on their own infrastructure using Docker Compose. The canonical happy path is **Docker Compose**; Railway / Fly.io / any other platform that runs Docker images can derive from this guide. Reference: Module 04a Open Question 5.
 
 The stack runs four long-lived services + one one-shot migration container:
 
 | Service | Port (default) | Role |
 |---|---|---|
 | `postgres` (pgvector/pgvector:pg16) | 5432 | Cloud audit store |
-| `cloud-migrate` (one-shot) | — | Runs `contextos cloud-migrate` once, then exits |
+| `cloud-migrate` (one-shot) | — | Runs `coodra cloud-migrate` once, then exits |
 | `mcp-server` | 3100 | MCP HTTP transport for AI agents |
 | `hooks-bridge` | 3101 | HTTP hook ingress for Claude Code / Cursor |
 | `sync-daemon` | — | Pushes local SQLite audit rows to cloud Postgres |
@@ -30,7 +30,7 @@ cp .env.example .env
 Edit `deploy/.env` and fill in:
 
 - **`LOCAL_HOOK_SECRET`** — generate a fresh value: `openssl rand -hex 32`. Agents will fire hooks at the bridge using this as the shared secret.
-- **`DATABASE_URL`** — leave as the default (`postgres://contextos:changeme@postgres:5432/contextos`) if you want Compose to manage its own Postgres. If you have a managed cloud Postgres, paste its URL here AND remove the `postgres` service from `compose.yaml` (or set `POSTGRES_PASSWORD` to a strong value if you keep the bundled DB).
+- **`DATABASE_URL`** — leave as the default (`postgres://coodra:changeme@postgres:5432/coodra`) if you want Compose to manage its own Postgres. If you have a managed cloud Postgres, paste its URL here AND remove the `postgres` service from `compose.yaml` (or set `POSTGRES_PASSWORD` to a strong value if you keep the bundled DB).
 - **`POSTGRES_PASSWORD`** — change from the default if you keep the bundled Postgres.
 
 ## 2. Bring the stack up
@@ -50,7 +50,7 @@ docker compose logs -f
 
 Expected log lines:
 
-- `cloud-migrate` exits 0 with a line like `contextos cloud-migrate: applied against postgres://contextos:***@postgres:5432/contextos`.
+- `cloud-migrate` exits 0 with a line like `coodra cloud-migrate: applied against postgres://coodra:***@postgres:5432/coodra`.
 - `mcp-server` logs `tool_registered` for 9 tools, then `http_transport_ready`.
 - `hooks-bridge` logs `migrations_applied` then `listener_started`.
 - `sync-daemon` logs `cloud_db_opened` then `sync_worker_started`.
@@ -69,7 +69,7 @@ curl http://localhost:3101/healthz
 # {"ok":true,...}
 
 # Cloud-side sanity: connect to the bundled postgres and list tables
-docker compose exec postgres psql -U contextos -d contextos -c "\dt"
+docker compose exec postgres psql -U coodra -d coodra -c "\dt"
 # 11 tables incl. runs, run_events, policy_decisions, decisions,
 # pending_jobs, _runid_backfill_0005
 ```
@@ -77,7 +77,7 @@ docker compose exec postgres psql -U contextos -d contextos -c "\dt"
 Run the doctor inside the mcp-server container (it ships the CLI binary):
 
 ```bash
-docker compose exec -e CONTEXTOS_MODE=team mcp-server \
+docker compose exec -e COODRA_MODE=team mcp-server \
   node /app/packages/cli/dist/index.js doctor
 ```
 
@@ -101,7 +101,7 @@ with the same `LOCAL_HOOK_SECRET` you set in `.env`.
 | Restart one service | `docker compose restart sync-daemon` |
 | Apply a new migration after pulling | `docker compose run --rm cloud-migrate` |
 | Stop the stack | `docker compose down` |
-| Stop AND wipe data | `docker compose down -v` (destroys postgres + ~/.contextos volumes) |
+| Stop AND wipe data | `docker compose down -v` (destroys postgres + ~/.coodra volumes) |
 
 ## 6. Upgrade workflow
 

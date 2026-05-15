@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.7
 #
-# Multi-stage build for @coodra/contextos-mcp-server.
+# Multi-stage build for @coodra/mcp-server.
 #
 # Stage 1 (deps):    resolve and install the full pnpm workspace, including
 #                    dev deps, so TypeScript can compile against the same
 #                    graph CI uses.
-# Stage 2 (build):   tsc the workspace packages @coodra/contextos-mcp-server
+# Stage 2 (build):   tsc the workspace packages @coodra/mcp-server
 #                    depends on (shared + db + mcp-server itself).
 # Stage 3 (deploy):  use `pnpm deploy` to carve out a minimal, self-contained
-#                    deploy directory containing ONLY @coodra/contextos-mcp-server
+#                    deploy directory containing ONLY @coodra/mcp-server
 #                    and its production deps (no workspace symlinks, no dev
 #                    deps, no test files). This is what pnpm's `deploy`
 #                    command is designed for — see
@@ -79,9 +79,9 @@ COPY apps/mcp-server ./apps/mcp-server
 # Build in dependency order. Turbo handles this when invoked from root,
 # but we call the scripts directly here so the Dockerfile does not
 # depend on .turbo cache state.
-RUN pnpm --filter @coodra/contextos-shared build \
- && pnpm --filter @coodra/contextos-db build \
- && pnpm --filter @coodra/contextos-mcp-server build
+RUN pnpm --filter @coodra/shared build \
+ && pnpm --filter @coodra/db build \
+ && pnpm --filter @coodra/mcp-server build
 
 # ──────────────────────────────────────────────────────────────────────
 # Stage 3 — deploy: `pnpm deploy` carves out a production-only tree
@@ -94,7 +94,7 @@ WORKDIR /repo
 # transitive production-only deps into a new directory with no
 # symlinks or workspace:* rewrites. The output is ready to run with
 # a bare `node dist/index.js`.
-RUN pnpm --filter @coodra/contextos-mcp-server deploy --prod --legacy /out
+RUN pnpm --filter @coodra/mcp-server deploy --prod --legacy /out
 
 # ──────────────────────────────────────────────────────────────────────
 # Stage 4 — runtime: minimal production image
@@ -105,13 +105,13 @@ FROM node@sha256:048ed02c5fd52e86fda6fbd2f6a76cf0d4492fd6c6fee9e2c463ed5108da0e3
 USER node
 WORKDIR /app
 
-# Production-only env. CONTEXTOS_LOG_DESTINATION=stderr is load-bearing:
+# Production-only env. COODRA_LOG_DESTINATION=stderr is load-bearing:
 # the stdio MCP transport uses stdout exclusively for JSON-RPC frames
 # and any log byte on stdout corrupts it. The bootstrap module in src/
 # enforces this too, but setting it here is defence-in-depth.
 ENV NODE_ENV=production
-ENV CONTEXTOS_LOG_DESTINATION=stderr
-ENV CONTEXTOS_MODE=solo
+ENV COODRA_LOG_DESTINATION=stderr
+ENV COODRA_MODE=solo
 
 # Copy the pnpm deploy output. It includes dist/ + the flattened
 # node_modules/ tree + package.json. Nothing else from the build

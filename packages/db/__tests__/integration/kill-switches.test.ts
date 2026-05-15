@@ -63,7 +63,7 @@ beforeEach(async () => {
   handle.raw.exec('DELETE FROM kill_switches');
 });
 
-describe('@coodra/contextos-db::kill_switches helpers', () => {
+describe('@coodra/db::kill_switches helpers', () => {
   it('Fixture 1 — insertKillSwitch returns the row with default mode=hard and scope=global has null target', async () => {
     const row = await insertKillSwitch(handle, { scope: 'global', target: null, reason: 'demo pause' });
     expect(row.id).toMatch(/^ks_[0-9a-f]{32}$/);

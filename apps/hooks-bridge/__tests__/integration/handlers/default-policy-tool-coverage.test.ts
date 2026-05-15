@@ -8,9 +8,9 @@ import {
   ensureGlobalProject,
   ensureProject,
   migrateSqlite,
-} from '@coodra/contextos-db';
-import { createPolicyClient } from '@coodra/contextos-policy';
-import type { AuthEnv } from '@coodra/contextos-shared/auth';
+} from '@coodra/db';
+import { createPolicyClient } from '@coodra/policy';
+import type { AuthEnv } from '@coodra/shared/auth';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from '../../../src/app.js';
@@ -29,7 +29,7 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  *   fell through to the policy evaluator's "no rule matched →
  *   allow" default. Result: an agent invoking `MultiEdit` against
  *   `.env`, or `NotebookEdit` inside `.git/`, sailed past
- *   ContextOS enforcement entirely.
+ *   Coodra enforcement entirely.
  *
  *   The existing rules also missed nested `.git/` and nested
  *   `node_modules/` (e.g. submodules + monorepo workspaces) —
@@ -72,7 +72,7 @@ const PATHS_THAT_MUST_DENY = [
 
 function makeEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'solo',
+    COODRA_MODE: 'solo',
     CLERK_SECRET_KEY: 'sk_test_replace_me',
   };
 }
@@ -80,7 +80,7 @@ function makeEnv(): AuthEnv {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'phase4-fix-f-test-'));
   const slug = 'phase4-fix-f-coverage';
-  writeFileSync(join(cwd, '.contextos.json'), JSON.stringify({ projectSlug: slug }));
+  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });

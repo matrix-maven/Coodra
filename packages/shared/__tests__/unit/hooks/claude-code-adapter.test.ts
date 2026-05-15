@@ -53,7 +53,7 @@ describe('Claude Code adapter', () => {
 
   it('payload schema accepts unknown top-level fields (.passthrough — Phase 3 Fix A)', () => {
     // Real Claude Code envelopes carry transcript_path, permission_mode,
-    // source, model, agent_id, agent_type beyond the fields ContextOS
+    // source, model, agent_id, agent_type beyond the fields Coodra
     // reads. Pre-Phase-3 these were rejected with `invalid_hook_payload`
     // and the route fell open — broken policy, no logging. After Fix A
     // unknown top-level fields parse cleanly.

@@ -8,7 +8,7 @@ describe('selectDaemonManager', () => {
   let home: string;
 
   beforeEach(async () => {
-    home = await mkdtemp(join(tmpdir(), 'contextos-daemon-select-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-daemon-select-'));
   });
 
   afterEach(() => {
@@ -16,7 +16,7 @@ describe('selectDaemonManager', () => {
   });
 
   it('falls back to fallback on win32 (no native manager in 08a)', async () => {
-    const mgr = await selectDaemonManager({ contextosHome: home, platform: 'win32' });
+    const mgr = await selectDaemonManager({ coodraHome: home, platform: 'win32' });
     expect(mgr.kind).toBe('fallback');
   });
 
@@ -24,7 +24,7 @@ describe('selectDaemonManager', () => {
     // We can't easily stub isAvailable() without DI; the contract holds that
     // selectDaemonManager always returns a working manager. On a CI runner
     // without launchd/systemd-user this will return fallback.
-    const mgr = await selectDaemonManager({ contextosHome: home });
+    const mgr = await selectDaemonManager({ coodraHome: home });
     expect(['launchd', 'systemd', 'fallback']).toContain(mgr.kind);
     expect(await mgr.isAvailable()).toBe(true);
   });

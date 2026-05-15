@@ -17,7 +17,7 @@ vi.mock('@/lib/db', () => ({
   createWebDb: () => ({ kind: 'sqlite', db: {} }) as never,
 }));
 
-vi.mock('@coodra/contextos-db', () => ({
+vi.mock('@coodra/db', () => ({
   listProjects: vi.fn(),
   getProjectByIdentifier: vi.fn(),
   resetProject: vi.fn(),
@@ -33,7 +33,7 @@ describe('listProjects — F2 sentinel filter', () => {
   });
 
   it('omits the __global__ sentinel from the list', async () => {
-    const { listProjects: listProjectsDb } = await import('@coodra/contextos-db');
+    const { listProjects: listProjectsDb } = await import('@coodra/db');
     const { listProjects } = await import('@/lib/queries/projects');
     vi.mocked(listProjectsDb).mockResolvedValue([
       { id: '__global__', slug: '__global__', orgId: '__global__', name: 'Global Policy Rules', createdAt: new Date() },
@@ -45,7 +45,7 @@ describe('listProjects — F2 sentinel filter', () => {
   });
 
   it('returns an empty array when only the sentinel exists', async () => {
-    const { listProjects: listProjectsDb } = await import('@coodra/contextos-db');
+    const { listProjects: listProjectsDb } = await import('@coodra/db');
     const { listProjects } = await import('@/lib/queries/projects');
     vi.mocked(listProjectsDb).mockResolvedValue([
       { id: '__global__', slug: '__global__', orgId: '__global__', name: 'Global Policy Rules', createdAt: new Date() },
@@ -55,7 +55,7 @@ describe('listProjects — F2 sentinel filter', () => {
   });
 
   it('returns rows unchanged when the sentinel is absent', async () => {
-    const { listProjects: listProjectsDb } = await import('@coodra/contextos-db');
+    const { listProjects: listProjectsDb } = await import('@coodra/db');
     const { listProjects } = await import('@/lib/queries/projects');
     const rows = [{ id: 'p1', slug: 'coodra-dev', orgId: '__solo__', name: 'coodra-dev', createdAt: new Date() }];
     vi.mocked(listProjectsDb).mockResolvedValue(rows as never);
@@ -70,7 +70,7 @@ describe('getProject — F2: sentinel still resolvable by deep-link', () => {
   });
 
   it('returns the __global__ sentinel when asked for it directly', async () => {
-    const { getProjectByIdentifier } = await import('@coodra/contextos-db');
+    const { getProjectByIdentifier } = await import('@coodra/db');
     const { getProject } = await import('@/lib/queries/projects');
     const sentinel = {
       id: '__global__',

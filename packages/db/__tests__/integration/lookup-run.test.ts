@@ -54,7 +54,7 @@ async function seedRun(args: { id: string; projectId: string; sessionId: string;
   });
 }
 
-describe('@coodra/contextos-db::lookupRunId', () => {
+describe('@coodra/db::lookupRunId', () => {
   it('returns null when no row matches', async () => {
     const result = await lookupRunId(handle, 'proj_nonexistent', 'sess_nonexistent');
     expect(result).toBeNull();

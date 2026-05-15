@@ -25,7 +25,7 @@ import { resolveEffectiveMode } from '@/lib/team-config';
  * implementation-detail leak surfaced in Phase F.6+ user testing:
  *   "i dont understand. why is it local team mode, this is so confusing"
  *
- * The CONTEXTOS_DEPLOYMENT env var still exists for the db.ts code
+ * The COODRA_DEPLOYMENT env var still exists for the db.ts code
  * that needs to decide between "use local SQLite" (laptop) vs "use
  * cloud Postgres directly" (server). That's a real runtime decision
  * — but it's `isCloudHostedWeb()` now, not `resolveDeploymentMode`.
@@ -41,28 +41,28 @@ import { resolveEffectiveMode } from '@/lib/team-config';
  * detail.
  *
  * Resolution order:
- *   1. `process.env.CONTEXTOS_MODE` — explicit env override (test +
+ *   1. `process.env.COODRA_MODE` — explicit env override (test +
  *      production deploys both set this).
- *   2. `~/.contextos/config.json::mode` — laptop default.
+ *   2. `~/.coodra/config.json::mode` — laptop default.
  *   3. `'solo'` — safe fallback when neither is set.
  */
 export function resolveIdentityMode(): 'solo' | 'team' {
-  const envMode = process.env.CONTEXTOS_MODE;
+  const envMode = process.env.COODRA_MODE;
   if (envMode === 'team' || envMode === 'solo') return envMode;
   return resolveEffectiveMode();
 }
 
 /**
  * True iff this web process is a cloud deployment (no local
- * `~/.contextos`, data lives in cloud Postgres directly). Used by
+ * `~/.coodra`, data lives in cloud Postgres directly). Used by
  * `lib/db.ts` to pick the DB driver and by action-guards to refuse
  * laptop-only operations.
  *
- * Set `CONTEXTOS_DEPLOYMENT=team-hosted` in your Vercel / fly.io /
+ * Set `COODRA_DEPLOYMENT=team-hosted` in your Vercel / fly.io /
  * docker deployment env.
  */
 export function isCloudHostedWeb(): boolean {
-  return process.env.CONTEXTOS_DEPLOYMENT === 'team-hosted';
+  return process.env.COODRA_DEPLOYMENT === 'team-hosted';
 }
 
 // ---------------------------------------------------------------------------

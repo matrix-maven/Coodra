@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { type Options as ExecaOptions, execa, type ResultPromise } from 'execa';
 import type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
-const LABEL_PREFIX = 'com.contextos.';
+const LABEL_PREFIX = 'com.coodra.';
 
 type ExecaLike = (file: string, args: readonly string[], options?: ExecaOptions) => ResultPromise<ExecaOptions>;
 
@@ -17,7 +17,7 @@ export type { ExecaLike };
 
 /**
  * macOS launchd via launchctl. Writes plist files to
- * ~/Library/LaunchAgents/com.contextos.<name>.plist and uses `launchctl
+ * ~/Library/LaunchAgents/com.coodra.<name>.plist and uses `launchctl
  * bootstrap gui/<uid>` / `bootout` for the lifecycle. Works without root.
  */
 export class LaunchdDaemonManager implements DaemonManager {
@@ -59,8 +59,8 @@ export class LaunchdDaemonManager implements DaemonManager {
     const userTarget = `gui/${process.getuid?.() ?? 0}`;
     const labelTarget = `${userTarget}/${this.label(unitName)}`;
     // CRITICAL: launchctl bootstrap is a no-op on an already-loaded
-    // label. Without an explicit bootout first, a second `contextos
-    // start` invocation with a different CONTEXTOS_HOME (or any plist
+    // label. Without an explicit bootout first, a second `coodra
+    // start` invocation with a different COODRA_HOME (or any plist
     // change — env, working dir, log path) is silently ignored, and
     // the previously-loaded daemon keeps running with its stale env.
     // The user thinks the new home is being served (`✓ Sync Daemon

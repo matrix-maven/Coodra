@@ -1,5 +1,5 @@
 /**
- * @coodra/contextos-shared/features — public surface.
+ * @coodra/shared/features — public surface.
  *
  * Single import site for the features module. Every consumer
  * (CLI, hooks-bridge, mcp-server, web-v2) goes through this barrel

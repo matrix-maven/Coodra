@@ -47,8 +47,8 @@ function finalizeOk(over: Partial<FinalizeConfigResult> = {}): FinalizeConfigRes
   return {
     localHookSecret: 'a'.repeat(64),
     inviteHmacSecret: 'b'.repeat(64),
-    configPath: '/tmp/home/.contextos/config.json',
-    envPath: '/tmp/home/.contextos/.env',
+    configPath: '/tmp/home/.coodra/config.json',
+    envPath: '/tmp/home/.coodra/.env',
     joinedAt: 1700000000000,
     ...over,
   };

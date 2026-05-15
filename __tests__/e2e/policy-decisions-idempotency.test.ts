@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { postgresSchema } from '@coodra/contextos-db';
+import { postgresSchema } from '@coodra/db';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { eq } from 'drizzle-orm';
@@ -44,7 +44,7 @@ beforeAll(async () => {
     .insert(postgresSchema.projects)
     .values({ id: projectId, slug: projectSlug, orgId: 'org_e2e', name: 'idem-e2e' });
 
-  const env = buildE2eEnv({ CONTEXTOS_MODE: 'team', CLERK_SECRET_KEY: 'sk_test_replace_me' });
+  const env = buildE2eEnv({ COODRA_MODE: 'team', CLERK_SECRET_KEY: 'sk_test_replace_me' });
   const boot = await bootForE2E({ db: pg.handle, env, withHttp: true });
   if (!boot.http) throw new Error('expected HTTP transport');
 
@@ -67,7 +67,7 @@ afterAll(async () => {
 //
 // The scenario originally booted the mcp-server binary against a real
 // Postgres container to exercise cross-connection ON CONFLICT DO NOTHING
-// semantics. M03 S4 removed `CONTEXTOS_DB_OVERRIDE_MODE` and made the
+// semantics. M03 S4 removed `COODRA_DB_OVERRIDE_MODE` and made the
 // binary SQLite-only — `apps/mcp-server/src/lib/db.ts::createDbClient`
 // unconditionally calls `createDb({ kind: 'local' })`. The
 // `openPostgresHandle()` helper still tries `createDbClient({ mode: 'team',
@@ -75,7 +75,7 @@ afterAll(async () => {
 // beforeAll because `kind` is always 'sqlite'.
 //
 // `essentialsforclaude/04-when-in-doubt.md` §4.5 codifies this: the
-// cloud-write path lives only in `@coodra/contextos-db::createDb({ kind:
+// cloud-write path lives only in `@coodra/db::createDb({ kind:
 // 'cloud' })` and is exercised through the package's own integration
 // tests. The rule was added precisely to stop authors writing tests
 // that boot the binary against Postgres.
@@ -83,7 +83,7 @@ afterAll(async () => {
 // Flagged broken in M03.1 S2 (`replace 7 setImmediate audit dispatches
 // with scheduleDurableWrite`). Confirmed broken pre-M03.1 — not a
 // regression. Skipped here so main stays green; lift the skip and
-// retarget either at the @coodra/contextos-db package level (closer to the
+// retarget either at the @coodra/db package level (closer to the
 // actual ON CONFLICT semantics) or once Module 04 brings team-mode
 // boot back online.
 describe.skip('e2e — policy_decisions idempotency under concurrent retries (skipped: SQLite-only binary post-M03 S4)', () => {

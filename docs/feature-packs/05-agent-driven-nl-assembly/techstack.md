@@ -1,6 +1,6 @@
 # Module 05 — Agent-Driven NL Assembly — Tech Stack
 
-> **Status:** kickoff (2026-05-08). The shape captured here is final after the 2026-05-08 reshape — no Python, no embeddings, no LLM service. M05 reuses existing ContextOS technology and adds nothing new to the dependency graph.
+> **Status:** kickoff (2026-05-08). The shape captured here is final after the 2026-05-08 reshape — no Python, no embeddings, no LLM service. M05 reuses existing Coodra technology and adds nothing new to the dependency graph.
 
 ## In scope
 
@@ -56,7 +56,7 @@
 | `apps/mcp-server/src/tools/list-context-packs/` | New tool — paginated list of Context Packs |
 | `apps/mcp-server/src/tools/read-context-pack/` | New tool — full pack content + hydrated decisions |
 | `apps/mcp-server/__tests__/integration/no-m05-references.test.ts` | CI grep test that prevents accidental re-introduction of the abandoned design |
-| `.contextos.json:sessionStart` config object | Per-project knobs for the four bridge mechanisms |
+| `.coodra.json:sessionStart` config object | Per-project knobs for the four bridge mechanisms |
 
 ## Dependencies — `package.json` changes
 
@@ -65,7 +65,7 @@
 
 **Added:** none.
 
-**Net effect on the dependency graph:** strictly fewer dependencies. M05 is the first ContextOS module to ship as a net-deletion of third-party libraries.
+**Net effect on the dependency graph:** strictly fewer dependencies. M05 is the first Coodra module to ship as a net-deletion of third-party libraries.
 
 ## What's NOT in M05
 
@@ -82,7 +82,7 @@ These were considered during spec authoring and explicitly out:
 
 ### Why no Python
 
-The original M05 needed Python for `sentence-transformers` and `tree-sitter` (the latter for M06's semantic diff, which is a separate module and unaffected). M05 ships zero ML inference; Python's strengths are not needed. ContextOS already reserved Python for M06 + the planned services directory; M05 simply doesn't add a row.
+The original M05 needed Python for `sentence-transformers` and `tree-sitter` (the latter for M06's semantic diff, which is a separate module and unaffected). M05 ships zero ML inference; Python's strengths are not needed. Coodra already reserved Python for M06 + the planned services directory; M05 simply doesn't add a row.
 
 ### Why no FastAPI
 
@@ -90,7 +90,7 @@ No HTTP service to host. M05 lives entirely inside the existing TS processes (MC
 
 ### Why no Ollama / Gemini / Anthropic SDK in M05
 
-The agent's own model — whatever it is, configured by the user in their Claude Code or Cursor or other client — does the LLM work. ContextOS doesn't run a parallel LLM. The user pays for one provider relationship; we use it.
+The agent's own model — whatever it is, configured by the user in their Claude Code or Cursor or other client — does the LLM work. Coodra doesn't run a parallel LLM. The user pays for one provider relationship; we use it.
 
 ### Why drop `sqlite-vec` and `pgvector`
 
@@ -102,4 +102,4 @@ It runs inside the hooks bridge process (already TS). A separate language would 
 
 ## Versioning posture
 
-M05 lands inside the existing TypeScript + Drizzle + Vitest tooling. No version bumps required for any external dependency. The internal `@coodra/contextos-shared` package gets a minor bump when `EMBEDDING_DIM` is removed (a public symbol drop). No other workspace package changes its public API.
+M05 lands inside the existing TypeScript + Drizzle + Vitest tooling. No version bumps required for any external dependency. The internal `@coodra/shared` package gets a minor bump when `EMBEDDING_DIM` is removed (a public symbol drop). No other workspace package changes its public API.

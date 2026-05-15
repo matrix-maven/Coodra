@@ -37,7 +37,7 @@ export const projects = sqliteTable('projects', {
   slug: text('slug').notNull().unique(),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
-  // Absolute filesystem path of the project root (where .contextos.json lives).
+  // Absolute filesystem path of the project root (where .coodra.json lives).
   // Recorded by the bridge on first SessionStart from a registered cwd, and by
   // the CLI's `init` command. Nullable for back-compat — pre-2026-05-08 rows
   // have no recorded cwd; consumers must fall back to process.cwd() in that
@@ -71,7 +71,7 @@ export const runs = sqliteTable(
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
     // human running the agent session. Solo mode rows have NULL; team
     // mode rows are stamped at SessionStart by the bridge after reading
-    // ~/.contextos/config.json::clerk_user_id. Used by the web app's
+    // ~/.coodra/config.json::clerk_user_id. Used by the web app's
     // member-attribution badges and the audit log; never used for
     // authorization (Clerk JWT is the auth-of-record, this is the
     // historical-record-of-actor).
@@ -135,7 +135,7 @@ export const contextPacks = sqliteTable(
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
     // member who saved the pack. NULL on solo + bridge_auto rows where
     // no human identity exists. The MCP `save_context_pack` tool reads
-    // this from `~/.contextos/config.json` via the actor identity layer.
+    // this from `~/.coodra/config.json` via the actor identity layer.
     createdByUserId: text('created_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -269,7 +269,7 @@ export const featurePacks = sqliteTable('feature_packs', {
   // every pack was reachable by the agent.
   status: text('status').notNull().default('published'),
   // Phase G slice G.9 — multi-tenancy column. Local SQLite is single-
-  // tenant per laptop (one ~/.contextos = one active org) so this is
+  // tenant per laptop (one ~/.coodra = one active org) so this is
   // informational on the laptop side. The cloud sync includes it for
   // org-scoped reads. Nullable for backward compat; Phase G+1 tightens.
   // See packages/db/drizzle/sqlite/0016_feature_packs_org_id.sql.
@@ -281,8 +281,8 @@ export const featurePacks = sqliteTable('feature_packs', {
  * Phase F.1 — features (2026-05-11).
  *
  * On-demand "skill recipe" rows (Anthropic Skills pattern). The agent
- * lists frontmatter via `contextos__list_features` at SessionStart and
- * pulls the full body via `contextos__get_feature` ONLY when a user
+ * lists frontmatter via `coodra__list_features` at SessionStart and
+ * pulls the full body via `coodra__get_feature` ONLY when a user
  * prompt matches the trigger. This is the pull-on-trigger layer that
  * complements feature_packs' push-at-SessionStart module blueprints.
  *
@@ -375,7 +375,7 @@ export const decisions = sqliteTable(
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
     // member whose agent recorded the decision. NULL on solo + on
     // pre-Phase-4 rows. The MCP `record_decision` tool reads this from
-    // `~/.contextos/config.json` via the actor identity layer.
+    // `~/.coodra/config.json` via the actor identity layer.
     createdByUserId: text('created_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -391,12 +391,12 @@ export const decisions = sqliteTable(
  * scope's value (projectId / toolName / agentType). Adding a fifth
  * scope is a one-line CHECK-constraint update — no schema migration.
  *
- * `mode` defaults to `'hard'` per OQ-1 lock — `contextos pause` with
+ * `mode` defaults to `'hard'` per OQ-1 lock — `coodra pause` with
  * no `--mode` flag yields a deny-on-match switch. Soft mode causes
  * the bridge to allow the event but record an audit row marked
  * `kill_switch_paused:<id>`.
  *
- * Soft-resume semantics: the row is never deleted. `contextos resume`
+ * Soft-resume semantics: the row is never deleted. `coodra resume`
  * sets `resumed_at` + `resumed_by_session_id` so the row remains as
  * audit history (parallels ADR-007's append-only spirit for decisions
  * and context_packs). The active-switch query is
@@ -426,7 +426,7 @@ export const killSwitches = sqliteTable(
     pausedByUserId: text('paused_by_user_id'),
     // null = no auto-expiry; bridge treats `expires_at < now()` as already-resumed.
     expiresAt: integer('expires_at', { mode: 'timestamp' }),
-    // null = active; set by `contextos resume` (soft delete).
+    // null = active; set by `coodra resume` (soft delete).
     resumedAt: integer('resumed_at', { mode: 'timestamp' }),
     resumedBySessionId: text('resumed_by_session_id'),
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the

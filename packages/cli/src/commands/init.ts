@@ -9,19 +9,19 @@ import {
   ensureProject,
   migrateSqlite,
   postgresSchema,
-} from '@coodra/contextos-db';
-import { readVerifiedToken } from '@coodra/contextos-shared/auth';
+} from '@coodra/db';
+import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { resolveContextosHome, resolveContextosLogsDir, resolveContextosPidsDir } from '../lib/contextos-home.js';
+import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import { detectIDE, detectLanguages, detectProjectRoot } from '../lib/detect.js';
 import { defaultClaudeSettingsPath, mergeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { mergeCodexConfig } from '../lib/init/codex-merge.js';
-import { writeContextosJson } from '../lib/init/contextos-json.js';
+import { writeCoodraJson } from '../lib/init/coodra-json.js';
 import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
 import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
 import { mergeInstructionFile } from '../lib/init/instruction-files.js';
-import { buildContextosMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
+import { buildCoodraMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { mergeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
@@ -40,7 +40,7 @@ export interface InitOptions {
   readonly dryRun?: boolean;
   readonly force?: boolean;
   readonly cwd?: string;
-  /** Override `~/.contextos/` location. Tests pass a tmpdir; callers default to the user's resolved home. */
+  /** Override `~/.coodra/` location. Tests pass a tmpdir; callers default to the user's resolved home. */
   readonly home?: string;
   /**
    * Override `$HOME` for IDE detection AND for `~/.claude/settings.json`
@@ -122,7 +122,7 @@ export const DEFAULT_INIT_IO: InitIO = {
 
 export interface InitReport {
   readonly projectRoot: string;
-  readonly contextosHome: string;
+  readonly coodraHome: string;
   readonly projectSlug: string;
   readonly languages: string[];
   readonly ides: string[];
@@ -152,7 +152,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
 
   // W6 / beta.6 — `--solo` / `--team` are mutually exclusive.
   if (options.solo === true && options.team === true) {
-    io.writeStderr(`${pc.red('contextos init')}: --solo and --team are mutually exclusive — pass at most one.\n`);
+    io.writeStderr(`${pc.red('coodra init')}: --solo and --team are mutually exclusive — pass at most one.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
@@ -160,7 +160,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   const detection = await detectProjectRoot(cwd);
   if (detection.markers.length === 0) {
     io.writeStderr(
-      `${pc.red('contextos init')}: no project root marker found near ${cwd}. ` +
+      `${pc.red('coodra init')}: no project root marker found near ${cwd}. ` +
         'Run init from a directory that contains package.json, pyproject.toml, Cargo.toml, or .git.\n',
     );
     return io.exit(EXIT_USER_RECOVERABLE);
@@ -168,12 +168,12 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   const root = detection.root;
   const projectSlug = sanitizeSlug(options.projectSlug ?? basename(root));
   if (projectSlug.length === 0) {
-    io.writeStderr(`${pc.red('contextos init')}: could not derive a usable project slug from ${root}.\n`);
+    io.writeStderr(`${pc.red('coodra init')}: could not derive a usable project slug from ${root}.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
   io.writeStdout(
-    `${commandTitle('Initialise', `ContextOS · ${projectSlug}`, { width: terminalWidth(), indent: 0 })}\n`,
+    `${commandTitle('Initialise', `Coodra · ${projectSlug}`, { width: terminalWidth(), indent: 0 })}\n`,
   );
 
   const userHome = options.userHome ?? homedir();
@@ -181,12 +181,12 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   const ides = await detectIDE({ homeDir: userHome });
 
   // Phase D (clarity-pass-plan, 2026-05-11) — surface the machine's
-  // mode in the first lines of `contextos init` output. Projects
+  // mode in the first lines of `coodra init` output. Projects
   // don't have a mode; machines do. A project inherits the machine's
   // mode at init time and gets stamped with the team's org_id if the
   // machine is in team mode. Making this explicit at init eliminates
   // the "wait, am I solo or team?" surprise from later workflows.
-  const machineHome = resolveContextosHome({
+  const machineHome = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env,
   });
@@ -263,38 +263,38 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(`${pc.yellow('⚠')} No IDE config dir (~/.claude, ~/.cursor, ~/.windsurf, ~/.codex) detected.\n`);
   }
 
-  // Resolve and create ~/.contextos/{logs,pids} (data.db is created by openLocalDb).
-  const contextosHome = resolveContextosHome({
+  // Resolve and create ~/.coodra/{logs,pids} (data.db is created by openLocalDb).
+  const coodraHome = resolveCoodraHome({
     ...(options.home !== undefined ? { override: options.home } : {}),
     env,
   });
   if (!dryRun) {
     // First make sure the home root itself is 0700. `mkdir { mode }`
     // only sets perms on directories it actually creates; if the
-    // operator pre-created `~/.contextos` (e.g. via `mkdir -p`), perms
+    // operator pre-created `~/.coodra` (e.g. via `mkdir -p`), perms
     // stay at the umask default (typically 0755) and doctor check 2
     // flags it. Explicitly chmod brings it into compliance whether
     // it's new or pre-existing. (Demo finding 2026-05-11.)
-    await mkdir(contextosHome, { recursive: true, mode: 0o700 });
+    await mkdir(coodraHome, { recursive: true, mode: 0o700 });
     try {
-      await chmod(contextosHome, 0o700);
+      await chmod(coodraHome, 0o700);
     } catch {
       // chmod can fail on Windows or when the user lacks ownership.
       // We don't escalate — doctor check 2 will surface a yellow with
       // the actual remediation.
     }
-    await mkdir(resolveContextosLogsDir(contextosHome), { recursive: true, mode: 0o700 });
-    await mkdir(resolveContextosPidsDir(contextosHome), { recursive: true, mode: 0o700 });
+    await mkdir(resolveCoodraLogsDir(coodraHome), { recursive: true, mode: 0o700 });
+    await mkdir(resolveCoodraPidsDir(coodraHome), { recursive: true, mode: 0o700 });
   }
-  io.writeStdout(`${pc.green('✓')} Resolved ContextOS home: ${contextosHome}\n`);
+  io.writeStdout(`${pc.green('✓')} Resolved Coodra home: ${coodraHome}\n`);
 
-  // M04 Phase 4 / Phase G+H verification: layer ~/.contextos/.env into
+  // M04 Phase 4 / Phase G+H verification: layer ~/.coodra/.env into
   // process.env so that `ensureProject` (and any other helper that reads
-  // `process.env.CONTEXTOS_MODE`) sees `team` after `team setup` ran.
+  // `process.env.COODRA_MODE`) sees `team` after `team setup` ran.
   // Without this the team-mode sync_to_cloud enqueue for the projects
   // row never fires from init, cloud Postgres never gets the row, and
   // every downstream runs/decisions push hits an FK violation.
-  const homeLayered = loadHomeEnv(contextosHome, root);
+  const homeLayered = loadHomeEnv(coodraHome, root);
   for (const [key, value] of Object.entries(homeLayered)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
@@ -305,14 +305,14 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // returned 'allow' for everything because no rule ever matched, so
   // every fresh install shipped with policy enforcement effectively
   // off).
-  const dataDb = `${contextosHome}/data.db`;
+  const dataDb = `${coodraHome}/data.db`;
   if (!dryRun) {
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     try {
       migrateSqlite(handle.db);
       await ensureGlobalProject(handle);
       // Pass `cwd: root` so the projects row records the absolute filesystem
-      // path of the project (where .contextos.json lives). The web app reads
+      // path of the project (where .coodra.json lives). The web app reads
       // this back to write per-project pack uploads into the correct folder
       // — see `apps/web-v2/lib/queries/packs.ts:packsRoot()`.
       //
@@ -324,7 +324,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       //
       // Phase H.2 — prefer the verified Clerk JWT mirror's orgId over the
       // env var. The env var is overrideable by anything that can write
-      // `~/.contextos/.env`; the verified token mirror is bound to a
+      // `~/.coodra/.env`; the verified token mirror is bound to a
       // valid Clerk signature. They should agree, but on disagreement
       // the JWT mirror wins (it's the source of truth for who-is-acting).
       //
@@ -335,9 +335,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       // `__solo__` → the project is local-only even though the machine
       // is team mode.
       let teamOrgId: string | undefined;
-      if (process.env.CONTEXTOS_MODE === 'team' && registerAsTeamProject) {
+      if (process.env.COODRA_MODE === 'team' && registerAsTeamProject) {
         try {
-          const verified = await readVerifiedToken({ homeOverride: contextosHome });
+          const verified = await readVerifiedToken({ homeOverride: coodraHome });
           if (verified !== null && verified.orgId.length > 0) {
             teamOrgId = verified.orgId;
           }
@@ -346,7 +346,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
           // layered into process.env. Fall back to the env var.
         }
         if (teamOrgId === undefined) {
-          teamOrgId = process.env.CONTEXTOS_TEAM_ORG_ID;
+          teamOrgId = process.env.COODRA_TEAM_ORG_ID;
         }
       }
 
@@ -365,7 +365,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       let cloudIdHint: string | undefined;
       const databaseUrl = process.env.DATABASE_URL;
       if (
-        process.env.CONTEXTOS_MODE === 'team' &&
+        process.env.COODRA_MODE === 'team' &&
         registerAsTeamProject &&
         databaseUrl !== undefined &&
         databaseUrl.length > 0
@@ -436,19 +436,19 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     mcpServerBin = resolved.path;
     io.writeStdout(`${pc.green('✓')} Resolved mcp-server runtime: ${resolved.source} (${resolved.path})\n`);
   } catch (err) {
-    io.writeStderr(`${pc.red('contextos init')}: ${(err as Error).message}\n`);
+    io.writeStderr(`${pc.red('coodra init')}: ${(err as Error).message}\n`);
     return io.exit(EXIT_ENVIRONMENT_PROBLEM);
   }
   const bundledMigrations = bundledMigrationsDir('sqlite');
   // Strip the dialect suffix so the env var conveys the parent dir
-  // (`@coodra/contextos-db::MIGRATIONS_FOLDER` re-appends the dialect). Empty
+  // (`@coodra/db::MIGRATIONS_FOLDER` re-appends the dialect). Empty
   // when the resolver returned null (workspace dev mode) — the bundled
   // mcp-server falls through to its package-relative default.
   const migrationsDir =
     bundledMigrations !== null ? bundledMigrations.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '') : null;
 
   // Phase F.6+ (2026-05-11) — reuse the daemon's LOCAL_HOOK_SECRET when
-  // it already exists in ~/.contextos/.env. Otherwise Claude Code reads
+  // it already exists in ~/.coodra/.env. Otherwise Claude Code reads
   // the project-level secret (which init randomly generated) but the
   // daemons read the home-level one, the secrets don't match, and every
   // hook event 401s. Common symptom: "HTTP 401 from /v1/hooks/claude-code"
@@ -458,7 +458,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // fresh random one only for the very first init on this machine.
   let localHookSecret: string;
   try {
-    const homeEnvPath = join(contextosHome, '.env');
+    const homeEnvPath = join(coodraHome, '.env');
     const homeRaw = await readFile(homeEnvPath, 'utf8');
     const match = homeRaw.match(/^LOCAL_HOOK_SECRET=(\S+)/m);
     localHookSecret = match?.[1] ?? randomBytes(32).toString('hex');
@@ -466,10 +466,10 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     localHookSecret = randomBytes(32).toString('hex');
   }
   const baselineEnv: BaselineEnv = {
-    // Module 04 Phase 4 H6 — CONTEXTOS_MODE intentionally omitted. See
+    // Module 04 Phase 4 H6 — COODRA_MODE intentionally omitted. See
     // BaselineEnv type comment for the full reason. tldr: project .env
     // wins over home .env in `loadHomeEnv`, so writing 'solo' here
-    // would override `team setup`'s home-level CONTEXTOS_MODE=team.
+    // would override `team setup`'s home-level COODRA_MODE=team.
     CLERK_SECRET_KEY: 'sk_test_replace_me',
     CLERK_PUBLISHABLE_KEY: 'pk_test_replace_me',
     LOCAL_HOOK_SECRET: localHookSecret,
@@ -479,28 +479,28 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
 
   const outcomes: WriteOutcome[] = [];
 
-  // Write/merge .contextos.json
-  outcomes.push(await writeContextosJson({ cwd: root, projectSlug, force, dryRun }));
+  // Write/merge .coodra.json
+  outcomes.push(await writeCoodraJson({ cwd: root, projectSlug, force, dryRun }));
 
-  // Write/merge .mcp.json with the canonical contextos entry. Pin
-  // CONTEXTOS_HOME so the Claude-Code-spawned MCP server reads/writes
+  // Write/merge .mcp.json with the canonical coodra entry. Pin
+  // COODRA_HOME so the Claude-Code-spawned MCP server reads/writes
   // the same SQLite the bridge does — without this, MCP tool calls
   // (record_decision, save_context_pack) land in the user's default
-  // ~/.contextos/data.db while the bridge writes to the project home.
+  // ~/.coodra/data.db while the bridge writes to the project home.
   // Phase F.6+ (2026-05-12) — pin team-mode + DATABASE_URL into the MCP
   // child env so Claude Code's spawned MCP server enqueues sync_to_cloud
   // jobs on record_decision / save_context_pack writes. Without this,
   // the child defaults to solo because it inherits Claude's shell env
-  // (which doesn't auto-load ~/.contextos/.env). Result pre-fix: cloud
+  // (which doesn't auto-load ~/.coodra/.env). Result pre-fix: cloud
   // Postgres stays empty for decisions/packs even though local SQLite
   // has the rows — web /decisions and /context-packs render empty.
   const machineDatabaseUrl =
     machineCfg.mode === 'team' && machineCfg.team !== undefined ? process.env.DATABASE_URL : undefined;
-  const mcpEntry = buildContextosMcpEntry({
+  const mcpEntry = buildCoodraMcpEntry({
     mcpServerBin,
     clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
     migrationsDir,
-    contextosHome,
+    coodraHome,
     mode: machineCfg.mode,
     ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
       ? { databaseUrl: machineDatabaseUrl }
@@ -521,12 +521,12 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   //
   // Phase 3 Fix B (2026-05-02): always run the merger, regardless of
   // whether `~/.claude/` exists at init time. v1 targets Claude Code
-  // exclusively — installing ContextOS *is* the user's intent to wire
+  // exclusively — installing Coodra *is* the user's intent to wire
   // Claude Code, even before Claude Code itself has been launched. The
   // merger creates `~/.claude/` with mode 0700 if it's absent (see
   // `claude-settings-merge.ts`). Pre-Phase-3 the gate above silently
   // skipped the merge on machines without an existing `~/.claude/`,
-  // shipping every fresh install of ContextOS without hooks wired.
+  // shipping every fresh install of Coodra without hooks wired.
   try {
     const claudeMerge = await mergeClaudeSettings({
       settingsPath: defaultClaudeSettingsPath(userHome),
@@ -549,14 +549,14 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // clients: wire the same `mcpEntry` (built above for `.mcp.json`)
   // into each agent's MCP config, and generate the per-agent
   // instruction file (AGENTS.md / .windsurfrules) carrying the
-  // ContextOS trigger contract. Unlike Claude Code, Codex + Windsurf
+  // Coodra trigger contract. Unlike Claude Code, Codex + Windsurf
   // get no hooks in Scope A — the instruction file IS how the agent
-  // learns to call the `contextos__*` tools.
+  // learns to call the `coodra__*` tools.
   //
   // Detection-gated: a `~/.codex` / `~/.windsurf` config dir must
   // exist (detectIDE). A Claude-only machine's `init` output is
   // byte-identical to pre-beta.95. Every writer is idempotent
-  // merge-don't-clobber and reversed by `contextos uninstall`.
+  // merge-don't-clobber and reversed by `coodra uninstall`.
   if (ides.includes('codex')) {
     try {
       outcomes.push(await mergeCodexConfig({ cwd: root, entry: mcpEntry, force, dryRun }));
@@ -597,7 +597,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     const resolved = resolveTemplatePath(templateSelector, { cwd: root });
     if (resolved === null) {
       io.writeStderr(
-        `${pc.yellow('⚠')} --template "${templateSelector}" not found (user templates: ~/.contextos/templates/, bundled: cli-dist/templates/). Falling back to skeleton.\n`,
+        `${pc.yellow('⚠')} --template "${templateSelector}" not found (user templates: ~/.coodra/templates/, bundled: cli-dist/templates/). Falling back to skeleton.\n`,
       );
     } else {
       try {
@@ -692,10 +692,10 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
 
   io.writeStdout('\n');
-  io.writeStdout(`${okLine(`ContextOS is ready — project '${projectSlug}'.`)}\n`);
+  io.writeStdout(`${okLine(`Coodra is ready — project '${projectSlug}'.`)}\n`);
   io.writeStdout(`${hintLine('  → Restart your IDE so it picks up .mcp.json.')}\n`);
-  io.writeStdout(`${hintLine('  → Run `contextos doctor` to verify the install.')}\n`);
-  io.writeStdout(`${hintLine('  → Run `contextos start` to launch the MCP server + Hooks Bridge daemons.')}\n`);
+  io.writeStdout(`${hintLine('  → Run `coodra doctor` to verify the install.')}\n`);
+  io.writeStdout(`${hintLine('  → Run `coodra start` to launch the MCP server + Hooks Bridge daemons.')}\n`);
 
   if (dryRun) {
     io.writeStdout(`${pc.yellow('Note')}: --dry-run was set; no files were actually written.\n`);

@@ -5,7 +5,7 @@ import { z } from 'zod';
  * the canonical hook docs at code.claude.com/docs/en/hooks.
  *
  * Claude Code fires hooks as HTTP POST. The wire envelope is wider than
- * the six fields ContextOS reads — every event also carries
+ * the six fields Coodra reads — every event also carries
  * `transcript_path`, tool-call events add `permission_mode`,
  * SessionStart adds `source` + `model`, and subagent paths add
  * `agent_id` + `agent_type`. Phase 2 verification (2026-04-28) used a
@@ -17,7 +17,7 @@ import { z } from 'zod';
  * for unknown-but-tolerated fields, which is exactly what real Claude
  * Code envelopes carry today.
  *
- * Body shape (the fields ContextOS reads — passthrough preserves the rest):
+ * Body shape (the fields Coodra reads — passthrough preserves the rest):
  *
  *     {
  *       "hook_event_name": "PreToolUse",
@@ -28,7 +28,7 @@ import { z } from 'zod';
  *       "cwd": "/home/dev/myapp"
  *     }
  *
- * `hook_event_name` is locked to the six events ContextOS cares about.
+ * `hook_event_name` is locked to the six events Coodra cares about.
  * Stop fires per-turn; SessionEnd fires once per session-termination
  * (matcher reasons: `clear` / `resume` / `logout` / `prompt_input_exit`
  * / `bypass_permissions_disabled` / `other`). The adapter routes Stop

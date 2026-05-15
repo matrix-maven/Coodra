@@ -4,7 +4,7 @@
 -- needs "created by" / "paused by" / "resumed by" attribution. All
 -- columns are nullable: solo-mode rows + pre-Phase-4 rows have NULL.
 -- The bridge (apps/hooks-bridge) and MCP server (apps/mcp-server) read
--- the active user id from `~/.contextos/config.json::clerk_user_id` at
+-- the active user id from `~/.coodra/config.json::clerk_user_id` at
 -- boot in team mode and pass it through to write paths via the actor
 -- identity layer (packages/shared/src/auth).
 --
@@ -13,7 +13,7 @@
 -- backfill migration that has no truth source. NULL = "no user
 -- identity recorded" is the cleanest semantics; consumers branch on it.
 --
--- No FK to a `users` table: ContextOS never owns a users table — Clerk
+-- No FK to a `users` table: Coodra never owns a users table — Clerk
 -- is the user identity source of truth. The `created_by_user_id` is a
 -- text reference into Clerk's `user_<id>` namespace; the web app
 -- resolves these via the Clerk SDK at render time.

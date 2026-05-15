@@ -1,17 +1,17 @@
-import { createLogger } from '@coodra/contextos-shared';
+import { createLogger } from '@coodra/shared';
 import {
   type AuthEnv,
   type Identity,
   SOLO_IDENTITY,
   verifyClerkJwt,
   verifyLocalHookSecret,
-} from '@coodra/contextos-shared/auth';
+} from '@coodra/shared/auth';
 import type { Context, MiddlewareHandler } from 'hono';
 
 /**
  * `apps/hooks-bridge/src/lib/auth-middleware.ts` — Hono middleware
  * implementing the three-layer auth chain from
- * `system-architecture.md` §19, sourced from `@coodra/contextos-shared/auth`.
+ * `system-architecture.md` §19, sourced from `@coodra/shared/auth`.
  *
  * Order locked by Module 02 decisions-log 2026-04-22 Q-02-1:
  *   (1) solo-bypass    — CLERK_SECRET_KEY === 'sk_test_replace_me'
@@ -44,13 +44,13 @@ export function createAuthChainMiddleware(deps: AuthMiddlewareDeps): MiddlewareH
   const { env, localHookSecret } = deps;
   // Solo-bypass triggers when EITHER signal says solo:
   //   - CLERK_SECRET_KEY is the literal sentinel, OR
-  //   - CONTEXTOS_MODE is 'solo' (the canonical mode signal)
+  //   - COODRA_MODE is 'solo' (the canonical mode signal)
   // The MCP server's HTTP transport uses the same disjunction. Asymmetry
-  // here previously broke the out-of-the-box flow: `contextos init` writes
-  // .env with CONTEXTOS_MODE=solo + the sentinel, but `contextos start`
+  // here previously broke the out-of-the-box flow: `coodra init` writes
+  // .env with COODRA_MODE=solo + the sentinel, but `coodra start`
   // doesn't dotenv-load the file, so neither var reached the daemon and
   // every hook event 401'd.
-  const isSoloBypass = env.CLERK_SECRET_KEY === SOLO_BYPASS_CLERK_SENTINEL || env.CONTEXTOS_MODE === 'solo';
+  const isSoloBypass = env.CLERK_SECRET_KEY === SOLO_BYPASS_CLERK_SENTINEL || env.COODRA_MODE === 'solo';
 
   return async function authChain(c: Context, next) {
     // (1) solo-bypass — sentinel set or mode=solo; no header parsing required.

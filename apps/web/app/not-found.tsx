@@ -6,7 +6,7 @@ import Link from 'next/link';
  * /settings/team per OQ-3 + spec §9).
  */
 export default function NotFound() {
-  const mode = process.env.CONTEXTOS_MODE ?? 'solo';
+  const mode = process.env.COODRA_MODE ?? 'solo';
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
       <div className="font-display text-6xl font-black tracking-tight text-text-primary">404</div>

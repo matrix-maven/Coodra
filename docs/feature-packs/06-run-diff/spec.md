@@ -11,7 +11,7 @@ Produce a structured record of *what changed in code during each agent run* — 
 
 ## 2. Why git diff and not AST
 
-ContextOS's M05 thesis ("ship intelligence as records, not as a separate service") applied to M06: the server produces deterministic structured records; the coding agent does all interpretation. For "what changed", `git diff` beats AST parsing because:
+Coodra's M05 thesis ("ship intelligence as records, not as a separate service") applied to M06: the server produces deterministic structured records; the coding agent does all interpretation. For "what changed", `git diff` beats AST parsing because:
 
 - **Universal** — every language, every file type. Markdown, YAML, configs, shell scripts work identically. AST diff doesn't help for those, git diff does.
 - **Battle-tested** — most-tested diff implementation in software. The custom AST diff layer would have its own bug surface to grow.

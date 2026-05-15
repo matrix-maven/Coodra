@@ -4,7 +4,7 @@ import { FRONTMATTER_SCHEMA, validateFrontmatterQuality } from './schema.js';
 import type { ParsedFeatureMd } from './types.js';
 
 /**
- * @coodra/contextos-shared/features — feature.md parser.
+ * @coodra/shared/features — feature.md parser.
  *
  * The format mirrors the de-facto standard for skill / index files
  * (Anthropic Skills, Jekyll, Hugo, MkDocs Material): a `---`-delimited

@@ -2,7 +2,7 @@ import { EXIT_USER_ACTION_REQUIRED } from '../exit-codes.js';
 import { pc } from '../ui/index.js';
 
 const NOT_GA_MESSAGE =
-  'team mode not yet generally available — the OAuth round-trip + ~/.contextos/config.json secret-write ' +
+  'team mode not yet generally available — the OAuth round-trip + ~/.coodra/config.json secret-write ' +
   'land when team mode is reachable end-to-end (post-Module 04). Track via context_memory/pending-user-actions.md.';
 
 export interface TeamCommandIO {
@@ -32,11 +32,11 @@ export async function runTeamLoginCommand(
   _options: TeamLoginOptions = {},
   io: TeamCommandIO = DEFAULT_TEAM_IO,
 ): Promise<never> {
-  io.writeStderr(`${pc.yellow('contextos team login')}: ${NOT_GA_MESSAGE}\n`);
+  io.writeStderr(`${pc.yellow('coodra team login')}: ${NOT_GA_MESSAGE}\n`);
   return io.exit(EXIT_USER_ACTION_REQUIRED);
 }
 
 export async function runTeamLogoutCommand(io: TeamCommandIO = DEFAULT_TEAM_IO): Promise<never> {
-  io.writeStderr(`${pc.yellow('contextos team logout')}: ${NOT_GA_MESSAGE}\n`);
+  io.writeStderr(`${pc.yellow('coodra team logout')}: ${NOT_GA_MESSAGE}\n`);
   return io.exit(EXIT_USER_ACTION_REQUIRED);
 }

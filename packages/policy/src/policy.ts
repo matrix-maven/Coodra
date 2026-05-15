@@ -1,5 +1,5 @@
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
+import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
 import {
   BrokenCircuitError,
   ConsecutiveBreaker,
@@ -17,7 +17,7 @@ import picomatch from 'picomatch';
 import type { PolicyCheck, PolicyClient, PolicyInput, PolicyResult } from './types.js';
 
 /**
- * `@coodra/contextos-policy` — cache-first policy evaluator backed by the
+ * `@coodra/policy` — cache-first policy evaluator backed by the
  * `policies` + `policy_rules` DB tables, wrapped in a cockatiel
  * timeout-then-breaker fuse, fail-open on every error path.
  *
@@ -331,7 +331,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
     throw new TypeError('createPolicyClient requires an options object');
   }
   if (!options.db || typeof options.db !== 'object' || !('kind' in options.db)) {
-    throw new TypeError('createPolicyClient: options.db must be a DbHandle from @coodra/contextos-db');
+    throw new TypeError('createPolicyClient: options.db must be a DbHandle from @coodra/db');
   }
 
   const now = options.now ?? (() => Date.now());

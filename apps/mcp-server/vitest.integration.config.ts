@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config';
 
 /**
- * Integration-test config for `@coodra/contextos-mcp-server`.
+ * Integration-test config for `@coodra/mcp-server`.
  *
  * Separated from `vitest.config.ts` (unit) because:
  *   - integration tests may open real file descriptors (in-memory

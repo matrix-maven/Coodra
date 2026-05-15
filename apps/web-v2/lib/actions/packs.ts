@@ -4,9 +4,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/contextos-db';
-import { runInit } from '@coodra/contextos-cli/lib/init';
-import { runPackDelete, runPackRegenerate } from '@coodra/contextos-cli/lib/pack';
+import { postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
+import { runInit } from '@coodra/cli/lib/init';
+import { runPackDelete, runPackRegenerate } from '@coodra/cli/lib/pack';
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -557,7 +557,7 @@ export async function uploadPackAction(formData: FormData): Promise<void> {
   }
 
   // Pack-exists guard. The cleanest UX: don't make the operator tick
-  // "force" when they're uploading over a `contextos init` template stub
+  // "force" when they're uploading over a `coodra init` template stub
   // (the 4-file scaffold with Status:TODO content nobody asked for).
   // We treat uploading-over-a-stub as the obvious intent and allow it
   // silently. Real hand-written packs still require the explicit force
@@ -701,7 +701,7 @@ export async function uploadPackAction(formData: FormData): Promise<void> {
  */
 export async function togglePackStatusAction(formData: FormData): Promise<void> {
   // Phase F.6+ — works in BOTH local-team and team-hosted (cloud-direct write).
-  const { assertCanEditKnowledge } = await import('@coodra/contextos-shared/auth');
+  const { assertCanEditKnowledge } = await import('@coodra/shared/auth');
   const actor = await (await import('@/lib/auth')).getActor();
   assertCanEditKnowledge(actor, { createdByUserId: null }, { allowOwner: false });
 
@@ -798,7 +798,7 @@ export async function togglePackStatusAction(formData: FormData): Promise<void> 
     }
   }
 
-  if (handle.kind === 'sqlite' && process.env.CONTEXTOS_MODE === 'team') {
+  if (handle.kind === 'sqlite' && process.env.COODRA_MODE === 'team') {
     try {
       await scheduleDurableWrite(handle, {
         queue: 'sync_to_cloud',
@@ -942,7 +942,7 @@ async function mirrorPackToDbAndEnqueue(args: {
       },
     });
 
-  if (process.env.CONTEXTOS_MODE === 'team') {
+  if (process.env.COODRA_MODE === 'team') {
     try {
       await scheduleDurableWrite(handle, {
         queue: 'sync_to_cloud',

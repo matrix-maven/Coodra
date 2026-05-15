@@ -23,7 +23,7 @@ async function loadEnv(overrides: EnvOverrides) {
   // Start from a clean slate to avoid leakage from other tests / shell.
   for (const key of Object.keys(process.env)) {
     if (
-      key.startsWith('CONTEXTOS_') ||
+      key.startsWith('COODRA_') ||
       key.startsWith('CLERK_') ||
       key.startsWith('HOOKS_BRIDGE_') ||
       key === 'LOCAL_HOOK_SECRET'
@@ -52,33 +52,33 @@ async function loadEnv(overrides: EnvOverrides) {
 describe('hooks-bridge env schema', () => {
   it('1) valid solo: defaults applied, sentinel Clerk allowed', async () => {
     const { env } = await loadEnv({
-      CONTEXTOS_MODE: 'solo',
+      COODRA_MODE: 'solo',
       CLERK_SECRET_KEY: 'sk_test_replace_me',
     });
-    expect(env.CONTEXTOS_MODE).toBe('solo');
+    expect(env.COODRA_MODE).toBe('solo');
     expect(env.HOOKS_BRIDGE_PORT).toBe(3101);
     expect(env.HOOKS_BRIDGE_HOST).toBe('127.0.0.1');
-    expect(env.CONTEXTOS_LOG_DESTINATION).toBe('stderr');
+    expect(env.COODRA_LOG_DESTINATION).toBe('stderr');
     expect(env.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
   });
 
   it('2) valid team: real Clerk keys + LOCAL_HOOK_SECRET pass strict refine', async () => {
     const { env } = await loadEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_realRealKey1234',
       CLERK_PUBLISHABLE_KEY: 'pk_test_realRealKey1234',
       LOCAL_HOOK_SECRET: 'a'.repeat(32),
     });
-    expect(env.CONTEXTOS_MODE).toBe('team');
+    expect(env.COODRA_MODE).toBe('team');
     expect(env.LOCAL_HOOK_SECRET).toBe('a'.repeat(32));
   });
 
   it('3) team mode with sentinel Clerk: bypass allowed (no Clerk publishable required)', async () => {
     const { env } = await loadEnv({
-      CONTEXTOS_MODE: 'team',
+      COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_replace_me',
     });
-    expect(env.CONTEXTOS_MODE).toBe('team');
+    expect(env.COODRA_MODE).toBe('team');
     expect(env.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
     expect(env.CLERK_PUBLISHABLE_KEY).toBeUndefined();
   });
@@ -86,7 +86,7 @@ describe('hooks-bridge env schema', () => {
   it('4) team mode missing CLERK_PUBLISHABLE_KEY → ValidationError', async () => {
     await expect(
       loadEnv({
-        CONTEXTOS_MODE: 'team',
+        COODRA_MODE: 'team',
         CLERK_SECRET_KEY: 'sk_test_realRealKey1234',
       }),
     ).rejects.toThrow(/CLERK_PUBLISHABLE_KEY/);
@@ -95,7 +95,7 @@ describe('hooks-bridge env schema', () => {
   it('5) malformed HOOKS_BRIDGE_PORT (> 65535) → ValidationError', async () => {
     await expect(
       loadEnv({
-        CONTEXTOS_MODE: 'solo',
+        COODRA_MODE: 'solo',
         HOOKS_BRIDGE_PORT: '99999',
       }),
     ).rejects.toThrow();
@@ -104,7 +104,7 @@ describe('hooks-bridge env schema', () => {
   it('6) LOCAL_HOOK_SECRET shorter than 16 chars → ValidationError', async () => {
     await expect(
       loadEnv({
-        CONTEXTOS_MODE: 'solo',
+        COODRA_MODE: 'solo',
         LOCAL_HOOK_SECRET: 'too-short',
       }),
     ).rejects.toThrow(/at least 16 characters/);

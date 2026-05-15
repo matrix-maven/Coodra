@@ -9,7 +9,7 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 /**
  * `packages/db/src/policies` — admin-side helpers for the
  * `policies` + `policy_rules` tables. Backs Module 08b S9's
- * `contextos policy {list, show, add, enable, disable}` CLI surface.
+ * `coodra policy {list, show, add, enable, disable}` CLI surface.
  *
  * Read paths (`listPolicies`, `getPolicy`) are pure SELECTs.
  *

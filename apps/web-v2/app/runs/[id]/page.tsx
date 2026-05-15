@@ -32,7 +32,7 @@ export default async function RunDetailPage({
 
   return (
     <>
-      <Topbar crumb={`run · ${run.id.slice(0, 8)}`} crumbPrefix="contextos / runs" />
+      <Topbar crumb={`run · ${run.id.slice(0, 8)}`} crumbPrefix="coodra / runs" />
       <section className="screen">
         <div className="head">
           <div>

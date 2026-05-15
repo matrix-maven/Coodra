@@ -11,7 +11,7 @@ import { redirect } from 'next/navigation';
  * Why this exists (vs. the CLI wizard):
  *   - Some admins prefer a browser form to a terminal prompt.
  *   - The local solo web wizard is the natural place to wrap that —
- *     the writes go to `~/.contextos/` on the SAME machine the dev
+ *     the writes go to `~/.coodra/` on the SAME machine the dev
  *     server is running on.
  *   - Hard-fenced to `local-solo` deployment mode: in `team-hosted`
  *     this action would write to the server's filesystem (wrong
@@ -30,7 +30,7 @@ import { redirect } from 'next/navigation';
  * ----------------------------------------------------------------------
  * Import strategy (2026-05-11 fix — Build Error reproduction):
  *
- *   The team-init library transitively imports `@coodra/contextos-db`
+ *   The team-init library transitively imports `@coodra/db`
  *   (which loads native `better-sqlite3`) plus `@clerk/backend`, and
  *   `@/lib/deployment-mode` is marked `'server-only'`. When statically
  *   imported at module top, Next.js's webpack pipeline pulls them into
@@ -72,7 +72,7 @@ export async function runTeamInitWizardAction(formData: FormData): Promise<void>
   }
 
   const { bootstrapClerk, bootstrapPostgres, finalizeConfig } = await import(
-    '@coodra/contextos-cli/lib/team-init'
+    '@coodra/cli/lib/team-init'
   );
 
   // Step 1 — Postgres
@@ -119,7 +119,7 @@ export async function runTeamInitWizardAction(formData: FormData): Promise<void>
     redirect(`/onboarding/team?${params.toString()}`);
   }
 
-  // Step 3 — finalize (writes ~/.contextos/config.json + .env)
+  // Step 3 — finalize (writes ~/.coodra/config.json + .env)
   finalizeConfig({
     databaseUrl,
     clerkUserId: clerk.userId,

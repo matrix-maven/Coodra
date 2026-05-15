@@ -45,9 +45,9 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   // don't exist — hide the page so users don't dead-end on a probe-fail UI.
   if (resolveDeploymentMode() === 'team-hosted') notFound();
   const sp = await searchParams;
-  const mode = (process.env.CONTEXTOS_MODE ?? 'solo') as 'solo' | 'team';
+  const mode = (process.env.COODRA_MODE ?? 'solo') as 'solo' | 'team';
   const isSolo = mode === 'solo';
-  const home = process.env.CONTEXTOS_HOME ?? resolve(homedir(), '.contextos');
+  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
   const dbPath = resolve(home, 'data.db');
   const dbExists = existsSync(dbPath);
   const dbSize = dbExists ? statSync(dbPath).size : 0;
@@ -96,7 +96,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
               Local <em>services</em>.
             </h1>
             <p className="head__lede">
-              All ContextOS daemons running on this machine. Health-probed live; solo mode runs MCP + Hooks; team mode
+              All Coodra daemons running on this machine. Health-probed live; solo mode runs MCP + Hooks; team mode
               adds Sync.
             </p>
           </div>

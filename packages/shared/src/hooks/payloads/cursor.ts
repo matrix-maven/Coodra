@@ -6,7 +6,7 @@ import { z } from 'zod';
  *
  * Cursor's hooks are command-based (stdin/stdout JSON) similar to
  * Windsurf. The shell adapter (`scripts/hook-adapters/cursor-
- * contextos.sh`, S11) reads stdin, normalizes field names, and POSTs
+ * coodra.sh`, S11) reads stdin, normalizes field names, and POSTs
  * to `/v1/hooks/cursor`. Cursor uses `conversation_id` rather than
  * `session_id`; the adapter shell script may rename it before posting,
  * OR the server-side adapter accepts both. We accept `conversation_id`
@@ -14,7 +14,7 @@ import { z } from 'zod';
  *
  * Cursor's hooks system is newer and the wire format is less stable
  * than Claude Code's or Windsurf's. The schema below reflects the
- * shape ContextOS observes today — `.passthrough()` accepts the
+ * shape Coodra observes today — `.passthrough()` accepts the
  * fields we read while letting unknown future additions through
  * unchanged (Phase 3 Fix A, 2026-05-02 — the prior `.strict()` wrapper
  * rejected every real Claude Code envelope and we keep the same

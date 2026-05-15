@@ -18,7 +18,7 @@ export function createGetFeatureToolRegistration(
 ): ToolRegistration<typeof getFeatureInputSchema, typeof getFeatureOutputSchema> {
   return {
     name: 'get_feature',
-    title: 'ContextOS: get_feature',
+    title: 'Coodra: get_feature',
     description:
       'Call when the user\'s prompt matches a skill\'s trigger description from `list_features` — never blindly ' +
       'pre-load. Features are pull-based SKILLS (single markdown + frontmatter + optional supporting files), ' +

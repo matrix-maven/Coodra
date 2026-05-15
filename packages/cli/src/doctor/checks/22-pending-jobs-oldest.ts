@@ -52,7 +52,7 @@ export const pendingJobsOldestCheck: Check = {
           status: 'yellow',
           detail: `oldest pending row is ${formatAge(ageSec)} old`,
           remediation:
-            'Worker draining slowly. Inspect `<contextos-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` outcomes. ' +
+            'Worker draining slowly. Inspect `<coodra-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` outcomes. ' +
             'A repeated transient_failure on the same row will eventually mark it dead via `maxAttempts`.',
         };
       }
@@ -60,8 +60,8 @@ export const pendingJobsOldestCheck: Check = {
         status: 'red',
         detail: `oldest pending row is ${formatAge(ageSec)} old — worker stuck or absent`,
         remediation:
-          'No drain is happening. Run `contextos status` to confirm both daemons are alive. ' +
-          'Restart with `contextos stop && contextos start`; lease expiry (30s) lets the next worker reclaim leased-but-stuck rows.',
+          'No drain is happening. Run `coodra status` to confirm both daemons are alive. ' +
+          'Restart with `coodra stop && coodra start`; lease expiry (30s) lets the next worker reclaim leased-but-stuck rows.',
       };
     } catch (err) {
       const msg = (err as Error).message;

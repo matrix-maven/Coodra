@@ -71,7 +71,7 @@ async function buildPreview(token: string): Promise<Preview> {
       return {
         kind: 'schema_not_migrated',
         detail:
-          'The `team_invites` table is missing on the deployment Postgres. The admin must apply Drizzle migration 0014_team_invites (run `contextos db migrate` or `pnpm --filter @coodra/contextos-db exec drizzle-kit migrate --config=drizzle.postgres.config.ts`).',
+          'The `team_invites` table is missing on the deployment Postgres. The admin must apply Drizzle migration 0014_team_invites (run `coodra db migrate` or `pnpm --filter @coodra/db exec drizzle-kit migrate --config=drizzle.postgres.config.ts`).',
       };
     }
     throw err;
@@ -96,7 +96,7 @@ export default async function InstallPage({ params }: PageProps) {
 
   return (
     <>
-      <Topbar crumb="Accept invite" crumbPrefix="contextos / install" />
+      <Topbar crumb="Accept invite" crumbPrefix="coodra / install" />
       <section className="screen">
         <div className="head">
           <div>
@@ -115,8 +115,8 @@ export default async function InstallPage({ params }: PageProps) {
             <p className="head__lede">
               {preview.kind === 'ok' ? (
                 <>
-                  Welcome to ContextOS. Your Clerk identity is verified and your team membership is active. Pick
-                  the path that matches how you'll use ContextOS — both are reversible.
+                  Welcome to Coodra. Your Clerk identity is verified and your team membership is active. Pick
+                  the path that matches how you'll use Coodra — both are reversible.
                 </>
               ) : (
                 <>{copyForFailure(preview)}</>
@@ -179,7 +179,7 @@ function OkLayout({
   readonly baseUrlUnset: boolean;
 }) {
   const installCmd = `curl -sSL ${baseUrl}/install/${token}/cli.sh | sh`;
-  const altCmd = `contextos team install --bootstrap-url ${baseUrl}/api/install/${token}`;
+  const altCmd = `coodra team install --bootstrap-url ${baseUrl}/api/install/${token}`;
   return (
     <>
       {baseUrlUnset ? (
@@ -196,8 +196,8 @@ function OkLayout({
           }}
         >
           The install commands below contain a placeholder URL because{' '}
-          <code>CONTEXTOS_PUBLIC_URL</code> is not set on this deployment. Ask the admin to set it to this
-          deployment's external URL (e.g. <code>https://contextos.acme.com</code>) and redeploy before sharing
+          <code>COODRA_PUBLIC_URL</code> is not set on this deployment. Ask the admin to set it to this
+          deployment's external URL (e.g. <code>https://coodra.acme.com</code>) and redeploy before sharing
           this link.
         </div>
       ) : null}
@@ -229,7 +229,7 @@ function OkLayout({
           Run AI agents on my <em>laptop</em>
         </h2>
         <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.65, marginBottom: 18 }}>
-          Installs the ContextOS CLI, writes <code style={inlineMono}>~/.contextos/config.json</code>, and joins
+          Installs the Coodra CLI, writes <code style={inlineMono}>~/.coodra/config.json</code>, and joins
           you to <span style={{ color: 'var(--ink)' }}>{preview.orgId.slice(0, 14)}…</span> as{' '}
           <span style={{ color: 'var(--ink)' }}>{preview.role}</span>. Runs in ~30 seconds.
         </p>
@@ -262,7 +262,7 @@ function FailureLayout({ preview }: { readonly preview: Exclude<Preview, { kind:
       <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.65, marginBottom: 18 }}>
         Reach out to whoever invited you and ask them to mint a fresh invite from{' '}
         <code style={inlineMono}>/settings/team</code>. If you don't know who that is, the contact is whoever
-        deployed this ContextOS instance.
+        deployed this Coodra instance.
       </p>
       <p style={{ fontSize: 11, color: 'var(--ink-mute)', fontFamily: 'var(--mono)', lineHeight: 1.7 }}>
         Reason · <span style={{ color: 'var(--warn)' }}>{preview.kind}</span>

@@ -20,7 +20,7 @@ import {
  *   2. solo mode + sync → only audit job lands (no consumer for sync)
  *   3. team mode + no sync → only audit job lands (caller opted out)
  *   4. payload shape — sync row carries {table, lookup}
- *   5. env-driven mode (CONTEXTOS_MODE=team) → both jobs land without
+ *   5. env-driven mode (COODRA_MODE=team) → both jobs land without
  *      explicit args.mode
  *
  * Reuses the SQLite-only test scaffold from `schedule-durable-write.test.ts`.
@@ -46,7 +46,7 @@ afterEach(async () => {
   handle.raw.prepare('DELETE FROM pending_jobs').run();
 });
 
-describe('@coodra/contextos-db::scheduleAuditWriteWithSync', () => {
+describe('@coodra/db::scheduleAuditWriteWithSync', () => {
   it('enqueues paired audit + sync_to_cloud rows in team mode', async () => {
     const result = await scheduleAuditWriteWithSync(handle, {
       mode: 'team',
@@ -98,9 +98,9 @@ describe('@coodra/contextos-db::scheduleAuditWriteWithSync', () => {
     expect(all[0]?.queue).toBe('session_close');
   });
 
-  it('reads CONTEXTOS_MODE from env when args.mode is undefined', async () => {
-    const original = process.env.CONTEXTOS_MODE;
-    process.env.CONTEXTOS_MODE = 'team';
+  it('reads COODRA_MODE from env when args.mode is undefined', async () => {
+    const original = process.env.COODRA_MODE;
+    process.env.COODRA_MODE = 'team';
     try {
       const result = await scheduleAuditWriteWithSync(handle, {
         audit: { queue: 'run_event', payload: { v: 1, rowId: 're_env_team' } },
@@ -110,14 +110,14 @@ describe('@coodra/contextos-db::scheduleAuditWriteWithSync', () => {
       const all = await handle.db.select().from(sqliteSchema.pendingJobs);
       expect(all).toHaveLength(2);
     } finally {
-      if (original === undefined) delete process.env.CONTEXTOS_MODE;
-      else process.env.CONTEXTOS_MODE = original;
+      if (original === undefined) delete process.env.COODRA_MODE;
+      else process.env.COODRA_MODE = original;
     }
   });
 
-  it('treats CONTEXTOS_MODE=solo (or unset) as solo', async () => {
-    const original = process.env.CONTEXTOS_MODE;
-    delete process.env.CONTEXTOS_MODE;
+  it('treats COODRA_MODE=solo (or unset) as solo', async () => {
+    const original = process.env.COODRA_MODE;
+    delete process.env.COODRA_MODE;
     try {
       const result = await scheduleAuditWriteWithSync(handle, {
         audit: { queue: 'run_event', payload: { v: 1, rowId: 're_env_solo' } },
@@ -127,7 +127,7 @@ describe('@coodra/contextos-db::scheduleAuditWriteWithSync', () => {
       const all = await handle.db.select().from(sqliteSchema.pendingJobs);
       expect(all.filter((r) => r.queue === 'sync_to_cloud')).toHaveLength(0);
     } finally {
-      if (original !== undefined) process.env.CONTEXTOS_MODE = original;
+      if (original !== undefined) process.env.COODRA_MODE = original;
     }
   });
 

@@ -5,7 +5,7 @@ import { createQueryRunHistoryHandler, type QueryRunHistoryHandlerDeps } from '.
 import { type QueryRunHistoryInput, queryRunHistoryInputSchema, queryRunHistoryOutputSchema } from './schema.js';
 
 /**
- * Registration factory for `contextos__query_run_history` (§24.4, S12).
+ * Registration factory for `coodra__query_run_history` (§24.4, S12).
  *
  * Factory shape because the handler closes over a `DbHandle` for the
  * projects-slug resolution + runs SELECT with `context_packs` LEFT JOIN.
@@ -15,7 +15,7 @@ import { type QueryRunHistoryInput, queryRunHistoryInputSchema, queryRunHistoryO
  * so retries can be correlated without collapsing two distinct reads.
  *
  * §24.3 description anatomy (five-part recipe + 40–80 word band) is
- * enforced by `@coodra/contextos-shared/test-utils::assertManifestDescriptionValid`
+ * enforced by `@coodra/shared/test-utils::assertManifestDescriptionValid`
  * in the unit suite.
  */
 
@@ -34,7 +34,7 @@ export function createQueryRunHistoryToolRegistration(
 ): ToolRegistration<typeof queryRunHistoryInputSchema, typeof queryRunHistoryOutputSchema> {
   return {
     name: 'query_run_history',
-    title: 'ContextOS: query_run_history',
+    title: 'Coodra: query_run_history',
     description:
       'Call this when you need to understand recent work on this project — which runs have been executed, their status, associated PRs or JIRA issues, and the context-pack title of each completed run. ' +
       'Returns a chronological (most-recent-first) list of runs with metadata. ' +

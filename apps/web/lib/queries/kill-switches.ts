@@ -8,7 +8,7 @@ import {
   listAllActiveKillSwitches as listAllActiveKillSwitchesDb,
   scheduleDurableWrite,
   softResumeKillSwitch as softResumeKillSwitchDb,
-} from '@coodra/contextos-db';
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 
@@ -27,7 +27,7 @@ export const MODES = KILL_SWITCH_MODES;
 export type Scope = KillSwitchScope;
 
 function isTeamMode(): boolean {
-  return process.env.CONTEXTOS_MODE === 'team';
+  return process.env.COODRA_MODE === 'team';
 }
 
 export async function listActive(): Promise<KillSwitchRecord[]> {

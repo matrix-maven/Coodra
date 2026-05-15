@@ -53,7 +53,7 @@ export interface PackDetail extends PackListRow {
  * directory. Returns null if none found within 6 levels.
  *
  * Why walk up: `process.cwd()` is whatever directory Next.js was
- * launched from — running `pnpm --filter @coodra/contextos-web start`
+ * launched from — running `pnpm --filter @coodra/web start`
  * lands in `apps/web/` (the package dir), but the project's
  * `docs/feature-packs/` lives at the repo root. Walking up finds it
  * regardless of the launch dir.
@@ -80,7 +80,7 @@ function packsRoot(cwd: string = process.cwd()): string {
   // Honor explicit override via env, then walk up. Fallback to literal
   // `<cwd>/docs/feature-packs` so the empty-state behaviour is the same
   // when no project is reachable.
-  const override = process.env.CONTEXTOS_PACKS_ROOT;
+  const override = process.env.COODRA_PACKS_ROOT;
   if (typeof override === 'string' && override.length > 0) {
     return override;
   }

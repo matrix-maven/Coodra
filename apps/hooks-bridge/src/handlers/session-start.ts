@@ -1,6 +1,6 @@
-import type { DbHandle } from '@coodra/contextos-db';
-import { createLogger } from '@coodra/contextos-shared';
-import type { HookEvent } from '@coodra/contextos-shared/hooks';
+import type { DbHandle } from '@coodra/db';
+import { createLogger } from '@coodra/shared';
+import type { HookEvent } from '@coodra/shared/hooks';
 
 import type { HookDispatchResult } from '../app.js';
 import { abandonStaleInProgressRuns } from '../lib/abandon-stale-runs.js';
@@ -40,13 +40,13 @@ const M05_SESSION_CONTRACT = [
  * Decision dec_83ba10c1 (2026-05-02 — Bridge-mediated autonomous
  * coordination defaults, system-architecture §16 Pattern 20). Pre-
  * decision the SessionStart handler returned only `permissionDecision:
- * 'allow'` and the agent had to remember to call `contextos__
+ * 'allow'` and the agent had to remember to call `coodra__
  * get_feature_pack` itself. With this change, every Claude Code
  * SessionStart hook ships the pack body inline — no agent action
  * required.
  *
  * Failure modes (all return allow + log):
- *   - projectSlug not resolved (no `.contextos.json` in cwd) → no
+ *   - projectSlug not resolved (no `.coodra.json` in cwd) → no
  *     additionalContext, log `session_start_no_project_slug`.
  *   - Feature Pack files absent on disk → no additionalContext, log
  *     `session_start_pack_not_found`. Agents fall through to the
@@ -116,7 +116,7 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // the git subprocess + UPDATE run in the background.
     //
     // Skipped when:
-    //   - projectId is undefined (no `.contextos.json`) — we wouldn't have
+    //   - projectId is undefined (no `.coodra.json`) — we wouldn't have
     //     a runs row to UPDATE anyway.
     //   - cwd is empty / missing.
     //   - The repo is non-git or `git rev-parse HEAD` fails — captured

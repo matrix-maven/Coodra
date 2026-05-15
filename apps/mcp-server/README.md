@@ -1,8 +1,8 @@
-# `@coodra/contextos-mcp-server`
+# `@coodra/mcp-server`
 
-ContextOS MCP server — the process that speaks the Model Context Protocol
+Coodra MCP server — the process that speaks the Model Context Protocol
 on behalf of the platform. This is the package that MCP clients (Claude
-Code, Cursor, Windsurf) connect to in order to call the `contextos__*`
+Code, Cursor, Windsurf) connect to in order to call the `coodra__*`
 tools described in `system-architecture.md` §24.
 
 ## Current scope (Module 02, S5 walking skeleton)
@@ -29,19 +29,19 @@ the real tools land in S6–S15.
 ```bash
 # From the repo root:
 pnpm install                           # triggers `prepare` hook wiring
-pnpm --filter @coodra/contextos-shared build  # @coodra/contextos-db imports the built dist
-pnpm --filter @coodra/contextos-db build      # mcp-server imports the built dist
-pnpm --filter @coodra/contextos-mcp-server build
-pnpm --filter @coodra/contextos-mcp-server start
+pnpm --filter @coodra/shared build  # @coodra/db imports the built dist
+pnpm --filter @coodra/db build      # mcp-server imports the built dist
+pnpm --filter @coodra/mcp-server build
+pnpm --filter @coodra/mcp-server start
 ```
 
 Or run against source with hot reload:
 
 ```bash
-pnpm --filter @coodra/contextos-mcp-server dev
+pnpm --filter @coodra/mcp-server dev
 ```
 
-The `dev` script sets `CONTEXTOS_LOG_DESTINATION=stderr` for you.
+The `dev` script sets `COODRA_LOG_DESTINATION=stderr` for you.
 Without it, the shared logger writes to stdout and corrupts every
 JSON-RPC frame.
 
@@ -53,11 +53,11 @@ repo-root `.mcp.json` already contains the correct entry:
 ```json
 {
   "mcpServers": {
-    "contextos": {
+    "coodra": {
       "type": "stdio",
       "command": "node",
       "args": ["apps/mcp-server/dist/index.js"],
-      "env": { "CONTEXTOS_LOG_DESTINATION": "stderr" }
+      "env": { "COODRA_LOG_DESTINATION": "stderr" }
     }
   }
 }
@@ -73,9 +73,9 @@ time. After first build, reload the IDE to have it spawn the server.
   — from this package or any transitively-imported dependency — will
   corrupt the transport and the client will disconnect. `src/index.ts`
   imports `./bootstrap/ensure-stderr-logging.js` as its very first
-  statement; that module sets `CONTEXTOS_LOG_DESTINATION=stderr` before
-  `@coodra/contextos-shared`'s logger is loaded, which in turn routes every
-  downstream `createLogger` call (including deep inside `@coodra/contextos-db`)
+  statement; that module sets `COODRA_LOG_DESTINATION=stderr` before
+  `@coodra/shared`'s logger is loaded, which in turn routes every
+  downstream `createLogger` call (including deep inside `@coodra/db`)
   to fd 2.
 - **No `process.env.X!` outside `src/config/env.ts`.** That module is
   the one place that reads `process.env` and exports a typed,

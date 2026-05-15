@@ -1,6 +1,6 @@
 import { readdirSync } from 'node:fs';
 import { access } from 'node:fs/promises';
-import { MIGRATIONS_FOLDER } from '@coodra/contextos-db';
+import { MIGRATIONS_FOLDER } from '@coodra/db';
 import { openLocalDb } from '../../lib/open-local-db.js';
 import type { Check } from '../types.js';
 
@@ -41,13 +41,13 @@ export const dbMigrationsHeadCheck: Check = {
         return {
           status: 'red',
           detail: `${appliedCount}/${expected} migrations applied — DB is behind`,
-          remediation: 'Re-run `contextos init` to apply pending migrations.',
+          remediation: 'Re-run `coodra init` to apply pending migrations.',
         };
       }
       return {
         status: 'yellow',
         detail: `${appliedCount} migrations applied but disk has ${expected} — likely a downgrade`,
-        remediation: 'Reinstall ContextOS at the version that matches this data.db, or run `contextos init --force`.',
+        remediation: 'Reinstall Coodra at the version that matches this data.db, or run `coodra init --force`.',
       };
     } catch (err) {
       const msg = (err as Error).message;
@@ -55,7 +55,7 @@ export const dbMigrationsHeadCheck: Check = {
         return {
           status: 'red',
           detail: 'data.db has no __drizzle_migrations table — migrations were never applied',
-          remediation: 'Run `contextos init` to apply migrations.',
+          remediation: 'Run `coodra init` to apply migrations.',
         };
       }
       return { status: 'red', detail: msg, remediation: 'Inspect data.db; back up and re-init if corrupt.' };

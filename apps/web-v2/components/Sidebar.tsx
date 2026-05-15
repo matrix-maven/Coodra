@@ -233,7 +233,7 @@ export function Sidebar({
     <aside className="side">
       <div className="side__brand">
         <BrandMark />
-        <span className="side__brand-word">ContextOS</span>
+        <span className="side__brand-word">Coodra</span>
         <span
           className="side__brand-mode"
           style={mode === 'team' ? undefined : { color: 'var(--ink-mute)', borderColor: 'var(--rule-strong)' }}
@@ -293,7 +293,7 @@ export function Sidebar({
             marginTop: 4,
           }}
         >
-          {mode === 'team' ? 'syncing every 10 s · click for members' : '~/.contextos/data.db · click to upgrade'}
+          {mode === 'team' ? 'syncing every 10 s · click for members' : '~/.coodra/data.db · click to upgrade'}
         </div>
       </Link>
 
@@ -371,7 +371,7 @@ export function Sidebar({
                   letterSpacing: '0.04em',
                 }}
               >
-                No projects yet. Run <code>contextos init</code>.
+                No projects yet. Run <code>coodra init</code>.
               </div>
             ) : (
               projects.map((p) => {

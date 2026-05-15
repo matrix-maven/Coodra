@@ -89,7 +89,7 @@ export default async function FeaturesPage() {
                 <span
                   className="btn btn--ghost"
                   style={{ opacity: 0.55, cursor: 'not-allowed' }}
-                  title="Author via `contextos feature add <slug>` on the CLI for now. Web authoring lands as a follow-on."
+                  title="Author via `coodra feature add <slug>` on the CLI for now. Web authoring lands as a follow-on."
                 >
                   + New feature (CLI)
                 </span>
@@ -120,7 +120,7 @@ export default async function FeaturesPage() {
             </strong>
             Create one with{' '}
             <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-              contextos feature add &lt;slug&gt;
+              coodra feature add &lt;slug&gt;
             </span>{' '}
             from any project root. In team mode the row appears here within ~10 seconds of the daemon's next sync tick.
           </div>

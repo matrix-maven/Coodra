@@ -15,7 +15,7 @@ import { getInviteByJti, revokeInvite } from '@/lib/queries/invites';
  *   2. Look up the invite by jti. 404 if missing.
  *   3. Org check: refuse if invite belongs to a different org than the
  *      actor (defense in depth — the middleware already pins on
- *      CONTEXTOS_EXPECTED_ORG_ID, but a misconfigured deploy where the
+ *      COODRA_EXPECTED_ORG_ID, but a misconfigured deploy where the
  *      env mismatches the DB shouldn't allow cross-org revoke).
  *   4. UPDATE team_invites with revoked_at / revoked_by_user_id.
  *      Idempotent: re-revoking an already-revoked or already-used

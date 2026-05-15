@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import type { WriteOutcome } from './types.js';
 
 /**
- * `lib/init/claude-settings-merge.ts` — writes the ContextOS hook
+ * `lib/init/claude-settings-merge.ts` — writes the Coodra hook
  * entries into `~/.claude/settings.json` so Claude Code POSTs
  * SessionStart, PreToolUse, PostToolUse, Stop, and SessionEnd events
  * to the local hooks-bridge.
@@ -21,9 +21,9 @@ import type { WriteOutcome } from './types.js';
  *   Context Pack auto-save on Stop.
  *
  * - **Phase 4 Fix F (2026-05-02 — caught during demo rehearsal)**:
- *   Phase 3 wrote `matcher: '__contextos__'` for every event entry.
+ *   Phase 3 wrote `matcher: '__coodra__'` for every event entry.
  *   Per Claude Code's hook spec, `matcher` on PreToolUse/PostToolUse
- *   is a regex tested against the TOOL NAME — `'__contextos__'`
+ *   is a regex tested against the TOOL NAME — `'__coodra__'`
  *   doesn't match any real tool, so the hook would never fire for
  *   Claude Code (it kept firing for Cursor / Windsurf because their
  *   adapters POST directly without going through the matcher). Two
@@ -37,17 +37,17 @@ import type { WriteOutcome } from './types.js';
  *        only).
  *
  *     2. URL-based ownership detection. Pre-Fix-F the merger
- *        identified ContextOS-owned entries by `matcher === '__contextos__'`.
+ *        identified Coodra-owned entries by `matcher === '__coodra__'`.
  *        With per-event matchers carrying real tool-name regexes, that
- *        sentinel is gone. Instead, an entry is "ContextOS-owned" iff
+ *        sentinel is gone. Instead, an entry is "Coodra-owned" iff
  *        any hook in `entry.hooks[]` has a URL starting with the
  *        configured bridge endpoint. Robust against future matcher
  *        changes; user entries (which never POST to our bridge URL)
  *        stay preserved.
  *
- *     3. Legacy migration. An existing entry with `matcher === '__contextos__'`
+ *     3. Legacy migration. An existing entry with `matcher === '__coodra__'`
  *        AND a hook URL matching the bridge is recognised as a
- *        pre-Fix-F ContextOS entry and replaced with the new shape on
+ *        pre-Fix-F Coodra entry and replaced with the new shape on
  *        next merge. The original is backed up first.
  *
  * Hook shape after Fix F + Fix G:
@@ -75,13 +75,13 @@ import type { WriteOutcome } from './types.js';
  *   }
  *
  * Backup: on the FIRST write to a non-empty existing file we copy
- * the original to `<settings.json>.contextos-backup-<timestamp>` so
+ * the original to `<settings.json>.coodra-backup-<timestamp>` so
  * the user can recover if something goes wrong.
  */
 
 /**
  * Phase 4 Fix F matcher for tool events. Covers every tool the
- * default policy from `@coodra/contextos-db::ensureDefaultPolicy` governs:
+ * default policy from `@coodra/db::ensureDefaultPolicy` governs:
  * Write/Edit/MultiEdit/NotebookEdit (deny dangerous paths) + Bash
  * (ask). When new tool names need governance, expand this regex AND
  * the rule list in `ensure-default-policy.ts` together.
@@ -94,7 +94,7 @@ const TOOL_EVENT_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit|Bash' as const;
  * lifetime of one or two minor releases so users upgrading from
  * pre-Fix-F installs get their entries migrated automatically.
  */
-const LEGACY_CONTEXTOS_MATCHER = '__contextos__' as const;
+const LEGACY_COODRA_MATCHER = '__coodra__' as const;
 
 /**
  * Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd added to the hook
@@ -126,7 +126,7 @@ export interface ClaudeSettingsMergeOptions {
   readonly bridgeHost?: string;
   /** Per-request timeout in seconds. Default 10. */
   readonly timeoutSec?: number;
-  /** Pass `--force` through from init: overwrites any drift even when no contextos-owned entry exists. */
+  /** Pass `--force` through from init: overwrites any drift even when no coodra-owned entry exists. */
   readonly force: boolean;
   /** When true, compute the merge but do not write to disk. */
   readonly dryRun: boolean;
@@ -191,7 +191,7 @@ export function defaultClaudeSettingsPath(home: string = homedir(), env: NodeJS.
   return join(home, '.claude', 'settings.json');
 }
 
-export function buildContextosHookSpec(options: ClaudeSettingsMergeOptions): ClaudeHttpHookSpec {
+export function buildCoodraHookSpec(options: ClaudeSettingsMergeOptions): ClaudeHttpHookSpec {
   const host = options.bridgeHost ?? '127.0.0.1';
   // Phase F.6+ — prefer literal secret over $LOCAL_HOOK_SECRET env
   // template. See ClaudeSettingsMergeOptions.localHookSecret docblock
@@ -215,7 +215,7 @@ export function buildContextosHookSpec(options: ClaudeSettingsMergeOptions): Cla
  * defaults to "fire for all" when matcher is absent, and matcher is only
  * documented for PreToolUse/PostToolUse anyway).
  */
-export function buildContextosEntryForEvent(eventName: ClaudeHookEvent, spec: ClaudeHttpHookSpec): ClaudeHookEntry {
+export function buildCoodraEntryForEvent(eventName: ClaudeHookEvent, spec: ClaudeHttpHookSpec): ClaudeHookEntry {
   if (TOOL_EVENTS.has(eventName)) {
     return { matcher: TOOL_EVENT_MATCHER, hooks: [spec] };
   }
@@ -228,16 +228,16 @@ export function buildContextosEntryForEvent(eventName: ClaudeHookEvent, spec: Cl
  * per-event factory above. Kept for any external import that might
  * reference it.
  *
- * @deprecated Use `buildContextosEntryForEvent` so the matcher matches
+ * @deprecated Use `buildCoodraEntryForEvent` so the matcher matches
  *             the per-event Claude Code spec.
  */
-export function buildContextosEntry(spec: ClaudeHttpHookSpec): ClaudeHookEntry {
+export function buildCoodraEntry(spec: ClaudeHttpHookSpec): ClaudeHookEntry {
   return { matcher: TOOL_EVENT_MATCHER, hooks: [spec] };
 }
 
 /**
  * URL-based ownership detection (Phase 4 Fix F). An entry is
- * "ContextOS-owned" iff any of its hooks has a URL pointing at the
+ * "Coodra-owned" iff any of its hooks has a URL pointing at the
  * configured bridge endpoint. Replaces the pre-Fix-F matcher-sentinel
  * check.
  *
@@ -246,7 +246,7 @@ export function buildContextosEntry(spec: ClaudeHttpHookSpec): ClaudeHookEntry {
  * or without query strings, with or without trailing path segments —
  * is recognised.
  */
-function isContextosOwnedEntry(entry: ClaudeHookEntry, bridgeUrlPrefix: string): boolean {
+function isCoodraOwnedEntry(entry: ClaudeHookEntry, bridgeUrlPrefix: string): boolean {
   if (!Array.isArray(entry.hooks)) return false;
   return entry.hooks.some(
     (h) => h && typeof h === 'object' && typeof h.url === 'string' && h.url.startsWith(bridgeUrlPrefix),
@@ -291,8 +291,8 @@ function canonicalize(value: unknown): unknown {
 }
 
 /**
- * Merge per-event: replace any ContextOS-owned entries (URL match)
- * with `desired`; append `desired` if no contextos-owned entry was
+ * Merge per-event: replace any Coodra-owned entries (URL match)
+ * with `desired`; append `desired` if no coodra-owned entry was
  * found. Preserves user entries (which never carry the bridge URL).
  *
  * Returns `{ entries, changed }` — `changed` is true when the result
@@ -304,16 +304,16 @@ function mergeEventEntries(
   desiredSpec: ClaudeHttpHookSpec,
   bridgeUrlPrefix: string,
 ): { entries: ClaudeHookEntry[]; changed: boolean } {
-  const desired = buildContextosEntryForEvent(eventName, desiredSpec);
+  const desired = buildCoodraEntryForEvent(eventName, desiredSpec);
   const existingArr: ClaudeHookEntry[] = Array.isArray(existing) ? existing.slice() : [];
 
-  // Locate every contextos-owned entry (URL match) — there should
+  // Locate every coodra-owned entry (URL match) — there should
   // normally be exactly one, but legacy installs and force-write
   // accidents can leave duplicates. Drop them all and re-insert one.
   const ownedIndices: number[] = [];
   for (let i = 0; i < existingArr.length; i++) {
     const e = existingArr[i];
-    if (e !== undefined && isContextosOwnedEntry(e, bridgeUrlPrefix)) ownedIndices.push(i);
+    if (e !== undefined && isCoodraOwnedEntry(e, bridgeUrlPrefix)) ownedIndices.push(i);
   }
 
   if (ownedIndices.length === 0) {
@@ -353,13 +353,13 @@ export interface MergeClaudeSettingsResult {
 }
 
 /**
- * Idempotent merge of ContextOS's hook entries into
+ * Idempotent merge of Coodra's hook entries into
  * `~/.claude/settings.json`. Creates the parent directory + file if
  * absent. Backs up the original on first divergent write.
  */
 export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): Promise<MergeClaudeSettingsResult> {
   const path = options.settingsPath ?? defaultClaudeSettingsPath();
-  const desiredSpec = buildContextosHookSpec(options);
+  const desiredSpec = buildCoodraHookSpec(options);
   const host = options.bridgeHost ?? '127.0.0.1';
   const bridgeUrlPrefix = `http://${host}:${options.bridgePort}/v1/hooks/claude-code`;
 
@@ -403,7 +403,7 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
   if (!anyChanged && !options.force) {
     return {
       path,
-      outcome: { path, action: 'unchanged', notes: 'all ContextOS hook entries already match Phase 4 Fix F baseline' },
+      outcome: { path, action: 'unchanged', notes: 'all Coodra hook entries already match Phase 4 Fix F baseline' },
     };
   }
 
@@ -412,10 +412,10 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
   // entries, restores matchers if locally edited).
   if (!anyChanged && options.force) {
     for (const eventName of CLAUDE_HOOK_EVENTS) {
-      const desired = buildContextosEntryForEvent(eventName, desiredSpec);
+      const desired = buildCoodraEntryForEvent(eventName, desiredSpec);
       updates[eventName] = [
         ...((hooksBlock[eventName] as ClaudeHookEntry[] | undefined) ?? []).filter(
-          (e) => !isContextosOwnedEntry(e, bridgeUrlPrefix),
+          (e) => !isCoodraOwnedEntry(e, bridgeUrlPrefix),
         ),
         desired,
       ];
@@ -442,8 +442,8 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
   // Phase 3 Fix B (2026-05-02): create `~/.claude/` with mode 0700
   // if it doesn't exist. Pre-Phase-3 init gated the entire merge on
   // the dir's prior existence; on a fresh machine with no Claude Code
-  // launches yet, ContextOS shipped without any hooks wired. The
-  // 0700 mode matches what other ContextOS dirs use (see init.ts
+  // launches yet, Coodra shipped without any hooks wired. The
+  // 0700 mode matches what other Coodra dirs use (see init.ts
   // logs/pids creation) — restrictive on multi-user systems so a
   // less-trusted account can't read another user's local hook
   // secrets.
@@ -452,7 +452,7 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
   // Backup the original on the first divergent write so the user
   // can recover.
   if (raw !== null) {
-    const backupPath = `${path}.contextos-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    const backupPath = `${path}.coodra-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     try {
       await writeFile(backupPath, raw, 'utf8');
     } catch {
@@ -461,7 +461,7 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
   }
 
   // Atomic write: temp + rename.
-  const tmpPath = `${path}.contextos.tmp`;
+  const tmpPath = `${path}.coodra.tmp`;
   await writeFile(tmpPath, nextRaw, 'utf8');
   await rename(tmpPath, path);
 
@@ -472,27 +472,27 @@ export async function mergeClaudeSettings(options: ClaudeSettingsMergeOptions): 
       action: raw === null ? 'wrote' : options.force ? 'forced' : 'merged',
       notes:
         raw === null
-          ? 'created baseline ~/.claude/settings.json with ContextOS hook entries (Phase 4 Fix F matcher)'
+          ? 'created baseline ~/.claude/settings.json with Coodra hook entries (Phase 4 Fix F matcher)'
           : options.force
-            ? 'overwrote ContextOS hook entries with Phase 4 Fix F baseline'
-            : 'updated ContextOS hook entries (existing user hooks preserved; legacy __contextos__ matcher migrated)',
+            ? 'overwrote Coodra hook entries with Phase 4 Fix F baseline'
+            : 'updated Coodra hook entries (existing user hooks preserved; legacy __coodra__ matcher migrated)',
     },
   };
 }
 
 // Internal exports for tests.
-export { LEGACY_CONTEXTOS_MATCHER, TOOL_EVENT_MATCHER };
+export { LEGACY_COODRA_MATCHER, TOOL_EVENT_MATCHER };
 
 /**
- * Module 08b S8 — `contextos uninstall` reverse for `~/.claude/settings.json`.
+ * Module 08b S8 — `coodra uninstall` reverse for `~/.claude/settings.json`.
  *
- * Removes every ContextOS-owned hook entry (URL-prefix detection per
- * Phase 4 Fix F) AND every legacy `matcher === '__contextos__'`
+ * Removes every Coodra-owned hook entry (URL-prefix detection per
+ * Phase 4 Fix F) AND every legacy `matcher === '__coodra__'`
  * sentinel entry. User entries (which never carry the bridge URL)
  * stay untouched. Idempotent: re-running on a file with no owned
  * entries is a no-op.
  *
- * The `hooks` block keeps its overall shape — only the contextos
+ * The `hooks` block keeps its overall shape — only the coodra
  * entries inside per-event arrays are stripped. Empty per-event
  * arrays are removed so the file shrinks rather than carrying empty
  * scaffolding.
@@ -546,8 +546,8 @@ export async function removeClaudeSettings(options: RemoveClaudeSettingsOptions)
     const filtered = entries.filter((e) => {
       if (e === undefined || e === null || typeof e !== 'object') return true;
       // Drop both: URL-prefix-owned (post-Fix-F) AND legacy sentinel-matcher entries.
-      if (isContextosOwnedEntry(e, bridgeUrlPrefix)) return false;
-      if (e.matcher === LEGACY_CONTEXTOS_MATCHER) return false;
+      if (isCoodraOwnedEntry(e, bridgeUrlPrefix)) return false;
+      if (e.matcher === LEGACY_COODRA_MATCHER) return false;
       return true;
     });
     if (filtered.length !== entries.length) anyChanged = true;
@@ -560,7 +560,7 @@ export async function removeClaudeSettings(options: RemoveClaudeSettingsOptions)
   if (!anyChanged) {
     return {
       path,
-      outcome: { path, action: 'unchanged', notes: 'no contextos-owned hook entries found; nothing to remove' },
+      outcome: { path, action: 'unchanged', notes: 'no coodra-owned hook entries found; nothing to remove' },
     };
   }
 
@@ -570,24 +570,24 @@ export async function removeClaudeSettings(options: RemoveClaudeSettingsOptions)
   if (options.dryRun) {
     return {
       path,
-      outcome: { path, action: 'merged', notes: 'dry-run: contextos hook entries would be removed' },
+      outcome: { path, action: 'merged', notes: 'dry-run: coodra hook entries would be removed' },
     };
   }
 
   // Backup the original on the first divergent write.
-  const backupPath = `${path}.contextos-uninstall-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+  const backupPath = `${path}.coodra-uninstall-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
   try {
     await writeFile(backupPath, raw, 'utf8');
   } catch {
     // best-effort
   }
 
-  const tmpPath = `${path}.contextos.tmp`;
+  const tmpPath = `${path}.coodra.tmp`;
   await writeFile(tmpPath, nextRaw, 'utf8');
   await rename(tmpPath, path);
 
   return {
     path,
-    outcome: { path, action: 'merged', notes: 'removed contextos hook entries' },
+    outcome: { path, action: 'merged', notes: 'removed coodra hook entries' },
   };
 }

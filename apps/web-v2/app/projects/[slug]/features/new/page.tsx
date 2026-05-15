@@ -30,7 +30,7 @@ export default async function NewFeaturePage({
     <>
       <Topbar
         crumb={`${project.slug} / features / new`}
-        crumbPrefix="contextos / projects"
+        crumbPrefix="coodra / projects"
       />
       <section className="screen">
         <div className="head">
@@ -142,7 +142,7 @@ export default async function NewFeaturePage({
                 style={textareaStyle}
               />
               <p style={hintStyle}>
-                Free-form markdown. Loaded by <code style={mono}>contextos__get_feature</code> on demand. Leave blank to
+                Free-form markdown. Loaded by <code style={mono}>coodra__get_feature</code> on demand. Leave blank to
                 use the scaffold.
               </p>
             </div>

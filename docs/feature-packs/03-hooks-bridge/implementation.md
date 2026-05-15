@@ -4,10 +4,10 @@
 
 ## Prerequisites (one-time, before S1)
 
-- Module 02 squash-merged on `main` at the SHA recorded in the Module 02 closeout context pack. CI green on `Abishai95141/ContextOS-matrx-maven`.
+- Module 02 squash-merged on `main` at the SHA recorded in the Module 02 closeout context pack. CI green on `Abishai95141/Coodra-matrx-maven`.
 - Node ≥ 22.16.0, pnpm ≥ 10.33.0, Docker Desktop running locally (for the `testcontainers` integration tests in S13).
 - `LOCAL_HOOK_SECRET` already exists in `.env` from Module 02. If not, generate via `openssl rand -hex 24`.
-- A working ContextOS MCP server reachable from Claude Code (`mcp__contextos__ping` returns ok). This is the read surface; Module 03 builds the write surface alongside it.
+- A working Coodra MCP server reachable from Claude Code (`mcp__coodra__ping` returns ok). This is the read surface; Module 03 builds the write surface alongside it.
 
 ## Slice sequence
 
@@ -27,29 +27,29 @@ Archive `context_memory/current-session.md` (final Module 02 entries) to `contex
 
 ### S3 — Extract policy + auth modules from `apps/mcp-server`
 
-**Deviation from plan:** spec.md originally said both modules move to `packages/shared/src/{policy,auth}/`. Auth has no DB dependency and lives there as planned. **Policy cannot.** `@coodra/contextos-db` already depends on `@coodra/contextos-shared`; if `shared/policy` imports `@coodra/contextos-db` (for `DbHandle` + the schema tables), the workspace forms a cycle. Resolved by creating a new workspace package `@coodra/contextos-policy` (`packages/policy/`) that depends on both `shared` and `db`. Decision recorded in `context_memory/decisions-log.md` 2026-04-25 in the same commit.
+**Deviation from plan:** spec.md originally said both modules move to `packages/shared/src/{policy,auth}/`. Auth has no DB dependency and lives there as planned. **Policy cannot.** `@coodra/db` already depends on `@coodra/shared`; if `shared/policy` imports `@coodra/db` (for `DbHandle` + the schema tables), the workspace forms a cycle. Resolved by creating a new workspace package `@coodra/policy` (`packages/policy/`) that depends on both `shared` and `db`. Decision recorded in `context_memory/decisions-log.md` 2026-04-25 in the same commit.
 
 **What actually lands:**
 
-- New workspace package `packages/policy/` with `package.json` (deps: `@coodra/contextos-shared`, `@coodra/contextos-db`, `cockatiel@3.2.1`, `drizzle-orm@^0.45.2`, `picomatch@4.0.2`), `tsconfig.json`, `tsconfig.typecheck.json`, `vitest.config.ts`, `src/{index,policy,types}.ts`, `__tests__/unit/exports.test.ts` (smoke + pure-logic for the no-DB surface). Subpath exports: `.` + `./types`.
+- New workspace package `packages/policy/` with `package.json` (deps: `@coodra/shared`, `@coodra/db`, `cockatiel@3.2.1`, `drizzle-orm@^0.45.2`, `picomatch@4.0.2`), `tsconfig.json`, `tsconfig.typecheck.json`, `vitest.config.ts`, `src/{index,policy,types}.ts`, `__tests__/unit/exports.test.ts` (smoke + pure-logic for the no-DB surface). Subpath exports: `.` + `./types`.
 - `packages/shared/src/auth/` — new subdirectory: `index.ts` (barrel), `auth.ts` (factories + `verifyClerkJwt` + `verifyLocalHookSecret`), `types.ts` (`Identity` + `AuthClient` + structural `AuthEnv` subset replacing the app-specific `McpServerEnv` parameter type). `@clerk/backend@3.3.0` added to `packages/shared/package.json` deps. New subpath export `./auth`.
 - `packages/shared/src/idempotency.ts` — `IdempotencyKey` discriminated value-shape moved here so the cross-package `PolicyInput.idempotencyKey` field can reference it without depending on the mcp-server framework. Framework-only `IdempotencyKeyBuilder` + `IdempotencyContext` + `assertIdempotencyKeyBuilder` stay in mcp-server's `framework/idempotency.ts` (those are tool-registration concerns). The shared `index.ts` barrel re-exports the new type.
-- `apps/mcp-server/src/lib/{policy,auth}.ts` — now thin re-export shims pointing at `@coodra/contextos-policy` and `@coodra/contextos-shared/auth` respectively. Existing import sites (handlers, tests, `framework/tool-context.ts`) keep working unchanged.
+- `apps/mcp-server/src/lib/{policy,auth}.ts` — now thin re-export shims pointing at `@coodra/policy` and `@coodra/shared/auth` respectively. Existing import sites (handlers, tests, `framework/tool-context.ts`) keep working unchanged.
 - `apps/mcp-server/src/framework/policy-wrapper.ts` — re-export shim for the moved types.
-- `apps/mcp-server/src/framework/tool-context.ts` — `Identity` / `AuthClient` interfaces now imported from `@coodra/contextos-shared/auth`; `PolicyClient` from `@coodra/contextos-policy`. Re-exported so existing `import type { Identity } from '../framework/tool-context.js'` keeps working.
-- `apps/mcp-server/src/framework/idempotency.ts` — `IdempotencyKey` is now `import type` from `@coodra/contextos-shared` plus a re-export.
-- `apps/mcp-server/package.json` — drop `cockatiel`, `@clerk/backend`, `@types/picomatch` (now transitive through shared/policy). Add `@coodra/contextos-policy` workspace dep. Keep `picomatch` (still used directly in `tools/get-feature-pack/handler.ts` + a unit test).
+- `apps/mcp-server/src/framework/tool-context.ts` — `Identity` / `AuthClient` interfaces now imported from `@coodra/shared/auth`; `PolicyClient` from `@coodra/policy`. Re-exported so existing `import type { Identity } from '../framework/tool-context.js'` keeps working.
+- `apps/mcp-server/src/framework/idempotency.ts` — `IdempotencyKey` is now `import type` from `@coodra/shared` plus a re-export.
+- `apps/mcp-server/package.json` — drop `cockatiel`, `@clerk/backend`, `@types/picomatch` (now transitive through shared/policy). Add `@coodra/policy` workspace dep. Keep `picomatch` (still used directly in `tools/get-feature-pack/handler.ts` + a unit test).
 - `apps/mcp-server/__tests__/unit/lib/auth-chain.test.ts` — moved to `packages/shared/__tests__/unit/auth/auth.test.ts`. `vi.mock('@clerk/backend')` only intercepts when the test runs in the same package as the implementation; in mcp-server it bound only to the test file's own resolution context and the dist's transitive import bypassed it. Switch the type cast from `McpServerEnv` to `AuthEnv` (structural subset). 18 tests intact, all green.
 
 `pnpm install` re-links the workspace. The full gate (lint + typecheck + unit + integration on mcp-server, unit on shared + policy) is green at this commit.
 
-**Reference updates in the same commit (amendment B):** Module 03 adds `@coodra/contextos-policy` as a new workspace package — call out the package's role + dep set in `External api and library reference.md` (new subsection under Validation/Schemas/Resilience).
+**Reference updates in the same commit (amendment B):** Module 03 adds `@coodra/policy` as a new workspace package — call out the package's role + dep set in `External api and library reference.md` (new subsection under Validation/Schemas/Resilience).
 
-**Commit:** `refactor(workspace): extract @coodra/contextos-policy package + @coodra/contextos-shared/auth from mcp-server (closes the workspace cycle implied by the original plan)`.
+**Commit:** `refactor(workspace): extract @coodra/policy package + @coodra/shared/auth from mcp-server (closes the workspace cycle implied by the original plan)`.
 
 ### S4 — `createDb` local-vs-cloud refactor (closes verification §8.3)
 
-Per the Module 02 verification report's deferred §8.3: `system-architecture.md §1` says "local services always write to local SQLite," but `packages/db/src/client.ts::createDb` previously routed `mode === 'team'` to Postgres unconditionally. The Module 02 stopgap was the `CONTEXTOS_DB_OVERRIDE_MODE` env knob. Module 03 closes the door properly.
+Per the Module 02 verification report's deferred §8.3: `system-architecture.md §1` says "local services always write to local SQLite," but `packages/db/src/client.ts::createDb` previously routed `mode === 'team'` to Postgres unconditionally. The Module 02 stopgap was the `COODRA_DB_OVERRIDE_MODE` env knob. Module 03 closes the door properly.
 
 Refactor `packages/db/src/client.ts::CreateDbOptions` into a discriminated union on `kind: 'local' | 'cloud'`. Update `createDb`:
 
@@ -64,11 +64,11 @@ export function createDb(opts: CreateDbOptions): DbHandle {
 }
 ```
 
-Update `apps/mcp-server/src/lib/db.ts::createDbClient` so it always passes `kind: 'local'`. The `mode` arg becomes purely an auth-strategy hint; downstream `apps/mcp-server/src/index.ts` no longer needs `CONTEXTOS_DB_OVERRIDE_MODE` — remove the env entry from `apps/mcp-server/src/config/env.ts`, remove the boot-time wiring, remove the integration test `boot-db-override.test.ts` (or repurpose it to assert that `kind: 'local'` always wins regardless of `CONTEXTOS_MODE`).
+Update `apps/mcp-server/src/lib/db.ts::createDbClient` so it always passes `kind: 'local'`. The `mode` arg becomes purely an auth-strategy hint; downstream `apps/mcp-server/src/index.ts` no longer needs `COODRA_DB_OVERRIDE_MODE` — remove the env entry from `apps/mcp-server/src/config/env.ts`, remove the boot-time wiring, remove the integration test `boot-db-override.test.ts` (or repurpose it to assert that `kind: 'local'` always wins regardless of `COODRA_MODE`).
 
 Update existing tests that asserted Postgres routing for `mode: 'team'`: pass `kind: 'cloud'` explicitly. The cross-mode integration test in `__tests__/integration/cross-mode.test.ts` (if it exists) becomes the single source of truth that local services + team mode = SQLite.
 
-**Files:** `packages/db/src/client.ts`, `packages/db/src/index.ts` (re-export shape), `packages/db/__tests__/unit/client-options.test.ts` (new — 6 fixtures), `apps/mcp-server/src/lib/db.ts`, `apps/mcp-server/src/config/env.ts` (remove `CONTEXTOS_DB_OVERRIDE_MODE`), `apps/mcp-server/src/index.ts` (remove the wiring), `apps/mcp-server/__tests__/integration/boot.test.ts` (update — assert local-mode-always), `apps/mcp-server/__tests__/integration/boot-db-override.test.ts` (delete or rewrite), `docs/DEVELOPMENT.md` (update "Local team-mode auth dev" section — remove `CONTEXTOS_DB_OVERRIDE_MODE` reference, replace with the simpler explanation), `docs/verification/2026-04-25-module-01-02-verification.md` (append "Findings closed" subsection marking §8.3 closed in M03 S4 with this commit's SHA — TBD at squash).
+**Files:** `packages/db/src/client.ts`, `packages/db/src/index.ts` (re-export shape), `packages/db/__tests__/unit/client-options.test.ts` (new — 6 fixtures), `apps/mcp-server/src/lib/db.ts`, `apps/mcp-server/src/config/env.ts` (remove `COODRA_DB_OVERRIDE_MODE`), `apps/mcp-server/src/index.ts` (remove the wiring), `apps/mcp-server/__tests__/integration/boot.test.ts` (update — assert local-mode-always), `apps/mcp-server/__tests__/integration/boot-db-override.test.ts` (delete or rewrite), `docs/DEVELOPMENT.md` (update "Local team-mode auth dev" section — remove `COODRA_DB_OVERRIDE_MODE` reference, replace with the simpler explanation), `docs/verification/2026-04-25-module-01-02-verification.md` (append "Findings closed" subsection marking §8.3 closed in M03 S4 with this commit's SHA — TBD at squash).
 
 **Reference updates in the same commit:** `External api and library reference.md` → Drizzle ORM subsection — add a "Local-vs-cloud routing" paragraph noting the `kind` discriminator and that `mode` no longer dictates DB choice. `system-architecture.md §1` confirmation note (no edit needed; the doc was always correct, the code is finally aligned).
 
@@ -78,20 +78,20 @@ Update existing tests that asserted Postgres routing for `mode: 'team'`: pass `k
 
 Scaffold `apps/hooks-bridge/`:
 
-- `package.json` — private workspace package, `"type": "module"`, `bin` points at `dist/index.js`. Deps: `@hono/node-server@^2.0.0`, `hono@^4.12.15`, `@hono/zod-validator@^0.7.6`, `drizzle-orm@^0.45.2`, `@coodra/contextos-shared@workspace:*`, `@coodra/contextos-db@workspace:*`. devDeps: `tsx`, `vitest`, `@types/node`.
+- `package.json` — private workspace package, `"type": "module"`, `bin` points at `dist/index.js`. Deps: `@hono/node-server@^2.0.0`, `hono@^4.12.15`, `@hono/zod-validator@^0.7.6`, `drizzle-orm@^0.45.2`, `@coodra/shared@workspace:*`, `@coodra/db@workspace:*`. devDeps: `tsx`, `vitest`, `@types/node`.
 - `tsconfig.json` + `tsconfig.typecheck.json` (extends `../../tsconfig.base.json`).
 - `vitest.config.ts` — same config shape as `apps/mcp-server`'s.
-- `README.md`, `.env.example` (HOOKS_BRIDGE_PORT, LOCAL_HOOK_SECRET, CONTEXTOS_LOG_DESTINATION, CONTEXTOS_MODE, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, CONTEXTOS_SQLITE_PATH).
+- `README.md`, `.env.example` (HOOKS_BRIDGE_PORT, LOCAL_HOOK_SECRET, COODRA_LOG_DESTINATION, COODRA_MODE, CLERK_SECRET_KEY, CLERK_PUBLISHABLE_KEY, COODRA_SQLITE_PATH).
 - `.dockerignore`.
 
 Source layout (mirror mcp-server's conventions):
 
-- `src/index.ts` — boot entry. Calls `ensureStderrLogging()` first (imported from `@coodra/contextos-shared`), parses env, builds `dbHandle = createDb({ kind: 'local', mode: env.CONTEXTOS_MODE, sqlitePath: env.CONTEXTOS_SQLITE_PATH })`, runs migrations idempotently (`migrateSqlite(dbHandle.db)` — same auto-migrate stance as mcp-server post-Module-02 `187c844`), constructs the Hono app, starts the listener on `127.0.0.1:${env.HOOKS_BRIDGE_PORT}` (default 3101), wires `process.on('SIGTERM' | 'SIGINT')` for graceful shutdown.
+- `src/index.ts` — boot entry. Calls `ensureStderrLogging()` first (imported from `@coodra/shared`), parses env, builds `dbHandle = createDb({ kind: 'local', mode: env.COODRA_MODE, sqlitePath: env.COODRA_SQLITE_PATH })`, runs migrations idempotently (`migrateSqlite(dbHandle.db)` — same auto-migrate stance as mcp-server post-Module-02 `187c844`), constructs the Hono app, starts the listener on `127.0.0.1:${env.HOOKS_BRIDGE_PORT}` (default 3101), wires `process.on('SIGTERM' | 'SIGINT')` for graceful shutdown.
 - `src/bootstrap/ensure-stderr-logging.ts` — re-exported from shared if it lives there now; otherwise a thin local copy.
 - `src/config/env.ts` — Zod-validated env with the same strictness rules as mcp-server's. New shape adds `HOOKS_BRIDGE_PORT` (default 3101, range 1024–65535).
-- `src/lib/auth.ts` — re-exports `createAuthChainMiddleware` from `@coodra/contextos-shared/auth`.
+- `src/lib/auth.ts` — re-exports `createAuthChainMiddleware` from `@coodra/shared/auth`.
 - `src/app.ts` — exported builder `buildApp(deps): Hono`. Wires `GET /healthz` (no auth) and the three `POST /v1/hooks/{agent}` routes (the routes themselves are stubbed with `c.json({ ok: true })` until S6; the auth middleware + zValidator wiring lands here).
-- `src/lib/db.ts` — re-exports `createDbClient` and the same `DbHandle`-typed factory from mcp-server's `lib/db.ts`. Hooks bridge does NOT depend on apps/mcp-server; both apps independently call the shared factory in `@coodra/contextos-db`.
+- `src/lib/db.ts` — re-exports `createDbClient` and the same `DbHandle`-typed factory from mcp-server's `lib/db.ts`. Hooks bridge does NOT depend on apps/mcp-server; both apps independently call the shared factory in `@coodra/db`.
 
 Tests:
 
@@ -183,7 +183,7 @@ Wire the adapters into the Hono routes in `apps/hooks-bridge/src/app.ts` (still 
 
 ```ts
 export function createPreToolUseHandler(deps: { db: DbHandle; mode: 'solo'|'team' }) {
-  const evaluator = createPolicyClient(deps);  // from @coodra/contextos-policy
+  const evaluator = createPolicyClient(deps);  // from @coodra/policy
   return async function handle(event: HookEvent): Promise<PolicyDecisionEnvelope> {
     if (event.eventPhase !== 'pre') return { permissionDecision: 'allow', reason: 'event_phase_mismatch' };
     try {
@@ -216,7 +216,7 @@ export function toWindsurfCursorResponse(d: PolicyDecisionEnvelope) {
 
 Wire into the three `POST /v1/hooks/{agent}` routes in `app.ts`. For `pre_*` events the route calls `preToolUseHandler(event)` then translates and returns. For all other events the route hands off to a stubbed `dispatch(event)` (lands in S8/S9).
 
-`resolveProjectSlug(cwd: string): Promise<string|undefined>` reads `${cwd}/.contextos.json` once, caches by cwd for 60s. On miss, returns undefined; the policy evaluator handles missing projectSlug by returning `permissionDecision: 'allow'` + `reason: 'project_not_registered'` (already the existing behavior in shared/policy).
+`resolveProjectSlug(cwd: string): Promise<string|undefined>` reads `${cwd}/.coodra.json` once, caches by cwd for 60s. On miss, returns undefined; the policy evaluator handles missing projectSlug by returning `permissionDecision: 'allow'` + `reason: 'project_not_registered'` (already the existing behavior in shared/policy).
 
 Tests:
 
@@ -310,7 +310,7 @@ Test: `__tests__/integration/user-prompt-submit.test.ts` — POST to claude-code
 
 Two scripts under `scripts/hook-adapters/`:
 
-`scripts/hook-adapters/windsurf-contextos.sh`:
+`scripts/hook-adapters/windsurf-coodra.sh`:
 
 ```bash
 #!/usr/bin/env bash
@@ -323,15 +323,15 @@ RESPONSE=$(echo "$PAYLOAD" | curl -sS -X POST \
   --data-binary @-)
 DECISION=$(printf '%s' "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("decision","allow"))')
 if [ "$DECISION" = "deny" ]; then
-  printf '%s\n' "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("reason","Blocked by ContextOS policy"), file=sys.stderr)'
+  printf '%s\n' "$RESPONSE" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("reason","Blocked by Coodra policy"), file=sys.stderr)'
   exit 2
 fi
 exit 0
 ```
 
-`scripts/hook-adapters/cursor-contextos.sh` — same logic, posts to `/v1/hooks/cursor`, normalizes Cursor's `conversation_id` → `session_id` field-name in a `jq`-or-`python3` reshape step before posting (the server-side adapter could also accept the raw shape — design point: server accepts both shapes, so the adapter is byte-identical to windsurf's modulo URL).
+`scripts/hook-adapters/cursor-coodra.sh` — same logic, posts to `/v1/hooks/cursor`, normalizes Cursor's `conversation_id` → `session_id` field-name in a `jq`-or-`python3` reshape step before posting (the server-side adapter could also accept the raw shape — design point: server accepts both shapes, so the adapter is byte-identical to windsurf's modulo URL).
 
-`scripts/hook-adapters/install.sh` — interactive script that (a) detects whether `~/.windsurf/hooks/` and `.cursor/hooks/` exist locally, (b) symlinks the adapter scripts into them, (c) reads `LOCAL_HOOK_SECRET` from the project root `.env` and writes a small wrapper that exports it before invoking the adapter (the wrapper is what gets symlinked, so the secret stays out of the agent's shell environment). Module 08a's `contextos init` will invoke this script automatically; for Module 03 the user runs it manually after `pnpm install`.
+`scripts/hook-adapters/install.sh` — interactive script that (a) detects whether `~/.windsurf/hooks/` and `.cursor/hooks/` exist locally, (b) symlinks the adapter scripts into them, (c) reads `LOCAL_HOOK_SECRET` from the project root `.env` and writes a small wrapper that exports it before invoking the adapter (the wrapper is what gets symlinked, so the secret stays out of the agent's shell environment). Module 08a's `coodra init` will invoke this script automatically; for Module 03 the user runs it manually after `pnpm install`.
 
 CI smoke test (`.github/workflows/ci.yml` job: `hook-adapter-smoke`):
 - Spins up `apps/hooks-bridge` in a background process on `127.0.0.1:3101`.
@@ -339,7 +339,7 @@ CI smoke test (`.github/workflows/ci.yml` job: `hook-adapter-smoke`):
 - Asserts: allow → exit 0 + empty stderr; deny → exit 2 + reason on stderr.
 - Runs on `ubuntu-latest` and `macos-latest`.
 
-**Files:** `scripts/hook-adapters/windsurf-contextos.sh`, `cursor-contextos.sh`, `install.sh`, `__tests__/fixtures/adapters/{allow,deny}.json`, `.github/workflows/ci.yml` (new job).
+**Files:** `scripts/hook-adapters/windsurf-coodra.sh`, `cursor-coodra.sh`, `install.sh`, `__tests__/fixtures/adapters/{allow,deny}.json`, `.github/workflows/ci.yml` (new job).
 
 **Reference updates in the same commit:** `External api and library reference.md` → small new "Hook adapter shell scripts" subsection with the script contract.
 
@@ -352,7 +352,7 @@ Update the repo root `.mcp.json` so Claude Code, when running in this repo, fire
 ```json
 {
   "mcpServers": {
-    "contextos": { "type": "stdio", "command": "node", "args": ["apps/mcp-server/dist/index.js", "--transport", "stdio"], "env": { ... } }
+    "coodra": { "type": "stdio", "command": "node", "args": ["apps/mcp-server/dist/index.js", "--transport", "stdio"], "env": { ... } }
   },
   "hooks": {
     "PreToolUse":   [{ "type": "http", "url": "http://127.0.0.1:3101/v1/hooks/claude-code", "headers": { "X-Local-Hook-Secret": "${LOCAL_HOOK_SECRET}" } }],
@@ -366,7 +366,7 @@ Update the repo root `.mcp.json` so Claude Code, when running in this repo, fire
 
 `.mcp.dev.json` (introduced in Module 02 commit `811fcc8`) gets the same `hooks` block so the live-reload dev profile observes hooks too.
 
-`docs/DEVELOPMENT.md` "Iterating on Module 03" section explains: (a) the IDE must be restarted once after this commit lands so Claude Code re-reads `.mcp.json`, (b) hooks-bridge must be running (`pnpm --filter @coodra/contextos-hooks-bridge dev`), (c) verify via `tail -f` on the hooks-bridge stderr while running an agent turn in Claude Code.
+`docs/DEVELOPMENT.md` "Iterating on Module 03" section explains: (a) the IDE must be restarted once after this commit lands so Claude Code re-reads `.mcp.json`, (b) hooks-bridge must be running (`pnpm --filter @coodra/hooks-bridge dev`), (c) verify via `tail -f` on the hooks-bridge stderr while running an agent turn in Claude Code.
 
 **Files:** `.mcp.json`, `.mcp.dev.json`, `docs/DEVELOPMENT.md`.
 
@@ -376,7 +376,7 @@ Update the repo root `.mcp.json` so Claude Code, when running in this repo, fire
 
 Add the cross-mode integration test that exercises team-mode auth + local SQLite (the §8.3 fix's positive test):
 
-`apps/hooks-bridge/__tests__/integration/cross-mode.test.ts` — boots the app with `CONTEXTOS_MODE=team`, asserts (a) auth chain rejects no-creds with 401, (b) DB writes go to SQLite (no Postgres connection attempted), (c) full Claude Code lifecycle works.
+`apps/hooks-bridge/__tests__/integration/cross-mode.test.ts` — boots the app with `COODRA_MODE=team`, asserts (a) auth chain rejects no-creds with 401, (b) DB writes go to SQLite (no Postgres connection attempted), (c) full Claude Code lifecycle works.
 
 Add a Postgres integration test for the cloud-side path that the future Sync Daemon will use:
 
@@ -393,7 +393,7 @@ The Module 02 manifest-e2e test gets one new assertion: the eight tools list is 
 Extend `__tests__/e2e/full-session.test.ts`:
 
 ```
-1. Start hooks-bridge child process on 127.0.0.1:3101 with CONTEXTOS_SQLITE_PATH=/tmp/e2e-{uuid}.db
+1. Start hooks-bridge child process on 127.0.0.1:3101 with COODRA_SQLITE_PATH=/tmp/e2e-{uuid}.db
 2. Start mcp-server child process pointing at the same SQLite path, both auto-migrate.
 3. MCP Client (sdk) calls get_run_id → returns runId.
 4. POST /v1/hooks/claude-code SessionStart with the same sessionId → run row 'pending'.
@@ -440,15 +440,15 @@ After all 15 slices land:
 1. `pnpm build` — clean compile, all packages green.
 2. `pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:integration && pnpm test:e2e` — full repo green.
 3. **Manual Claude Code session test:**
-   - Run `pnpm --filter @coodra/contextos-hooks-bridge dev` in one terminal.
-   - Run `pnpm --filter @coodra/contextos-mcp-server dev` in another (or use the IDE's stdio launch).
+   - Run `pnpm --filter @coodra/hooks-bridge dev` in one terminal.
+   - Run `pnpm --filter @coodra/mcp-server dev` in another (or use the IDE's stdio launch).
    - Restart Claude Code so it re-reads `.mcp.json` with the new `hooks` block.
-   - Open a test repo with a `.contextos.json` registered, ask Claude to make a small edit.
+   - Open a test repo with a `.coodra.json` registered, ask Claude to make a small edit.
    - Verify hooks-bridge stderr shows `pre_tool_use` + `post_tool_use` log lines for that edit.
    - Verify `SELECT * FROM run_events ORDER BY created_at DESC LIMIT 5` shows the events.
    - Verify a deny rule in the project's `policies` table actually blocks the next edit attempt.
-4. **Cross-mode test:** boot with `CONTEXTOS_MODE=team` + valid Clerk keys, confirm SQLite is used, auth chain rejects unauthenticated requests, the same session lifecycle works.
-5. CI green on `feat/03-hooks-bridge` for every commit on the branch on `Abishai95141/ContextOS-matrx-maven`.
+4. **Cross-mode test:** boot with `COODRA_MODE=team` + valid Clerk keys, confirm SQLite is used, auth chain rejects unauthenticated requests, the same session lifecycle works.
+5. CI green on `feat/03-hooks-bridge` for every commit on the branch on `Abishai95141/Coodra-matrx-maven`.
 6. Squash-merge the branch to `main` via `gh pr create` then `gh pr merge --squash --delete-branch`. Final `main` HEAD documented in the closeout pack.
 
 ## Out of scope for this batch (flagged for later)

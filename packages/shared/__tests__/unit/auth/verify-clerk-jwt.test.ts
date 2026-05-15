@@ -26,7 +26,7 @@ const {
 
 function baseEnv(): AuthEnv {
   return {
-    CONTEXTOS_MODE: 'team',
+    COODRA_MODE: 'team',
     CLERK_SECRET_KEY: 'sk_test_realkey_12345',
     CLERK_PUBLISHABLE_KEY: 'pk_test_realkey_12345',
   };

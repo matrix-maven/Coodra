@@ -3,7 +3,7 @@
 > **Status:** kickoff (2026-05-08). No implementation slice has landed yet. This spec replaces the abandoned plan to ship a Python FastAPI service with embeddings + KNN + post-hoc LLM enrichment; the new design moves intelligence to the agent and treats the system as fast storage + structured recording + full-text search.
 > **Depends on:** 01 Foundation (DB schema), 02 MCP Server (tool registry — adds 2, modifies 4), 03 Hooks Bridge (auto-save path + new SessionStart context augmentation), 04 Web App (dashboard coverage metric), 03.1 Durable Outbox (audit-trail integrity for the new `source` column).
 > **Blocks:** 06 Semantic Diff (which still lands as planned — tree-sitter + Anthropic — and is unaffected by this reshape); 07 VS Code Extension's session-recap surface (consumes `read_context_pack`).
-> **Aware of:** 08a CLI (adds `contextos packs list / read` commands); 22 JIRA / 23 GitHub integrations (still surface third-party context to the agent at SessionStart, but no longer feed a Python LLM-enrichment service — the agent reads them inline and synthesizes).
+> **Aware of:** 08a CLI (adds `coodra packs list / read` commands); 22 JIRA / 23 GitHub integrations (still surface third-party context to the agent at SessionStart, but no longer feed a Python LLM-enrichment service — the agent reads them inline and synthesizes).
 > **Source of truth:** `system-architecture.md` §2 (service inventory — M05 row removed), §6 (latency budgets — read path stays in-process, no :3200 service), §7 (fail-open — applies to recent-decisions injection at SessionStart), §16 patterns 1–4 (idempotency carries through to enriched tool fields), §16 pattern 20 (bridge auto-save semantics revised — see §5 below), §22.4 (JIRA NL Assembly inputs — agent-side now), §23.9 (GitHub NL Assembly inputs — agent-side now), §24 (manifest grows from 10 to 12 tools). User directives 2026-04-24 (Gemini for managed LLM — moot now, no managed LLM in M05) and 2026-05-08 (this reshape).
 
 ## 1. What M05 is — and what it stopped being
@@ -34,7 +34,7 @@ M05 reshapes the project's "memory layer" around the agent's own intelligence. C
 
 **Agent-authored Context Packs are canonical. Bridge auto-save is the fallback floor.** Five mechanisms (Mechanisms A–E in §6 below) target ~80% canonical coverage at steady state, measured by a new dashboard stat. We frame the system honestly: the floor catches what the agent skipped; the canonical is what the agent wrote.
 
-**There is no Python service.** No `services/nl-assembly/`, no `:3200`, no FastAPI, no sentence-transformers, no Ollama integration, no Gemini-managed-LLM path inside ContextOS itself. (The agent's own model — whatever it is — does the LLM work, in its own process, on the user's own runtime, paid for via the user's own provider relationship.)
+**There is no Python service.** No `services/nl-assembly/`, no `:3200`, no FastAPI, no sentence-transformers, no Ollama integration, no Gemini-managed-LLM path inside Coodra itself. (The agent's own model — whatever it is — does the LLM work, in its own process, on the user's own runtime, paid for via the user's own provider relationship.)
 
 ## 2. Acceptance criteria
 
@@ -55,7 +55,7 @@ A commit on `feat/05-agent-driven-nl-assembly` is "complete" when **every** item
    - SQLite: `DROP TABLE IF EXISTS context_packs_vec;` followed by the rebuild-and-rename pattern that Drizzle's SQLite generator produces for `summary_embedding` column removal (NOT a one-line `DROP COLUMN` — see §10.1).
    - Postgres: `DROP INDEX IF EXISTS context_packs_summary_embedding_hnsw_idx;` first, then `ALTER TABLE context_packs DROP COLUMN IF EXISTS summary_embedding;`. Order matters — index drop must precede column drop.
    - `migrations.lock.json` updated: the `sqlite-vec` blockMarker entry on `0001_chief_turbo.sql` is removed (the table created by that block no longer exists); the `pgvector-hnsw` blockMarker entry on `0001_clean_rafael_vega.sql` is removed (the index it creates has been dropped).
-9. **Backwards compatibility:** every CLI command (M08a + M08b — 20 commands) keeps its surface verbatim. Two new commands added: `contextos packs list [--project <slug>]` and `contextos packs read <packId|runId>`. Existing `contextos pack show / regenerate / delete` are unaffected (those operate on Feature Packs, not Context Packs — naming is distinct). Note the pluralization split: `pack` (singular) = feature pack, `packs` (plural) = context packs. Documented in CLI help.
+9. **Backwards compatibility:** every CLI command (M08a + M08b — 20 commands) keeps its surface verbatim. Two new commands added: `coodra packs list [--project <slug>]` and `coodra packs read <packId|runId>`. Existing `coodra pack show / regenerate / delete` are unaffected (those operate on Feature Packs, not Context Packs — naming is distinct). Note the pluralization split: `pack` (singular) = feature pack, `packs` (plural) = context packs. Documented in CLI help.
 10. **Manifest test:** `apps/mcp-server/__tests__/integration/manifest.test.ts` asserts the tool count is **12**, not 10. New tools registered: `list_context_packs`, `read_context_pack`. All 12 manifest descriptions pass the `assertManifestDescriptionValid` recipe (40-80 words, imperative trigger, return-shape sentence).
 11. **No M05-as-service references remain:**
     - `system-architecture.md` §2 service inventory has no `nl-assembly` row on `:3200`.
@@ -75,7 +75,7 @@ A commit on `feat/05-agent-driven-nl-assembly` is "complete" when **every** item
 These are deliberately excluded and are **not** stubbed:
 
 - **No Python service of any kind.** No `services/`, no FastAPI, no Uvicorn, no `:3200`. If the directory exists from prior work, it is removed.
-- **No embedding model in any process.** No sentence-transformers, no `@xenova/transformers`, no ONNX runtime, no model files in `~/.contextos/`. The agent's own model is the only one in play.
+- **No embedding model in any process.** No sentence-transformers, no `@xenova/transformers`, no ONNX runtime, no model files in `~/.coodra/`. The agent's own model is the only one in play.
 - **No vector store.** No `sqlite-vec` virtual table, no `pgvector` HNSW index, no `summary_embedding` column. Existing scaffolding is removed in `0011_drop_embeddings.sql`.
 - **No post-hoc LLM enrichment.** No service, no cron job, no BullMQ worker that takes a written Context Pack and rewrites it. The bridge's structured digest is the floor; the agent's authored pack is the canonical. There is no third path.
 - **No FTS5 / `tsvector` ranked full-text search yet.** `search_packs_nl` becomes a LIKE query over a wider concatenated field (title + excerpt + first 2KB of content) ordered by `created_at DESC`. We accept this scales to ~500 packs per project before relevance becomes painful (§9). Adding ranked search is a future module, not M05.
@@ -256,13 +256,13 @@ the next session will read. When you make a design or implementation choice mid-
 session, call `record_decision` immediately (not retrospectively).
 ```
 
-That sentence sits in the agent's first turn alongside Feature Pack content + recent decisions (§7). Agents condition on early system content reliably; this is one of the highest-leverage placements available. Cost: ~10 lines in the bridge. Configurable via `.contextos.json` field `sessionStart.contractReminder: boolean` (default `true`).
+That sentence sits in the agent's first turn alongside Feature Pack content + recent decisions (§7). Agents condition on early system content reliably; this is one of the highest-leverage placements available. Cost: ~10 lines in the bridge. Configurable via `.coodra.json` field `sessionStart.contractReminder: boolean` (default `true`).
 
 ### 6.D — Mid-session reminder when the session goes long
 
 **Where:** `apps/hooks-bridge/src/handlers/post-tool-use.ts` + new `apps/hooks-bridge/src/lib/session-state.ts`.
 
-In-memory counter keyed by `runId`. When the bridge has counted **N PostToolUse events for this run without a `save_context_pack` call** (default N=15, configurable via `.contextos.json:sessionStart.midSessionReminderAfter`), inject a one-shot system reminder via the next hook response:
+In-memory counter keyed by `runId`. When the bridge has counted **N PostToolUse events for this run without a `save_context_pack` call** (default N=15, configurable via `.coodra.json:sessionStart.midSessionReminderAfter`), inject a one-shot system reminder via the next hook response:
 
 ```
 <system-reminder>
@@ -311,7 +311,7 @@ When the bridge resolves a project's primary Feature Pack on the SessionStart ho
 
 ### 7.2 Configuration
 
-Per-project, in `.contextos.json`:
+Per-project, in `.coodra.json`:
 
 ```json
 {
@@ -358,7 +358,7 @@ Markdown block appended to `additionalContext` after the Feature Pack and Sessio
 **Impact:** packages/queue, apps/mcp-server/src/tools/check-policy
 **Confidence:** high · **Reversible:** yes (queue is behind a thin abstraction)
 
-### 2026-05-07 09:15 — Dropped CONTEXTOS_DB_OVERRIDE_MODE flag
+### 2026-05-07 09:15 — Dropped COODRA_DB_OVERRIDE_MODE flag
 **Rationale:** apps/mcp-server and apps/hooks-bridge are SQLite-only by design. Flag was a Module 02 stop-gap.
 **Alternatives:** Keep as opt-in for testing
 **Confidence:** high · **Reversible:** no (binaries hardcoded to local DB)
@@ -505,7 +505,7 @@ The following were considered during spec authoring (2026-05-08) and locked. Doc
 | OQ-6 | ADR-007 conflict resolution? | **Narrow upgrade-in-place** for `context_packs` only, ONLY when existing `source='bridge_auto'` and incoming call is agent-explicit. All other rewrites still no-op. |
 | OQ-7 | `query_codebase_graph` result size cap? | **`maxNodes: 1000` default**, soft-failure `graph_too_large` when exceeded. |
 | OQ-8 | Web v2 surface for Context Packs list? | **Run-detail page** (existing `/runs/[id]`). Context Packs are run-scoped; they don't need a dedicated route. Show `source` badge. |
-| OQ-9 | Recent-decisions injection — solo vs team default? | **Same default both modes.** `recentDecisionsLimit: 10`, `maxAgeDays: 30`. Teams that need different values configure via `.contextos.json`. |
+| OQ-9 | Recent-decisions injection — solo vs team default? | **Same default both modes.** `recentDecisionsLimit: 10`, `maxAgeDays: 30`. Teams that need different values configure via `.coodra.json`. |
 | OQ-10 | Coverage metric — what time window? | **Rolling 7 days** for the dashboard card. Per-run `source` is permanent in the DB; longer-window analytics are post-M05. |
 
 ## 11. Slice plan (high-level)
@@ -518,7 +518,7 @@ Detailed in `implementation.md`. Eight slices, each independently shippable:
 - **S4 — Tool surface changes.** `search_packs_nl` simplified; `save_context_pack` + `record_decision` accept new fields; `query_codebase_graph` cleaned; manifest test asserts 10 tools (interim count before S5). (~1 day)
 - **S5 — Two new tools.** `list_context_packs`, `read_context_pack` implemented + tested + registered. Manifest test asserts 12 tools. (~1 day)
 - **S6 — Compliance mechanisms.** Manifest A reframes; trigger contract B updates; SessionStart contract reminder C; mid-session reminder D; coverage metric E (web). ADR-012 revised. (~1.5 days)
-- **S7 — Recent decisions injection.** `apps/hooks-bridge/src/lib/recent-decisions.ts` + SessionStart wiring + `.contextos.json` schema extension + tests. (~1 day)
+- **S7 — Recent decisions injection.** `apps/hooks-bridge/src/lib/recent-decisions.ts` + SessionStart wiring + `.coodra.json` schema extension + tests. (~1 day)
 - **S8 — Documentation closeout.** `system-architecture.md` §2/§18/§22.4/§23.9/§24 edits; `essentialsforclaude` updates; CI grep test for "M05 service" / "deferred to Module 05" strings. Module 05 Context Pack saved. (~half day)
 
 Total: ~6.5 days of focused work. Comfortably one sprint.

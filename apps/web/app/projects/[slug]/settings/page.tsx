@@ -226,7 +226,7 @@ export default async function ProjectSettingsPage({
         {isSentinel ? (
           <Banner kind="warning">
             The <span className="font-mono">__global__</span> sentinel project (F7 invariant) cannot be reset from this
-            UI. Run <span className="font-mono">contextos project reset __global__ --force</span> after backing up
+            UI. Run <span className="font-mono">coodra project reset __global__ --force</span> after backing up
             data.db.
           </Banner>
         ) : (
@@ -239,7 +239,7 @@ export default async function ProjectSettingsPage({
               </p>
               <ul className="ml-6 list-disc text-xs text-text-secondary">
                 <li>Total runs to delete: {totalRuns}</li>
-                <li>Cascade order matches the CLI's `contextos project reset` (FK-aware)</li>
+                <li>Cascade order matches the CLI's `coodra project reset` (FK-aware)</li>
                 <li>Default: keeps policies + policy_rules + project-scoped kill_switches</li>
               </ul>
               <label htmlFor="reset-alsoDeletePolicies" className="flex items-center gap-2 text-sm">

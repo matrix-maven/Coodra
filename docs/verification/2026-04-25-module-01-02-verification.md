@@ -15,9 +15,9 @@ Modules 01 + 02 are **functionally working end-to-end**. The 9-tool surface, thr
 **Six concrete findings** surfaced (§8), in declining order of impact:
 1. **No automatic migrations at server boot** — fresh users get `no such table: projects` on the first call. Blocking for a real first-run experience.
 2. **Live Claude Code MCP session is stale** — the subprocess Claude Code spawned at IDE start kept only the `ping` tool. New tools require an IDE restart.
-3. **Production binary cannot run team-mode + sqlite** — the boot path couples `CONTEXTOS_MODE=team` to Postgres. Team-mode auth chain can only be live-verified against a real Postgres.
+3. **Production binary cannot run team-mode + sqlite** — the boot path couples `COODRA_MODE=team` to Postgres. Team-mode auth chain can only be live-verified against a real Postgres.
 4. **Pack filenames embed `:` from runId** — `2026-04-25-run:proj.md` is the materialised filename. Works on macOS/Linux, breaks on Windows.
-5. **`contextPacksRoot` and `graphifyRoot` not env-overridable** — defaults pin to `process.cwd()/docs/context-packs` and `~/.contextos/graphify`. Fine for solo, awkward for sandboxes.
+5. **`contextPacksRoot` and `graphifyRoot` not env-overridable** — defaults pin to `process.cwd()/docs/context-packs` and `~/.coodra/graphify`. Fine for solo, awkward for sandboxes.
 6. **`get_run_id` rejects sessionIds containing `:`** — encoded into the runId format. Caught + fixed in S17 for transport-minted sessionIds; remains a latent foot-gun for any future code that constructs a sessionId from a structured value.
 
 ---
@@ -33,18 +33,18 @@ $ pnpm build
 
 | Workspace | Result | Cache |
 |---|---|---|
-| `@coodra/contextos-shared` | ✅ pass | cache miss |
-| `@coodra/contextos-db` | ✅ pass | cache miss |
-| `@coodra/contextos-mcp-server` | ✅ pass | cache miss |
+| `@coodra/shared` | ✅ pass | cache miss |
+| `@coodra/db` | ✅ pass | cache miss |
+| `@coodra/mcp-server` | ✅ pass | cache miss |
 
 `Tasks: 3 successful, 3 total · Time: 19.152s`. Zero TypeScript errors.
 
 ### 1.2 Boot — _wired log lines
 
-Boot under `--transport http` with `CONTEXTOS_MODE=solo`, `CONTEXTOS_SQLITE_PATH=/tmp/contextos-verify/data.db`. All eight lib clients + the registry + the HTTP transport report ready:
+Boot under `--transport http` with `COODRA_MODE=solo`, `COODRA_SQLITE_PATH=/tmp/coodra-verify/data.db`. All eight lib clients + the registry + the HTTP transport report ready:
 
 ```
-event=boot                serverName=@coodra/contextos-mcp-server  serverVersion=0.0.0  mode=solo
+event=boot                serverName=@coodra/mcp-server  serverVersion=0.0.0  mode=solo
 event=db_client_opened    kind=sqlite
 event=auth_solo_bypass_in_use  identity={user_dev_local, org_dev_local, solo-bypass}   ← intentional WARN per S7b
 event=policy_engine_wired  mode=solo  cacheTtlMs=60000  timeoutMs=100  breakerThreshold=5  breakerHalfOpenMs=30000
@@ -52,7 +52,7 @@ event=feature_pack_store_wired  featurePacksRoot=docs/feature-packs  cacheTtlMs=
 event=context_pack_store_wired  contextPacksRoot=docs/context-packs
 event=run_recorder_wired   mode=solo
 event=sqlite_vec_client_wired  mode=solo
-event=graphify_client_wired  graphifyRoot=~/.contextos/graphify
+event=graphify_client_wired  graphifyRoot=~/.coodra/graphify
 event=tool_registered  tool=ping              descriptionLength=666
 event=tool_registered  tool=get_run_id        descriptionLength=531
 event=tool_registered  tool=get_feature_pack  descriptionLength=446
@@ -90,7 +90,7 @@ Verifier driver: `__tests__/manual/verify.ts` — spawns the built binary at `ap
 | 7 | `search_packs_nl` | `{projectSlug:'coodra', query:'authentication'}` | LIKE-fallback success-with-empty + notice | `ok:true, packs:[], notice:'no_embeddings_yet', howToFix:'Module 05 (NL Assembly) will populate…'` | ✅ |
 | 8 | `check_policy` (allow) | full hook payload | allow + no rule + audit row | `permissionDecision:allow, reason:no_rule_matched, ruleReason:null, matchedRuleId:null, failOpen:false` | ✅ |
 | 9 | `query_codebase_graph` (no index) | `{projectSlug:'coodra', query:'createDb'}` | `codebase_graph_not_indexed` soft-failure | `error:codebase_graph_not_indexed, howToFix:'run \`graphify scan\` at repo root'` | ✅ |
-| 10 | `query_codebase_graph` (seeded) | same after seeding `~/.contextos/graphify/coodra/graph.json` | nodes + edges + `indexed:true` + notice | 2 nodes, 1 edge (verbatim from seed), `indexed:true, notice:'query_filtering_deferred_to_m05'` | ✅ |
+| 10 | `query_codebase_graph` (seeded) | same after seeding `~/.coodra/graphify/coodra/graph.json` | nodes + edges + `indexed:true` + notice | 2 nodes, 1 edge (verbatim from seed), `indexed:true, notice:'query_filtering_deferred_to_m05'` | ✅ |
 | 11 | `record_decision` retry | same description as decision #1 | dedupe → original id with `created:false` | `decisionId=dec_273f307c-…` (= original), `created:false` | ✅ |
 
 **Single session:** the entire matrix runs through ONE SDK Client connection over stdio — no reconnects between calls.
@@ -103,18 +103,18 @@ Verifier driver: `__tests__/manual/verify.ts` — spawns the built binary at `ap
 
 ### 3.1 Solo-bypass mode (live verification)
 
-Boot `--transport http`, `CONTEXTOS_MODE=solo`, `CLERK_SECRET_KEY=sk_test_replace_me`. Bound to ephemeral kernel-assigned port via `MCP_SERVER_PORT=0` (port 56841 this run).
+Boot `--transport http`, `COODRA_MODE=solo`, `CLERK_SECRET_KEY=sk_test_replace_me`. Bound to ephemeral kernel-assigned port via `MCP_SERVER_PORT=0` (port 56841 this run).
 
 | Probe | Status | Body |
 |---|---|---|
 | `GET /healthz` | 200 + `Cache-Control: no-store` | `ok` |
-| `POST /mcp` JSON-RPC `initialize`, no Authorization header | 200 (SSE stream) | `serverInfo.name = "@coodra/contextos-mcp-server"`, capabilities populated |
+| `POST /mcp` JSON-RPC `initialize`, no Authorization header | 200 (SSE stream) | `serverInfo.name = "@coodra/mcp-server"`, capabilities populated |
 
 **Pass / Fail:** ✅ pass.
 
 ### 3.2 Team-mode auth chain (live, but Postgres-coupled — see §8 finding 3)
 
-The production binary refuses to boot under `CONTEXTOS_MODE=team` without a real `DATABASE_URL` (Postgres). I attempted to verify the team-mode chain via the binary and got the expected boot failure:
+The production binary refuses to boot under `COODRA_MODE=team` without a real `DATABASE_URL` (Postgres). I attempted to verify the team-mode chain via the binary and got the expected boot failure:
 
 ```
 ValidationError: createDb: mode=team requires either options.postgres.databaseUrl or the DATABASE_URL env var
@@ -184,7 +184,7 @@ The drain test (§6) wrote one row with `idempotency_key = pd:drain-session-1777
 
 | Error code | Trigger | Actual response | Matches `{ ok:false, error, howToFix }`? |
 |---|---|---|---|
-| `project_not_found` | `query_run_history` with unregistered slug | `{ok:false, error:'project_not_found', howToFix:'Register the project via the CLI (`contextos init`) or verify the slug…'}` | ✅ |
+| `project_not_found` | `query_run_history` with unregistered slug | `{ok:false, error:'project_not_found', howToFix:'Register the project via the CLI (`coodra init`) or verify the slug…'}` | ✅ |
 | `run_not_found` | `save_context_pack` with `runId='run_does_not_exist'` | `{ok:false, error:'run_not_found', howToFix:'Call get_run_id first to create a run for this session, then retry…'}` | ✅ |
 | `codebase_graph_not_indexed` | `query_codebase_graph` before any `graphify scan` | `{ok:false, error:'codebase_graph_not_indexed', howToFix:'run `graphify scan` at repo root'}` | ✅ |
 | `feature_pack_cycle` | NOT triggered live — would require writing a cyclic `meta.json` to `docs/feature-packs/cycle-a/meta.json` and `cycle-b/meta.json`. Documented contract: throws `InternalError('feature_pack_cycle: a → b → c → a')` per S7c. | ⚠️ verified via S7c integration tests + `assertManifestDescriptionValid` — not re-triggered here. |
@@ -226,17 +226,17 @@ The repo root has `.mcp.json` configured for stdio:
 ```json
 {
   "mcpServers": {
-    "contextos": {
+    "coodra": {
       "type": "stdio",
       "command": "node",
       "args": ["apps/mcp-server/dist/index.js"],
-      "env": { "CONTEXTOS_LOG_DESTINATION": "stderr", "CONTEXTOS_MODE": "solo" }
+      "env": { "COODRA_LOG_DESTINATION": "stderr", "COODRA_MODE": "solo" }
     }
   }
 }
 ```
 
-Claude Code spawned this subprocess at IDE start. From the same Claude Code session, I called `mcp__contextos__ping{ echo: "verify-2026-04-25" }`:
+Claude Code spawned this subprocess at IDE start. From the same Claude Code session, I called `mcp__coodra__ping{ echo: "verify-2026-04-25" }`:
 
 ```json
 {
@@ -253,7 +253,7 @@ Claude Code spawned this subprocess at IDE start. From the same Claude Code sess
 
 ### 7.2 Finding: only `ping` is reachable from this Claude Code session
 
-When I tried to load the SDK schemas for `mcp__contextos__get_run_id`, `mcp__contextos__check_policy`, etc. via `ToolSearch`, the response was `No matching deferred tools found`. The active Claude Code MCP session sees ONLY `ping`. This is **not** because the server doesn't advertise the others — the boot log above shows all 9 tools registered. It's because:
+When I tried to load the SDK schemas for `mcp__coodra__get_run_id`, `mcp__coodra__check_policy`, etc. via `ToolSearch`, the response was `No matching deferred tools found`. The active Claude Code MCP session sees ONLY `ping`. This is **not** because the server doesn't advertise the others — the boot log above shows all 9 tools registered. It's because:
 
 - The Claude Code IDE spawned the subprocess at session start.
 - That subprocess loaded the binary that existed AT session start, which was the S5 walking-skeleton dist with `ping` only.
@@ -263,7 +263,7 @@ When I tried to load the SDK schemas for `mcp__contextos__get_run_id`, `mcp__con
 
 **Look at the sessionId:** `stdio:85204cd8-…` — colon separator. That's the OLD format from BEFORE the S17 fix. The running subprocess is definitively the pre-S17 dist.
 
-This is a Claude Code workflow finding, not a ContextOS bug — but it has a real consequence for the agent-discovery contract: a developer who restarts Claude Code AFTER the rebuild sees the full 9-tool set; one who doesn't sees the stale walking-skeleton.
+This is a Claude Code workflow finding, not a Coodra bug — but it has a real consequence for the agent-discovery contract: a developer who restarts Claude Code AFTER the rebuild sees the full 9-tool set; one who doesn't sees the stale walking-skeleton.
 
 ### 7.3 Description-anatomy assessment (§24.3 contract)
 
@@ -293,17 +293,17 @@ Ranked by impact (highest first):
 
 ### 8.1 No automatic migrations at server boot — **HIGH IMPACT**
 
-`apps/mcp-server/src/index.ts` builds `createDbClient()` and never calls `migrateSqlite` / `migratePostgres`. A fresh user running `pnpm --filter @coodra/contextos-mcp-server start` against an empty `~/.contextos/data.db` gets `no such table: projects` on the first tool call.
+`apps/mcp-server/src/index.ts` builds `createDbClient()` and never calls `migrateSqlite` / `migratePostgres`. A fresh user running `pnpm --filter @coodra/mcp-server start` against an empty `~/.coodra/data.db` gets `no such table: projects` on the first tool call.
 
 Repro:
 ```bash
-$ rm -rf ~/.contextos
+$ rm -rf ~/.coodra
 $ node apps/mcp-server/dist/index.js --transport stdio
 # (server starts, lib clients _wired)
 # any tool call → SQLITE_ERROR: no such table: projects
 ```
 
-Fix path: either (a) auto-migrate on first boot in solo mode, or (b) ship a `contextos init` CLI in Module 08a. The solo-mode auto-migrate is the lower-friction option for the dev-mode developer; the CLI is the right answer for the team-mode operator who wants migrations to be an explicit, audited deploy step. The decisions-log already has placeholder entries for Module 08a.
+Fix path: either (a) auto-migrate on first boot in solo mode, or (b) ship a `coodra init` CLI in Module 08a. The solo-mode auto-migrate is the lower-friction option for the dev-mode developer; the CLI is the right answer for the team-mode operator who wants migrations to be an explicit, audited deploy step. The decisions-log already has placeholder entries for Module 08a.
 
 The integration suite + e2e suite work around this by calling `migrateSqlite` directly in their harnesses.
 
@@ -315,9 +315,9 @@ Mitigation: document a "restart Claude Code after every `pnpm build`" line in `d
 
 ### 8.3 Production binary cannot run team-mode + sqlite — **MEDIUM IMPACT**
 
-`createDb({})` reads `CONTEXTOS_MODE` from `process.env` and routes team→Postgres unconditionally. There is no env knob for "team-mode auth + sqlite DB". Live-verifying the team auth chain via the production binary requires a real Postgres.
+`createDb({})` reads `COODRA_MODE` from `process.env` and routes team→Postgres unconditionally. There is no env knob for "team-mode auth + sqlite DB". Live-verifying the team auth chain via the production binary requires a real Postgres.
 
-The integration tests + e2e tests bypass this by passing `mode: 'solo'` to `createDbClient` while keeping `CONTEXTOS_MODE=team` in the env passed to the auth helpers. That's structurally fine for tests, but it means there is no production-shaped path to live-verify the team auth chain without spinning up Postgres.
+The integration tests + e2e tests bypass this by passing `mode: 'solo'` to `createDbClient` while keeping `COODRA_MODE=team` in the env passed to the auth helpers. That's structurally fine for tests, but it means there is no production-shaped path to live-verify the team auth chain without spinning up Postgres.
 
 Fix path: not really a bug — it's the architectural decision. But operators should know they need testcontainers / a Postgres service to manually exercise team-mode locally.
 
@@ -329,11 +329,11 @@ Fix path: replace `:` with `-` in the FS filename derivation. See `lib/context-p
 
 ### 8.5 `contextPacksRoot` and `graphifyRoot` are not env-overridable — **LOW IMPACT**
 
-The lib factories default `contextPacksRoot` to `process.cwd()/docs/context-packs` and `graphifyRoot` to `~/.contextos/graphify`. Neither has a `CONTEXTOS_*_ROOT` env override. Test harnesses use the helper-internal `contextPacksRoot` parameter; production users get the cwd-relative default.
+The lib factories default `contextPacksRoot` to `process.cwd()/docs/context-packs` and `graphifyRoot` to `~/.coodra/graphify`. Neither has a `COODRA_*_ROOT` env override. Test harnesses use the helper-internal `contextPacksRoot` parameter; production users get the cwd-relative default.
 
-A user running the binary from outside the repo (e.g. via `npx contextos-mcp-server` once distributed) would write `docs/context-packs/` into whatever directory they happen to be in.
+A user running the binary from outside the repo (e.g. via `npx coodra-mcp-server` once distributed) would write `docs/context-packs/` into whatever directory they happen to be in.
 
-Fix path: add `CONTEXTOS_CONTEXT_PACKS_ROOT` and `CONTEXTOS_GRAPHIFY_ROOT` to the env schema. Both should default to home-directory-relative locations, not cwd-relative.
+Fix path: add `COODRA_CONTEXT_PACKS_ROOT` and `COODRA_GRAPHIFY_ROOT` to the env schema. Both should default to home-directory-relative locations, not cwd-relative.
 
 ### 8.6 `get_run_id` rejects sessionIds containing `:` — **LOW IMPACT (latent)**
 
@@ -371,7 +371,7 @@ The 545-test suite proves the parts. This verification proves the whole works as
 - ✅ Side-effect inspection: 11 tables + materialised pack file + audit row idempotency
 - ✅ All triggered soft-failures match canonical `{ ok, error, howToFix }`
 - ✅ Graceful shutdown drain landed the audit row after SIGTERM
-- ✅ Live Claude Code → contextos round-trip works for `ping`
+- ✅ Live Claude Code → coodra round-trip works for `ping`
 - ⚠️ Stale Claude Code session blocks live-verifying the other 8 tools through the IDE — restart required
 - ⚠️ Auto-migrate gap is the only blocking finding for first-run-from-clean-checkout developer experience
 
@@ -394,16 +394,16 @@ Tracked closures of the §8 findings as Module 02's follow-on commits and Module
 | §8.1 Auto-migrate at boot | `187c844` | mcp-server's `index.ts` now runs `migrateSqlite` (or `migratePostgres` + `ensurePgVector` for cloud-mode handles) idempotently before any handler. |
 | §8.2 Stale IDE subprocess + `.mcp.dev.json` | `811fcc8` | DEVELOPMENT.md "Iterating on MCP server source" + `.mcp.dev.json` live-reload profile. |
 | §8.4 Pack filename Windows-reserved chars | `9f730ae` | `contextPackFilename` sanitises `[<>:"/\\|?*]`. |
-| §8.5 Env-overridable roots | `187c844` | `CONTEXTOS_CONTEXT_PACKS_ROOT` + `CONTEXTOS_GRAPHIFY_ROOT`. (First-run UX wrapper deferred to Module 08a CLI.) |
+| §8.5 Env-overridable roots | `187c844` | `COODRA_CONTEXT_PACKS_ROOT` + `COODRA_GRAPHIFY_ROOT`. (First-run UX wrapper deferred to Module 08a CLI.) |
 | §8.6 sessionId no-colon validation | `315c41d` | `runKeySegmentSchema` consumed at the registry boundary; `assertRunKeySegment` retained as belt-and-suspenders. |
 
 ### Module 03 — closed in `feat/03-hooks-bridge`
 
 | Finding | Closed in | Note |
 |---|---|---|
-| §8.3 createDb couples team-mode to Postgres | S4 (this branch) | `createDb` now takes a `kind: 'local' \| 'cloud'` discriminator. Local services always run on SQLite — in BOTH solo and team mode — matching `system-architecture.md` §1. The Module 02 stop-gap `CONTEXTOS_DB_OVERRIDE_MODE` env knob is removed. mcp-server's `lib/db.ts::createDbClient` always passes `kind: 'local'`; the boot test renamed to `boot-team-mode-local-sqlite.test.ts` proves the new contract end-to-end. |
+| §8.3 createDb couples team-mode to Postgres | S4 (this branch) | `createDb` now takes a `kind: 'local' \| 'cloud'` discriminator. Local services always run on SQLite — in BOTH solo and team mode — matching `system-architecture.md` §1. The Module 02 stop-gap `COODRA_DB_OVERRIDE_MODE` env knob is removed. mcp-server's `lib/db.ts::createDbClient` always passes `kind: 'local'`; the boot test renamed to `boot-team-mode-local-sqlite.test.ts` proves the new contract end-to-end. |
 | §8.6 follow-up — universal `runKeySegmentSchema` enforcement at every boundary | S6 (this branch) | `packages/shared/src/hooks/normalize-session-id.ts` is the only function that touches an agent-supplied session id at the hooks-bridge boundary. Every per-agent adapter (`adapters/{claude-code,windsurf,cursor}.ts`) calls `normalizeSessionId(raw)`, which sanitises Windows-reserved chars + whitespace + collapses `--` and ends with `runKeySegmentSchema.parse(...)` (defence-in-depth — an empty result throws). Closes the deeper carryover from Module 02 commit `315c41d` (which protected the MCP read surface) by extending the same invariant to the write surface. |
 
 ### Still deferred
 
-- §8.5 follow-up — richer `contextos init` UX (writing `.env` + `.contextos.json` + adapter symlinks on first run) lands with **Module 08a (CLI)**, not Module 03.
+- §8.5 follow-up — richer `coodra init` UX (writing `.env` + `.coodra.json` + adapter symlinks on first run) lands with **Module 08a (CLI)**, not Module 03.
