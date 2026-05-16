@@ -173,6 +173,9 @@ importers:
       '@clerk/nextjs':
         specifier: ^6.13.4
         version: 6.39.3(next@15.5.18(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@coodra/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
       '@coodra/db':
         specifier: workspace:*
         version: link:../../packages/db
