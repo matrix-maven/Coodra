@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: mailto:abishai95141@gmail.com
+    about: Report a vulnerability privately — please do not file a public issue.
+  - name: Question about architecture or design
+    url: https://github.com/Abishai95141/Coodra/blob/main/system-architecture.md
+    about: Start here for "how does X work?" — the 25-section architectural spec.

@@ -1,0 +1,65 @@
+name: Feature request
+description: A new capability, a new MCP tool, a new CLI command, or a UX improvement.
+title: "feat: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation that prompted the request — not the solution. "I want X" is less useful than "When I do X, Y is awkward because Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you think Coodra should do. Concrete is better than abstract — sketch a CLI flag, a tool name, a UI element.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other ways you could solve this (workarounds you've tried, similar tools, etc.).
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface does this touch?
+      multiple: true
+      options:
+        - CLI (@coodra/cli)
+        - MCP Server (apps/mcp-server)
+        - Hooks Bridge (apps/hooks-bridge)
+        - Sync Daemon (apps/sync-daemon)
+        - Web UI (apps/web-v2)
+        - Database schema (packages/db)
+        - Policy engine (packages/policy)
+        - Docs / onboarding
+        - Other (mention in problem statement)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Does this apply to solo, team, or both?
+      options:
+        - both
+        - solo only
+        - team only
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I checked `system-architecture.md` and `docs/feature-packs/` to make sure this isn't already planned.
+          required: true
+        - label: I searched existing issues for similar requests.
+          required: true

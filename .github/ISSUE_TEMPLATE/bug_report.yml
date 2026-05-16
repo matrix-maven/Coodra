@@ -1,0 +1,118 @@
+name: Bug report
+description: Something Coodra does is wrong, or it crashes, or it leaves state in a bad place.
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. The questions below help us reproduce in <5 minutes instead of pinging back and forth.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: A short, factual description of what you observed.
+      placeholder: e.g. "`coodra start` exits 0 but `coodra status` says hooks-bridge is not running."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Commands you ran, in order. Include input where relevant.
+      placeholder: |
+        1. `npm i -g @coodra/cli@beta`
+        2. `cd my-project`
+        3. `coodra init --project-slug demo`
+        4. `coodra start`
+        5. `coodra status`
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`coodra doctor --json` output"
+      description: |
+        Paste the full output of `coodra doctor --json` (run `--full` if you want every check). This is the single most useful diagnostic — without it, triage usually stalls.
+      render: json
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: CLI version
+      description: From `coodra --version`.
+      placeholder: 0.2.0-beta.3
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - solo
+        - team
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent were you running?
+      multiple: true
+      options:
+        - Claude Code
+        - Cursor
+        - Windsurf
+        - None / not relevant
+        - Other (mention in summary)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.2 / Ubuntu 24.04 / Windows 11 (WSL2)
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: From `node --version`. Must be ≥22.16.
+      placeholder: v22.16.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        Paste any errors from `coodra logs mcp-server`, `coodra logs hooks-bridge`, or `coodra logs sync-daemon`. Use `--lines 200` to grab a window.
+      render: shell
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I am on the latest `@coodra/cli@beta` (`coodra upgrade --check-only`).
+          required: true
+        - label: I searched existing issues for the same symptom.
+          required: true
