@@ -171,10 +171,32 @@ async function main() {
   const webPublicSrc = resolve(repoRoot, 'apps/web-v2/public');
   const webDst = resolve(cliDist, 'runtime/web');
   if (!existsSync(webStandaloneSrc)) {
-    throw new Error(
-      `bundle: web standalone tree not found at ${webStandaloneSrc}. ` +
-        'Run `pnpm --filter @coodra/web-v2 build` first (this writes .next/standalone/).',
+    // Soft-skip path. The web standalone tree is only produced by
+    // `pnpm --filter @coodra/web-v2 build` (Next.js `next build`),
+    // which is too expensive to run on every CI typecheck that touches
+    // cli via the workspace `^build` edge. When standalone is missing
+    // we leave dist/runtime/web/ unwritten and continue — typecheck +
+    // dev iteration still work because they don't need the bundle.
+    //
+    // The publish path is protected by the `prepublishOnly` script in
+    // packages/cli/package.json, which asserts dist/runtime/web/server.js
+    // exists before any tarball is produced. Forcing strict mode at
+    // bundle time (e.g. when a maintainer wants `pnpm --filter @coodra/cli
+    // build` to fail loud without a web bundle) is available via
+    // `COODRA_BUNDLE_REQUIRE_WEB=1`.
+    if (process.env.COODRA_BUNDLE_REQUIRE_WEB === '1') {
+      throw new Error(
+        `bundle: web standalone tree not found at ${webStandaloneSrc}. ` +
+          'Run `pnpm --filter @coodra/web-v2 build` first (this writes .next/standalone/). ' +
+          'Strict mode is on because COODRA_BUNDLE_REQUIRE_WEB=1.',
+      );
+    }
+    console.log(
+      `bundle: web standalone tree not found at ${webStandaloneSrc}; skipping web bundle. ` +
+        'Run `pnpm --filter @coodra/web-v2 build` before publish — the prepublishOnly assert will catch it.',
     );
+    console.log('bundle: done (without web)');
+    return;
   }
   rmSync(webDst, { recursive: true, force: true });
   mkdirSync(webDst, { recursive: true });

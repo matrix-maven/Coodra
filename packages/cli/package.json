@@ -87,7 +87,9 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo",
     "//install:global": "Symlink the workspace build into the user's global npm prefix so `coodra` on $PATH points at the local dist/. --force overwrites any stale install (e.g. the pre-rename `@coodra/cli` package). Run after `pnpm --filter @coodra/cli build`.",
-    "install:global": "npm i -g --force ."
+    "install:global": "npm i -g --force .",
+    "//prepublishOnly": "Asserts the bundled web + service runtimes are present before npm publishes a tarball. bundle.mjs soft-skips the web copy when apps/web-v2/.next/standalone is missing (so CI typecheck stays fast); this hook is the load-bearing safety net for the publish path.",
+    "prepublishOnly": "node scripts/prepublish-assert.mjs"
   },
   "//dependencies": "Only true npm-resolvable runtime deps live here (decision dec_83ba10c1). Native modules are kept external from the bundle so they install correctly per platform; everything else is inlined. Workspace deps + bundleable npm deps moved to devDependencies so `pnpm publish` / `npm install` of the published tarball does not try to resolve `workspace:*` placeholders.",
   "dependencies": {
