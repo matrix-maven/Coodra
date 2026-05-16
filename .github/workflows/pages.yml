@@ -1,0 +1,61 @@
+name: Pages
+
+# Publishes the single-page HTML documentation to GitHub Pages.
+#
+# We deliberately do NOT use "Deploy from a branch" with source `/docs`,
+# because that mode publishes EVERY file under docs/ — the design specs,
+# context packs, audit reports, etc. — which we want kept in the repo
+# but not exposed at https://abishai95141.github.io/Coodra/. The Actions
+# workflow stages a clean tree under `_site/` containing only the
+# rendered HTML, then uploads that as the Pages artifact.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - docs/index.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Stage Pages content (HTML only)
+        # Mirror just the rendered documentation into a clean dir.
+        # Anything not in _site/ will not be served by Pages.
+        run: |
+          mkdir -p _site
+          cp docs/index.html _site/index.html
+          # .nojekyll prevents the artifact uploader from running Jekyll,
+          # which would otherwise try to interpret raw HTML as a template.
+          touch _site/.nojekyll
+          echo "Staged content:"
+          ls -la _site/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
