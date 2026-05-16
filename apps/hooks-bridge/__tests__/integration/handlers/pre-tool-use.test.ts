@@ -175,21 +175,11 @@ describe('pre-tool-use enforcement (real policy + real sqlite)', () => {
     expect(body.reason).toBe('auth files are reviewed manually');
   });
 
-  it('post-tool events still pass through unchanged (S8 will wire RunRecorder)', async () => {
-    const res = await h.hono.request('/v1/hooks/claude-code', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        hook_event_name: 'PostToolUse',
-        session_id: 'sess-post',
-        tool_name: 'Write',
-        tool_input: { file_path: 'src/auth/x.ts' },
-        tool_use_id: 'tool-3',
-        cwd: h.cwd,
-      }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { ok: boolean; hookSpecificOutput: { permissionDecision: string } };
-    expect(body.hookSpecificOutput.permissionDecision).toBe('allow');
-  });
+  // S8 long since shipped (RunRecorder wired into post-tool); this file scopes
+  // to PreToolUse enforcement, and PostToolUse integration is covered by the
+  // dedicated `handlers/post-tool-use.test.ts` suite. The obsolete "post-tool
+  // events still pass through (S8 will wire RunRecorder)" caveat was deleted
+  // 2026-05-16 — its assertion on `hookSpecificOutput.permissionDecision`
+  // would have been the wrong shape anyway after M04 S11's per-event-type
+  // response cleanup (PostToolUse allow is plain `{ok:true}`).
 });

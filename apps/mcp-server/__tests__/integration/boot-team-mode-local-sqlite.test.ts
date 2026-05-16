@@ -71,10 +71,11 @@ afterAll(async () => {
 }, 30_000);
 
 describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)', () => {
-  it('binary boots with team-mode auth + sqlite store; tools/list returns 10 tools', async () => {
+  it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
-    // Slice 4 (2026-05-03 audit): query_decisions added → 10 tools.
-    expect(tools.length).toBe(10);
+    // See `boot.test.ts` for the tool count drift log. 16 = post-M06
+    // inventory (2026-05-09).
+    expect(tools.length).toBe(16);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {

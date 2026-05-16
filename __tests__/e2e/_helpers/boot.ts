@@ -14,7 +14,9 @@ import { createFeaturePackStore } from '../../../apps/mcp-server/src/lib/feature
 import { createGraphifyClient } from '../../../apps/mcp-server/src/lib/graphify.js';
 import { createPolicyClient } from '../../../apps/mcp-server/src/lib/policy.js';
 import { createRunRecorder } from '../../../apps/mcp-server/src/lib/run-recorder.js';
-import { createSqliteVecClient } from '../../../apps/mcp-server/src/lib/sqlite-vec.js';
+// `sqlite-vec` was removed in the M05 reshape (2026-05-08) — search is
+// now keyword-only LIKE; the agent does relevance ranking. The slot is
+// also gone from `ContextDeps`. See `tool-context.ts` for the rationale.
 import { registerAllTools } from '../../../apps/mcp-server/src/tools/index.js';
 import { type HttpTransportHandle, startHttpTransport } from '../../../apps/mcp-server/src/transports/http.js';
 
@@ -60,7 +62,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
   const contextPacksRoot = opts.contextPacksRoot ?? mkdtempSync(join(tmpdir(), 'e2e-cp-'));
   const contextPack = createContextPackStore({ db: dbHandle, contextPacksRoot });
   const runRecorder = createRunRecorder({ db: dbHandle });
-  const sqliteVec = createSqliteVecClient({ db: dbHandle });
   const graphifyRoot = opts.graphifyRoot ?? mkdtempSync(join(tmpdir(), 'e2e-gfx-'));
   const graphify = createGraphifyClient({ db: dbHandle, graphifyRoot });
 
@@ -72,7 +73,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
     featurePack,
     contextPack,
     runRecorder,
-    sqliteVec,
     graphify,
   });
 

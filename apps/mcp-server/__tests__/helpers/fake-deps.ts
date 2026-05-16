@@ -91,6 +91,29 @@ function notImpl<T>(subsystem: string): T {
   }) as T;
 }
 
+/**
+ * No-op `RunRecorder` used by default. The registry's 2026-05-08
+ * `mcp_call` audit hook (tool-registry.ts ~L474) fire-and-forgets
+ * `runRecorder.record(...)` for every tool call whose input carries a
+ * `runId`. The pattern is `void this.deps.runRecorder.record(...).catch(...)`
+ * — fine when `record()` returns a rejected promise, but a SYNCHRONOUS
+ * throw inside `.record(...)` escapes the `.catch` chain entirely.
+ *
+ * A `notImpl<RunRecorder>` Proxy throws synchronously, so every tool
+ * test that passes a `runId` would crash with `runRecorder.record not
+ * stubbed`. The audit hook is irrelevant to the tool-under-test's
+ * surface area in these integration suites — a no-op default is the
+ * right semantics. Tests that DO care about the audit event can
+ * pass `overrides.runRecorder: { record: vi.fn().mockResolvedValue(undefined) }`.
+ */
+function noopRunRecorder(): RunRecorder {
+  return {
+    async record() {
+      /* no-op — see noopRunRecorder docstring */
+    },
+  };
+}
+
 export function makeFakeDeps(overrides: MakeFakeDepsOptions = {}): ContextDeps {
   const policy = overrides.policy ?? createPolicyClientFromCheck(overrides.policyCheck ?? alwaysAllow);
   return Object.freeze({
@@ -100,7 +123,7 @@ export function makeFakeDeps(overrides: MakeFakeDepsOptions = {}): ContextDeps {
     policy,
     featurePack: overrides.featurePack ?? notImpl<FeaturePackStore>('featurePack'),
     contextPack: overrides.contextPack ?? notImpl<ContextPackStore>('contextPack'),
-    runRecorder: overrides.runRecorder ?? notImpl<RunRecorder>('runRecorder'),
+    runRecorder: overrides.runRecorder ?? noopRunRecorder(),
     graphify: overrides.graphify ?? notImpl<GraphifyClient>('graphify'),
   }) satisfies ContextDeps;
 }

@@ -225,13 +225,16 @@ describe('F8 closure — run_events.run_id and policy_decisions.run_id are popul
     expect(joinedCount.length).toBe(runEvents.length);
   });
 
-  it('PostToolUse arriving before SessionStart writes runId=null (best-effort), then a later SessionStart does not retroactively repair it', async () => {
-    // Documents the architectural choice: backfill is out of scope for
-    // this commit. The recorder fills run_id on a best-effort basis at
-    // INSERT time; events that arrive before the runs row exists keep
-    // run_id=null. F7's __global__ project (Commit 5) does NOT change
-    // this behavior — it just provides a fallback projectId, not a
-    // fallback runs.id.
+  it('PostToolUse arriving before SessionStart still gets a populated runId (implicit session_open closes the race)', async () => {
+    // M04 Phase 2 S1 (F3 root-cause fix, 2026-05-04) + the 2026-05-08
+    // race-close: the recorder now fires an implicit `session_open` on
+    // every audit-write call for an un-opened (projectId, sessionId)
+    // tuple, and `enqueueRunEvent` waits on the inflight insertRun
+    // promise before scheduling the durable write. Out-of-order events
+    // no longer land with `run_id = NULL` — they pick up the implicit
+    // runs row. The "deferred work" caveat documented by the prior
+    // assertion (runId=null) is gone; the tightened invariant is:
+    // every audit row links to a runs row regardless of arrival order.
     const sessionId = 'sess-f8-out-of-order';
 
     await postHook('PostToolUse', {
@@ -243,22 +246,25 @@ describe('F8 closure — run_events.run_id and policy_decisions.run_id are popul
 
     await h.drain();
 
+    // A later SessionStart is a no-op against the implicit row
+    // (ON CONFLICT (projectId, sessionId) DO NOTHING).
     await postHook('SessionStart', { session_id: sessionId });
     await h.drain();
 
     if (h.handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const earlyEvent = await h.handle.db
-      .select({ runId: sqliteSchema.runEvents.runId })
-      .from(sqliteSchema.runEvents)
-      .where(eq(sqliteSchema.runEvents.toolUseId, 'tu-early-1'));
-    expect(earlyEvent.length).toBe(1);
-    expect(earlyEvent[0]?.runId).toBeNull(); // NOT backfilled (deferred work).
-
-    // The runs row DOES exist (SessionStart fired second).
     const runs = await h.handle.db
       .select({ id: sqliteSchema.runs.id })
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, PROJECT_ID), eq(sqliteSchema.runs.sessionId, sessionId)));
     expect(runs.length).toBe(1);
+    const runId = runs[0]?.id;
+    expect(runId).toBeDefined();
+
+    const earlyEvent = await h.handle.db
+      .select({ runId: sqliteSchema.runEvents.runId })
+      .from(sqliteSchema.runEvents)
+      .where(eq(sqliteSchema.runEvents.toolUseId, 'tu-early-1'));
+    expect(earlyEvent.length).toBe(1);
+    expect(earlyEvent[0]?.runId).toBe(runId); // populated by the implicit session_open path
   });
 });

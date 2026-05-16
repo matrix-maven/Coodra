@@ -1,5 +1,5 @@
 import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
@@ -263,7 +263,15 @@ describe('get_run_id — different sessionIds under the same project get differe
     if (a.ok && b.ok) {
       expect(a.runId).not.toBe(b.runId);
     }
-    const runs = await h.handle.db.select().from(sqliteSchema.runs);
+    // Scope to the test's two sessions — migration 0008 seeds a
+    // `run:__global__:orphan-backfill-0008` row in every fresh DB
+    // (F3 orphan rebind), so an unfiltered SELECT now returns 3.
+    // The test's intent is "two distinct runs for these sessionIds",
+    // not a global count.
+    const runs = await h.handle.db
+      .select()
+      .from(sqliteSchema.runs)
+      .where(inArray(sqliteSchema.runs.sessionId, ['sess_1', 'sess_2']));
     expect(runs).toHaveLength(2);
   });
 });

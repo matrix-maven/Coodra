@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * call lands.
  *
  * The test asserts the round-trip succeeds — `tools/list` returns the
- * full 9-tool set and `get_run_id` succeeds against a freshly-minted DB
+ * full tool inventory and `get_run_id` succeeds against a freshly-minted DB
  * without any pre-migration step.
  */
 
@@ -67,10 +67,13 @@ afterAll(async () => {
 describe('boot auto-migrate (verification finding §8.1)', () => {
   it('tools/list succeeds against a fresh SQLite path with no pre-migration', async () => {
     const { tools } = await h.client.listTools();
-    // Slice 4 (2026-05-03 audit): query_decisions added → 10 tools.
-    // Locks the count so future "added a tool but never wired it"
-    // regressions surface immediately (essentialsforclaude/10-troubleshooting.md).
-    expect(tools.length).toBe(10);
+    // Tool count drift log (locks current inventory; bump on add/remove,
+    // see `apps/mcp-server/src/tools/index.ts::registerAllTools`):
+    //   Slice 4  (2026-05-03 audit): query_decisions added → 10
+    //   M02 S11/12 + M05 + M06 batch  (2026-05-08 → 2026-05-09):
+    //     list_context_packs + read_context_pack + list_features +
+    //     get_feature + get_feature_file + query_run_diff → 16
+    expect(tools.length).toBe(16);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {
