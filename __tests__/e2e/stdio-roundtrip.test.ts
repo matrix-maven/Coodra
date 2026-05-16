@@ -79,17 +79,29 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
     expect(info?.name).toBe('@coodra/mcp-server');
   });
 
-  it('tools/list returns exactly the 9 expected tools', async () => {
+  it('tools/list returns exactly the expected tool inventory', async () => {
     const { tools } = await h.client.listTools();
     const names = tools.map((t) => t.name).sort();
+    // Drift log (mirrors `apps/mcp-server/__tests__/integration/boot.test.ts`):
+    //   Slice 4 (2026-05-03 audit): query_decisions added → 10
+    //   M02 S11/12 + M05 + M06 batch (2026-05-08 → 2026-05-09):
+    //     list_context_packs + read_context_pack + list_features +
+    //     get_feature + get_feature_file + query_run_diff → 16
     expect(names).toEqual(
       [
         'check_policy',
+        'get_feature',
+        'get_feature_file',
         'get_feature_pack',
         'get_run_id',
+        'list_context_packs',
+        'list_features',
         'ping',
         'query_codebase_graph',
+        'query_decisions',
+        'query_run_diff',
         'query_run_history',
+        'read_context_pack',
         'record_decision',
         'save_context_pack',
         'search_packs_nl',

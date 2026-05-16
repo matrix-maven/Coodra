@@ -254,9 +254,19 @@ describe('full session lifecycle: hooks-bridge + mcp-server cooperation', () => 
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('6. Stop closes the runs row to completed', async () => {
-    const res = await postHook({ hook_event_name: 'Stop', session_id: HOOK_SESSION_ID });
-    expect(res.status).toBe(200);
+  it('6. SessionEnd closes the runs row to completed (Stop is now a per-turn ack)', async () => {
+    // Phase 3 Fix A (2026-05-02 — dec_ea32e7ed): Stop became a plain
+    // ack for per-turn lifecycle ("the agent has finished THIS turn"),
+    // while the new SessionEnd event carries the runs-row close
+    // semantics. Pre-fix every Stop closed the run AND fired auto-
+    // Context-Pack save per turn, which was both architecturally wrong
+    // and produced churn. This test now drives SessionEnd to close.
+    // Locked by `apps/hooks-bridge/__tests__/integration/real-envelope.test.ts`
+    // ("Stop is a plain ack — does not close runs ...").
+    const stopRes = await postHook({ hook_event_name: 'Stop', session_id: HOOK_SESSION_ID });
+    expect(stopRes.status).toBe(200);
+    const endRes = await postHook({ hook_event_name: 'SessionEnd', session_id: HOOK_SESSION_ID });
+    expect(endRes.status).toBe(200);
     await h.drain();
 
     if (h.bootMcp.dbHandle.kind !== 'sqlite') throw new Error('expected sqlite');

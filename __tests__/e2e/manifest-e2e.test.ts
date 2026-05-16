@@ -12,7 +12,7 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
  * Connects a headless `@modelcontextprotocol/sdk` Client to an
  * in-process Streamable HTTP server, calls `tools/list`, and asserts:
  *
- *   1. The exact 9-tool set is advertised — no extras, no missing.
+ *   1. The exact tool set is advertised — no extras, no missing.
  *      Locks down the `_no-unregistered-tools` unit guard at the
  *      protocol layer.
  *   2. Each description is ≤ 800 chars (per §24.3 / §6.6).
@@ -24,16 +24,12 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
  *      structured `isError: true` envelope (the contract for
  *      handler-level failure paths).
  *
- * The 9 tools (ordered by registration order in `apps/mcp-server/src/tools/index.ts`):
- *   ping
- *   get_run_id
- *   get_feature_pack
- *   save_context_pack
- *   search_packs_nl
- *   record_decision
- *   query_run_history
- *   check_policy
- *   query_codebase_graph
+ * Tool inventory (must match `apps/mcp-server/src/tools/index.ts::registerAllTools`).
+ * Drift log (mirrors `apps/mcp-server/__tests__/integration/boot.test.ts`):
+ *   Slice 4 (2026-05-03 audit): query_decisions added → 10
+ *   M02 S11/12 + M05 + M06 batch (2026-05-08 → 2026-05-09):
+ *     list_context_packs + read_context_pack + list_features +
+ *     get_feature + get_feature_file + query_run_diff → 16
  */
 
 const EXPECTED_TOOLS = [
@@ -46,6 +42,13 @@ const EXPECTED_TOOLS = [
   'query_run_history',
   'check_policy',
   'query_codebase_graph',
+  'query_decisions',
+  'list_context_packs',
+  'read_context_pack',
+  'list_features',
+  'get_feature',
+  'get_feature_file',
+  'query_run_diff',
 ] as const;
 
 interface Harness {
@@ -77,7 +80,7 @@ afterAll(async () => {
   await h.closeDb();
 });
 
-describe('manifest-e2e — exactly the 9-tool set is advertised', () => {
+describe('manifest-e2e — exactly the locked tool set is advertised', () => {
   it('returns exactly the expected tool names — no extras, no missing', async () => {
     const { tools } = await h.client.listTools();
     const names = tools.map((t) => t.name).sort();
@@ -85,7 +88,7 @@ describe('manifest-e2e — exactly the 9-tool set is advertised', () => {
     expect(names).toEqual(expected);
   });
 
-  it('the count matches the locked 9 even if order changes', async () => {
+  it('the count matches the locked inventory length even if order changes', async () => {
     const { tools } = await h.client.listTools();
     expect(tools).toHaveLength(EXPECTED_TOOLS.length);
   });
