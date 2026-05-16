@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -28,7 +28,8 @@ import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
  * F7 closure (verification 2026-04-27) — drives a PreToolUse hook from
- * a cwd with NO `.coodra.json` and asserts:
+ * a cwd with NO `.coodra.json` and a basename the resolver can't
+ * derive a slug from, and asserts:
  *
  *   1. The deny rule (attached to project_id='__global__') still
  *      fires — the global rule cache slot loads every project's
@@ -42,9 +43,19 @@ import { drainOutbox } from '../_helpers/drain-outbox.js';
  * Before this fix the bridge skipped the audit write to avoid the
  * NOT NULL FK violation, leaving no governance trail for unregistered
  * cwds. The __global__ sentinel project is the FK-safe fallback.
+ *
+ * **Why the cwd's basename is literally `tmp`:** M04 Phase 2 S1 (F3
+ * root-cause fix, 2026-05-04) replaced the "unresolved → __global__"
+ * default with `resolveAndEnsure` — it now auto-creates a `projects`
+ * row from `basename(cwd)` for any normal cwd, so the F7 fallback
+ * path is reachable only when basename derivation fails (reserved
+ * name list in `resolve-project-slug.ts::RESERVED_BASENAMES`). Naming
+ * the cwd's leaf directory `tmp` (a reserved name) deterministically
+ * exercises the __global__ branch this suite is locking down.
  */
 
 interface Harness {
+  readonly root: string; // outer tmpdir wrapping `cwd` — owns cleanup
   readonly cwd: string;
   readonly handle: DbHandle;
   readonly hono: ReturnType<typeof buildApp>['hono'];
@@ -61,9 +72,14 @@ function makeEnv(): AuthEnv {
 }
 
 beforeAll(async () => {
-  // Use a fresh temp dir as cwd — deliberately NO .coodra.json so
-  // the resolver returns undefined.
-  const cwd = mkdtempSync(join(tmpdir(), 'global-audit-test-'));
+  // Outer tmp wrapper; the actual cwd is a subdir whose basename is a
+  // reserved value so `deriveSlugFromCwd` returns undefined → resolver
+  // returns `{slug: undefined, projectId: undefined}` → policy + recorder
+  // fall through to GLOBAL_PROJECT_ID. No `.coodra.json` anywhere on
+  // the walk-up either.
+  const root = mkdtempSync(join(tmpdir(), 'global-audit-test-'));
+  const cwd = join(root, 'tmp'); // 'tmp' is in RESERVED_BASENAMES
+  mkdirSync(cwd);
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });
   if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
@@ -103,12 +119,12 @@ beforeAll(async () => {
   const dispatch = composeDispatch({ preToolUse, postToolUse, sessionStart, sessionEnd, userPromptSubmit });
 
   const { hono } = buildApp({ env: makeEnv(), dispatch });
-  h = { cwd, handle, hono, drain };
+  h = { root, cwd, handle, hono, drain };
 }, 30_000);
 
 afterAll(() => {
   if (h?.handle?.kind === 'sqlite') h.handle.close();
-  if (h?.cwd) rmSync(h.cwd, { recursive: true, force: true });
+  if (h?.root) rmSync(h.root, { recursive: true, force: true });
 });
 
 describe('F7 closure — audit-on-unresolved via __global__ sentinel', () => {

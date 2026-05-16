@@ -98,9 +98,13 @@ describe('post-tool-use idempotency (run_events)', () => {
     const responses = await Promise.all(sends);
     for (const res of responses) {
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { ok: boolean; hookSpecificOutput: { permissionDecision: string } };
+      // M04 S11 cleanup (2026-05-04): PostToolUse allow is the spec-correct
+      // plain `{ok:true}` body — no `hookSpecificOutput` (Claude Code silently
+      // ignored a misplaced wrapper pre-cleanup; the bridge now ships the
+      // right shape). On deny it would be `{ok:true, decision:'block', reason}`.
+      const body = (await res.json()) as { ok: boolean; decision?: string };
       expect(body.ok).toBe(true);
-      expect(body.hookSpecificOutput.permissionDecision).toBe('allow');
+      expect(body.decision).toBeUndefined();
     }
     await h.drain();
 

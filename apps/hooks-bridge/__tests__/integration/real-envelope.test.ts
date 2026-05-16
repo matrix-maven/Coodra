@@ -135,17 +135,23 @@ describe('real Claude Code envelopes — schema acceptance (Phase 3 Fix A)', () 
       cwd: h.cwd,
     });
 
+    // M04 S11 cleanup (2026-05-04) made `shapeClaudeCodeResponse`
+    // event-type-specific: only PreToolUse + SessionStart + UserPromptSubmit
+    // carry `hookSpecificOutput`; PostToolUse / Stop / SubagentStop /
+    // SessionEnd return a plain `{ok:true}` body on allow. The fail-open
+    // path (which is what we're really guarding against here) ALWAYS
+    // emits `hookSpecificOutput.permissionDecisionReason === 'invalid_hook_payload'`
+    // regardless of event type — so the canonical regression check is
+    // "did fail-open fire?" and it's robust to the missing wrapper.
     for (const envelope of ALL_REAL_ENVELOPES) {
       const body = overrideSessionId(envelope as unknown as Record<string, unknown>);
       const res = await postEvent(body);
       expect(res.status).toBe(200);
       const json = (await res.json()) as {
         ok: boolean;
-        hookSpecificOutput: { permissionDecision: string; permissionDecisionReason?: string };
+        hookSpecificOutput?: { permissionDecision?: string; permissionDecisionReason?: string };
       };
-      // The canonical regression we are guarding against: pre-Fix-A
-      // every envelope returned this reason via the fail-open path.
-      expect(json.hookSpecificOutput.permissionDecisionReason).not.toBe('invalid_hook_payload');
+      expect(json.hookSpecificOutput?.permissionDecisionReason).not.toBe('invalid_hook_payload');
     }
   });
 
@@ -171,12 +177,17 @@ describe('real Claude Code envelopes — schema acceptance (Phase 3 Fix A)', () 
     await h.drain();
     const res = await postEvent({ ...REAL_ENVELOPE_USER_PROMPT_SUBMIT, session_id: sessionId, cwd: h.cwd });
     expect(res.status).toBe(200);
+    // M04 S11: UserPromptSubmit's allow shape is `{ok:true, hookSpecificOutput:{hookEventName}}` —
+    // no `permissionDecision` on allow (only `{decision:'block', reason}` on deny). So the
+    // pass-through check is "ok:true + no fail-open reason".
     const json = (await res.json()) as {
       ok: boolean;
-      hookSpecificOutput: { permissionDecision: string; permissionDecisionReason?: string };
+      decision?: string;
+      hookSpecificOutput?: { permissionDecisionReason?: string };
     };
-    expect(json.hookSpecificOutput.permissionDecision).toBe('allow');
-    expect(json.hookSpecificOutput.permissionDecisionReason).not.toBe('invalid_hook_payload');
+    expect(json.ok).toBe(true);
+    expect(json.decision).toBeUndefined();
+    expect(json.hookSpecificOutput?.permissionDecisionReason).not.toBe('invalid_hook_payload');
   });
 });
 
