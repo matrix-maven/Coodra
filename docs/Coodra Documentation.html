@@ -1,0 +1,2539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coodra — Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg-2: #0d130d;
+    --bg-3: #11181107;
+    --ink: #e8e6e1;
+    --ink-mid: #b8b9b3;
+    --ink-dim: #8a8d86;
+    --ink-faint: #565951;
+    --rule: rgba(232, 230, 225, 0.08);
+    --rule-strong: rgba(232, 230, 225, 0.18);
+    --accent: #7dd87d;
+    --accent-soft: #4a9d4a;
+    --accent-bg: rgba(125, 216, 125, 0.08);
+    --warn: #d97a7a;
+    --caution: #c08a3e;
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --sans: 'Inter Tight', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+    --side-w: 300px;
+    --toc-w: 220px;
+    --main-max: 880px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+
+  /* ============== TOP BAR ============== */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 64px;
+    display: grid;
+    grid-template-columns: var(--side-w) 1fr auto;
+    align-items: center;
+    background: rgba(10, 14, 10, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--rule);
+    padding: 0 32px 0 32px;
+  }
+  .topbar__brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .topbar__logo {
+    width: 28px; height: 28px;
+  }
+  .topbar__wordmark {
+    font-family: var(--sans);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+  .topbar__doc-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: 4px 8px;
+    border: 1px solid var(--rule-strong);
+    margin-left: 6px;
+  }
+  .topbar__center {
+    display: flex; align-items: center; gap: 24px;
+    padding-left: 32px;
+  }
+  .topbar__search {
+    width: 100%; max-width: 380px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    transition: border-color 0.2s;
+  }
+  .topbar__search:focus-within { border-color: var(--accent-soft); }
+  .topbar__search input {
+    flex: 1;
+    background: transparent;
+    border: 0; outline: 0;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink);
+  }
+  .topbar__search input::placeholder { color: var(--ink-dim); }
+  .topbar__search__kbd {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--ink-dim);
+    padding: 2px 7px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+  .topbar__right {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .topbar__right a {
+    color: var(--ink-dim);
+    text-decoration: none;
+    padding: 6px 12px;
+    border: 1px solid var(--rule);
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .topbar__right a:hover { color: var(--ink); border-color: var(--rule-strong); }
+  .topbar__version {
+    color: var(--accent);
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-right: 4px;
+  }
+  .topbar__version::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+
+  /* ============== LAYOUT ============== */
+  .layout {
+    display: grid;
+    grid-template-columns: var(--side-w) 1fr var(--toc-w);
+    gap: 0;
+    align-items: start;
+    max-width: 1480px;
+    margin: 0 auto;
+  }
+
+  /* ============== SIDEBAR ============== */
+  .sidebar {
+    position: sticky;
+    top: 64px;
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 32px 16px 64px 32px;
+    border-right: 1px solid var(--rule);
+    font-size: 13px;
+  }
+  .sidebar__group { margin-bottom: 28px; }
+  .sidebar__group-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 0 12px 10px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sidebar__group-title::before {
+    content: ''; width: 14px; height: 1px; background: var(--rule-strong);
+    display: inline-block;
+  }
+  .sidebar__group-num {
+    color: var(--accent);
+    margin-right: 2px;
+  }
+  .sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    color: var(--ink-mid);
+    text-decoration: none;
+    border-left: 1px solid transparent;
+    margin-left: -1px;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    line-height: 1.4;
+  }
+  .sidebar__link:hover { color: var(--ink); }
+  .sidebar__link.is-active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .sidebar__link__dot {
+    width: 4px; height: 4px; border-radius: 50%;
+    background: currentColor;
+    opacity: 0.35;
+    flex: 0 0 auto;
+  }
+  .sidebar__link.is-active .sidebar__link__dot { opacity: 1; }
+
+  /* scrollbar */
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--rule-strong); }
+
+  /* ============== MAIN ============== */
+  .main {
+    padding: 48px 56px 120px;
+    min-width: 0;
+    max-width: var(--main-max);
+  }
+
+  /* ============== TOC (right rail) ============== */
+  .toc {
+    position: sticky;
+    top: 64px;
+    height: calc(100vh - 64px);
+    overflow-y: auto;
+    padding: 48px 24px 64px 24px;
+    border-left: 1px solid var(--rule);
+    font-size: 12px;
+  }
+  .toc__title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 14px;
+  }
+  .toc__list { list-style: none; }
+  .toc__list a {
+    display: block;
+    padding: 5px 0;
+    color: var(--ink-dim);
+    text-decoration: none;
+    border-left: 1px solid var(--rule);
+    padding-left: 14px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .toc__list a:hover { color: var(--ink); }
+  .toc__list a.is-active { color: var(--accent); border-left-color: var(--accent); }
+  .toc__list a.is-sub { padding-left: 26px; font-size: 11px; }
+
+  /* ============== HERO ============== */
+  .hero {
+    margin-bottom: 80px;
+    padding-bottom: 56px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .hero__eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .hero__eyebrow::before {
+    content: ''; width: 24px; height: 1px; background: var(--accent);
+  }
+  .hero__title {
+    font-family: var(--serif);
+    font-size: 80px;
+    line-height: 0.92;
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    margin-bottom: 28px;
+  }
+  .hero__title em { font-style: italic; color: var(--accent); }
+  .hero__lede {
+    font-family: var(--serif);
+    font-size: 22px;
+    line-height: 1.45;
+    color: var(--ink-mid);
+    font-weight: 400;
+    max-width: 640px;
+    margin-bottom: 40px;
+  }
+  .hero__meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    padding-top: 28px;
+  }
+  .hero__meta__cell {
+    padding-right: 24px;
+  }
+  .hero__meta__cell + .hero__meta__cell { border-left: 1px solid var(--rule); padding-left: 24px; }
+  .hero__meta__label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 8px;
+  }
+  .hero__meta__value {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+  .hero__meta__value strong { color: var(--accent); font-weight: 500; }
+
+  /* ============== SECTION ============== */
+  .section {
+    margin-bottom: 96px;
+    scroll-margin-top: 88px;
+  }
+  .section__head {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px dashed var(--rule);
+    display: flex;
+    align-items: flex-end;
+    gap: 24px;
+    justify-content: space-between;
+  }
+  .section__num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .section__title {
+    font-family: var(--serif);
+    font-size: 48px;
+    line-height: 0.98;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+  .section__title em { font-style: italic; color: var(--accent); }
+  .section__head__aside {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    text-align: right;
+    flex: 0 0 auto;
+  }
+  .section__lede {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink-mid);
+    margin-bottom: 36px;
+    max-width: 660px;
+  }
+
+  /* ============== SUBSECTION ============== */
+  .sub {
+    margin-top: 56px;
+    scroll-margin-top: 88px;
+  }
+  .sub__title {
+    font-family: var(--serif);
+    font-size: 28px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .sub__title em { font-style: italic; color: var(--accent); }
+  .sub__title__index {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    font-style: normal;
+  }
+  .sub__lede {
+    font-size: 14px;
+    color: var(--ink-dim);
+    margin-bottom: 24px;
+    max-width: 600px;
+  }
+
+  /* ============== TYPOGRAPHY ============== */
+  .p {
+    margin-bottom: 18px;
+    color: var(--ink);
+  }
+  .p--dim { color: var(--ink-mid); }
+  .p code, .li code, td code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    padding: 1px 6px;
+    color: var(--accent);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .ul, .ol {
+    margin: 0 0 24px 0;
+    padding-left: 0;
+    list-style: none;
+  }
+  .li {
+    position: relative;
+    padding: 6px 0 6px 22px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .li::before {
+    content: '';
+    position: absolute; left: 0; top: 16px;
+    width: 8px; height: 1px;
+    background: var(--accent);
+  }
+  .ol { counter-reset: ol-counter; }
+  .ol .li::before {
+    counter-increment: ol-counter;
+    content: counter(ol-counter, decimal-leading-zero);
+    background: transparent;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    top: 8px;
+    width: auto;
+    letter-spacing: 0.05em;
+  }
+  .ol .li { padding-left: 36px; }
+
+  /* ============== CALLOUT ============== */
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--bg-2);
+    border-left: 2px solid var(--accent);
+    margin: 24px 0;
+  }
+  .callout--warn { border-color: var(--warn); }
+  .callout--caution { border-color: var(--caution); }
+  .callout__icon {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 500;
+    padding-top: 1px;
+  }
+  .callout--warn .callout__icon { color: var(--warn); }
+  .callout--caution .callout__icon { color: var(--caution); }
+  .callout__body { font-size: 14px; line-height: 1.55; color: var(--ink); }
+  .callout__body p + p { margin-top: 10px; }
+  .callout__body code {
+    font-family: var(--mono); font-size: 0.86em;
+    background: rgba(232,230,225,0.04);
+    padding: 1px 5px; color: var(--accent); border-radius: 2px;
+  }
+
+  /* ============== CODE ============== */
+  .code {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    padding: 20px 24px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    overflow-x: auto;
+    margin: 0 0 24px 0;
+    position: relative;
+    white-space: pre;
+  }
+  .code--inline { display: inline; padding: 1px 6px; font-size: 0.86em; color: var(--accent); background: var(--bg-2); border: 1px solid var(--rule); }
+  .code__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 24px;
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    border-bottom: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .code__head + .code { border-top: 0; margin-top: 0; }
+  .code__head__copy {
+    color: var(--ink-dim);
+    cursor: pointer;
+    padding: 2px 8px;
+    border: 1px solid var(--rule);
+    transition: color 0.2s, border-color 0.2s;
+    background: transparent;
+    font-family: inherit; font-size: inherit; letter-spacing: inherit;
+    text-transform: inherit;
+  }
+  .code__head__copy:hover { color: var(--accent); border-color: var(--accent); }
+  .code .ck { color: var(--accent); }
+  .code .cm { color: var(--ink-dim); font-style: italic; }
+  .code .cw { color: var(--warn); }
+  .code .cy { color: var(--caution); }
+  .code .cp { color: var(--ink-mid); }
+  .code .ci { color: #ddd; }
+  .code .cn { color: var(--ink); font-weight: 500; }
+
+  /* ============== TABLE ============== */
+  .table-wrap {
+    margin: 0 0 28px 0;
+    border: 1px solid var(--rule);
+    overflow-x: auto;
+    background: var(--bg-2);
+  }
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .table th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 500;
+    padding: 14px 18px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  .table td {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .table tr:last-child td { border-bottom: 0; }
+  .table tr:hover td { background: rgba(125, 216, 125, 0.025); }
+  .table td code, .table th code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .table__caption {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+  }
+
+  /* ============== BADGES ============== */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    line-height: 1.2;
+    vertical-align: middle;
+  }
+  .badge--ok { color: var(--accent); border-color: var(--accent); }
+  .badge--warn { color: var(--warn); border-color: var(--warn); }
+  .badge--caution { color: var(--caution); border-color: var(--caution); }
+  .badge--solid {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  .badge__dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ============== STEP CARDS ============== */
+  .steps {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+    border: 1px solid var(--rule);
+    background: var(--bg-2);
+    margin: 0 0 28px 0;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 24px;
+    padding: 24px 28px;
+    border-bottom: 1px solid var(--rule);
+    align-items: start;
+  }
+  .step:last-child { border-bottom: 0; }
+  .step__num {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    padding-top: 4px;
+  }
+  .step__body h4 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .step__body h4 em { font-style: italic; color: var(--accent); }
+  .step__body p {
+    font-size: 14px; color: var(--ink-mid); line-height: 1.55;
+    margin-bottom: 12px;
+  }
+  .step__body .code, .step__body .code__head {
+    margin-top: 8px;
+  }
+
+  /* ============== CARDS GRID ============== */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+  .card {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    padding: 24px 26px;
+  }
+  .card__eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .card__title {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    margin-bottom: 10px;
+  }
+  .card__title em { font-style: italic; color: var(--accent); }
+  .card__body {
+    font-size: 13.5px;
+    color: var(--ink-mid);
+    line-height: 1.6;
+  }
+  .card__body p + p { margin-top: 10px; }
+  .card__foot {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--rule);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .card__foot strong { color: var(--accent); font-weight: 500; }
+
+  /* mode cards */
+  .mode-card {
+    position: relative;
+    padding-top: 36px;
+  }
+  .mode-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--accent);
+  }
+  .mode-card--team::before { background: var(--ink-mid); }
+
+  /* ============== TOPOLOGY DIAGRAM ============== */
+  .topo {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    padding: 32px;
+    margin-bottom: 28px;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .topo__title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin-bottom: 24px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .topo__title::before, .topo__title::after {
+    content: ''; flex: 1; height: 1px; background: var(--rule);
+  }
+  .topo__layer {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 20px;
+    padding: 16px 0;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .topo__layer:last-child { border-bottom: 0; }
+  .topo__layer__name {
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-size: 10px;
+    align-self: center;
+  }
+  .topo__nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .topo__node {
+    padding: 8px 14px;
+    border: 1px solid var(--rule);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topo__node__dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .topo__node__dot--w { background: var(--ink); box-shadow: none; }
+  .topo__node__dot--c { background: var(--caution); box-shadow: none; }
+  .topo__node__dot--m { background: var(--ink-dim); box-shadow: none; }
+  .topo__node small {
+    font-size: 9.5px;
+    color: var(--ink-dim);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* ============== EVENT FLOW (lifecycle) ============== */
+  .lifecycle {
+    border: 1px solid var(--rule);
+    background: var(--bg-2);
+    margin-bottom: 28px;
+  }
+  .lifecycle__row {
+    display: grid;
+    grid-template-columns: 36px 130px 1fr 100px;
+    gap: 18px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .lifecycle__row:last-child { border-bottom: 0; }
+  .lifecycle__num {
+    color: var(--accent);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+  }
+  .lifecycle__event {
+    color: var(--ink);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+  .lifecycle__desc {
+    color: var(--ink-mid);
+    font-family: var(--sans);
+    font-size: 13px;
+    letter-spacing: 0;
+    line-height: 1.5;
+  }
+  .lifecycle__effect {
+    color: var(--accent);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: right;
+  }
+  .lifecycle__effect--w { color: var(--warn); }
+  .lifecycle__effect--m { color: var(--ink-dim); }
+
+  /* ============== KEY/VALUE LIST ============== */
+  .kv {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 0;
+    border: 1px solid var(--rule);
+    background: var(--bg-2);
+  }
+  .kv__row {
+    display: contents;
+  }
+  .kv__row > * {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 13px;
+  }
+  .kv__row:last-child > * { border-bottom: 0; }
+  .kv__row > .kv__k {
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 12px;
+    background: rgba(125,216,125,0.03);
+    border-right: 1px solid var(--rule);
+    letter-spacing: 0.02em;
+  }
+  .kv__row > .kv__v {
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .kv__row > .kv__v small {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-dim);
+    margin-top: 4px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ============== FOOTER ============== */
+  .footer {
+    padding: 56px 32px;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 32px;
+    align-items: end;
+    max-width: 1480px;
+    margin: 0 auto;
+  }
+  .footer__title {
+    font-family: var(--serif);
+    font-size: 40px;
+    line-height: 1;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+  .footer__title em { font-style: italic; color: var(--accent); }
+  .footer__sub {
+    margin-top: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .footer__sub a { color: var(--accent); text-decoration: none; }
+  .footer__meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    text-align: right;
+    line-height: 2;
+  }
+
+  /* ============== RESPONSIVE ============== */
+  @media (max-width: 1300px) {
+    .layout { grid-template-columns: var(--side-w) 1fr; }
+    .toc { display: none; }
+  }
+  @media (max-width: 900px) {
+    :root { --side-w: 100%; }
+    .layout { grid-template-columns: 1fr; }
+    .sidebar {
+      position: relative;
+      height: auto;
+      border-right: 0;
+      border-bottom: 1px solid var(--rule);
+      padding: 24px 24px 32px;
+    }
+    .topbar { grid-template-columns: 1fr auto; padding: 0 20px; }
+    .topbar__center { display: none; }
+    .main { padding: 32px 24px 80px; }
+    .hero__title { font-size: 52px; }
+    .section__title { font-size: 36px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .kv { grid-template-columns: 1fr; }
+    .kv__row > .kv__k { border-right: 0; border-bottom: 1px dashed var(--rule); }
+    .lifecycle__row { grid-template-columns: 1fr; gap: 6px; }
+    .lifecycle__effect { text-align: left; }
+    .topo__layer { grid-template-columns: 1fr; }
+    .step { grid-template-columns: 1fr; gap: 12px; }
+    .footer { grid-template-columns: 1fr; padding: 40px 24px; }
+    .footer__meta { text-align: left; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!--  TOP BAR                                                      -->
+<!-- ============================================================ -->
+<header class="topbar">
+  <div class="topbar__brand">
+    <svg class="topbar__logo" viewBox="0 0 48 48" fill="none">
+      <circle cx="24" cy="24" r="22" stroke="#7dd87d" stroke-width="1.2"/>
+      <circle cx="24" cy="24" r="3" fill="#7dd87d"/>
+      <line x1="2" y1="24" x2="46" y2="24" stroke="#e8e6e1" stroke-width="0.7" stroke-dasharray="2 3"/>
+    </svg>
+    <span class="topbar__wordmark">Coodra</span>
+    <span class="topbar__doc-tag">Docs</span>
+  </div>
+  <div class="topbar__center">
+    <label class="topbar__search">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8a8d86" stroke-width="1.4">
+        <circle cx="7" cy="7" r="5"/>
+        <line x1="11" y1="11" x2="14" y2="14"/>
+      </svg>
+      <input id="docs-search" type="text" placeholder="Search the docs — runs, hooks, policy, init…" autocomplete="off">
+      <span class="topbar__search__kbd">⌘ K</span>
+    </label>
+  </div>
+  <div class="topbar__right">
+    <span class="topbar__version">v 0.2.0-beta.3</span>
+    <a href="#contributing">Contribute</a>
+    <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!--  LAYOUT                                                       -->
+<!-- ============================================================ -->
+<div class="layout">
+
+  <!-- ====== SIDEBAR ====== -->
+  <nav class="sidebar" id="sidebar" aria-label="Documentation sections">
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">01</span>Get started</div>
+      <a class="sidebar__link" href="#welcome"><span class="sidebar__link__dot"></span>Welcome</a>
+      <a class="sidebar__link" href="#what-is-coodra"><span class="sidebar__link__dot"></span>What is Coodra</a>
+      <a class="sidebar__link" href="#quickstart"><span class="sidebar__link__dot"></span>Quick start</a>
+      <a class="sidebar__link" href="#modes"><span class="sidebar__link__dot"></span>Solo vs Team</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">02</span>Core concepts</div>
+      <a class="sidebar__link" href="#concepts"><span class="sidebar__link__dot"></span>The vocabulary</a>
+      <a class="sidebar__link" href="#runs-sessions"><span class="sidebar__link__dot"></span>Runs &amp; sessions</a>
+      <a class="sidebar__link" href="#packs"><span class="sidebar__link__dot"></span>Feature &amp; Context Packs</a>
+      <a class="sidebar__link" href="#decisions"><span class="sidebar__link__dot"></span>Decisions</a>
+      <a class="sidebar__link" href="#policy"><span class="sidebar__link__dot"></span>Policy &amp; kill switches</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">03</span>Architecture</div>
+      <a class="sidebar__link" href="#topology"><span class="sidebar__link__dot"></span>Process topology</a>
+      <a class="sidebar__link" href="#lifecycle"><span class="sidebar__link__dot"></span>Hook lifecycle</a>
+      <a class="sidebar__link" href="#data-model"><span class="sidebar__link__dot"></span>Data model</a>
+      <a class="sidebar__link" href="#storage"><span class="sidebar__link__dot"></span>Storage &amp; state</a>
+      <a class="sidebar__link" href="#sync"><span class="sidebar__link__dot"></span>Sync &amp; multi-tenancy</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">04</span>Reference</div>
+      <a class="sidebar__link" href="#cli"><span class="sidebar__link__dot"></span>CLI commands</a>
+      <a class="sidebar__link" href="#mcp-tools"><span class="sidebar__link__dot"></span>MCP tools (16)</a>
+      <a class="sidebar__link" href="#hook-events"><span class="sidebar__link__dot"></span>Hook events</a>
+      <a class="sidebar__link" href="#config"><span class="sidebar__link__dot"></span>Configuration</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">05</span>Operate</div>
+      <a class="sidebar__link" href="#self-host"><span class="sidebar__link__dot"></span>Self-host</a>
+      <a class="sidebar__link" href="#auth"><span class="sidebar__link__dot"></span>Auth &amp; RBAC</a>
+      <a class="sidebar__link" href="#troubleshooting"><span class="sidebar__link__dot"></span>Troubleshooting</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">06</span>Contribute</div>
+      <a class="sidebar__link" href="#build-test"><span class="sidebar__link__dot"></span>Build &amp; test</a>
+      <a class="sidebar__link" href="#contributing"><span class="sidebar__link__dot"></span>Contribution guide</a>
+      <a class="sidebar__link" href="#adrs"><span class="sidebar__link__dot"></span>Design decisions</a>
+      <a class="sidebar__link" href="#deps"><span class="sidebar__link__dot"></span>Dependencies</a>
+    </div>
+
+    <div class="sidebar__group">
+      <div class="sidebar__group-title"><span class="sidebar__group-num">07</span>Help</div>
+      <a class="sidebar__link" href="#faq"><span class="sidebar__link__dot"></span>FAQ</a>
+      <a class="sidebar__link" href="#glossary"><span class="sidebar__link__dot"></span>Glossary</a>
+    </div>
+  </nav>
+
+  <!-- ====== MAIN ====== -->
+  <main class="main">
+
+    <!-- ============ HERO ============ -->
+    <section class="hero" id="welcome" data-screen-label="00 Hero">
+      <div class="hero__eyebrow">Coodra · Documentation · v 0.2.0-beta.3 · 2026</div>
+      <h1 class="hero__title">Master the <em>context</em>.</h1>
+      <p class="hero__lede">
+        Coodra is a local-first MCP server platform that gives AI coding agents <em style="color:var(--accent);font-style:italic">project context, memory across sessions, and policy enforcement</em> — so they stop coding blind. This is the complete reference, from your first <code class="code--inline">coodra init</code> to merging your first PR.
+      </p>
+      <div class="hero__meta">
+        <div class="hero__meta__cell">
+          <div class="hero__meta__label">Audience</div>
+          <div class="hero__meta__value">Engineers · Architects · Contributors</div>
+        </div>
+        <div class="hero__meta__cell">
+          <div class="hero__meta__label">Read time</div>
+          <div class="hero__meta__value">Quick start in <strong>5 min</strong> · Full read <strong>~45 min</strong></div>
+        </div>
+        <div class="hero__meta__cell">
+          <div class="hero__meta__label">License</div>
+          <div class="hero__meta__value">MIT · open source · local-first</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WHAT IS COODRA ============ -->
+    <section class="section" id="what-is-coodra" data-screen-label="01 What is Coodra">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/01 — Foundation</div>
+          <h2 class="section__title">What <em>Coodra</em> is, in one breath.</h2>
+        </div>
+        <div class="section__head__aside">Read first<br>~3 min</div>
+      </div>
+      <p class="section__lede">A coordination layer between human architects and AI coding agents — Claude Code, Cursor, Windsurf. It runs as a local-first <span style="color:var(--accent)">MCP (Model Context Protocol)</span> server and feeds every agent session three things, automatically.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card__eyebrow">/ pack</div>
+          <h3 class="card__title">Feature <em>Packs</em></h3>
+          <p class="card__body">The architectural blueprint for the module the agent is touching. Injected at session start so the agent reads spec → tech-stack → implementation order <em>before</em> writing code.</p>
+          <div class="card__foot">Injected via <strong>SessionStart</strong> hook</div>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">/ memory</div>
+          <h3 class="card__title">Context <em>Packs</em></h3>
+          <p class="card__body">The durable record of every decision, file change, and policy event from past sessions. One pack per run, queryable in natural language. Cross-session memory the agent can pull on.</p>
+          <div class="card__foot">14 SQLite tables · sqlite-vec</div>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">/ guardrail</div>
+          <h3 class="card__title">Policy <em>enforcement</em></h3>
+          <p class="card__body">Pre-tool-use checks recorded in an append-only audit trail. <code style="font-family:var(--mono);font-size:0.85em;color:var(--accent)">deny writes to&nbsp;.env.production</code>, ask before merging, fail-open on engine fault.</p>
+          <div class="card__foot">Cockatiel breaker · 100ms timeout</div>
+        </div>
+      </div>
+
+      <div class="sub" id="design-principles">
+        <h3 class="sub__title"><span class="sub__title__index">/01.1</span>Design <em>principles</em></h3>
+        <p class="sub__lede">Five things that are true everywhere in the codebase, and that any contribution must respect.</p>
+
+        <div class="kv">
+          <div class="kv__row">
+            <div class="kv__k">Local-first</div>
+            <div class="kv__v">Everything runs on your laptop with zero network. SQLite is the primary store in <em>both</em> solo and team mode. <small>apps/mcp-server/src/lib/db.ts — only call site uses <code style="color:var(--accent)">createDb({ kind: 'local' })</code></small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">Fail-open</div>
+            <div class="kv__v">If the policy engine throws, times out, or the breaker opens — the verdict is <span class="badge badge--ok">ALLOW</span>. Coodra never blocks the agent because of its own faults. <small>packages/policy/src/policy.ts — <code style="color:var(--accent)">FAIL_OPEN_RESULT</code></small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">Append-only audit</div>
+            <div class="kv__v">Policy decisions and decisions records are never updated or deleted. Idempotency keys gate writes. Resumed kill-switches keep the row, just stamp <code>resumed_at</code>. <small>ADR-007</small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">Production-grade</div>
+            <div class="kv__v">Every module ships complete or it doesn't merge. No placeholder surfaces. No mocked endpoints to make the UI render. Linear build, start to finish. <small>CLAUDE.md:8-10</small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">Bind to 127.0.0.1</div>
+            <div class="kv__v">Every long-running process listens on loopback by default. Hooks, MCP HTTP transport, web UI. Nothing exits the laptop unless the operator sets <code>DATABASE_URL</code>.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ QUICK START ============ -->
+    <section class="section" id="quickstart" data-screen-label="02 Quickstart">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/02 — Onboarding</div>
+          <h2 class="section__title"><em>Five minutes</em> to your first run.</h2>
+        </div>
+        <div class="section__head__aside">Solo mode<br>Zero network</div>
+      </div>
+      <p class="section__lede">If you have Node 22, pnpm, and a Claude Code / Cursor / Windsurf install — you're three commands away. Solo mode is the default after <code>coodra init</code>.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">/00</div>
+          <div class="step__body">
+            <h4>Confirm the <em>prereqs</em>.</h4>
+            <p>You need Node 22.16.0 (pinned in <code>.nvmrc</code>), pnpm 10.33.0 via corepack, git, and a supported agent installed locally. macOS uses launchd; Linux uses a fallback daemon manager with PID files.</p>
+            <div class="code__head"><span>terminal · prereq check</span><button class="code__head__copy" data-copy-target="code-prereq">copy</button></div>
+<pre class="code" id="code-prereq"><span class="cm"># Versions Coodra pins to</span>
+<span class="ck">nvm</span> use            <span class="cm"># 22.16.0 per .nvmrc</span>
+<span class="ck">corepack</span> enable    <span class="cm"># activates pnpm 10.33.0</span>
+node --version    <span class="cm"># → v22.16.0</span>
+pnpm --version    <span class="cm"># → 10.33.0</span></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__num">/01</div>
+          <div class="step__body">
+            <h4>Install the <em>CLI</em>.</h4>
+            <p>The only published artefact is <code>@coodra/cli</code>. It ships as a self-contained bundle — bring-your-own SQLite native module is rebuilt on install.</p>
+            <div class="code__head"><span>terminal · install</span><button class="code__head__copy" data-copy-target="code-install">copy</button></div>
+<pre class="code" id="code-install"><span class="ck">npm</span> i -g @coodra/cli
+<span class="cm"># or, in a workspace:</span>
+<span class="ck">pnpm</span> add -D @coodra/cli</pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__num">/02</div>
+          <div class="step__body">
+            <h4>Initialise the <em>project</em>.</h4>
+            <p>From your repo root, run <code>coodra init</code>. It writes <code>.coodra.json</code> (your project slug), seeds the default policy, drops <code>.mcp.json</code> so Claude Code launches the MCP server as a stdio subprocess, and wires hook adapters for Cursor + Windsurf.</p>
+            <div class="code__head"><span>repo root</span><button class="code__head__copy" data-copy-target="code-init">copy</button></div>
+<pre class="code" id="code-init"><span class="ck">coodra</span> init
+<span class="cm"># picks the slug from git remote, asks which IDE,
+# defaults to --solo. Use --team to wire Clerk.</span>
+
+<span class="cm"># What it creates:</span>
+.coodra.json          <span class="cp">{"projectSlug":"my-app"}</span>
+.mcp.json             <span class="cp">Claude Code subprocess + hook routing</span>
+~/.coodra/data.db     <span class="cp">SQLite primary store</span>
+~/.coodra/.env        <span class="cp">solo-mode env, ready to grow into team</span></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__num">/03</div>
+          <div class="step__body">
+            <h4>Start the <em>daemons</em>.</h4>
+            <p>One command brings up the MCP server (3100), hooks bridge (3101), and the web UI on 3001. Sync-daemon stays asleep in solo mode. Add <code>--no-web</code> to skip the dashboard, <code>--foreground</code> to tail logs.</p>
+            <div class="code__head"><span>terminal · launch</span><button class="code__head__copy" data-copy-target="code-start">copy</button></div>
+<pre class="code" id="code-start"><span class="ck">coodra</span> start
+<span class="cm"># → mcp-server   listening on 127.0.0.1:3100</span>
+<span class="cm"># → hooks-bridge listening on 127.0.0.1:3101</span>
+<span class="cm"># → web-v2       http://localhost:3001</span>
+
+<span class="cm"># Confirm everything's alive</span>
+<span class="ck">coodra</span> status
+<span class="ck">coodra</span> doctor          <span class="cm"># 11 essential checks (38 with --full)</span></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step__num">/04</div>
+          <div class="step__body">
+            <h4>Open the agent &amp; <em>watch</em>.</h4>
+            <p>Launch Claude Code in your repo. The <code>SessionStart</code> hook fires <code>POST /v1/hooks/claude-code</code>, opens a <code>runs</code> row, captures <code>base_sha</code>, and returns a Feature Pack body in the <code>additionalContext</code> field. Every tool use after that is gated by policy and logged in <code>run_events</code>.</p>
+            <p>Visit <code>http://localhost:3001/runs</code> to watch the trace populate live.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout__icon">→ Next</div>
+        <div class="callout__body">
+          <p>Now skim <a style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent)" href="#concepts">Core concepts</a> to understand what's happening under the hood, or jump to <a style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent)" href="#cli">the CLI reference</a> for every subcommand.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MODES ============ -->
+    <section class="section" id="modes" data-screen-label="03 Modes">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/03 — Deployment</div>
+          <h2 class="section__title">Two modes. <em>Same</em> primitives.</h2>
+        </div>
+        <div class="section__head__aside">Mode is a <code>COODRA_MODE</code><br>env flag</div>
+      </div>
+      <p class="section__lede">Solo and Team mode share schema, code, and CLI. The difference is who sees what, and whether the sync-daemon boots.</p>
+
+      <div class="grid-2">
+        <div class="card mode-card">
+          <div class="card__eyebrow">/ solo · default</div>
+          <h3 class="card__title">Everything on your <em>laptop</em>.</h3>
+          <p class="card__body">SQLite at <code>~/.coodra/data.db</code>. Loopback only. Solo-bypass auth — no Clerk, no JWT, just <code>SOLO_ACTOR</code> stamped on every write. The sync-daemon does not boot. Zero network egress.</p>
+          <p class="card__body" style="margin-top:14px">Best for: individual contributors, OSS hacking, air-gapped envs, contractors with a strict no-cloud policy.</p>
+          <div class="card__foot">Set: <strong>COODRA_MODE=solo</strong></div>
+        </div>
+        <div class="card mode-card mode-card--team">
+          <div class="card__eyebrow">/ team · opt-in</div>
+          <h3 class="card__title">Cloud-synced <em>memory</em>.</h3>
+          <p class="card__body">Same local SQLite — plus a Postgres + pgvector mirror you operate, plus Clerk for identity. The sync-daemon pushes <code>sync_to_cloud</code> outbox rows and pulls teammates' runs, decisions, and packs back into local SQLite.</p>
+          <p class="card__body" style="margin-top:14px">Best for: small teams sharing context, multi-laptop developers, BYO-cloud self-host.</p>
+          <div class="card__foot">Set: <strong>COODRA_MODE=team</strong> · DATABASE_URL · CLERK_*</div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <h3 class="sub__title"><span class="sub__title__index">/03.1</span>Mode <em>matrix</em></h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Capability</th>
+              <th>Solo</th>
+              <th>Team</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Local SQLite primary store</td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>MCP server + hooks bridge (loopback)</td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>Web UI on <code>:3001</code></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>Sync-daemon boots</td><td><span class="badge">NO</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>Clerk auth · JWT verification</td><td><span class="badge">BYPASS</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>REQUIRED</span></td></tr>
+              <tr><td>Cross-teammate visibility</td><td><span class="badge">NO</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>Cross-machine (same user)</td><td><span class="badge">NO</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>VIA team install</span></td></tr>
+              <tr><td>Network egress required</td><td><span class="badge badge--ok"><span class="badge__dot"></span>NONE</span></td><td><span class="badge badge--caution"><span class="badge__dot"></span>POSTGRES + CLERK</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="p p--dim">Promote a project from solo to team without losing history with <code>coodra team setup</code> → <code>coodra cloud-migrate</code>. The migration is tracked in <code>_migration_attempts</code> with per-row mapping in <code>_migration_map</code> for surgical rollback.</p>
+      </div>
+    </section>
+
+    <!-- ============ CORE CONCEPTS ============ -->
+    <section class="section" id="concepts" data-screen-label="04 Concepts">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/04 — Concepts</div>
+          <h2 class="section__title">The <em>vocabulary</em>.</h2>
+        </div>
+        <div class="section__head__aside">Read this once.<br>It pays back.</div>
+      </div>
+      <p class="section__lede">Six nouns carry the whole system. Internalise these and the rest of the docs read themselves.</p>
+
+      <div class="kv">
+        <div class="kv__row">
+          <div class="kv__k">session</div>
+          <div class="kv__v">An agent-side identifier. One per IDE/agent invocation. Coodra never invents one — it accepts whatever the agent sends. <small>UNIQUE (project_id, session_id) in <code>runs</code></small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">run</div>
+          <div class="kv__v">A row in the <code>runs</code> table — agent type, mode, status, base_sha, created_by_user_id, project_id. Bound to a session by <code>get_run_id</code>; reused across <code>get_run_id</code> calls within the same session. <small>One run per session per project</small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">context pack</div>
+          <div class="kv__v">A markdown summary of one run, written at session end. Stored in <code>context_packs</code> (one row per run, UNIQUE constraint), mirrored to <code>~/.coodra/packs/&lt;date&gt;-&lt;runId&gt;.md</code> for grep. <small>source: <code>'agent'</code> | <code>'bridge_auto'</code></small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">feature pack</div>
+          <div class="kv__v">A module-level architectural blueprint, authored by humans in <code>docs/feature-packs/</code>. Loaded by <code>get_feature_pack</code> and injected at <code>SessionStart</code>. <small>Pattern-20 SessionStart additionalContext</small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">decision</div>
+          <div class="kv__v">A structured architectural choice — description, rationale, alternatives, reversibility — recorded by the agent mid-run. Idempotent on <code>sha256(description)[:32]</code>. <small>Surfaced to the next session via <code>recent-decisions</code> on UserPromptSubmit</small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">policy decision</div>
+          <div class="kv__v">An append-only audit row: who asked, what tool, what input, what verdict. Idempotency key <code>pd:{sessionId}:{toolUseId}:{toolName}:{eventType}</code>. <small>ADR-007</small></div>
+        </div>
+      </div>
+
+      <!-- runs & sessions -->
+      <div class="sub" id="runs-sessions">
+        <h3 class="sub__title"><span class="sub__title__index">/04.1</span>Runs &amp; <em>sessions</em></h3>
+        <p class="p p--dim">A session is what the agent calls itself. A run is what Coodra calls that work. The first call to <code>get_run_id</code> for a session either opens a new <code>runs</code> row, or — if the agent crashed and restarted — finds and resumes the existing one.</p>
+
+        <div class="code__head"><span>session → run binding</span></div>
+<pre class="code"><span class="cm">// MCP tool: get_run_id  ·  apps/mcp-server/src/tools/get-run-id/</span>
+<span class="ck">const</span> { runId } = <span class="ck">await</span> mcp.call(<span class="cw">"get_run_id"</span>, {
+  sessionId: <span class="cw">"cc-sess-2026-05-16-8a3f2c"</span>,
+  projectSlug: <span class="cw">"my-app"</span>,
+  agentType: <span class="cw">"claude_code"</span>,
+});
+
+<span class="cm">// First call:  inserts a runs row, returns runId.
+// Repeat call: returns the same runId (UNIQUE on project_id, session_id).</span></pre>
+
+        <p class="p">Every <code>run_events</code> row, every <code>policy_decisions</code> row, and the eventual <code>context_packs</code> row hang off this <code>runId</code>. <code>run_events.run_id</code> uses <code>ON DELETE SET NULL</code> so PreToolUse events that fire before the run exists still land — they just attach later when the row appears.</p>
+      </div>
+
+      <!-- packs -->
+      <div class="sub" id="packs">
+        <h3 class="sub__title"><span class="sub__title__index">/04.2</span>Feature Packs &amp; <em>Context Packs</em></h3>
+        <p class="sub__lede">The two are easy to confuse. They sit on opposite ends of the run.</p>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card__eyebrow">→ before</div>
+            <h4 class="card__title">Feature Pack</h4>
+            <p class="card__body">Human-authored. Lives in <code>docs/feature-packs/&lt;slug&gt;/</code>. Spec, tech-stack, implementation order. Loaded at SessionStart so the agent reads the blueprint before touching files.</p>
+            <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> human → agent.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">← after</div>
+            <h4 class="card__title">Context Pack</h4>
+            <p class="card__body">Agent-authored (or bridge-auto on session end). One row per run in <code>context_packs</code> with title, content, content_excerpt, meta. Queryable cross-session via <code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>.</p>
+            <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> agent → future agents.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <div class="callout__icon">Pattern</div>
+          <div class="callout__body">
+            <p>If a saved pack has <code>source: 'agent'</code> and a new <code>save_context_pack</code> call arrives with the same <code>runId</code>, the response is <code>status: 'idempotent_hit'</code>. If the existing pack was bridge-auto, it gets <code>'upgraded_from_bridge_auto'</code> in place.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- decisions -->
+      <div class="sub" id="decisions">
+        <h3 class="sub__title"><span class="sub__title__index">/04.3</span><em>Decisions</em></h3>
+        <p class="p p--dim">An ADR-grade record the agent emits when it makes a non-trivial choice: pick an ORM, change a public API shape, defer a refactor. They survive across sessions and surface to the next agent via the <code>UserPromptSubmit</code> hook.</p>
+
+        <div class="code__head"><span>MCP tool · record_decision</span></div>
+<pre class="code"><span class="ck">await</span> mcp.call(<span class="cw">"record_decision"</span>, {
+  runId,
+  description:   <span class="cw">"Use better-sqlite3 instead of sql.js for primary store"</span>,
+  rationale:     <span class="cw">"Synchronous API matches MCP request lifecycle; ~3x faster on writes."</span>,
+  alternatives:  [<span class="cw">"sql.js"</span>, <span class="cw">"libsql/Turso"</span>],
+  confidence:    <span class="cw">"high"</span>,
+  reversible:    <span class="ck">false</span>,
+});
+<span class="cm">// Idempotent on  dec:{runId}:{sha256(description)[:32]}
+// Resurfaces on next  UserPromptSubmit  via  recent-decisions.ts</span></pre>
+      </div>
+
+      <!-- policy -->
+      <div class="sub" id="policy">
+        <h3 class="sub__title"><span class="sub__title__index">/04.4</span>Policy &amp; <em>kill switches</em></h3>
+        <p class="sub__lede">Two layers of guardrail. Kill switches sit <em>above</em> policy — they're operator-level pauses, evaluated first.</p>
+
+        <div class="lifecycle">
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/01</div>
+            <div class="lifecycle__event">kill_switch_check</div>
+            <div class="lifecycle__desc">Polymorphic <code>(scope, target)</code> — global, project, tool, agent_type. 5s in-process cache. Soft-resume keeps the row.</div>
+            <div class="lifecycle__effect">FIRST</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/02</div>
+            <div class="lifecycle__event">policy.check(event)</div>
+            <div class="lifecycle__desc">Cache-first DB read inside a Cockatiel <code>timeout(100ms)</code> + <code>circuitBreaker(5)</code> fuse. Picomatch path globs. First match wins by priority ASC.</div>
+            <div class="lifecycle__effect">EVALUATE</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/03</div>
+            <div class="lifecycle__event">recordPolicyDecision</div>
+            <div class="lifecycle__desc">Writes to <code>policy_decisions</code> with <code>ON CONFLICT (idempotency_key) DO NOTHING</code>. Async; the hook returns before the write.</div>
+            <div class="lifecycle__effect">AUDIT</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/04</div>
+            <div class="lifecycle__event">return verdict</div>
+            <div class="lifecycle__desc"><span class="badge badge--ok"><span class="badge__dot"></span>ALLOW</span> · <span class="badge badge--caution"><span class="badge__dot"></span>ASK</span> · <span class="badge badge--warn"><span class="badge__dot"></span>DENY</span> — only an explicit rule match returns DENY.</div>
+            <div class="lifecycle__effect">VERDICT</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/--</div>
+            <div class="lifecycle__event">FAIL_OPEN</div>
+            <div class="lifecycle__desc">On breaker open · isolation · timeout · any thrown DB error, returns <code>{ decision: 'allow', reason: 'policy_check_unavailable' }</code>.</div>
+            <div class="lifecycle__effect lifecycle__effect--m">SAFETY NET</div>
+          </div>
+        </div>
+
+        <p class="p p--dim">Policy rules match on five axes — event type, tool name, path glob, agent type, and priority. Decisions are append-only. The default policy seed lives in <code>packages/db/src/ensure-default-policy.ts</code>.</p>
+      </div>
+    </section>
+
+    <!-- ============ ARCHITECTURE / TOPOLOGY ============ -->
+    <section class="section" id="topology" data-screen-label="05 Topology">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/05 — Architecture</div>
+          <h2 class="section__title">Process <em>topology</em>.</h2>
+        </div>
+        <div class="section__head__aside">5 layers<br>3 daemons</div>
+      </div>
+      <p class="section__lede">Four long-running processes plus a one-shot CLI. The agent enters at the top; the cloud (when in team mode) sits at the bottom.</p>
+
+      <div class="topo">
+        <div class="topo__title">Layer model</div>
+        <div class="topo__layer">
+          <div class="topo__layer__name">L0 · Agent</div>
+          <div class="topo__nodes">
+            <div class="topo__node"><span class="topo__node__dot"></span>Claude Code <small>stdio + hooks</small></div>
+            <div class="topo__node"><span class="topo__node__dot topo__node__dot--w"></span>Cursor <small>shell adapter</small></div>
+            <div class="topo__node"><span class="topo__node__dot topo__node__dot--w"></span>Windsurf <small>shell adapter</small></div>
+          </div>
+        </div>
+        <div class="topo__layer">
+          <div class="topo__layer__name">L1 · Protocol</div>
+          <div class="topo__nodes">
+            <div class="topo__node"><span class="topo__node__dot"></span>MCP Server <small>:3100 · 16 tools · stdio + HTTP</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Hooks Bridge <small>:3101 · Hono · 3 routes</small></div>
+          </div>
+        </div>
+        <div class="topo__layer">
+          <div class="topo__layer__name">L2 · Core</div>
+          <div class="topo__nodes">
+            <div class="topo__node"><span class="topo__node__dot"></span>Policy engine <small>cockatiel · 100ms timeout</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Pack service <small>read · write · search</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Run recorder <small>events + diff</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>OutboxWorker <small>SQLite-backed queue</small></div>
+          </div>
+        </div>
+        <div class="topo__layer">
+          <div class="topo__layer__name">L3 · Storage</div>
+          <div class="topo__nodes">
+            <div class="topo__node"><span class="topo__node__dot"></span>SQLite <small>~/.coodra/data.db · 14 tables</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>sqlite-vec <small>context_packs_vec</small></div>
+            <div class="topo__node"><span class="topo__node__dot topo__node__dot--c"></span>Postgres + pgvector <small>team mode only</small></div>
+          </div>
+        </div>
+        <div class="topo__layer">
+          <div class="topo__layer__name">L4 · Clients</div>
+          <div class="topo__nodes">
+            <div class="topo__node"><span class="topo__node__dot"></span>Web v2 <small>:3001 · Next.js 15</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>CLI <small>32 commands · 38 doctor checks</small></div>
+            <div class="topo__node"><span class="topo__node__dot topo__node__dot--m"></span>Ink TUI <small>coodra ui</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub" id="processes">
+        <h3 class="sub__title"><span class="sub__title__index">/05.1</span>Long-running <em>processes</em></h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Process</th>
+              <th>Port</th>
+              <th>Bind</th>
+              <th>DB</th>
+              <th>Started by</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><code>mcp-server</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">16 MCP tools · stdio + HTTP transport</span></td>
+                <td><code>3100</code></td>
+                <td><code>127.0.0.1</code></td>
+                <td>SQLite (local)</td>
+                <td><code>coodra start</code> · <code>.mcp.json</code> subprocess</td>
+              </tr>
+              <tr>
+                <td><code>hooks-bridge</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Hono HTTP · 5 Claude Code events</span></td>
+                <td><code>3101</code></td>
+                <td><code>127.0.0.1</code></td>
+                <td>SQLite (local)</td>
+                <td><code>coodra start</code></td>
+              </tr>
+              <tr>
+                <td><code>sync-daemon</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Push + pull · kill-switch puller</span></td>
+                <td><em style="color:var(--ink-faint)">none</em></td>
+                <td><em style="color:var(--ink-faint)">n/a</em></td>
+                <td>SQLite + Postgres</td>
+                <td><code>coodra start</code> · team mode only</td>
+              </tr>
+              <tr>
+                <td><code>web-v2</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Next.js 15 · 46 page/route files</span></td>
+                <td><code>3001</code></td>
+                <td><code>0.0.0.0</code></td>
+                <td>SQLite (server actions)</td>
+                <td><code>coodra start</code> · skip with <code>--no-web</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- hook lifecycle -->
+      <div class="sub" id="lifecycle">
+        <h3 class="sub__title"><span class="sub__title__index">/05.2</span>Hook <em>lifecycle</em></h3>
+        <p class="sub__lede">Exactly what happens between you typing into Claude Code and an edit landing on disk.</p>
+
+        <div class="lifecycle">
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/01</div>
+            <div class="lifecycle__event">SessionStart</div>
+            <div class="lifecycle__desc">Hooks bridge opens or resumes a <code>runs</code> row, captures <code>base_sha</code>, returns Feature Pack body via <code>additionalContext</code>.</div>
+            <div class="lifecycle__effect">RUN OPENED</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/02</div>
+            <div class="lifecycle__event">UserPromptSubmit</div>
+            <div class="lifecycle__desc">Injects recent decisions from the project's history into the prompt context.</div>
+            <div class="lifecycle__effect">MEMORY</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/03</div>
+            <div class="lifecycle__event">PreToolUse</div>
+            <div class="lifecycle__desc">Kill-switch check → policy.check → return <code>allow</code>/<code>ask</code>/<code>deny</code>. Outbox writes <code>policy_decisions</code>.</div>
+            <div class="lifecycle__effect">GATE</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/04</div>
+            <div class="lifecycle__event">PostToolUse</div>
+            <div class="lifecycle__desc">Inserts a <code>run_events</code> row with phase, tool name, tool input, outcome.</div>
+            <div class="lifecycle__effect">LOG</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/05</div>
+            <div class="lifecycle__event">Stop · SessionEnd</div>
+            <div class="lifecycle__desc">Marks <code>runs.status = completed</code>, runs <code>run-diff-runner</code> to populate <code>run_diffs</code>, writes auto-Context Pack.</div>
+            <div class="lifecycle__effect">CLOSE</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DATA MODEL ============ -->
+    <section class="section" id="data-model" data-screen-label="06 Data model">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/06 — Storage</div>
+          <h2 class="section__title">Data <em>model</em>.</h2>
+        </div>
+        <div class="section__head__aside">14 SQLite tables<br>17 + 3 cloud-only</div>
+      </div>
+      <p class="section__lede">Drizzle dual-dialect schemas. Postgres mirrors SQLite column-for-column, enforced by <code>__tests__/unit/schema-parity.test.ts</code>. The only intentional drift: <code>context_packs.summary_embedding</code> is <code>vector(384)</code> in Postgres, <code>text</code> in SQLite.</p>
+
+      <div class="table-wrap">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-dim);background:var(--bg)">SQLite primary store · 14 tables</div>
+        <table class="table">
+          <thead><tr>
+            <th>Table</th>
+            <th>Purpose</th>
+            <th>Key constraints</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>projects</code></td><td>Project registry. One per repo (by slug).</td><td><code>slug</code> UNIQUE · <code>org_id</code></td></tr>
+            <tr><td><code>runs</code></td><td>One per agent session. Bound to project.</td><td>UNIQUE <code>(project_id, session_id)</code></td></tr>
+            <tr><td><code>run_events</code></td><td>Append-only PostToolUse log.</td><td>FK→runs · <code>ON DELETE SET NULL</code></td></tr>
+            <tr><td><code>context_packs</code></td><td>One markdown summary per run.</td><td>UNIQUE <code>(run_id)</code></td></tr>
+            <tr><td><code>decisions</code></td><td>Cross-session architectural choices.</td><td>UNIQUE <code>idempotency_key</code></td></tr>
+            <tr><td><code>policies</code> · <code>policy_rules</code></td><td>Active policies and their rule axes.</td><td>UNIQUE <code>(policy_id, priority, …)</code></td></tr>
+            <tr><td><code>policy_decisions</code></td><td>Append-only audit of every PreToolUse.</td><td>UNIQUE <code>idempotency_key</code></td></tr>
+            <tr><td><code>kill_switches</code></td><td>Polymorphic operator pauses.</td><td>idx <code>(resumed_at, scope, target)</code></td></tr>
+            <tr><td><code>feature_packs</code> · <code>features</code></td><td>Authored blueprints + on-demand skills.</td><td>UNIQUE <code>(project_id, slug)</code></td></tr>
+            <tr><td><code>run_diffs</code></td><td>Unified diff captured at session end.</td><td>PK = <code>run_id</code> · CASCADE</td></tr>
+            <tr><td><code>pending_jobs</code></td><td>Durable outbox. Module 03.1.</td><td>idx <code>(queue, status, run_after)</code></td></tr>
+            <tr><td><code>team_invites</code></td><td>HMAC-signed onboarding tokens.</td><td>UNIQUE <code>jti</code></td></tr>
+            <tr><td><code>context_packs_vec</code></td><td>sqlite-vec virtual table for semantic search.</td><td><em>virtual</em></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="sub" id="er">
+        <h3 class="sub__title"><span class="sub__title__index">/06.1</span>ER <em>summary</em></h3>
+        <div class="code__head"><span>foreign-key topology</span></div>
+<pre class="code"><span class="ck">projects</span> ─1───n─ <span class="ck">runs</span> ─1───n─ <span class="ci">run_events</span>
+   │         │           ├─0/1─ <span class="ci">context_packs</span>   <span class="cm">(UNIQUE run_id)</span>
+   │         │           ├─0/1─ <span class="ci">run_diffs</span>       <span class="cm">(PK run_id, CASCADE)</span>
+   │         │           └─0/n─ <span class="ci">decisions</span>       <span class="cm">(FK ON DELETE SET NULL)</span>
+   │         │
+   │         └──1───n─ <span class="ck">policies</span> ─1───n─ <span class="ci">policy_rules</span>
+   │                                          │
+   │                                          └─ <span class="ci">policy_decisions.matched_rule_id</span>
+   │
+   ├─ <span class="ci">context_packs.project_id</span>
+   ├─ <span class="ci">policy_decisions.project_id</span>
+   └─ <span class="ci">features.project_id</span> <span class="cm">(UNIQUE project_id, slug)</span>
+
+<span class="cm"># Top-level (not FK'd to projects):</span>
+<span class="ck">feature_packs</span>, <span class="ck">kill_switches</span>, <span class="ck">team_invites</span>, <span class="ck">pending_jobs</span>
+
+<span class="cm"># Sentinel projects (seeded at every boot):</span>
+'__global__'   ensureGlobalProject()   <span class="cm"># events before a real project</span>
+'__solo__'     SOLO_ACTOR.orgId         <span class="cm"># solo-mode org</span>
+
+<span class="cm"># Cloud-only mirrors (Postgres):</span>
+_migration_attempts ─1───n─ _migration_map   <span class="cm"># migrate resume + rollback</span>
+knowledge_audit                              <span class="cm"># Phase F.3.c audit</span></pre>
+      </div>
+
+      <!-- STORAGE -->
+      <div class="sub" id="storage">
+        <h3 class="sub__title"><span class="sub__title__index">/06.2</span>What lives in <em>~/.coodra/</em></h3>
+
+        <div class="kv">
+          <div class="kv__row">
+            <div class="kv__k">data.db</div>
+            <div class="kv__v">Primary SQLite store. 14 tables. Override with <code>COODRA_SQLITE_PATH</code>. <small>Managed by <code>coodra db backup</code> / <code>restore</code></small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">packs/</div>
+            <div class="kv__v">Per-pack markdown mirror of <code>context_packs</code> rows. Filename: <code>{date}-{sanitised-runId}.md</code>. Gitignored. <small>Useful for grep + AI agent file-side reads</small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">graphify/&lt;slug&gt;/</div>
+            <div class="kv__v">Codebase graph index produced by an external <code>graphify scan</code>. Read-only consumer in <code>apps/mcp-server/src/lib/graphify.ts</code>. <small>No in-repo producer</small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">logs/&lt;service&gt;.log</div>
+            <div class="kv__v">Per-service stderr captured by the daemon manager. <small>Tail with <code>coodra logs &lt;service&gt; --follow</code></small></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">pids/&lt;service&gt;.pid</div>
+            <div class="kv__v">Fallback daemon manager PID files. On macOS (launchd) this dir stays empty — PIDs come from <code>launchctl print</code>.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">config.json</div>
+            <div class="kv__v">Per-machine identity + mode. Clerk user_id, org_id, deployment mode. Written by <code>init</code>, <code>login</code>, <code>team setup</code>.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">clerk-token.json</div>
+            <div class="kv__v">Verified Clerk JWT claims after <code>coodra login</code>. Consumed by the MCP server identity guard.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">.env</div>
+            <div class="kv__v">Single source of truth for env vars on a laptop. Merged from <code>coodra team setup</code> output.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SYNC -->
+      <div class="sub" id="sync">
+        <h3 class="sub__title"><span class="sub__title__index">/06.3</span>Sync &amp; <em>multi-tenancy</em></h3>
+        <p class="sub__lede">In team mode, the sync-daemon pushes outbox rows to cloud Postgres and pulls teammates' rows back into local SQLite — both directions on a 1-second tick.</p>
+
+        <div class="lifecycle">
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">push</div>
+            <div class="lifecycle__event">OutboxWorker</div>
+            <div class="lifecycle__desc">Filtered to <code>['sync_to_cloud']</code>. Every <code>record_decision</code>, <code>save_context_pack</code>, etc. enqueues a paired job that the daemon drains.</div>
+            <div class="lifecycle__effect">LOCAL → CLOUD</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">pull</div>
+            <div class="lifecycle__event">team-rows-puller</div>
+            <div class="lifecycle__desc">Pulls <code>runs · decisions · context_packs · run_events</code> cloud → local via <code>ON CONFLICT DO NOTHING</code>. Skips <code>__global__</code> + <code>__solo__</code>.</div>
+            <div class="lifecycle__effect">CLOUD → LOCAL</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">pull</div>
+            <div class="lifecycle__event">kill-switch-puller</div>
+            <div class="lifecycle__desc">Propagates org-scoped pauses to every teammate so a hard stop is global.</div>
+            <div class="lifecycle__effect">CLOUD → LOCAL</div>
+          </div>
+        </div>
+
+        <p class="p p--dim">Every shared table carries Clerk user attribution: <code>created_by_user_id</code> on runs, decisions, context_packs, policies; <code>paused_by_user_id</code> / <code>resumed_by_user_id</code> on kill_switches. Web-v2 enforces single-tenant via <code>COODRA_EXPECTED_ORG_ID</code> — a deployment refuses to boot without it.</p>
+      </div>
+    </section>
+
+    <!-- ============ CLI REFERENCE ============ -->
+    <section class="section" id="cli" data-screen-label="07 CLI">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/07 — Reference</div>
+          <h2 class="section__title">CLI <em>commands</em>.</h2>
+        </div>
+        <div class="section__head__aside">32 source files<br>38 doctor checks</div>
+      </div>
+      <p class="section__lede">Every command is a thin shell over a typed core module. Pass <code>--json</code> almost anywhere for machine output. Pass <code>--help</code> for the up-to-date flag list.</p>
+
+      <div class="sub" id="cli-lifecycle">
+        <h3 class="sub__title"><span class="sub__title__index">/07.1</span>Lifecycle <em>commands</em></h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Command</th>
+              <th>What it does</th>
+              <th>Key flags</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>coodra init</code></td><td>Bootstrap a project. Writes <code>.coodra.json</code> + <code>.mcp.json</code>, seeds the default policy, wires hook adapters.</td><td><code>--solo</code> · <code>--team</code> · <code>--ide</code> · <code>--feature-pack</code> · <code>--force</code> · <code>--dry-run</code></td></tr>
+              <tr><td><code>coodra start</code></td><td>Bring up all daemons. Picks launchd / fallback manager based on platform.</td><td><code>--no-mcp</code> · <code>--no-hooks</code> · <code>--no-sync</code> · <code>--no-web</code> · <code>--foreground</code> · <code>--tunnel</code></td></tr>
+              <tr><td><code>coodra stop</code></td><td>Tear down daemons. <code>--uninstall</code> removes launchd plists.</td><td><code>--service</code> · <code>--uninstall</code></td></tr>
+              <tr><td><code>coodra status</code></td><td>Health snapshot of each daemon + DB.</td><td><code>--json</code></td></tr>
+              <tr><td><code>coodra doctor</code></td><td>11 essential checks by default. Add <code>--full</code> for all 38.</td><td><code>--full</code> · <code>--fix</code> · <code>--timeout-ms</code> · <code>--json</code></td></tr>
+              <tr><td><code>coodra agents</code></td><td>Detect installed IDEs and confirm each is wired to the bridge.</td><td><code>--json</code></td></tr>
+              <tr><td><code>coodra logs &lt;svc&gt;</code></td><td>Tail <code>~/.coodra/logs/&lt;svc&gt;.log</code> across platforms.</td><td><code>--follow</code> · <code>--lines</code> · <code>--since</code></td></tr>
+              <tr><td><code>coodra upgrade</code></td><td>Compares installed version against <code>npm view</code>. Restarts daemons unless <code>--no-restart</code>.</td><td><code>--check-only</code> · <code>--no-restart</code></td></tr>
+              <tr><td><code>coodra uninstall</code></td><td>Removes the CLI. <code>--purge</code> deletes <code>~/.coodra/</code>.</td><td><code>--purge</code> · <code>--dry-run</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub" id="cli-data">
+        <h3 class="sub__title"><span class="sub__title__index">/07.2</span>Data &amp; <em>memory</em> commands</h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Command</th>
+              <th>Subcommands</th>
+              <th>Use case</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>coodra project</code></td><td><code>list · show · reset · promote · demote</code></td><td>Manage which projects Coodra tracks; promote a transient project to active.</td></tr>
+              <tr><td><code>coodra run</code></td><td><code>list · show · cancel</code></td><td>Inspect or cancel in-flight runs.</td></tr>
+              <tr><td><code>coodra pack</code></td><td><code>new · list · show · regenerate · delete</code></td><td>Author or regenerate Context Packs.</td></tr>
+              <tr><td><code>coodra feature</code></td><td><code>add · list · show · edit · index · remove</code></td><td>Manage on-demand skill rows (pull-on-trigger features).</td></tr>
+              <tr><td><code>coodra policy</code></td><td><code>list · show · add · enable · disable</code></td><td>Author and toggle policy rules per project.</td></tr>
+              <tr><td><code>coodra template</code></td><td><code>list · install &lt;source&gt;</code></td><td>Install community feature-pack templates.</td></tr>
+              <tr><td><code>coodra export &lt;runId&gt;</code></td><td>—</td><td>Export a run as <code>markdown</code> · <code>json</code> · <code>html</code> · <code>slack</code>. With <code>--include-audit</code> for the full policy trail.</td></tr>
+              <tr><td><code>coodra db</code></td><td><code>migrate · backup · restore</code></td><td>Drizzle migrations + snapshot management.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub" id="cli-team">
+        <h3 class="sub__title"><span class="sub__title__index">/07.3</span>Team &amp; <em>auth</em> commands</h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Command</th>
+              <th>Subcommands</th>
+              <th>What it does</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>coodra login</code></td><td>—</td><td>Browser handoff to Clerk hosted sign-in. Captures JWT via loopback listener.</td></tr>
+              <tr><td><code>coodra logout</code></td><td>—</td><td>Clears <code>~/.coodra/clerk-token.json</code>. <code>--force</code> skips confirmation.</td></tr>
+              <tr><td><code>coodra invite &lt;email&gt;</code></td><td>—</td><td>Mints an HMAC-signed invite URL + writes <code>team_invites</code> row in cloud.</td></tr>
+              <tr><td><code>coodra org</code></td><td><code>status · switch &lt;slug&gt;</code></td><td>Inspect or switch the active Clerk org for this machine.</td></tr>
+              <tr><td><code>coodra team</code></td><td><code>setup · init · install · join · leave · migrate · login · logout</code></td><td>Full team lifecycle. <code>setup</code> provisions Clerk + DB; <code>install</code> redeems an invite on a second laptop.</td></tr>
+              <tr><td><code>coodra pause</code></td><td>—</td><td>Trip a kill switch. Scope = <code>global · project · tool · agent_type</code>; mode = <code>hard · soft</code>.</td></tr>
+              <tr><td><code>coodra resume</code></td><td>—</td><td>Un-pause. <code>--id</code>, <code>--all</code>, or scope+target.</td></tr>
+              <tr><td><code>coodra cloud-migrate</code></td><td>—</td><td>One-shot SQLite → Postgres migration. Tracked in <code>_migration_attempts</code> with surgical rollback.</td></tr>
+              <tr><td><code>coodra ui</code></td><td>—</td><td>Foreground Ink TUI for live triage.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout__icon">Tip</div>
+        <div class="callout__body">
+          <p>The <code>coodra team</code> namespace re-exports <code>login</code> and <code>logout</code> as aliases — both <code>coodra login</code> and <code>coodra team login</code> work. The doctor (<code>--full</code>) runs 38 numbered checks under <code>packages/cli/src/doctor/checks/</code>; the README's claim of "20-check health report" is divergent and being updated.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MCP TOOLS ============ -->
+    <section class="section" id="mcp-tools" data-screen-label="08 MCP tools">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/08 — Reference</div>
+          <h2 class="section__title">MCP <em>tools</em> — all 16.</h2>
+        </div>
+        <div class="section__head__aside">Source of truth<br>tools/index.ts</div>
+      </div>
+      <p class="section__lede">Order matches registration order in <code>apps/mcp-server/src/tools/index.ts</code>. There are no <code>jira_*</code> or <code>github_*</code> tools — older docs that mention them are stale.</p>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>#</th>
+            <th>Tool</th>
+            <th>Kind</th>
+            <th>What it does</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>01</code></td><td><code>ping</code></td><td><span class="badge">read</span></td><td>Health check. Returns <code>{ pong, serverTime, sessionId, idempotencyKey }</code>.</td></tr>
+            <tr><td><code>02</code></td><td><code>get_run_id</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotently opens or returns a runs row for this <code>(project, session)</code>.</td></tr>
+            <tr><td><code>03</code></td><td><code>get_feature_pack</code></td><td><span class="badge">read</span></td><td>Returns the module blueprint — spec, implementation, techstack, meta.</td></tr>
+            <tr><td><code>04</code></td><td><code>save_context_pack</code></td><td><span class="badge badge--caution">write</span></td><td>Persists the agent-authored Context Pack. Returns <code>created · idempotent_hit · upgraded_from_bridge_auto</code>.</td></tr>
+            <tr><td><code>05</code></td><td><code>search_packs_nl</code></td><td><span class="badge">read</span></td><td>Keyword LIKE search. Agent ranks. Ordered by recency, not relevance.</td></tr>
+            <tr><td><code>06</code></td><td><code>record_decision</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotent on <code>(runId, sha256(description)[:32])</code>. Surfaces on next session.</td></tr>
+            <tr><td><code>07</code></td><td><code>query_run_history</code></td><td><span class="badge">read</span></td><td>Recent runs + attached pack title, chronological.</td></tr>
+            <tr><td><code>08</code></td><td><code>check_policy</code></td><td><span class="badge badge--caution">write</span></td><td>Returns <code>allow · ask · deny</code>. Fail-open on evaluator faults.</td></tr>
+            <tr><td><code>09</code></td><td><code>query_codebase_graph</code></td><td><span class="badge">read</span></td><td>Reads <code>~/.coodra/graphify/&lt;slug&gt;/graph.json</code>. Requires external <code>graphify scan</code>.</td></tr>
+            <tr><td><code>10</code></td><td><code>query_decisions</code></td><td><span class="badge">read</span></td><td>Cross-session decision history.</td></tr>
+            <tr><td><code>11</code></td><td><code>list_context_packs</code></td><td><span class="badge">read</span></td><td>Paginated, newest-first.</td></tr>
+            <tr><td><code>12</code></td><td><code>read_context_pack</code></td><td><span class="badge">read</span></td><td>Full body + decisions for one pack.</td></tr>
+            <tr><td><code>13</code></td><td><code>list_features</code></td><td><span class="badge">read</span></td><td>Skill discovery (filtered to <code>status='published'</code>).</td></tr>
+            <tr><td><code>14</code></td><td><code>get_feature</code></td><td><span class="badge">read</span></td><td>Pull-on-trigger; returns frontmatter + body + file list.</td></tr>
+            <tr><td><code>15</code></td><td><code>get_feature_file</code></td><td><span class="badge">read</span></td><td>Reads one supporting file from a feature. 256 KB hard cap. Path-escape guard.</td></tr>
+            <tr><td><code>16</code></td><td><code>query_run_diff</code></td><td><span class="badge">read</span></td><td>Unified diff + per-file numstat. Soft failures: <code>analysis_pending</code>, <code>no_base_sha</code>, <code>git_diff_failed</code>.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- HOOK EVENTS -->
+      <div class="sub" id="hook-events">
+        <h3 class="sub__title"><span class="sub__title__index">/08.1</span>Hook <em>events</em></h3>
+        <p class="sub__lede">Wired in <code>.mcp.json</code>. Body validated by <code>ClaudeCodeHookPayloadSchema</code>; fail-open on invalid JSON.</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Event</th>
+              <th>Handler</th>
+              <th>Side effects</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>SessionStart</code></td><td><code>handlers/session-start.ts</code></td><td>Opens / resumes run · captures <code>base_sha</code> · returns Feature Pack body</td></tr>
+              <tr><td><code>UserPromptSubmit</code></td><td><code>handlers/user-prompt-submit.ts</code></td><td>Injects recent decisions</td></tr>
+              <tr><td><code>PreToolUse</code></td><td><code>handlers/pre-tool-use.ts</code></td><td>Kill-switch · policy.check · writes <code>policy_decisions</code></td></tr>
+              <tr><td><code>PostToolUse</code></td><td><code>handlers/post-tool-use.ts</code></td><td>Inserts <code>run_events</code> row</td></tr>
+              <tr><td><code>Stop · SessionEnd</code></td><td><code>handlers/session-end.ts</code></td><td>Mark completed · <code>run-diff-runner</code> · auto-Context Pack</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="p p--dim">Cursor and Windsurf use the same adapter pattern — payloads normalised through <code>packages/shared/src/hooks/adapters/</code>. Shell adapters at <code>scripts/hook-adapters/{cursor-coodra.sh, windsurf-coodra.sh}</code>.</p>
+      </div>
+    </section>
+
+    <!-- ============ CONFIG ============ -->
+    <section class="section" id="config" data-screen-label="09 Config">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/09 — Reference</div>
+          <h2 class="section__title"><em>Configuration</em>.</h2>
+        </div>
+        <div class="section__head__aside">single source<br>~/.coodra/.env</div>
+      </div>
+      <p class="section__lede">Defaults are sensible. You usually only need to touch <code>COODRA_MODE</code>, <code>DATABASE_URL</code>, and the Clerk pair. Everything else has a documented fallback.</p>
+
+      <div class="table-wrap">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--accent);background:var(--bg)">Required in team mode</div>
+        <table class="table">
+          <thead><tr>
+            <th>Variable</th>
+            <th>Default</th>
+            <th>Purpose</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>COODRA_MODE</code></td><td><code>solo</code></td><td><code>solo</code> | <code>team</code>. Controls auth strategy and whether sync-daemon boots.</td></tr>
+            <tr><td><code>DATABASE_URL</code></td><td><em>none</em></td><td>Postgres connection string. Required in team mode.</td></tr>
+            <tr><td><code>CLERK_SECRET_KEY</code></td><td><code>sk_test_replace_me</code></td><td>Sentinel value triggers solo bypass; real key required in team mode.</td></tr>
+            <tr><td><code>CLERK_PUBLISHABLE_KEY</code></td><td><code>pk_test_replace_me</code></td><td>Same sentinel pattern.</td></tr>
+            <tr><td><code>CLERK_JWT_ISSUER</code></td><td><em>none</em></td><td>Tenant JWT issuer URL for Clerk JWT verification.</td></tr>
+            <tr><td><code>LOCAL_HOOK_SECRET</code></td><td><em>none</em></td><td>Shared secret for <code>X-Local-Hook-Secret</code> header. Required outside solo bypass.</td></tr>
+            <tr><td><code>COODRA_EXPECTED_ORG_ID</code></td><td><em>none</em></td><td>Single-tenant pin. <strong>Web-v2 refuses to boot without it in team mode.</strong></td></tr>
+            <tr><td><code>COODRA_INVITE_HMAC_SECRET</code></td><td><em>none</em></td><td>HMAC signing key for invite tokens.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-dim);background:var(--bg)">Tunables</div>
+        <table class="table">
+          <thead><tr>
+            <th>Variable</th>
+            <th>Default</th>
+            <th>Purpose</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>MCP_SERVER_PORT</code></td><td><code>3100</code></td><td>HTTP transport port.</td></tr>
+            <tr><td><code>MCP_SERVER_HOST</code></td><td><code>127.0.0.1</code></td><td>HTTP bind.</td></tr>
+            <tr><td><code>MCP_SERVER_TRANSPORT</code></td><td><code>both</code></td><td><code>stdio</code> · <code>http</code> · <code>both</code>.</td></tr>
+            <tr><td><code>HOOKS_BRIDGE_PORT</code></td><td><code>3101</code></td><td>Hono listener.</td></tr>
+            <tr><td><code>HOOKS_BRIDGE_HOST</code></td><td><code>127.0.0.1</code></td><td>Hono bind.</td></tr>
+            <tr><td><code>WEB_APP_PORT</code></td><td><code>3001</code></td><td>Next.js port for web-v2.</td></tr>
+            <tr><td><code>COODRA_SQLITE_PATH</code></td><td><code>~/.coodra/data.db</code></td><td>Override the SQLite file location.</td></tr>
+            <tr><td><code>COODRA_HOME</code></td><td><code>~/.coodra</code></td><td>Override the whole data dir. Used in compose.</td></tr>
+            <tr><td><code>COODRA_CONTEXT_PACKS_ROOT</code></td><td><code>&lt;cwd&gt;/docs/context-packs</code></td><td>Where pack markdown is materialised.</td></tr>
+            <tr><td><code>COODRA_GRAPHIFY_ROOT</code></td><td><code>~/.coodra/graphify</code></td><td>Where to look up <code>graph.json</code>.</td></tr>
+            <tr><td><code>COODRA_SYNC_TICK_MS</code></td><td><code>1000</code></td><td>Outbox + puller cadence.</td></tr>
+            <tr><td><code>COODRA_SYNC_LEASE_MS</code></td><td><code>30000</code></td><td>Worker lease duration.</td></tr>
+            <tr><td><code>COODRA_WEB_URL</code></td><td><code>http://localhost:3001</code></td><td>Used by CLI <code>login</code> for browser handoff.</td></tr>
+            <tr><td><code>LOG_LEVEL</code></td><td><code>info</code></td><td>pino level.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout callout--warn">
+        <div class="callout__icon">Stale</div>
+        <div class="callout__body">
+          <p>Some keys in <code>.env.example</code> are no longer consumed by live code: <code>NL_ASSEMBLY_PORT</code>, <code>SEMANTIC_DIFF_PORT</code>, <code>ANTHROPIC_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>GITHUB_APP_ID</code>, <code>ATLASSIAN_*</code>. They reference modules superseded by ADR-012 + ADR-013 (M05 / M06). <code>REDIS_URL</code> is provisioned in compose but has no live consumer either.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SELF-HOST ============ -->
+    <section class="section" id="self-host" data-screen-label="10 Self-host">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/10 — Operate</div>
+          <h2 class="section__title"><em>Self-host</em> the team stack.</h2>
+        </div>
+        <div class="section__head__aside">5 services<br>docker compose</div>
+      </div>
+      <p class="section__lede">Team mode runs on your own Postgres. <code>deploy/compose.yaml</code> ships a 5-service stack — postgres, a one-shot migrator, the MCP server, the hooks bridge, and the sync-daemon — that any operator can lift end-to-end.</p>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>Service</th>
+            <th>Image</th>
+            <th>Depends on</th>
+            <th>Port</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>postgres</code></td><td><code>pgvector/pgvector:pg16</code></td><td>—</td><td><code>${POSTGRES_PORT:-5432}:5432</code></td></tr>
+            <tr><td><code>cloud-migrate</code></td><td><code>deploy/Dockerfile.cloud-migrate</code></td><td><code>postgres</code> healthy</td><td>one-shot</td></tr>
+            <tr><td><code>mcp-server</code></td><td><code>deploy/Dockerfile.mcp-server</code></td><td><code>cloud-migrate</code> done</td><td><code>${MCP_SERVER_PORT:-3100}:3100</code></td></tr>
+            <tr><td><code>hooks-bridge</code></td><td><code>deploy/Dockerfile.hooks-bridge</code></td><td><code>cloud-migrate</code> done</td><td><code>${HOOKS_BRIDGE_PORT:-3101}:3101</code></td></tr>
+            <tr><td><code>sync-daemon</code></td><td><code>deploy/Dockerfile.sync-daemon</code></td><td><code>cloud-migrate</code> done</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="code__head"><span>operator path · first deploy</span><button class="code__head__copy" data-copy-target="code-deploy">copy</button></div>
+<pre class="code" id="code-deploy"><span class="cm"># 1. Clone &amp; build images locally</span>
+git clone https://github.com/your-org/coodra
+cd coodra
+cp deploy/.env.example deploy/.env
+<span class="cm"># Fill in: DATABASE_URL, CLERK_*, COODRA_EXPECTED_ORG_ID, LOCAL_HOOK_SECRET</span>
+
+<span class="cm"># 2. Bring it up</span>
+<span class="ck">docker</span> compose -f deploy/compose.yaml up -d
+
+<span class="cm"># 3. Point laptops at it
+#    Each developer runs:</span>
+<span class="ck">coodra</span> team install &lt;invite-url&gt;
+<span class="ck">coodra</span> start</pre>
+
+      <!-- AUTH -->
+      <div class="sub" id="auth">
+        <h3 class="sub__title"><span class="sub__title__index">/10.1</span>Auth chain &amp; <em>RBAC</em></h3>
+        <p class="sub__lede">The hooks-bridge and MCP server share the same auth chain. First match wins.</p>
+
+        <div class="lifecycle">
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/01</div>
+            <div class="lifecycle__event">Solo bypass</div>
+            <div class="lifecycle__desc"><code>CLERK_SECRET_KEY === 'sk_test_replace_me'</code> OR <code>COODRA_MODE === 'solo'</code>. Attaches <code>SOLO_IDENTITY</code>.</div>
+            <div class="lifecycle__effect">solo</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/02</div>
+            <div class="lifecycle__event">X-Local-Hook-Secret</div>
+            <div class="lifecycle__desc">Compared against <code>LOCAL_HOOK_SECRET</code>. Attaches <code>{ source: 'local-hook' }</code>. Used by <code>.mcp.json</code> subprocess.</div>
+            <div class="lifecycle__effect">local-hook</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/03</div>
+            <div class="lifecycle__event">Bearer JWT</div>
+            <div class="lifecycle__desc"><code>Authorization: Bearer &lt;token&gt;</code> → <code>verifyClerkJwt</code>. Required in team mode.</div>
+            <div class="lifecycle__effect">clerk</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/--</div>
+            <div class="lifecycle__event">No match</div>
+            <div class="lifecycle__desc">Returns <code>401 { ok: false, error: 'unauthorized' }</code>. No further processing.</div>
+            <div class="lifecycle__effect lifecycle__effect--w">unauthorized</div>
+          </div>
+        </div>
+
+        <p class="p p--dim">RBAC has three roles — <code>viewer</code>, <code>member</code>, <code>admin</code> — parsed from Clerk's <code>org:admin</code>/<code>org:viewer</code> (anything else → member). The shared <code>assertCanEdit</code> helper enforces admin-OR-(member + ownership); viewer never edits. Knowledge mutations have their own gate, <code>assertCanAuthorKnowledge</code>.</p>
+      </div>
+    </section>
+
+    <!-- ============ TROUBLESHOOTING ============ -->
+    <section class="section" id="troubleshooting" data-screen-label="11 Troubleshooting">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/11 — Operate</div>
+          <h2 class="section__title">When things <em>break</em>.</h2>
+        </div>
+        <div class="section__head__aside">First, run<br>coodra doctor</div>
+      </div>
+      <p class="section__lede">Every problem in Coodra leaves a trail in <code>~/.coodra/logs/</code>, in <code>policy_decisions</code>, or in the doctor output. Start there.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">Agent never sees the <em>Feature Pack</em></h4>
+          <div class="card__body">
+            <p>SessionStart isn't reaching the bridge. Confirm <code>.mcp.json</code> exists in the repo root, then:</p>
+            <p><code>coodra status</code> shows hooks-bridge listening on <code>3101</code>?<br><code>curl 127.0.0.1:3101/healthz</code> returns <code>ok: true</code>?<br><code>tail ~/.coodra/logs/hooks-bridge.log</code> shows the inbound POST?</p>
+            <p>If yes to all three but the agent still doesn't see it — check <code>X-Local-Hook-Secret</code> against <code>LOCAL_HOOK_SECRET</code>.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">Policy <em>denies</em> something it shouldn't</h4>
+          <div class="card__body">
+            <p>Look up the audit row by <code>idempotency_key</code> = <code>pd:{sessionId}:{toolUseId}:{toolName}:{eventType}</code>. The <code>matched_rule_id</code> tells you exactly which rule fired.</p>
+            <p>If <code>reason: 'policy_check_unavailable'</code> — the engine fail-opened, never a deny. Check the breaker state in logs.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">Sync-daemon <em>can't connect</em></h4>
+          <div class="card__body">
+            <p>Symptoms: queue depth climbs in doctor (check 26), nothing appears on teammates' laptops.</p>
+            <p>Confirm <code>DATABASE_URL</code> reachable from this machine. <code>coodra doctor --full</code> runs cloud-reachability check 24. Look at <code>~/.coodra/logs/sync-daemon.log</code> for connection errors. Restart with <code>coodra stop --service sync-daemon &amp;&amp; coodra start</code>.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title"><em>web-v2</em> refuses to boot</h4>
+          <div class="card__body">
+            <p>Almost always <code>COODRA_EXPECTED_ORG_ID</code> missing in team mode. The middleware refuses to start without it — by design, to prevent any Clerk-authed account in this deployment's Clerk app from reading your team's data.</p>
+            <p>If set but you land on <code>/forbidden?reason=org_mismatch</code> — your Clerk session is in a different org. Sign out and back in, or run <code>coodra org switch &lt;slug&gt;</code>.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">SQLite locked or <em>corrupted</em></h4>
+          <div class="card__body">
+            <p>Stop all daemons, snapshot the file, repair:</p>
+            <p><code>coodra stop &amp;&amp; coodra db backup</code><br><code>sqlite3 ~/.coodra/data.db "PRAGMA integrity_check;"</code><br><code>coodra db restore &lt;snapshot&gt;</code> if needed.</p>
+            <p>Open an issue with the doctor JSON + log tail.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">No <em>run_diff</em> for completed run</h4>
+          <div class="card__body">
+            <p><code>query_run_diff</code> returns <code>analysis_pending</code>, <code>no_base_sha</code>, or <code>git_diff_failed</code>. Common cause: the agent operated outside a git repo, or <code>base_sha</code> was unreachable when SessionEnd fired.</p>
+            <p>Re-trigger with <code>coodra run show &lt;id&gt; --regen-diff</code> after checking out the right commit.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ BUILD & TEST ============ -->
+    <section class="section" id="build-test" data-screen-label="12 Build &amp; test">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/12 — Contribute</div>
+          <h2 class="section__title">Build &amp; <em>test</em>.</h2>
+        </div>
+        <div class="section__head__aside">Turbo · Vitest<br>Biome</div>
+      </div>
+      <p class="section__lede">A monorepo with Turbo for orchestration, Biome for lint, and Vitest for everything from unit to e2e. CI runs four jobs in dependency order.</p>
+
+      <div class="sub" id="install">
+        <h3 class="sub__title"><span class="sub__title__index">/12.1</span>Install &amp; <em>build</em></h3>
+        <div class="code__head"><span>workspace bootstrap</span><button class="code__head__copy" data-copy-target="code-bootstrap">copy</button></div>
+<pre class="code" id="code-bootstrap"><span class="ck">nvm</span> use            <span class="cm"># 22.16.0 per .nvmrc</span>
+<span class="ck">corepack</span> enable    <span class="cm"># pnpm 10.33.0</span>
+<span class="ck">pnpm</span> install
+<span class="ck">pnpm</span> rebuild       <span class="cm"># native modules: better-sqlite3 + sqlite-vec</span>
+
+<span class="cm"># Day-to-day:</span>
+<span class="ck">pnpm</span> build         <span class="cm"># turbo run build</span>
+<span class="ck">pnpm</span> typecheck     <span class="cm"># turbo run typecheck</span>
+<span class="ck">pnpm</span> lint          <span class="cm"># biome check .</span>
+<span class="ck">pnpm</span> lint:fix
+<span class="ck">pnpm</span> --filter @coodra/cli build  <span class="cm"># tsc + esbuild bundle</span></pre>
+      </div>
+
+      <div class="sub" id="tests">
+        <h3 class="sub__title"><span class="sub__title__index">/12.2</span>Test <em>tiers</em></h3>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Command</th>
+              <th>Runner</th>
+              <th>Needs</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>pnpm test:unit</code></td><td>Vitest</td><td>nothing — runs entirely in-process</td></tr>
+              <tr><td><code>pnpm test:integration</code></td><td>Vitest</td><td>Postgres + Redis service containers</td></tr>
+              <tr><td><code>pnpm test:e2e</code></td><td>Vitest · testcontainers</td><td>Docker · <code>fileParallelism: false</code> · 120s hook timeout</td></tr>
+              <tr><td><code>pnpm test:functional</code></td><td>bash</td><td><code>__tests__/functional/run-all.sh</code> · 11 shell scripts</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="sub" id="ci">
+        <h3 class="sub__title"><span class="sub__title__index">/12.3</span>CI <em>jobs</em></h3>
+        <div class="lifecycle">
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/01</div>
+            <div class="lifecycle__event">verify</div>
+            <div class="lifecycle__desc">migration-lock check (packages/db), lint, typecheck, unit. No services.</div>
+            <div class="lifecycle__effect">ubuntu</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/02</div>
+            <div class="lifecycle__event">integration</div>
+            <div class="lifecycle__desc">Builds @coodra/* in dependency order, then runs <code>pnpm test:integration</code> against postgres + redis containers.</div>
+            <div class="lifecycle__effect">depends → verify</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/03</div>
+            <div class="lifecycle__event">hook-adapter-smoke</div>
+            <div class="lifecycle__desc">Runs <code>scripts/hook-adapters/__tests__/smoke.sh</code> on both ubuntu and macos.</div>
+            <div class="lifecycle__effect">parallel</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/04</div>
+            <div class="lifecycle__event">e2e</div>
+            <div class="lifecycle__desc">Testcontainers-driven full-stack scenarios.</div>
+            <div class="lifecycle__effect">depends → integration</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTRIBUTING ============ -->
+    <section class="section" id="contributing" data-screen-label="13 Contributing">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/13 — Contribute</div>
+          <h2 class="section__title">Contribution <em>guide</em>.</h2>
+        </div>
+        <div class="section__head__aside">MIT licensed<br>PRs welcome</div>
+      </div>
+      <p class="section__lede">Coodra is built linearly, start to finish, as a production-grade system. Contributions are welcome — and held to the same bar.</p>
+
+      <div class="sub" id="contrib-principles">
+        <h3 class="sub__title"><span class="sub__title__index">/13.1</span>Core <em>principles</em> (read first)</h3>
+        <ol class="ol">
+          <li class="li"><strong style="color:var(--ink)">Ship complete or don't merge.</strong> No placeholder surfaces, no mocked endpoints to make the UI render, no "we'll come back to this later." Every module ships end-to-end.</li>
+          <li class="li"><strong style="color:var(--ink)">Local-first remains the default.</strong> Any new feature must work offline. If it requires the cloud, it must degrade gracefully back to local + offer a clear path to enable.</li>
+          <li class="li"><strong style="color:var(--ink)">Fail-open in the hot path.</strong> Hooks return ALLOW on engine fault. Hot-path code paths catch and log async — never throw at the agent.</li>
+          <li class="li"><strong style="color:var(--ink)">Append-only audit.</strong> Don't add an UPDATE on <code>policy_decisions</code>, <code>decisions</code>, or <code>run_events</code>. Resurface via a new row with the same idempotency key.</li>
+          <li class="li"><strong style="color:var(--ink)">Document divergence.</strong> If your PR contradicts an ADR, README claim, or essentials doc — update the source-of-truth doc in the same commit.</li>
+        </ol>
+      </div>
+
+      <div class="sub" id="contrib-workflow">
+        <h3 class="sub__title"><span class="sub__title__index">/13.2</span>Workflow</h3>
+        <div class="steps">
+          <div class="step">
+            <div class="step__num">/01</div>
+            <div class="step__body">
+              <h4>Pick or <em>file</em> the issue.</h4>
+              <p>Look for <code>good-first-issue</code> or <code>help-wanted</code>. For non-trivial work, open an issue first so we can align on shape before code lands.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__num">/02</div>
+            <div class="step__body">
+              <h4>Branch off <em>main</em>.</h4>
+              <p>Naming: <code>feat/&lt;short-slug&gt;</code>, <code>fix/&lt;short-slug&gt;</code>, <code>chore/&lt;short-slug&gt;</code>, <code>docs/&lt;short-slug&gt;</code>. Squash-merge expected at the end.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__num">/03</div>
+            <div class="step__body">
+              <h4>Write the <em>tests</em>.</h4>
+              <p>Unit tests live next to source as <code>*.test.ts</code>. New tables/migrations require a schema-parity test. New MCP tools require a happy-path + soft-failure test at minimum.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__num">/04</div>
+            <div class="step__body">
+              <h4>Update <em>docs</em>.</h4>
+              <p>If you touched the public surface — env vars, CLI flags, MCP tools, hook payloads — update the relevant table in this docs page in the same PR. Also update <code>essentialsforclaude/</code> if the agent contract changes.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__num">/05</div>
+            <div class="step__body">
+              <h4>Pre-commit &amp; <em>push</em>.</h4>
+              <p>The <code>.githooks/pre-commit</code> hook runs the migration-lock check automatically when <code>packages/db/*</code> is staged. Before pushing: <code>pnpm lint:fix &amp;&amp; pnpm typecheck &amp;&amp; pnpm test:unit</code>.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step__num">/06</div>
+            <div class="step__body">
+              <h4>Open the <em>PR</em>.</h4>
+              <p>Title in conventional-commit form (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>, <code>docs:</code>). Body should state: what changed, why, how to verify locally, and any ADR/docs it touches. CI will run verify → integration → hook-adapter-smoke → e2e.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub" id="contrib-code">
+        <h3 class="sub__title"><span class="sub__title__index">/13.3</span>Code <em>conventions</em></h3>
+        <p class="p p--dim">Biome is the source of truth. Rules ratcheted up over time — these are the ones most likely to flag a PR.</p>
+
+        <div class="kv">
+          <div class="kv__row">
+            <div class="kv__k">useConst</div>
+            <div class="kv__v"><span class="badge badge--warn">error</span> — Prefer <code>const</code>. Reach for <code>let</code> only when re-assigning.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">useImportType</div>
+            <div class="kv__v"><span class="badge badge--warn">error</span> — Type-only imports must be marked. <code>import type { Foo } from '...'</code></div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">noExplicitAny</div>
+            <div class="kv__v"><span class="badge badge--warn">error</span> — <code>any</code> is a code smell. Prefer <code>unknown</code> + narrowing, or a real type.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">noNonNullAssertion</div>
+            <div class="kv__v"><span class="badge badge--caution">warn</span> — Avoid <code>x!</code>. Prefer explicit guard + early return.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">noUnusedImports / Variables</div>
+            <div class="kv__v"><span class="badge badge--warn">error</span> — Lint-fix will strip them automatically.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">noImportCycles</div>
+            <div class="kv__v"><span class="badge badge--warn">error</span> — Scoped to <code>apps/mcp-server/src/lib/**</code>. If your import cycles, refactor the shared bits up a layer.</div>
+          </div>
+          <div class="kv__row">
+            <div class="kv__k">noConsole</div>
+            <div class="kv__v"><span class="badge badge--caution">warn</span> — Use the shared <code>logger</code> (pino-backed). <code>console.log</code> only for CLI user output.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub" id="contrib-where">
+        <h3 class="sub__title"><span class="sub__title__index">/13.4</span>Where things <em>live</em></h3>
+        <div class="code__head"><span>repo map</span></div>
+<pre class="code"><span class="ck">Coodra/</span>
+├── apps/
+│   ├── <span class="cn">mcp-server/</span>      <span class="cm"># 16 MCP tools · stdio + HTTP transport</span>
+│   ├── <span class="cn">hooks-bridge/</span>    <span class="cm"># Hono HTTP · 5 Claude Code hook events</span>
+│   ├── <span class="cn">sync-daemon/</span>     <span class="cm"># push + pull workers · team mode only</span>
+│   ├── web/             <span class="cw"># DEPRECATED · do not extend</span>
+│   └── <span class="cn">web-v2/</span>          <span class="cm"># Next.js 15 dashboard · 46 routes</span>
+├── packages/
+│   ├── <span class="cn">cli/</span>             <span class="cm"># @coodra/cli npm package · only published artefact</span>
+│   ├── <span class="cn">db/</span>              <span class="cm"># Drizzle dual-dialect schema + migrations</span>
+│   ├── <span class="cn">policy/</span>          <span class="cm"># Cockatiel-wrapped evaluator + types</span>
+│   └── <span class="cn">shared/</span>          <span class="cm"># auth, roles, hook adapters, logger, env</span>
+├── docs/
+│   ├── feature-packs/   <span class="cm"># 16 module blueprints</span>
+│   ├── context-packs/   <span class="cm"># template + module/phase closeouts</span>
+│   ├── DEVELOPMENT.md
+│   └── deploy/self-host.md
+├── essentialsforclaude/ <span class="cm"># 12 numbered docs auto-imported by CLAUDE.md</span>
+├── deploy/              <span class="cm"># 4 Dockerfiles + compose.yaml</span>
+├── scripts/             <span class="cm"># hook-adapter installers + maintenance</span>
+├── __tests__/           <span class="cm"># e2e + functional + manual harnesses</span>
+└── .github/workflows/   <span class="cm"># ci.yml (4 jobs)</span></pre>
+
+        <p class="p p--dim">Hot tip: when in doubt about whether a behaviour is correct, search <code>docs/audit/</code> and <code>docs/verification/</code>. Those reports cite exact file:line ranges for every claim made elsewhere.</p>
+      </div>
+    </section>
+
+    <!-- ============ ADRs ============ -->
+    <section class="section" id="adrs" data-screen-label="14 ADRs">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/14 — Design</div>
+          <h2 class="section__title">Decisions of <em>record</em>.</h2>
+        </div>
+        <div class="section__head__aside">essentialsforclaude<br>11-adrs.md</div>
+      </div>
+      <p class="section__lede">Architectural decisions, locked once accepted, superseded only by another ADR. The ones below are the most load-bearing — if you're new to the codebase, these explain why things look the way they do.</p>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card__eyebrow">ADR-007</div>
+          <h4 class="card__title">Append-only <em>audit</em></h4>
+          <p class="card__body">Policy decisions, decisions records, and kill-switch state changes are append-only. Idempotency keys gate writes. Resumes don't delete — they stamp <code>resumed_at</code> on the existing row. Recovery and forensics become trivial.</p>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">ADR-010</div>
+          <h4 class="card__title">Graphify is a <em>reader</em></h4>
+          <p class="card__body">Coodra reads <code>~/.coodra/graphify/&lt;slug&gt;/graph.json</code> produced by an external <code>graphify scan</code>. No in-repo producer ships — separation of concerns and faster iteration on the graph format.</p>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">ADR-012</div>
+          <h4 class="card__title">Agent-driven NL <em>assembly</em></h4>
+          <p class="card__body">Module 05 originally proposed a Python FastAPI service with sentence-transformers. Replaced with MCP tools (<code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>) — the agent does the ranking. No external service. No model dependency.</p>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">ADR-013</div>
+          <h4 class="card__title">Run Diff in <em>process</em></h4>
+          <p class="card__body">Module 06 was renamed from "Semantic Diff" to "Run Diff". The Python tree-sitter service is gone. Replaced by an in-process git-diff runner in the hooks-bridge that captures <code>base_sha → head_sha</code> at session end.</p>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">ADR-014</div>
+          <h4 class="card__title">Tier 2.5 <em>RBAC</em></h4>
+          <p class="card__body">Three roles — viewer, member, admin — parsed from Clerk org roles. <code>assertCanEdit</code> centralises the gate; ownership unlocks member-level edits on rows they created. Knowledge mutations are their own narrower gate.</p>
+        </div>
+        <div class="card">
+          <div class="card__eyebrow">ADR-014 · caveat</div>
+          <h4 class="card__title">Bridge stays <em>local</em></h4>
+          <p class="card__body">Hooks-bridge always runs on the laptop. No cloud bridge ships, even in team mode. The sync-daemon is the only process that opens the cloud connection — preserves the "fail-open & loopback" invariant.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DEPS ============ -->
+    <section class="section" id="deps" data-screen-label="15 Deps">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/15 — Reference</div>
+          <h2 class="section__title">External <em>dependencies</em>.</h2>
+        </div>
+        <div class="section__head__aside">Material<br>libraries</div>
+      </div>
+      <p class="section__lede">Only the libraries that shape behaviour. If something in the runtime surprises you, the explanation is usually here.</p>
+
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr>
+            <th>Package</th>
+            <th>Where</th>
+            <th>What it gives us</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><code>@modelcontextprotocol/sdk</code></td><td>mcp-server</td><td>MCP protocol server with stdio + HTTP transports.</td></tr>
+            <tr><td><code>hono</code> · <code>@hono/node-server</code></td><td>hooks-bridge · mcp-server HTTP</td><td>Tiny HTTP framework. Validates payloads via <code>@hono/zod-validator</code>.</td></tr>
+            <tr><td><code>drizzle-orm</code></td><td>packages/db</td><td>Dual-dialect schemas + migrations.</td></tr>
+            <tr><td><code>better-sqlite3</code></td><td>everywhere local</td><td>Synchronous SQLite driver. Native module — rebuild after install.</td></tr>
+            <tr><td><code>sqlite-vec</code></td><td>packages/db extension</td><td>Vector search for the <code>context_packs_vec</code> virtual table.</td></tr>
+            <tr><td><code>postgres</code></td><td>web-v2 · packages/db</td><td>Postgres driver.</td></tr>
+            <tr><td><code>next</code> 15 · <code>react</code> 19</td><td>web-v2</td><td>Server framework + UI.</td></tr>
+            <tr><td><code>@clerk/nextjs</code> · <code>@clerk/backend</code></td><td>web-v2 · cli</td><td>Identity, org membership, JWT.</td></tr>
+            <tr><td><code>cockatiel</code></td><td>packages/policy</td><td>Circuit breaker + timeout fuse around DB reads.</td></tr>
+            <tr><td><code>picomatch</code></td><td>policy · mcp-server</td><td>Path glob matching for policy rules.</td></tr>
+            <tr><td><code>zod</code></td><td>everywhere</td><td>Schema validation at every untrusted boundary.</td></tr>
+            <tr><td><code>commander</code> · <code>execa</code> · <code>ink</code></td><td>cli</td><td>CLI parser, subprocess management, React-for-terminal TUI.</td></tr>
+            <tr><td><code>vitest</code> · <code>testcontainers</code></td><td>tests</td><td>Unit + integration + e2e runners.</td></tr>
+            <tr><td><code>biome</code></td><td>repo</td><td>Lint + format.</td></tr>
+            <tr><td><code>turbo</code></td><td>repo</td><td>Workspace orchestration.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="p p--dim">Not present, in case you're checking: no <code>@anthropic-ai/sdk</code>, no <code>openai</code>, no <code>@google/generative-ai</code>, no <code>web-tree-sitter</code>, no <code>bullmq</code>, no <code>@octokit/*</code>, no JIRA SDK. The MCP server is the only LLM-facing surface — and it talks to the agent, not the model.</p>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section" id="faq" data-screen-label="16 FAQ">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/16 — Help</div>
+          <h2 class="section__title"><em>Frequently</em> asked.</h2>
+        </div>
+        <div class="section__head__aside">Short answers<br>linked deep dives</div>
+      </div>
+
+      <div class="kv">
+        <div class="kv__row">
+          <div class="kv__k">Is Coodra a code editor?</div>
+          <div class="kv__v">No. It runs <em>alongside</em> your editor — Claude Code, Cursor, Windsurf. Coodra is the layer between the agent and your project: blueprints in, audit out.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Does it call out to OpenAI / Anthropic?</div>
+          <div class="kv__v">Coodra itself does not. Your agent (Claude Code, etc.) talks to its model. Coodra only ever talks to the agent through MCP, locally.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Can I use Coodra without Claude Code?</div>
+          <div class="kv__v">Yes. Cursor and Windsurf are supported through shell adapters. Any MCP-speaking client can talk to <code>mcp-server</code>; the hook-driven memory feature is best with Claude Code today.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">What happens if the hooks bridge goes down?</div>
+          <div class="kv__v">The agent's hook calls fail-open with a default ALLOW. You lose audit + memory injection for the affected tool calls, but you don't lose the ability to code.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Where is my data stored?</div>
+          <div class="kv__v">In solo mode: only at <code>~/.coodra/data.db</code>. In team mode: also in the Postgres you operate. Coodra ships no hosted backend.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Can I delete my run history?</div>
+          <div class="kv__v">Yes — <code>scripts/wipe-disposable-projects.sh</code> or <code>scripts/wipe-all.sh</code>. Append-only doesn't mean undeletable; it means we don't update rows in place.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Why does <code>.env.example</code> mention services that don't exist?</div>
+          <div class="kv__v">Historical. Modules 05 (NL Assembly) and 06 (Semantic Diff) were superseded by ADR-012 and ADR-013. The example file is being trimmed.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">Is the web UI required?</div>
+          <div class="kv__v">No — it's a convenience. <code>coodra start --no-web</code> skips it. <code>coodra ui</code> gives you a TUI alternative.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ GLOSSARY ============ -->
+    <section class="section" id="glossary" data-screen-label="17 Glossary">
+      <div class="section__head">
+        <div>
+          <div class="section__num">/17 — Help</div>
+          <h2 class="section__title"><em>Glossary</em>.</h2>
+        </div>
+        <div class="section__head__aside">Short<br>definitions</div>
+      </div>
+
+      <div class="kv">
+        <div class="kv__row"><div class="kv__k">Actor</div><div class="kv__v">The authenticated entity behind a request — <code>userId</code>, <code>orgId</code>, <code>role</code>, <code>source</code>. Solo bypass attaches <code>SOLO_ACTOR</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">Bridge</div><div class="kv__v">Short for hooks-bridge — the Hono HTTP service on <code>3101</code> that the agent's hooks POST to.</div></div>
+        <div class="kv__row"><div class="kv__k">Cockatiel</div><div class="kv__v">The resilience library wrapping policy DB reads. Provides timeout + circuit breaker primitives.</div></div>
+        <div class="kv__row"><div class="kv__k">Doctor</div><div class="kv__v">A self-diagnostic CLI command. 11 essential checks by default, 38 with <code>--full</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">Drizzle</div><div class="kv__v">The TypeScript ORM. Dual-dialect schemas in <code>packages/db/src/schema/{sqlite,postgres}.ts</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">Fail-open</div><div class="kv__v">When the engine can't decide, the verdict is ALLOW. Never block the agent because of our own faults.</div></div>
+        <div class="kv__row"><div class="kv__k">graphify</div><div class="kv__v">An external CLI that scans your codebase and emits <code>graph.json</code>. Coodra reads it; doesn't produce it.</div></div>
+        <div class="kv__row"><div class="kv__k">Idempotency key</div><div class="kv__v">A deterministic string used to gate writes. Same key → at most one row.</div></div>
+        <div class="kv__row"><div class="kv__k">Ink</div><div class="kv__v">React for the terminal. Powers <code>coodra ui</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">launchd</div><div class="kv__v">macOS's service manager. Coodra writes per-service plists into <code>~/Library/LaunchAgents/</code> during <code>start</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">MCP</div><div class="kv__v">Model Context Protocol. The standard Coodra speaks to AI agents.</div></div>
+        <div class="kv__row"><div class="kv__k">Outbox</div><div class="kv__v">The durable SQLite-backed queue (<code>pending_jobs</code> table) used for async writes and cloud sync.</div></div>
+        <div class="kv__row"><div class="kv__k">picomatch</div><div class="kv__v">Path glob library. Used to match <code>policy_rules.match_path_glob</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">Run diff</div><div class="kv__v">Unified diff between <code>runs.base_sha</code> and <code>runs.head_sha</code>, captured at session end.</div></div>
+        <div class="kv__row"><div class="kv__k">Sentinel project</div><div class="kv__v"><code>__global__</code> for events before a real project exists; <code>__solo__</code> for the solo-mode org.</div></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ====== RIGHT RAIL TOC ====== -->
+  <aside class="toc" id="toc" aria-label="On this page">
+    <div class="toc__title">On this page</div>
+    <ul class="toc__list" id="toc-list">
+      <!-- generated by JS -->
+    </ul>
+  </aside>
+
+</div>
+
+<!-- ============================================================ -->
+<!--  FOOTER                                                       -->
+<!-- ============================================================ -->
+<footer class="footer">
+  <div>
+    <div class="footer__title">Master the <em>context</em>.</div>
+    <div class="footer__sub">Coodra · Documentation · v 0.2.0-beta.3 — <a href="Coodra Brand Kit.html">Brand kit</a> · <a href="#welcome">Back to top ↑</a></div>
+  </div>
+  <div class="footer__meta">
+    MIT licensed<br>
+    Local-first by design<br>
+    Open source · 2026
+  </div>
+</footer>
+
+<!-- ============================================================ -->
+<!--  SCRIPTS                                                      -->
+<!-- ============================================================ -->
+<script>
+  // -------- sidebar active-section highlighting --------
+  const sectionEls = Array.from(document.querySelectorAll('main .section, main .hero'));
+  const sidebarLinks = Array.from(document.querySelectorAll('.sidebar__link'));
+
+  function setActiveSidebar(id) {
+    sidebarLinks.forEach(a => {
+      a.classList.toggle('is-active', a.getAttribute('href') === '#' + id);
+    });
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    // pick the entry closest to top that is intersecting
+    const visible = entries.filter(e => e.isIntersecting)
+      .sort((a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top);
+    if (visible.length) {
+      setActiveSidebar(visible[0].target.id);
+    }
+  }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+
+  sectionEls.forEach(el => io.observe(el));
+
+  // -------- right rail TOC (built per currently-active section) --------
+  const tocList = document.getElementById('toc-list');
+
+  function buildTocFor(sectionId) {
+    const section = document.getElementById(sectionId);
+    if (!section) { tocList.innerHTML = ''; return; }
+    const heads = section.querySelectorAll('.section__head, .sub');
+    tocList.innerHTML = '';
+    heads.forEach(h => {
+      const titleEl = h.querySelector('.section__title, .sub__title');
+      if (!titleEl) return;
+      const id = h.id || section.id;
+      const text = titleEl.textContent.trim().replace(/^\/\d+\.\d+\s*/, '');
+      const isSub = h.classList.contains('sub');
+      const a = document.createElement('a');
+      a.href = '#' + id;
+      a.textContent = text;
+      if (isSub) a.classList.add('is-sub');
+      tocList.appendChild(a);
+    });
+  }
+
+  // rebuild TOC on active-section change
+  const tocIo = new IntersectionObserver((entries) => {
+    const visible = entries.filter(e => e.isIntersecting)
+      .sort((a, b) => a.target.getBoundingClientRect().top - b.target.getBoundingClientRect().top);
+    if (visible.length) {
+      buildTocFor(visible[0].target.id);
+    }
+  }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+  sectionEls.forEach(el => tocIo.observe(el));
+  buildTocFor('welcome');
+
+  // -------- search filter --------
+  const searchInput = document.getElementById('docs-search');
+  searchInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    sidebarLinks.forEach(a => {
+      const txt = a.textContent.toLowerCase();
+      a.style.display = (!q || txt.includes(q)) ? '' : 'none';
+    });
+    // hide group titles whose group has zero visible links
+    document.querySelectorAll('.sidebar__group').forEach(g => {
+      const anyVisible = Array.from(g.querySelectorAll('.sidebar__link'))
+        .some(a => a.style.display !== 'none');
+      g.style.display = (!q || anyVisible) ? '' : 'none';
+    });
+  });
+
+  // -------- Cmd/Ctrl-K focuses search --------
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
+
+  // -------- copy buttons --------
+  document.querySelectorAll('.code__head__copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-copy-target');
+      const code = document.getElementById(id);
+      if (!code) return;
+      const text = code.textContent;
+      navigator.clipboard?.writeText(text).then(() => {
+        const old = btn.textContent;
+        btn.textContent = 'copied';
+        btn.style.color = 'var(--accent)';
+        btn.style.borderColor = 'var(--accent)';
+        setTimeout(() => { btn.textContent = old; btn.style.color = ''; btn.style.borderColor = ''; }, 1400);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>
