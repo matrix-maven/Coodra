@@ -66,20 +66,14 @@ describe('loadHomeEnv — layered <COODRA_HOME>/.env + <cwd>/.env', () => {
     //     and feature-db.ts fell back to the legacy (forgeable) path.
     writeFileSync(
       join(homeDir, '.env'),
-      [
-        'COODRA_MODE=team',
-        'CLERK_SECRET_KEY=sk_test_from_home',
-        'COODRA_GRAPHIFY_ROOT=/var/graphify-home',
-      ].join('\n'),
+      ['COODRA_MODE=team', 'CLERK_SECRET_KEY=sk_test_from_home', 'COODRA_GRAPHIFY_ROOT=/var/graphify-home'].join('\n'),
       'utf8',
     );
     writeFileSync(
       join(cwdDir, '.env'),
-      [
-        'COODRA_MODE=solo',
-        'CLERK_SECRET_KEY=sk_test_from_project',
-        'COODRA_GRAPHIFY_ROOT=/var/graphify-project',
-      ].join('\n'),
+      ['COODRA_MODE=solo', 'CLERK_SECRET_KEY=sk_test_from_project', 'COODRA_GRAPHIFY_ROOT=/var/graphify-project'].join(
+        '\n',
+      ),
       'utf8',
     );
 
