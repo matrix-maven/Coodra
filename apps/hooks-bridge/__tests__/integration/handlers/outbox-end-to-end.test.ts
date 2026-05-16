@@ -44,11 +44,29 @@ interface Harness {
   readonly cwd: string;
   readonly handle: Extract<DbHandle, { kind: 'sqlite' }>;
   readonly fire: (event: 'SessionStart' | 'PreToolUse', body: Record<string, unknown>) => Promise<void>;
+  readonly previousMode: string | undefined;
 }
 
 let h: Harness;
 
 beforeAll(async () => {
+  // M04a S2 (2026-05-09) paired every audit-write enqueue with a
+  // `sync_to_cloud` enqueue when `process.env.COODRA_MODE === 'team'`.
+  // The bridge's `OutboxWorker` dispatcher only routes audit queues
+  // (`run_event` / `policy_decision` / `session_open` / `session_close`) —
+  // `sync_to_cloud` is the sync-daemon's responsibility, so unknown-queue
+  // rows are marked dead by the worker and remain in `pending_jobs`.
+  //
+  // This suite verifies the *bridge*'s drain-to-destination semantics
+  // (the bridge owns audit queues only), so we force solo mode for the
+  // test process. CI's integration job runs with `COODRA_MODE=team` set
+  // at the workflow level; without this scope-down, the team-mode
+  // sync_to_cloud paired-enqueue produces 2 dead rows the assertion
+  // can't see past. Cloud-sync behavior is locked down separately in
+  // `apps/sync-daemon/__tests__/integration/dispatch.test.ts`.
+  const previousMode = process.env.COODRA_MODE;
+  process.env.COODRA_MODE = 'solo';
+
   const cwd = mkdtempSync(join(tmpdir(), 'outbox-e2e-'));
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });
@@ -116,12 +134,20 @@ beforeAll(async () => {
     if (res.status !== 200) throw new Error(`hook ${event} returned ${res.status}: ${await res.text()}`);
   };
 
-  h = { cwd, handle, fire };
+  h = { cwd, handle, fire, previousMode };
 }, 30_000);
 
 afterAll(() => {
   if (h?.handle?.kind === 'sqlite') h.handle.close();
   if (h?.cwd) rmSync(h.cwd, { recursive: true, force: true });
+  // Restore prior COODRA_MODE so we don't leak the solo scope to any
+  // file that might share this worker (vitest reuses workers when
+  // `fileParallelism: false`, which this config sets).
+  if (h?.previousMode === undefined) {
+    delete process.env.COODRA_MODE;
+  } else {
+    process.env.COODRA_MODE = h.previousMode;
+  }
 });
 
 describe('outbox end-to-end: durable enqueue → worker drain → destination', () => {
