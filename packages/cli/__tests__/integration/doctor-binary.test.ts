@@ -84,7 +84,13 @@ describe('doctor binary — integration spawn', () => {
     });
 
     expect(result.exitCode).toBeGreaterThanOrEqual(1); // empty home → reds, exit 2
-    const stdout = String(result.stdout);
+    const rawStdout = String(result.stdout);
+    // The renderer emits ANSI color/style escapes between adjacent
+    // tokens (the id, the bold check name, the dim icon). On a TTY
+    // those collapse visually; in the captured pipe they show up as
+    // `[…m`. Strip them before matching so the regex doesn't
+    // have to enumerate every reset/style code.
+    const stdout = rawStdout.replace(/\[[0-9;]*m/g, '');
     expect(stdout).toContain('coodra doctor');
     // The check-row format is `<icon> <id padded>  <name>` (Phase B
     // clarity pass renderer, 2026-05-11) — e.g. `✓   1  Node.js >= 22.16.0`.
