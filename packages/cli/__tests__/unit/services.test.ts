@@ -58,23 +58,32 @@ describe('resolveServices — team-mode gating (M04a S4)', () => {
 });
 
 /**
- * Locks the 2026-05-18 macOS healthcheck regression: HOSTNAME used to be
- * `localhost`, which macOS getaddrinfo resolves IPv6-first → Next.js 15.5
- * bound only `::1:3001` → the CLI's IPv4 healthcheck failed → `coodra
- * start` reported "Web did not become healthy" even though Next was up.
- * Pinning to the IPv4 literal eliminates the resolver dependency. Any
- * future change away from `127.0.0.1` must restore IPv4 reachability AND
- * keep loopback-only binding (no LAN exposure).
+ * Locks the 2026-05-18 dual-stack regression history (see
+ * `services.ts::buildServiceEnv` for the full comment):
+ *
+ *   - beta.3 `localhost`: macOS resolves IPv6-first → Next bound `::1`
+ *     only → CLI's IPv4 healthcheck got ECONNREFUSED.
+ *   - beta.4 `127.0.0.1`: IPv4 healthcheck worked, but Next.js 15.5's
+ *     internal render-proxy fetches `http://localhost:${PORT}/...` for
+ *     force-dynamic routes — `localhost` → `::1` → no listener →
+ *     `/api/healthz` hung indefinitely.
+ *   - beta.5 `::` (this): dual-stack wildcard with `IPV6_V6ONLY=0`
+ *     default. Native IPv6 self-proxy works; IPv4-mapped IPv6 makes
+ *     `127.0.0.1` healthchecks land too. ~2s cold start.
+ *
+ * Any future change MUST keep both `connect('127.0.0.1')` AND
+ * `connect('::1')` reachable, or one of the two regressions above
+ * comes back.
  */
-describe('resolveServices — web service env (2026-05-18 regression)', () => {
-  it('stamps HOSTNAME=127.0.0.1, PORT, NODE_ENV=production on the web DaemonUnit', async () => {
+describe('resolveServices — web service env (2026-05-18 dual-stack regression)', () => {
+  it('stamps HOSTNAME=::, PORT, NODE_ENV=production on the web DaemonUnit', async () => {
     const resolved = await resolveServices({
       coodraHome: '/var/test/.coodra',
       env: {} as NodeJS.ProcessEnv,
     });
     const web = resolved.find((r) => r.descriptor.name === 'web');
     expect(web).toBeDefined();
-    expect(web?.unit.env.HOSTNAME).toBe('127.0.0.1');
+    expect(web?.unit.env.HOSTNAME).toBe('::');
     expect(web?.unit.env.PORT).toBe('3001');
     expect(web?.unit.env.NODE_ENV).toBe('production');
   });

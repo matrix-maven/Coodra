@@ -4,6 +4,17 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.5] — 2026-05-18
+
+### Fixed
+
+- **`packages/cli/src/lib/services.ts`**: web service plist now emits `HOSTNAME=::` (IPv6 wildcard, dual-stack) instead of `HOSTNAME=127.0.0.1`. beta.4's narrower `127.0.0.1` bind made the CLI's IPv4 healthcheck land, but broke team-mode `force-dynamic` routes: Next.js 15.5 standalone has an internal render-proxy (`next/dist/server/lib/router-utils/proxy-request.js`) that does a server-side `fetch('http://localhost:${PORT}/<route>')` to itself for force-dynamic routes. macOS resolves `localhost` to `::1` first; with an IPv4-only bind the self-proxy had no listener; requests hung; `/api/healthz` (which has `export const dynamic = 'force-dynamic'`) never returned; `coodra start` again reported "Coodra Web did not become healthy on :3001 within 30000ms" even though Next was running. `::` with the kernel-default `IPV6_V6ONLY=0` accepts both native IPv6 (`::1`) AND IPv4 connections (via IPv4-mapped IPv6), so the Next self-proxy AND the CLI's IPv4 healthcheck both land cleanly. Cold start to first 200 on `/api/healthz` is ~2 seconds on a developer laptop.
+- The regression-locking test in `packages/cli/__tests__/unit/services.test.ts` is updated to assert `HOSTNAME=::`. The test docstring records the full beta.3 → beta.4 → beta.5 regression history so a future refactor can't silently re-introduce either prior failure.
+
+### Known trade-off
+
+- **Web is now LAN-reachable** (not loopback-only) because `::` listens on all IPv6 interfaces (and IPv4-mapped IPv6 is accepted by default on macOS/Linux). In team mode every route is gated behind Clerk auth, so a LAN attacker still needs a valid session — but solo-mode users on hostile networks should add a local firewall rule. A loopback-only dual-stack bind (separate `listen()` calls on `127.0.0.1` and `::1`) is tracked as a follow-up but requires wrapping Next.js's auto-generated `server.js`; not in this release.
+
 ## [0.2.0-beta.4] — 2026-05-18
 
 ### Fixed

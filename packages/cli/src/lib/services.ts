@@ -224,34 +224,52 @@ function buildServiceEnv(args: {
     env.HOOKS_BRIDGE_PORT = String(args.port);
     env.HOOKS_BRIDGE_HOST = '127.0.0.1';
   } else if (args.name === 'web' && args.port !== null) {
-    // Bind to `127.0.0.1` (IPv4 loopback). The web is loopback-only by
-    // design — the explicit public path is `coodra start --tunnel`
-    // (W4, cloudflared).
+    // Bind to `::` (IPv6 wildcard, dual-stack). With the kernel default
+    // `IPV6_V6ONLY=0` on macOS and Linux, this accepts BOTH native IPv6
+    // connections (`::1`) AND IPv4 connections via IPv4-mapped IPv6
+    // (`127.0.0.1` → `::ffff:127.0.0.1`).
     //
-    // 2026-05-18 — corrected from `localhost`. macOS getaddrinfo (and
-    // recent glibc variants) resolves `localhost` IPv6-first, so
-    // Next.js 15.5 bound only `::1:3001`. The CLI's healthcheck and
-    // doctor check #37 both probe `http://127.0.0.1:3001/api/healthz`
-    // (IPv4); against an IPv6-only listener they got ECONNREFUSED.
-    // `coodra start` then reported "Coodra Web did not become healthy
-    // on :3001 within 30000ms" even though Next was running fine on
-    // `::1`. Anchoring to an unambiguous IPv4 literal removes the
-    // resolver dependency.
+    // The why is a two-step regression history — read this whole block
+    // before flipping it back:
     //
-    // Team-mode Clerk middleware footgun (originally W4): when
-    // `COODRA_PUBLIC_URL=http://localhost:3001`, the middleware's
-    // self-fetch resolves `localhost` to `::1`, finds no listener on
-    // this IPv4 bind, and surfaces EADDRNOTAVAIL via /api/healthz.
-    // The mitigation is in the URL, not the bind — set
-    // `COODRA_PUBLIC_URL=http://127.0.0.1:3001` (matches this bind)
-    // or use a tunnel URL. The pre-2026-05-18 fix widened the bind
-    // and broke the IPv4 healthcheck; this version restores the
-    // tighter bind.
+    // beta.3 used `HOSTNAME=localhost`. macOS getaddrinfo resolves
+    // `localhost` IPv6-first, so Next.js 15.5 bound only `::1:3001`.
+    // The CLI's healthcheck probes `http://127.0.0.1:${port}/api/healthz`
+    // (IPv4 literal); the IPv6-only listener returned ECONNREFUSED;
+    // `coodra start` reported "Coodra Web did not become healthy on
+    // :3001 within 30000ms" even though Next was running fine on `::1`.
     //
-    // Security: `127.0.0.1` is loopback-only; web is NOT reachable
-    // from the LAN. `--tunnel` is the supported public path.
+    // beta.4 narrowed `HOSTNAME` to `127.0.0.1` to make the IPv4 healthcheck
+    // land. That fixed the simple healthcheck — but broke team-mode
+    // `force-dynamic` routes. Next.js 15.5 standalone has an internal
+    // render-proxy (`next/dist/server/lib/router-utils/proxy-request.js`)
+    // that does a server-side `fetch('http://localhost:${PORT}/<route>')`
+    // to itself for dynamic routes. With an IPv4-only bind, the
+    // `localhost`-targeted self-fetch resolves to `::1` first and finds
+    // no listener; the request hangs; /api/healthz (force-dynamic) never
+    // returns; cold-start probes time out at 30s; `coodra start` again
+    // reports unhealthy — despite the listener being up.
+    //
+    // beta.5 (this version) binds `::`. The Next.js self-proxy reaches
+    // itself through `::1` (native IPv6); the CLI healthcheck reaches
+    // it through IPv4-mapped IPv6 from `127.0.0.1`. Cold-start to first
+    // 200 on `/api/healthz` is ~2 seconds on a developer laptop, well
+    // within the 30s healthcheck budget.
+    //
+    // Security trade-off vs the beta.4 loopback-only bind: `::` listens
+    // on all IPv6 interfaces (not loopback-only), so the web is reachable
+    // from the local LAN unless firewalled. In team mode every route is
+    // gated behind Clerk auth, so a LAN attacker still needs a valid
+    // session — but the LAN exposure is real. Solo mode is more permissive;
+    // solo users on hostile networks should use a local firewall.
+    //
+    // Follow-up tracked: a server.js wrapper that binds `127.0.0.1` AND
+    // `::1` separately would restore loopback-only without losing dual
+    // stack. Not in this release; Node's built-in `server.listen()` doesn't
+    // expose that in a single call and we don't want to fork Next's
+    // standalone server.js generator yet.
     env.PORT = String(args.port);
-    env.HOSTNAME = '127.0.0.1';
+    env.HOSTNAME = '::';
     env.NODE_ENV = 'production';
   }
   // sync-daemon: no port-bound env. DATABASE_URL is forwarded via the
