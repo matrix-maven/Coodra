@@ -224,22 +224,34 @@ function buildServiceEnv(args: {
     env.HOOKS_BRIDGE_PORT = String(args.port);
     env.HOOKS_BRIDGE_HOST = '127.0.0.1';
   } else if (args.name === 'web' && args.port !== null) {
-    // Bind to `localhost` (not raw `127.0.0.1`) so the listener binds
-    // both IPv4 and IPv6 loopback, matching the kernel's preferred
-    // resolution. W4 (2026-05-13) — discovered that with HOSTNAME=
-    // 127.0.0.1, Next.js's team-mode internal proxy (Clerk middleware
-    // path) fails with EADDRNOTAVAIL when COODRA_PUBLIC_URL=
-    // http://localhost:3001 because `localhost` resolves to ::1 on
-    // recent macOS / many Linux distros, but the server only listens
-    // on 127.0.0.1 → connect fails → /api/healthz returns 500. Using
-    // `localhost` as the bind hostname lets Node match the system's
-    // own loopback resolution.
+    // Bind to `127.0.0.1` (IPv4 loopback). The web is loopback-only by
+    // design — the explicit public path is `coodra start --tunnel`
+    // (W4, cloudflared).
     //
-    // Security: `localhost` is still loopback-only on standard
-    // /etc/hosts setups (127.0.0.1 + ::1 only). The web is NOT
-    // externally reachable; W4's tunnel is the explicit public path.
+    // 2026-05-18 — corrected from `localhost`. macOS getaddrinfo (and
+    // recent glibc variants) resolves `localhost` IPv6-first, so
+    // Next.js 15.5 bound only `::1:3001`. The CLI's healthcheck and
+    // doctor check #37 both probe `http://127.0.0.1:3001/api/healthz`
+    // (IPv4); against an IPv6-only listener they got ECONNREFUSED.
+    // `coodra start` then reported "Coodra Web did not become healthy
+    // on :3001 within 30000ms" even though Next was running fine on
+    // `::1`. Anchoring to an unambiguous IPv4 literal removes the
+    // resolver dependency.
+    //
+    // Team-mode Clerk middleware footgun (originally W4): when
+    // `COODRA_PUBLIC_URL=http://localhost:3001`, the middleware's
+    // self-fetch resolves `localhost` to `::1`, finds no listener on
+    // this IPv4 bind, and surfaces EADDRNOTAVAIL via /api/healthz.
+    // The mitigation is in the URL, not the bind — set
+    // `COODRA_PUBLIC_URL=http://127.0.0.1:3001` (matches this bind)
+    // or use a tunnel URL. The pre-2026-05-18 fix widened the bind
+    // and broke the IPv4 healthcheck; this version restores the
+    // tighter bind.
+    //
+    // Security: `127.0.0.1` is loopback-only; web is NOT reachable
+    // from the LAN. `--tunnel` is the supported public path.
     env.PORT = String(args.port);
-    env.HOSTNAME = 'localhost';
+    env.HOSTNAME = '127.0.0.1';
     env.NODE_ENV = 'production';
   }
   // sync-daemon: no port-bound env. DATABASE_URL is forwarded via the

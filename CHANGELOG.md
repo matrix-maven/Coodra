@@ -4,6 +4,13 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.4] — 2026-05-18
+
+### Fixed
+
+- **`packages/cli/src/lib/services.ts`**: web service plist now emits `HOSTNAME=127.0.0.1` instead of `localhost`. macOS getaddrinfo (and recent glibc variants) resolves `localhost` IPv6-first, so Next.js 15.5 bound only `::1:3001`. The CLI's IPv4 healthcheck (and doctor check #37) probes `http://127.0.0.1:3001/api/healthz`, which got ECONNREFUSED against the IPv6-only listener — `coodra start` then reported `Coodra Web did not become healthy on :3001 within 30000ms` even though Next was running cleanly. Anchoring to the IPv4 literal removes the resolver dependency. Team-mode admins who set a custom `COODRA_PUBLIC_URL` should use `http://127.0.0.1:3001` (matching the bind) or a tunnel URL — the previous fix widened the bind to compensate for a `localhost` public URL and reintroduced the healthcheck regression.
+- New regression test `resolveServices — web service env (2026-05-18 regression)` in `packages/cli/__tests__/unit/services.test.ts` locks `HOSTNAME=127.0.0.1` so a future refactor can't silently flip it back to `localhost`.
+
 ### Changed
 
 - **README**: rewrote as an immersive GitHub landing surface — bold motto, mermaid system + session-lifecycle diagrams, three-pillar pitch, solo/team comparison, verified 16-tool MCP inventory.
@@ -20,7 +27,7 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 - `CHANGELOG.md` — this file.
 - `packages/cli/scripts/prepublish-assert.mjs` — refuses `npm publish` when `dist/runtime/{web,mcp-server,hooks-bridge,sync-daemon}` artifacts are missing, with a remediation message naming the exact fix.
 
-### Fixed
+### Fixed (infra carried from prior unreleased work)
 
 - **`apps/web/package.json`**: declares `@coodra/cli` as a workspace dep so Turbo schedules `@coodra/cli:build` before `@coodra/web:typecheck` on clean CI checkouts. Previously the deprecated `apps/web` typecheck failed on CI with 13 cascading errors (module-not-found + implicit `any`); locally it passed because `dist/` persisted from prior builds.
 - **`packages/cli/scripts/bundle.mjs`**: soft-skips the web standalone copy when `apps/web-v2/.next/standalone` is missing (typical for CI typecheck-only flows where web-v2 hasn't been built yet). Strict mode opt-in via `COODRA_BUNDLE_REQUIRE_WEB=1`. Publish-time is guarded by the new `prepublishOnly` assert.

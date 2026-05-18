@@ -58,6 +58,29 @@ describe('resolveServices — team-mode gating (M04a S4)', () => {
 });
 
 /**
+ * Locks the 2026-05-18 macOS healthcheck regression: HOSTNAME used to be
+ * `localhost`, which macOS getaddrinfo resolves IPv6-first → Next.js 15.5
+ * bound only `::1:3001` → the CLI's IPv4 healthcheck failed → `coodra
+ * start` reported "Web did not become healthy" even though Next was up.
+ * Pinning to the IPv4 literal eliminates the resolver dependency. Any
+ * future change away from `127.0.0.1` must restore IPv4 reachability AND
+ * keep loopback-only binding (no LAN exposure).
+ */
+describe('resolveServices — web service env (2026-05-18 regression)', () => {
+  it('stamps HOSTNAME=127.0.0.1, PORT, NODE_ENV=production on the web DaemonUnit', async () => {
+    const resolved = await resolveServices({
+      coodraHome: '/var/test/.coodra',
+      env: {} as NodeJS.ProcessEnv,
+    });
+    const web = resolved.find((r) => r.descriptor.name === 'web');
+    expect(web).toBeDefined();
+    expect(web?.unit.env.HOSTNAME).toBe('127.0.0.1');
+    expect(web?.unit.env.PORT).toBe('3001');
+    expect(web?.unit.env.NODE_ENV).toBe('production');
+  });
+});
+
+/**
  * Locks integration finding 2026-04-27 (post-08a walk): the daemon manager
  * was spawning bridge + mcp-server with stderr → /dev/null (launchd default).
  * Doctor check 8 (F15 spot-check) could never green and field debugging was
