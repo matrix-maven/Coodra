@@ -4,6 +4,17 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.7] — 2026-05-18
+
+### Fixed
+
+- **`turbo.json`** — root cause of the beta.6 stale-bundle regression. The `build` task's `inputs` glob was hard-coded to `src/**/*.{ts,tsx}`. `apps/web-v2` (Next.js App Router) doesn't have a `src/` directory — its source lives in `app/`, `lib/`, `components/`, `middleware.ts`, and `next.config.ts`. None of those matched the glob, so Turbo's cache hash never changed for web-v2 source edits and it silently replayed an old build (in beta.6's case, a May-16 build from before the `public-url.ts` fix was even written). The bundle script then copied that stale `.next/standalone` into the CLI tarball. CI was green because unit tests run against source, not the bundle. Fixed by switching all task `inputs` to `$TURBO_DEFAULT$` (every tracked file in the package, the Turbo idiom for monorepos with mixed layouts) and adding `.next/**` to the `build` task's `outputs` so Turbo correctly tracks Next.js's standalone output too. The `apps/web-v2/lib/public-url.ts` fix that was authored in beta.6 is now actually present in the bundle.
+- **`packages/cli/scripts/prepublish-assert.mjs`** — added a freshness check that walks `apps/web-v2/{lib,app,components,middleware.ts,next.config.ts}` for the newest source mtime and compares against `dist/runtime/web/apps/web-v2/server.js`. If source is newer than the bundle, the publish is refused with a clean-rebuild instruction. The Turbo fix above is the durable fix; this assert is the last-line defense against local-state divergence (e.g., a hand-rolled build that bypassed Turbo).
+
+### Known issue (acknowledged)
+
+- `@coodra/cli@0.2.0-beta.6` on the npm registry has the stale web bundle. Anyone installing `@coodra/cli@beta` between 2026-05-18 ~16:00 and the beta.7 publish will get the broken invite URL. **Mitigation for affected installs:** add `COODRA_PUBLIC_URL=http://localhost:3001` to `~/.coodra/.env`, then `coodra stop && coodra start`. That resolves via the existing `COODRA_PUBLIC_URL` env path (case 1), which has worked since beta.3. beta.7 ships the local fallback (case 3) bundled correctly so the env var is no longer required.
+
 ## [0.2.0-beta.6] — 2026-05-18
 
 ### Fixed

@@ -6,28 +6,28 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", "!dist/**/*.test.*"],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "package.json", "tsconfig.json"]
+      "outputs": ["dist/**", ".next/**", "!dist/**/*.test.*", "!.next/cache/**"],
+      "inputs": ["$TURBO_DEFAULT$"]
     },
     "typecheck": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "inputs": ["src/**/*.ts", "src/**/*.tsx", "__tests__/**/*.ts", "tsconfig.json", "../../tsconfig.base.json"]
+      "inputs": ["$TURBO_DEFAULT$", "../../tsconfig.base.json"]
     },
     "lint": {
       "outputs": [],
-      "inputs": ["src/**/*", "__tests__/**/*", "biome.json", "../../biome.json"]
+      "inputs": ["$TURBO_DEFAULT$", "../../biome.json"]
     },
     "test:unit": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "inputs": ["src/**/*", "__tests__/unit/**/*", "vitest.config.ts", "package.json"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "env": ["COODRA_MODE", "CLERK_SECRET_KEY"]
     },
     "test:integration": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "inputs": ["src/**/*", "__tests__/integration/**/*", "vitest.config.ts", "package.json"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "env": [
         "DATABASE_URL",
         "REDIS_URL",
@@ -44,7 +44,7 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "inputs": ["src/**/*", "__tests__/e2e/**/*", "vitest.e2e.config.ts", "package.json"],
+      "inputs": ["$TURBO_DEFAULT$"],
       "env": [
         "DATABASE_URL",
         "REDIS_URL",
