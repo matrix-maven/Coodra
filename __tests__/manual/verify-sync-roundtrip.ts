@@ -229,10 +229,12 @@ async function main(): Promise<void> {
 
   const runs = await pollCloud<string>(
     `SELECT id, status FROM runs WHERE session_id = '${SESSION_ID}'`,
-    (rows) => rows.length === 1 && rows[0]!.endsWith('|completed'),
+    (rows) => rows.length === 1 && rows[0]?.endsWith('|completed') === true,
   );
   console.log(`PASS runs row: ${runs[0]}`);
-  const runId = runs[0]!.split('|')[0]!;
+  const firstRun = runs[0];
+  if (firstRun === undefined) throw new Error('expected one run row');
+  const runId = firstRun.split('|')[0] ?? '';
   if (!/^run:[^:]+:[^:]+:[0-9a-f-]{36}$/.test(runId)) {
     throw new Error(`runs.id is not canonical 4-segment shape: ${runId}`);
   }

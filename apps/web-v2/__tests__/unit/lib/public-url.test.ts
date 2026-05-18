@@ -41,7 +41,7 @@ describe('resolveDeploymentBaseUrl', () => {
     expect(resolveDeploymentBaseUrl()).toBe('https://coodra-pr-42.vercel.app');
   });
 
-  it('case 3 — COODRA_HOME resolves to http://localhost:${PORT}', () => {
+  it('case 3 — COODRA_HOME resolves to http://localhost on the resolved PORT', () => {
     vi.stubEnv('COODRA_HOME', '/Users/admin/.coodra');
     vi.stubEnv('PORT', '3001');
     expect(resolveDeploymentBaseUrl()).toBe('http://localhost:3001');

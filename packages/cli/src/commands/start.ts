@@ -261,7 +261,11 @@ async function orchestrateTunnel(args: { readonly coodraHome: string; readonly i
  */
 async function reinstallWebForTunnel(args: {
   readonly coodraHome: string;
-  readonly manager: { install(unit: import('../lib/daemon/types.js').DaemonUnit): Promise<void>; start(name: string): Promise<void>; stop(name: string): Promise<void>; };
+  readonly manager: {
+    install(unit: import('../lib/daemon/types.js').DaemonUnit): Promise<void>;
+    start(name: string): Promise<void>;
+    stop(name: string): Promise<void>;
+  };
   readonly io: StartIO;
 }): Promise<void> {
   const { coodraHome, manager, io } = args;
@@ -284,7 +288,9 @@ async function reinstallWebForTunnel(args: {
     if (web.descriptor.kind === 'http' && web.port !== null) {
       await waitForHealth({ url: web.descriptor.healthUrl(web.port), timeoutMs: 30_000 });
     }
-    io.writeStdout(`${pc.green('✓')} Web reloaded; invite URLs + JWT iss + /install/<token>/cli.sh now use the tunnel host.\n`);
+    io.writeStdout(
+      `${pc.green('✓')} Web reloaded; invite URLs + JWT iss + /install/<token>/cli.sh now use the tunnel host.\n`,
+    );
   } catch (err) {
     io.writeStderr(
       `${pc.yellow('⚠')} Web reload after tunnel failed: ${(err as Error).message}\n` +
