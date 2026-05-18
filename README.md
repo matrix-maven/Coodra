@@ -2,7 +2,11 @@
 
 # Coodra
 
-<img src="docs/brand/coodra-banner.svg" alt="Coodra — Stop letting AI code blind. Feature Pack, Context Pack, Policy." width="100%">
+<img src="docs/brand/coodra-lockup.svg" alt="Coodra" height="108">
+
+<img src="docs/brand/coodra-motto.svg" alt="Stop letting AI code blind." height="24">
+
+<img src="docs/brand/coodra-pillars.svg" alt="Feature Pack · Context Pack · Policy" height="16">
 
 [![CI](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coodra/cli/beta.svg)](https://www.npmjs.com/package/@coodra/cli)
