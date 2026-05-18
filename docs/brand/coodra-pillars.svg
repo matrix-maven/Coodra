@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 20" width="420" height="20" role="img" aria-label="Feature Pack · Context Pack · Policy">
+  <title>Feature Pack · Context Pack · Policy</title>
+  <defs>
+    <style><![CDATA[
+      .pillars {
+        fill: #8a8d86;
+        font-family: 'Inter', 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-weight: 500;
+        font-size: 13px;
+        letter-spacing: 3.5px;
+      }
+      @media (prefers-color-scheme: light) {
+        .pillars { fill: #5a5d56; }
+      }
+    ]]></style>
+  </defs>
+  <text class="pillars" x="0" y="15">FEATURE PACK  ·  CONTEXT PACK  ·  POLICY</text>
+</svg>

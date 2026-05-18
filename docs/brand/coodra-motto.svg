@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 28" width="520" height="28" role="img" aria-label="Stop letting AI code blind.">
+  <title>Stop letting AI code blind.</title>
+  <defs>
+    <style><![CDATA[
+      .motto {
+        fill: #7dd87d;
+        font-family: 'Inter', 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+        font-weight: 700;
+        font-size: 20px;
+        letter-spacing: 3px;
+      }
+      @media (prefers-color-scheme: light) {
+        .motto { fill: #2d8b3d; }
+      }
+    ]]></style>
+  </defs>
+  <text class="motto" x="0" y="22">STOP LETTING AI CODE BLIND.</text>
+</svg>

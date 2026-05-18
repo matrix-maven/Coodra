@@ -2,15 +2,19 @@
 
 # Coodra
 
-### Stop letting AI code blind.
+<img src="docs/brand/coodra-lockup.svg" alt="Coodra" height="108">
 
-**Memory, project context, and policy guardrails for AI coding agents.**
-**Works with Claude Code, Cursor, and Windsurf — local-first, MIT.**
+<img src="docs/brand/coodra-motto.svg" alt="Stop letting AI code blind." height="24">
+
+<img src="docs/brand/coodra-pillars.svg" alt="Feature Pack · Context Pack · Policy" height="16">
 
 [![CI](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coodra/cli/beta.svg)](https://www.npmjs.com/package/@coodra/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
+
+**Memory, project context, and policy guardrails for AI coding agents.**
+**Works with Claude Code, Cursor, and Windsurf — local-first, MIT.**
 
 </div>
 
