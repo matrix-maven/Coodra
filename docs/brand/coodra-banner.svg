@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 360" width="1280" height="360" role="img" aria-label="Coodra — Stop letting AI code blind. Feature Pack, Context Pack, Policy.">
+  <title>Coodra — Stop letting AI code blind.</title>
+  <desc>Coodra banner. Dark hero with the Coodra mark (green circle, center node, dashed horizontal axis) on the left, monumental COODRA wordmark, motto in green, and three-pillar sub-rule beneath.</desc>
+
+  <!-- Solid near-black background per brand.md §2 (dark-first, no decorative gradients) -->
+  <rect width="1280" height="360" fill="#0a0e0a"/>
+
+  <!-- Coodra mark (apps/web-v2/components/BrandMark.tsx, scaled 3x to 96px) -->
+  <g transform="translate(96 132) scale(3)" aria-hidden="true">
+    <circle cx="16" cy="16" r="14" stroke="#7dd87d" stroke-width="1" fill="none"/>
+    <circle cx="16" cy="16" r="2.2" fill="#7dd87d"/>
+    <line x1="2" y1="16" x2="30" y2="16" stroke="#e8e6e1" stroke-width="0.6" stroke-dasharray="2 3"/>
+  </g>
+
+  <!-- Vertical rule separating mark + wordmark -->
+  <line x1="208" y1="148" x2="208" y2="212" stroke="rgba(232,230,225,0.18)" stroke-width="1"/>
+
+  <!-- Monumental wordmark — Inter 300, uppercase, generous letter-spacing -->
+  <text x="232" y="206"
+        font-family="Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-weight="300"
+        font-size="108"
+        letter-spacing="8"
+        fill="#e8e6e1">COODRA</text>
+
+  <!-- Motto — Inter 700, uppercase, brand green -->
+  <text x="234" y="252"
+        font-family="Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-weight="700"
+        font-size="20"
+        letter-spacing="3"
+        fill="#7dd87d">STOP LETTING AI CODE BLIND.</text>
+
+  <!-- Three pillars sub-rule — Inter 500, uppercase, dim ink -->
+  <text x="234" y="288"
+        font-family="Inter, 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-weight="500"
+        font-size="13"
+        letter-spacing="3.5"
+        fill="#8a8d86">FEATURE PACK  ·  CONTEXT PACK  ·  POLICY</text>
+
+  <!-- Bottom rule for grounding -->
+  <line x1="96" y1="316" x2="1184" y2="316" stroke="rgba(232,230,225,0.08)" stroke-width="1"/>
+
+  <!-- Top-right meta stamp — JetBrains Mono, faint ink -->
+  <text x="1184" y="76" text-anchor="end"
+        font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace"
+        font-weight="400"
+        font-size="13"
+        letter-spacing="2"
+        fill="#565951">@COODRA/CLI  ·  MIT  ·  LOCAL-FIRST</text>
+
+  <!-- Bottom-right small badge: agent compat -->
+  <text x="1184" y="340" text-anchor="end"
+        font-family="'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace"
+        font-weight="400"
+        font-size="11"
+        letter-spacing="2"
+        fill="#565951">CLAUDE CODE  ·  CURSOR  ·  WINDSURF</text>
+</svg>
