@@ -4,6 +4,16 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.8] — 2026-05-18
+
+### Fixed
+
+- **`packages/cli/src/commands/start.ts`** — `coodra start --tunnel` now re-installs the web service after the Cloudflare quick-tunnel URL is captured. Pre-fix flow: bootstrap all services (web's plist is generated with no `COODRA_PUBLIC_URL`) → start cloudflared → write `COODRA_PUBLIC_URL=<tunnel-url>` to `~/.coodra/.env`. The running web process never picked up the new env, so `resolveDeploymentBaseUrl()` inside the web process fell through to the `COODRA_HOME` local fallback (returning `http://localhost:3001`). Every URL the web rendered (invite tokens minted via `mintInviteAction`, JWT `iss` claims, `/install/<token>/cli.sh` body, `/api/install/<token>` issuer validation) used localhost instead of the tunnel URL. Result: cross-machine invite redemption failed with iss-mismatch even though the admin's tunnel was perfectly reachable. The fix is to capture the tunnel URL from `orchestrateTunnel` (signature now `Promise<string | null>`), then run `manager.stop('web') → manager.install(updatedUnit) → manager.start('web')` so the plist is regenerated with the fresh env. Cloudflared's target (loopback `:3001`) tolerates the ~2s outage transparently.
+
+### Migration note for admins on beta.7
+
+Users of beta.7 on `--tunnel` had to manually patch `~/Library/LaunchAgents/com.coodra.web.plist` to inject `COODRA_PUBLIC_URL`, then `launchctl bootout && bootstrap` web. On beta.8 the same `coodra start --tunnel` invocation produces a correct plist on first run; no manual patching needed.
+
 ## [0.2.0-beta.7] — 2026-05-18
 
 ### Fixed

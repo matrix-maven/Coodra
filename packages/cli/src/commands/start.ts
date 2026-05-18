@@ -178,13 +178,25 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
   // shareability nicety. Print install instructions on missing
   // cloudflared, then fall through to a clean EXIT_OK.
   if (options.tunnel === true) {
-    await orchestrateTunnel({ coodraHome, io });
+    const tunnelUrl = await orchestrateTunnel({ coodraHome, io });
+    // beta.8 (2026-05-18) — when the tunnel produces a URL, re-install
+    // the web service so its plist picks up the freshly-written
+    // COODRA_PUBLIC_URL from ~/.coodra/.env. Without this, the running
+    // web process keeps the env it inherited at boot (no
+    // COODRA_PUBLIC_URL set), its `resolveDeploymentBaseUrl()` falls
+    // through to the COODRA_HOME local fallback (returning
+    // http://localhost:3001), and invite URLs / JWT iss claims / web
+    // cli.sh render all use localhost — making cross-machine
+    // /api/install/<token> redemption fail with iss-mismatch.
+    if (tunnelUrl !== null) {
+      await reinstallWebForTunnel({ coodraHome, manager, io });
+    }
   }
 
   return io.exit(EXIT_OK);
 }
 
-async function orchestrateTunnel(args: { readonly coodraHome: string; readonly io: StartIO }): Promise<void> {
+async function orchestrateTunnel(args: { readonly coodraHome: string; readonly io: StartIO }): Promise<string | null> {
   const { io } = args;
   const lookup = await detectCloudflared();
   if (lookup === null) {
@@ -195,7 +207,7 @@ async function orchestrateTunnel(args: { readonly coodraHome: string; readonly i
         `    Linux:  ${pc.cyan('curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared')}\n` +
         `  Local web is up on http://localhost:3001/; only public URL is missing.\n`,
     );
-    return;
+    return null;
   }
 
   io.writeStdout(`${pc.gray('Starting Cloudflare quick-tunnel …')}\n`);
@@ -214,10 +226,75 @@ async function orchestrateTunnel(args: { readonly coodraHome: string; readonly i
         `\`${pc.cyan('coodra stop')}\` runs.\n` +
         `  Log: ${pc.gray(tunnel.logPath)}\n`,
     );
+    return tunnel.url;
   } catch (err) {
     io.writeStderr(
       `${pc.yellow('⚠')} Tunnel start failed: ${(err as Error).message}\n` +
         `  Local web is still up on http://127.0.0.1:3001/.\n`,
+    );
+    return null;
+  }
+}
+
+/**
+ * beta.8 (2026-05-18) — re-install the `web` service after the tunnel URL is
+ * captured.
+ *
+ * Why: the daemon manager bootstrap runs BEFORE the tunnel (cloudflared
+ * targets `http://127.0.0.1:3001`, which has to be live first). At that
+ * point `~/.coodra/.env` has no `COODRA_PUBLIC_URL` so the launchd plist
+ * is generated without it. Once the tunnel exists, `orchestrateTunnel`
+ * writes `COODRA_PUBLIC_URL=<tunnel-url>` to `.env` — but the running
+ * web process's env is already frozen, and launchd's view of the plist
+ * env is too. `resolveDeploymentBaseUrl()` inside the web then falls
+ * through to the `COODRA_HOME` local fallback (returning
+ * `http://localhost:3001`), and EVERY surface that reads it — invite
+ * URLs the web's `mintInviteAction` builds, the `/install/<token>/cli.sh`
+ * route, the JWT `iss` claim issuer comparison on `/api/install/<token>`
+ * — disagrees with the URL the admin is sharing.
+ *
+ * The fix is to re-load env, re-resolve services (so the web's
+ * DaemonUnit.env now includes the tunnel URL), and re-install + restart
+ * just the web service. Cloudflared's tunnel target (loopback :3001)
+ * tolerates a brief outage; the new web binds within ~2 seconds and the
+ * tunnel resumes proxying transparently.
+ */
+async function reinstallWebForTunnel(args: {
+  readonly coodraHome: string;
+  readonly manager: {
+    install(unit: import('../lib/daemon/types.js').DaemonUnit): Promise<void>;
+    start(name: string): Promise<void>;
+    stop(name: string): Promise<void>;
+  };
+  readonly io: StartIO;
+}): Promise<void> {
+  const { coodraHome, manager, io } = args;
+  io.writeStdout(`${pc.gray('Reloading web with tunnel URL in env …')}\n`);
+  const layered = loadHomeEnv(coodraHome, process.cwd());
+  const env = { ...process.env, ...layered };
+  let resolved: ResolvedService[];
+  try {
+    resolved = await resolveServices({ coodraHome, env });
+  } catch (err) {
+    io.writeStderr(`${pc.yellow('⚠')} Web reload after tunnel skipped: ${(err as Error).message}\n`);
+    return;
+  }
+  const web = resolved.find((s) => s.descriptor.name === 'web');
+  if (web === undefined) return;
+  try {
+    await manager.stop('web');
+    await manager.install(web.unit);
+    await manager.start('web');
+    if (web.descriptor.kind === 'http' && web.port !== null) {
+      await waitForHealth({ url: web.descriptor.healthUrl(web.port), timeoutMs: 30_000 });
+    }
+    io.writeStdout(
+      `${pc.green('✓')} Web reloaded; invite URLs + JWT iss + /install/<token>/cli.sh now use the tunnel host.\n`,
+    );
+  } catch (err) {
+    io.writeStderr(
+      `${pc.yellow('⚠')} Web reload after tunnel failed: ${(err as Error).message}\n` +
+        `  Workaround: manually add COODRA_PUBLIC_URL to ~/Library/LaunchAgents/com.coodra.web.plist and launchctl bootout/bootstrap.\n`,
     );
   }
 }

@@ -108,7 +108,8 @@ describe('walkFeatures', () => {
     );
     const rows = walkFeatures(projectCwd);
     expect(rows).toHaveLength(1);
-    const f = rows[0]!;
+    const f = rows[0];
+    if (f === undefined) throw new Error('expected one row');
     expect(f.files.map((x) => x.path).sort()).toEqual(['examples/charge.ts', 'examples/refund.ts', 'reference.md']);
     // feature.md is metadata, not a supporting file
     expect(f.files.every((x) => x.path !== 'feature.md')).toBe(true);
@@ -121,7 +122,7 @@ describe('walkFeatures', () => {
     writeFileSync(join(dir, 'feature.md'), '# no frontmatter\n\njust a body\n', 'utf8');
     const rows = walkFeatures(projectCwd);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.warnings.some((w) => /frontmatter_missing_open_fence/.test(w))).toBe(true);
+    expect(rows[0]?.warnings.some((w) => /frontmatter_missing_open_fence/.test(w))).toBe(true);
   });
 
   it('warns on slug/name mismatch', () => {
@@ -137,7 +138,7 @@ describe('walkFeatures', () => {
     );
     const rows = walkFeatures(projectCwd);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.warnings.some((w) => /frontmatter_name_mismatch/.test(w))).toBe(true);
+    expect(rows[0]?.warnings.some((w) => /frontmatter_name_mismatch/.test(w))).toBe(true);
   });
 });
 
