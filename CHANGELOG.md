@@ -4,6 +4,13 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.6] — 2026-05-18
+
+### Fixed
+
+- **`apps/web-v2/lib/public-url.ts`**: when an admin runs `coodra start` on a laptop in team mode without ever setting `COODRA_PUBLIC_URL`, the invite URL emitted by `coodra invite` AND the web's `mintInviteAction` was `https://COODRA_PUBLIC_URL_NOT_SET.invalid/install/<token>` — the sentinel was baked into BOTH the URL host AND the JWT `iss` claim, making the link completely unusable. The resolver had cases for `COODRA_PUBLIC_URL` (explicit override) → `VERCEL_URL` (auto-set on Vercel) → sentinel, but no fallback for local CLI invocation. Added case 3: when `COODRA_HOME` is set (a strong signal that the web standalone was launched by `@coodra/cli`'s daemon manager on a developer laptop), resolve to `http://localhost:${PORT ?? 3001}`. The sentinel still fires for cloud deployments that legitimately forgot `COODRA_PUBLIC_URL` — only laptop installs are affected. `isDeploymentBaseUrlUnset()` continues to return `false` for the new local fallback so no remediation banner is shown for valid laptop URLs.
+- New unit test file `apps/web-v2/__tests__/unit/lib/public-url.test.ts` covers all four resolver cases plus the `isDeploymentBaseUrlUnset` invariants.
+
 ## [0.2.0-beta.5] — 2026-05-18
 
 ### Fixed
