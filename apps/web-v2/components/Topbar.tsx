@@ -75,7 +75,7 @@ export function Topbar({ crumbPrefix = 'coodra', crumb, primaryAction, showLocal
         <span className="topbar__search-key">⌘K</span>
       </div>
       <Link
-        href="https://github.com/anthropics/claude-code"
+        href="https://abishai95141.github.io/Coodra/"
         target="_blank"
         rel="noopener noreferrer"
         className="topbar__btn"

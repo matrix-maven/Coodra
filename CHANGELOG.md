@@ -4,6 +4,12 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.2.0-beta.9] — 2026-05-18
+
+### Changed
+
+- **`apps/web-v2/components/Topbar.tsx`** — the topbar "Docs" link now points at the published Coodra documentation site `https://abishai95141.github.io/Coodra/` instead of the upstream Claude Code repo placeholder (`https://github.com/anthropics/claude-code`) carried over from an earlier scaffolding pass. The link is constant across solo / team / team-hosted modes.
+
 ## [0.2.0-beta.8] — 2026-05-18
 
 ### Fixed
