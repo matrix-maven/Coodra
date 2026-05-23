@@ -23,9 +23,7 @@ const minimalInput = {
 describe('seed_feature_packs_from_graph — manifest contract', () => {
   it('satisfies every §24.3 rule via assertManifestDescriptionValid', () => {
     const reg = createSeedFeaturePacksFromGraphToolRegistration({ db: fakeDb });
-    expect(() =>
-      assertManifestDescriptionValid(reg, { folderName: 'seed-feature-packs-from-graph' }),
-    ).not.toThrow();
+    expect(() => assertManifestDescriptionValid(reg, { folderName: 'seed-feature-packs-from-graph' })).not.toThrow();
   });
 
   it('name is exactly "seed_feature_packs_from_graph"', () => {
@@ -109,9 +107,7 @@ describe('seed_feature_packs_from_graph — input schema boundaries', () => {
   });
 
   it('rejects an empty communities array', () => {
-    expect(seedFeaturePacksFromGraphInputSchema.safeParse({ projectSlug: 'p', communities: [] }).success).toBe(
-      false,
-    );
+    expect(seedFeaturePacksFromGraphInputSchema.safeParse({ projectSlug: 'p', communities: [] }).success).toBe(false);
   });
 
   it('rejects more than 100 communities', () => {
@@ -133,9 +129,7 @@ describe('seed_feature_packs_from_graph — input schema boundaries', () => {
   });
 
   it('rejects unknown top-level fields (strict)', () => {
-    expect(
-      seedFeaturePacksFromGraphInputSchema.safeParse({ ...minimalInput, extra: 1 }).success,
-    ).toBe(false);
+    expect(seedFeaturePacksFromGraphInputSchema.safeParse({ ...minimalInput, extra: 1 }).success).toBe(false);
   });
 
   it('rejects unknown fields inside a community (strict)', () => {
@@ -156,8 +150,6 @@ describe('seed_feature_packs_from_graph — factory construction contract', () =
 
   it('rejects a non-DbHandle db', () => {
     // biome-ignore lint/suspicious/noExplicitAny: negative test
-    expect(() => createSeedFeaturePacksFromGraphToolRegistration({ db: {} as any })).toThrow(
-      /db must be a DbHandle/,
-    );
+    expect(() => createSeedFeaturePacksFromGraphToolRegistration({ db: {} as any })).toThrow(/db must be a DbHandle/);
   });
 });

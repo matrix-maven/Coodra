@@ -32,8 +32,7 @@ const seedFeaturePacksFromGraphIdempotencyKey: IdempotencyKeyBuilder<SeedFeature
   input,
   _ctx,
 ) => {
-  const slug =
-    typeof input?.projectSlug === 'string' && input.projectSlug.length > 0 ? input.projectSlug : 'probe';
+  const slug = typeof input?.projectSlug === 'string' && input.projectSlug.length > 0 ? input.projectSlug : 'probe';
   const communityIds = Array.isArray(input?.communities)
     ? input.communities.map((c) => (typeof c?.communityId === 'string' ? c.communityId : '')).join(',')
     : '';
