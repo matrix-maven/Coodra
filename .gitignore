@@ -94,3 +94,6 @@ logs/
 # --- Drizzle local artefacts kept out of git (generated files live in packages/db/drizzle/ and ARE committed) ---
 drizzle/.journal/tmp/
 supabase/.temp/
+
+# npm pack tarballs
+*.tgz

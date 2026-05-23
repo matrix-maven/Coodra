@@ -18,6 +18,15 @@ import {
   runFeatureRemoveCommand,
   runFeatureShowCommand,
 } from './commands/feature.js';
+import {
+  type GraphifyDisableOptions,
+  type GraphifyEnableOptions,
+  type GraphifyIO,
+  type GraphifyStatusOptions,
+  runGraphifyDisableCommand,
+  runGraphifyEnableCommand,
+  runGraphifyStatusCommand,
+} from './commands/graphify.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type InviteIO, type InviteOptions, runInviteCommand } from './commands/invite.js';
 import { type LoginIO, type LoginOptions, runLoginCommand } from './commands/login.js';
@@ -125,6 +134,10 @@ interface BuildProgramOptions {
   readonly runStatus?: (options: StatusOptions, io?: StatusIO) => Promise<unknown>;
   readonly agentsIO?: AgentsIO;
   readonly runAgents?: (options: AgentsOptions, io?: AgentsIO) => Promise<unknown>;
+  readonly graphifyIO?: GraphifyIO;
+  readonly runGraphifyEnable?: (options: GraphifyEnableOptions, io?: GraphifyIO) => Promise<unknown>;
+  readonly runGraphifyDisable?: (options: GraphifyDisableOptions, io?: GraphifyIO) => Promise<unknown>;
+  readonly runGraphifyStatus?: (options: GraphifyStatusOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly teamIO?: TeamCommandIO;
   readonly runTeamLogin?: (options: TeamLoginOptions, io?: TeamCommandIO) => Promise<unknown>;
   readonly runTeamLogout?: (io?: TeamCommandIO) => Promise<unknown>;
@@ -250,7 +263,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--solo',
       'On a team-mode machine: register this project as local-only (never synced to the team), even though the machine is in team mode.',
     )
-    .option('--no-graphify', 'Skip the Graphify scan during Feature Pack seeding.')
+    .option(
+      '--graphify',
+      "Module 09: wire Graphify's codebase-graph MCP server into the agent config(s) and seed the graphify-seed-packs skill. Skips the interactive prompt.",
+    )
+    .option('--no-graphify', "Module 09: don't wire Graphify; skip the interactive prompt.")
     .option('--dry-run', 'Print what init would write without touching disk.')
     .option('--force', 'Overwrite existing files with the baseline (destructive — see spec §11 Decision 3).')
     .option(
@@ -318,6 +335,58 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentsOptions) => {
       await agentsRunner(opts, options.agentsIO);
+    });
+
+  // Module 09 Track 9B (ADR-010, Option C) — `coodra graphify
+  // {enable,disable,status}` wires Graphify's own stdio MCP server into
+  // the agent config(s). Coodra consumes Graphify by configuration, not
+  // by code: the entry runs `python -m graphify.serve graphify-out/graph.json`.
+  const graphifyEnableRunner = options.runGraphifyEnable ?? runGraphifyEnableCommand;
+  const graphifyDisableRunner = options.runGraphifyDisable ?? runGraphifyDisableCommand;
+  const graphifyStatusRunner = options.runGraphifyStatus ?? runGraphifyStatusCommand;
+  const graphify = program
+    .command('graphify')
+    .description(
+      "Wire Graphify's codebase-graph MCP server into your agent config (Claude Code / Cursor / Windsurf / Codex). " +
+        'Option C per ADR-010 — Coodra consumes Graphify by configuration, not code.',
+    );
+  graphify
+    .command('enable')
+    .description(
+      'Add the `graphify` MCP server entry to each detected agent config and seed the `graphify-seed-packs` skill. Idempotent; preserves the `coodra` entry and your edits.',
+    )
+    .option('--ide <ide>', 'IDE(s) to wire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
+    .option(
+      '--python <path>',
+      'Python interpreter for `-m graphify.serve` (default: python3; pass a venv path when graphifyy[mcp] is venv-installed).',
+    )
+    .option('--graph <path>', 'Path to the Graphify graph JSON (default: graphify-out/graph.json).')
+    .option('--force', 'Overwrite an existing drifted `graphify` entry / feature.md with the baseline.')
+    .option('--no-feature', 'Skip seeding the `graphify-seed-packs` Feature recipe into docs/features/.')
+    .option('--dry-run', 'Report what would change without touching disk.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyEnableOptions) => {
+      await graphifyEnableRunner(opts, options.graphifyIO);
+    });
+  graphify
+    .command('disable')
+    .description(
+      'Remove the `graphify` MCP server entry from each agent config. Idempotent. Leaves every other entry untouched.',
+    )
+    .option('--ide <ide>', 'IDE(s) to unwire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
+    .option('--dry-run', 'Report what would change without touching disk.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyDisableOptions) => {
+      await graphifyDisableRunner(opts, options.graphifyIO);
+    });
+  graphify
+    .command('status')
+    .description(
+      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Cursor / Windsurf / Codex). Read-only.',
+    )
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyStatusOptions) => {
+      await graphifyStatusRunner(opts, options.graphifyIO);
     });
 
   // Phase G slice G.3 — top-level `coodra login` for browser-handoff auth.

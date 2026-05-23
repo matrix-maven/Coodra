@@ -31,6 +31,10 @@ describe('coodra --help (snapshot-locked surface)', () => {
         agents [options]          Show per-agent wiring status (Claude Code, Cursor,
                                   Windsurf, Codex). Read-only — use \`coodra init\` to
                                   wire and \`coodra uninstall\` to strip.
+        graphify                  Wire Graphify's codebase-graph MCP server into your
+                                  agent config (Claude Code / Cursor / Windsurf /
+                                  Codex). Option C per ADR-010 — Coodra consumes
+                                  Graphify by configuration, not code.
         login [options]           Browser-handoff Clerk login. Writes
                                   ~/.coodra/clerk-token.json and switches mode to
                                   team.

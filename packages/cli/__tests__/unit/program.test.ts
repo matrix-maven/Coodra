@@ -25,6 +25,8 @@ describe('buildProgram — full surface (post-S8)', () => {
       'doctor',
       'export',
       'feature',
+      // Module 09 Track 9B — Graphify MCP wiring (enable/disable/status).
+      'graphify',
       'init',
       'invite',
       'login',
@@ -89,6 +91,12 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(featureCmd).toBeDefined();
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'remove', 'show']);
+
+    // Module 09 Track 9B — `coodra graphify {enable,disable,status}`.
+    const graphifyCmd = program.commands.find((c) => c.name() === 'graphify');
+    expect(graphifyCmd).toBeDefined();
+    const graphifySub = graphifyCmd?.commands.map((c) => c.name()).sort() ?? [];
+    expect(graphifySub).toEqual(['disable', 'enable', 'status']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {
@@ -173,6 +181,54 @@ describe('buildProgram — full surface (post-S8)', () => {
     };
     const program = buildProgram({ runStatus: fakeRunStatus });
     await expect(program.parseAsync(['node', 'coodra', 'status', '--json'])).rejects.toThrow('__exit__:0');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ json: true });
+  });
+
+  it('wires `graphify enable` to the real runGraphifyEnable handler (Module 09 G3) — passes flags through', async () => {
+    const calls: Array<unknown> = [];
+    const fakeRun = async (opts: unknown) => {
+      calls.push(opts);
+      throw new Error('__exit__:0');
+    };
+    const program = buildProgram({ runGraphifyEnable: fakeRun });
+    await expect(
+      program.parseAsync([
+        'node',
+        'coodra',
+        'graphify',
+        'enable',
+        '--ide',
+        'claude',
+        '--python',
+        'python3',
+        '--dry-run',
+      ]),
+    ).rejects.toThrow('__exit__:0');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ ide: 'claude', python: 'python3', dryRun: true });
+  });
+
+  it('wires `graphify disable` to the real runGraphifyDisable handler (Module 09 G3)', async () => {
+    const calls: Array<unknown> = [];
+    const fakeRun = async (opts: unknown) => {
+      calls.push(opts);
+      throw new Error('__exit__:0');
+    };
+    const program = buildProgram({ runGraphifyDisable: fakeRun });
+    await expect(program.parseAsync(['node', 'coodra', 'graphify', 'disable', '--json'])).rejects.toThrow('__exit__:0');
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ json: true });
+  });
+
+  it('wires `graphify status` to the real runGraphifyStatus handler (Module 09 G3)', async () => {
+    const calls: Array<unknown> = [];
+    const fakeRun = async (opts: unknown) => {
+      calls.push(opts);
+      throw new Error('__exit__:0');
+    };
+    const program = buildProgram({ runGraphifyStatus: fakeRun });
+    await expect(program.parseAsync(['node', 'coodra', 'graphify', 'status', '--json'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ json: true });
   });

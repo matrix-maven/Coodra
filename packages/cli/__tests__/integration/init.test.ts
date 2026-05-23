@@ -284,4 +284,47 @@ describe('runInitCommand — integration', () => {
     expect(captured.exit).toBe(1);
     expect(captured.stderr.join('')).toMatch(/no project root marker found/);
   });
+
+  // Module 09 Track 9B — the optional Graphify step.
+  it('--graphify wires the graphify MCP server + seeds the graphify-seed-packs skill', async () => {
+    const { io, captured } = makeIO();
+    await expect(runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', graphify: true }, io)).rejects.toThrow(
+      '__exit__:0',
+    );
+    expect(captured.exit).toBe(0);
+    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
+    // The graphify entry sits alongside the coodra entry, not instead of it.
+    expect(mcpJson.mcpServers.coodra).toBeDefined();
+    expect(mcpJson.mcpServers.graphify).toBeDefined();
+    expect(mcpJson.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
+    const featureMd = await readFile(join(cwd, 'docs/features/graphify-seed-packs/feature.md'), 'utf8');
+    expect(featureMd).toContain('name: graphify-seed-packs');
+  });
+
+  it('--no-graphify leaves the graphify MCP server unwired and seeds no skill', async () => {
+    const { io } = makeIO();
+    await expect(runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', graphify: false }, io)).rejects.toThrow(
+      '__exit__:0',
+    );
+    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
+    expect(mcpJson.mcpServers.coodra).toBeDefined();
+    expect(mcpJson.mcpServers.graphify).toBeUndefined();
+    await expect(stat(join(cwd, 'docs/features/graphify-seed-packs'))).rejects.toThrow();
+  });
+
+  it('prompts for Graphify when neither flag is set — "y" wires it', async () => {
+    const { io } = makeIO();
+    await expect(
+      runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', readPrompt: async () => 'y' }, io),
+    ).rejects.toThrow('__exit__:0');
+    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeDefined();
+  });
+
+  it('prompts for Graphify when neither flag is set — "n" (default) skips it', async () => {
+    const { io } = makeIO();
+    await expect(
+      runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', readPrompt: async () => '' }, io),
+    ).rejects.toThrow('__exit__:0');
+    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeUndefined();
+  });
 });

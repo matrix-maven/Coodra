@@ -21,6 +21,8 @@ import { writeCoodraJson } from '../lib/init/coodra-json.js';
 import { mergeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
 import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
+import { seedGraphifySeedPacksFeature } from '../lib/init/graphify-feature.js';
+import { DEFAULT_GRAPHIFY_GRAPH_PATH, DEFAULT_GRAPHIFY_PYTHON, wireGraphify } from '../lib/init/graphify-wire.js';
 import { mergeInstructionFile } from '../lib/init/instruction-files.js';
 import { buildCoodraMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
 import type { WriteOutcome } from '../lib/init/types.js';
@@ -701,12 +703,73 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     );
   }
 
-  // Graphify is optional and out of 08a's required scope.
-  if (options.graphify === false) {
-    io.writeStdout(`${pc.yellow('⚠')} Skipping Graphify scan (--no-graphify)\n`);
+  // Module 09 (Track 9B, ADR-010) — optional Graphify wiring. Graphify
+  // ships its own stdio MCP server; when the user opts in, `init` wires
+  // it next to the `coodra` entry in each agent config and seeds the
+  // `graphify-seed-packs` skill. Graphify is NOT wired by default — it
+  // needs a separate install (`graphifyy[mcp]`) plus a built graph, so
+  // a blind wire would point at a server that isn't there.
+  //   --graphify     → wire it (no prompt)
+  //   --no-graphify  → skip it (no prompt)
+  //   neither + TTY  → prompt (default: skip)
+  //   neither, non-interactive → skip with a hint
+  let wireGraphifyChoice: boolean;
+  if (options.graphify === true) {
+    wireGraphifyChoice = true;
+  } else if (options.graphify === false) {
+    wireGraphifyChoice = false;
+  } else if (ides.length === 0) {
+    // No agent config to wire into — nothing to ask.
+    wireGraphifyChoice = false;
+  } else {
+    const graphifyReadPrompt = options.readPrompt ?? defaultInitReadPrompt;
+    const graphifyInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
+    if (graphifyInteractive) {
+      io.writeStdout(
+        `\n${pc.bold('Wire Graphify?')} ${pc.gray('— Graphify builds a codebase knowledge graph and ships its own MCP server.')}\n` +
+          `  ${pc.gray('Needs `graphifyy[mcp]` installed + a built graph. Skip if unsure — `coodra graphify enable` adds it any time.')}\n`,
+      );
+      const answer = (await graphifyReadPrompt(`  Wire Graphify's MCP server? [${pc.cyan('y')}/${pc.cyan('N')}]: `))
+        .trim()
+        .toLowerCase();
+      wireGraphifyChoice = answer === 'y' || answer === 'yes';
+    } else {
+      wireGraphifyChoice = false;
+    }
+  }
+
+  if (wireGraphifyChoice && ides.length > 0) {
+    for (const ide of ides) {
+      try {
+        outcomes.push(
+          await wireGraphify({
+            ide,
+            cwd: root,
+            userHome,
+            python: DEFAULT_GRAPHIFY_PYTHON,
+            graphPath: DEFAULT_GRAPHIFY_GRAPH_PATH,
+            force,
+            dryRun,
+          }),
+        );
+      } catch (err) {
+        io.writeStderr(`${pc.yellow('⚠')} Could not wire Graphify for ${ide}: ${(err as Error).message}\n`);
+      }
+    }
+    try {
+      outcomes.push(await seedGraphifySeedPacksFeature({ cwd: root, projectSlug, force, dryRun }));
+    } catch (err) {
+      io.writeStderr(`${pc.yellow('⚠')} Could not seed the graphify-seed-packs skill: ${(err as Error).message}\n`);
+    }
+    io.writeStdout(
+      `${pc.green('✓')} Wired Graphify's MCP server + seeded the graphify-seed-packs skill. ` +
+        'Install it (`uv tool install graphifyy`) and run `/graphify .` to build the graph.\n',
+    );
+  } else if (options.graphify === false) {
+    io.writeStdout(`${pc.gray('·')} Skipped Graphify wiring (--no-graphify).\n`);
   } else {
     io.writeStdout(
-      `${pc.yellow('⚠')} Graphify scan not implemented in 08a — Feature Pack seeded with placeholder spec\n`,
+      `${pc.gray('·')} Graphify not wired. Run \`coodra graphify enable\` any time to add its codebase-graph MCP server.\n`,
     );
   }
 

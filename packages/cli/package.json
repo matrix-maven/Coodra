@@ -23,6 +23,18 @@
       "types": "./dist/lib/init/index.d.ts",
       "import": "./dist/lib/init/index.js"
     },
+    "./lib/init/graphify-wire": {
+      "types": "./dist/lib/init/graphify-wire.d.ts",
+      "import": "./dist/lib/init/graphify-wire.js"
+    },
+    "./lib/init/graphify-feature": {
+      "types": "./dist/lib/init/graphify-feature.d.ts",
+      "import": "./dist/lib/init/graphify-feature.js"
+    },
+    "./lib/detect": {
+      "types": "./dist/lib/detect.d.ts",
+      "import": "./dist/lib/detect.js"
+    },
     "./lib/pack": {
       "types": "./dist/lib/pack/index.d.ts",
       "import": "./dist/lib/pack/index.js"
