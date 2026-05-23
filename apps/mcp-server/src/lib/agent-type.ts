@@ -16,8 +16,7 @@
  * Interface growth (decisions-log 2026-04-24 14:30): the additive
  * `PerCallContext.agentType: string` slot on the frozen `ToolContext`
  * is the companion change. That slot was reserved as "future
- * transport-surfaced metadata" in the S7a docblock pattern (same
- * rationale as S7c's GraphifyClient.getIndexStatus).
+ * transport-surfaced metadata" in the S7a docblock pattern.
  *
  * Mapping table — the ONE place new client names are added.
  * Canonical keys mirror the GitHub/JIRA event `agent_type` enum in

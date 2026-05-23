@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { featurePackStructureSchema } from '../../lib/feature-pack.js';
+
 /**
  * Input schema for `coodra__get_feature_pack` (§24.4).
  *
@@ -51,6 +53,11 @@ const featurePackContentSchema = z
     implementation: z.string(),
     techstack: z.string(),
     sourceFiles: z.array(z.string()).describe('Per-pack sourceFiles globs from meta.json.'),
+    structure: featurePackStructureSchema
+      .optional()
+      .describe(
+        'Graphify code-graph structure (community id, god nodes, member files). Present only on packs seeded via seed_feature_packs_from_graph.',
+      ),
   })
   .strict();
 

@@ -11,7 +11,6 @@ import { createAuthClient } from '../../../apps/mcp-server/src/lib/auth.js';
 import { createContextPackStore } from '../../../apps/mcp-server/src/lib/context-pack.js';
 import { createDbClient } from '../../../apps/mcp-server/src/lib/db.js';
 import { createFeaturePackStore } from '../../../apps/mcp-server/src/lib/feature-pack.js';
-import { createGraphifyClient } from '../../../apps/mcp-server/src/lib/graphify.js';
 import { createPolicyClient } from '../../../apps/mcp-server/src/lib/policy.js';
 import { createRunRecorder } from '../../../apps/mcp-server/src/lib/run-recorder.js';
 // `sqlite-vec` was removed in the M05 reshape (2026-05-08) — search is
@@ -37,7 +36,6 @@ export interface BootOpts {
   readonly db: DbHandle;
   readonly env: McpServerEnv;
   readonly contextPacksRoot?: string;
-  readonly graphifyRoot?: string;
   /** When `true`, also start the HTTP transport on the env's port. */
   readonly withHttp?: boolean;
 }
@@ -62,8 +60,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
   const contextPacksRoot = opts.contextPacksRoot ?? mkdtempSync(join(tmpdir(), 'e2e-cp-'));
   const contextPack = createContextPackStore({ db: dbHandle, contextPacksRoot });
   const runRecorder = createRunRecorder({ db: dbHandle });
-  const graphifyRoot = opts.graphifyRoot ?? mkdtempSync(join(tmpdir(), 'e2e-gfx-'));
-  const graphify = createGraphifyClient({ db: dbHandle, graphifyRoot });
 
   const deps: ContextDeps = Object.freeze({
     db: { db: dbHandle.db, async close() {} },
@@ -73,7 +69,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
     featurePack,
     contextPack,
     runRecorder,
-    graphify,
   });
 
   const registry = new ToolRegistry({ deps });

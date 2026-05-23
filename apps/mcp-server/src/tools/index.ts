@@ -9,7 +9,6 @@ import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
 import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
 import { createListFeaturesToolRegistration } from './list-features/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
-import { createQueryCodebaseGraphToolRegistration } from './query-codebase-graph/manifest.js';
 import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
 import { createQueryRunDiffToolRegistration } from './query-run-diff/manifest.js';
 import { createQueryRunHistoryToolRegistration } from './query-run-history/manifest.js';
@@ -17,6 +16,7 @@ import { createReadContextPackToolRegistration } from './read-context-pack/manif
 import { createRecordDecisionToolRegistration } from './record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from './save-context-pack/manifest.js';
 import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.js';
+import { createSeedFeaturePacksFromGraphToolRegistration } from './seed-feature-packs-from-graph/manifest.js';
 
 /**
  * `apps/mcp-server/src/tools/index.ts` — registration barrel.
@@ -52,7 +52,6 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(createRecordDecisionToolRegistration({ db: deps.db }));
   registry.register(createQueryRunHistoryToolRegistration({ db: deps.db }));
   registry.register(createCheckPolicyToolRegistration({ db: deps.db }));
-  registry.register(createQueryCodebaseGraphToolRegistration({ db: deps.db }));
   // Slice 4 (2026-05-03 audit): cross-session decisions read-path. Closes
   // the gap that record_decision wrote rows nothing in the 9-tool surface
   // could read back. See manifest.ts docblock.
@@ -77,4 +76,10 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // save_context_pack. ADR-013 records why M06 ships TypeScript-in-
   // process with no external LLM (supersedes ADR-002 for this module).
   registry.register(createQueryRunDiffToolRegistration({ db: deps.db }));
+  // Module 09 (External MCP Integrations, track 9B / G2): turns Leiden
+  // communities the agent fetched from the Graphify MCP server into draft
+  // Feature Packs. The cold-start fix — a fresh repo gets a reviewable
+  // Feature Pack skeleton without manual authoring. See ADR-010 (rewritten)
+  // and docs/feature-packs/09-integrations/.
+  registry.register(createSeedFeaturePacksFromGraphToolRegistration({ db: deps.db }));
 }

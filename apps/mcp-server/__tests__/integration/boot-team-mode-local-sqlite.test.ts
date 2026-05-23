@@ -73,8 +73,8 @@ afterAll(async () => {
 describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)', () => {
   it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
-    // See `boot.test.ts` for the tool count drift log. 16 = post-M06
-    // inventory (2026-05-09).
+    // See `boot.test.ts` for the tool count drift log. 16 = post-M09-G2
+    // inventory (seed_feature_packs_from_graph added 2026-05-21).
     expect(tools.length).toBe(16);
   });
 

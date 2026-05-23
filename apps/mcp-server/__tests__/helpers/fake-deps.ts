@@ -7,7 +7,6 @@ import type {
   ContextPackStore,
   DbClient,
   FeaturePackStore,
-  GraphifyClient,
   Identity,
   PolicyClient,
   RunRecorder,
@@ -43,7 +42,6 @@ export interface MakeFakeDepsOptions {
   readonly featurePack?: FeaturePackStore;
   readonly contextPack?: ContextPackStore;
   readonly runRecorder?: RunRecorder;
-  readonly graphify?: GraphifyClient;
 }
 
 const alwaysAllow: PolicyCheck = async () => ({
@@ -124,6 +122,5 @@ export function makeFakeDeps(overrides: MakeFakeDepsOptions = {}): ContextDeps {
     featurePack: overrides.featurePack ?? notImpl<FeaturePackStore>('featurePack'),
     contextPack: overrides.contextPack ?? notImpl<ContextPackStore>('contextPack'),
     runRecorder: overrides.runRecorder ?? noopRunRecorder(),
-    graphify: overrides.graphify ?? notImpl<GraphifyClient>('graphify'),
   }) satisfies ContextDeps;
 }

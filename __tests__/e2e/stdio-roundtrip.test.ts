@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  *     same way `pnpm dev` does for the IDE integration).
  *   - The MCP `initialize` handshake completes within the test
  *     timeout (cold-boot + sqlite migrations + tool registration).
- *   - `tools/list` returns exactly the 9 expected tools.
+ *   - `tools/list` returns exactly the expected 15-tool inventory.
  *   - A simple `ping` round-trip returns within the timeout.
  *   - Graceful close terminates the subprocess (no zombies).
  *
@@ -87,6 +87,8 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
     //   M02 S11/12 + M05 + M06 batch (2026-05-08 → 2026-05-09):
     //     list_context_packs + read_context_pack + list_features +
     //     get_feature + get_feature_file + query_run_diff → 16
+    //   Module 09 G1 (2026-05-21): query_codebase_graph removed → 15
+    //   Module 09 G2 (2026-05-21): seed_feature_packs_from_graph added → 16
     expect(names).toEqual(
       [
         'check_policy',
@@ -97,7 +99,6 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
         'list_context_packs',
         'list_features',
         'ping',
-        'query_codebase_graph',
         'query_decisions',
         'query_run_diff',
         'query_run_history',
@@ -105,6 +106,7 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
         'record_decision',
         'save_context_pack',
         'search_packs_nl',
+        'seed_feature_packs_from_graph',
       ].sort(),
     );
   });

@@ -101,16 +101,6 @@ const mcpServerEnvSchema = baseEnvSchema
       .describe('Override for context-pack markdown materialisation root. Defaults to <cwd>/docs/context-packs.'),
 
     /**
-     * Override for the Graphify index root. `lib/graphify.ts` defaults
-     * to `~/.coodra/graphify`. Closes verification finding §8.5.
-     */
-    COODRA_GRAPHIFY_ROOT: z
-      .string()
-      .min(1)
-      .optional()
-      .describe('Override for graph.json lookups. Defaults to ~/.coodra/graphify.'),
-
-    /**
      * Shared secret that the local PostToolUse hook client uses to
      * authenticate itself to the HTTP transport. Consumed by S7b.
      */

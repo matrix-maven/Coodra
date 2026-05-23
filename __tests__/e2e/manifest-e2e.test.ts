@@ -30,6 +30,8 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
  *   M02 S11/12 + M05 + M06 batch (2026-05-08 → 2026-05-09):
  *     list_context_packs + read_context_pack + list_features +
  *     get_feature + get_feature_file + query_run_diff → 16
+ *   Module 09 G1 (2026-05-21): query_codebase_graph removed → 15
+ *   Module 09 G2 (2026-05-21): seed_feature_packs_from_graph added → 16
  */
 
 const EXPECTED_TOOLS = [
@@ -41,7 +43,6 @@ const EXPECTED_TOOLS = [
   'record_decision',
   'query_run_history',
   'check_policy',
-  'query_codebase_graph',
   'query_decisions',
   'list_context_packs',
   'read_context_pack',
@@ -49,6 +50,7 @@ const EXPECTED_TOOLS = [
   'get_feature',
   'get_feature_file',
   'query_run_diff',
+  'seed_feature_packs_from_graph',
 ] as const;
 
 interface Harness {
@@ -143,7 +145,10 @@ describe('manifest-e2e — minimal-valid-input round-trip per tool', () => {
       toolName: 'Write',
       toolInput: { file_path: '/tmp/x' },
     },
-    query_codebase_graph: { projectSlug: 'e2e-probe', query: 'foo' },
+    seed_feature_packs_from_graph: {
+      projectSlug: 'e2e-probe',
+      communities: [{ communityId: 'c1', label: 'Probe Community' }],
+    },
   };
 
   for (const name of EXPECTED_TOOLS) {

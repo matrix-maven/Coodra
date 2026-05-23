@@ -11,7 +11,7 @@ import type { IdempotencyKey } from './idempotency.js';
  * authoritative list of per-call dependencies a tool handler may
  * consume. S7a builds the first four implementations (db, logger,
  * auth, policy); S7c fills in the remaining slots (featurePack,
- * contextPack, runRecorder, sqliteVec, graphify). Stub factories
+ * contextPack, runRecorder). Stub factories
  * live today in the corresponding `src/lib/*.ts` file so the
  * filesystem shape is locked and S7c is a function-body change,
  * not a file addition.
@@ -165,62 +165,17 @@ export interface RunRecorder {
  */
 
 /**
- * graphify client. Implemented in `lib/graphify.ts` (S7c).
+ * GraphifyClient was the structural-graph reader for the Graphify
+ * integration. Removed 2026-05-21 — Module 09 (ADR-010 rewrite,
+ * Option C): Graphify is now consumed via its own MCP server wired
+ * into the agent config, so Coodra no longer reads `graph.json`
+ * itself. See `system-architecture.md` §17 and
+ * `docs/feature-packs/09-integrations/`.
  *
- * User constraint: expose domain-shaped ops, not query executors.
- * Module 05 defines the full graph surface; today S15's
- * `query_codebase_graph` is the only consumer.
- *
- * Interface growth policy (reserved at S7a as "future domain
- * methods slot in here in later modules"):
- *   - S7c added `getIndexStatus(slug)` for S15's graphify-missing
- *     fallback — approved by user directive Q9 as the correct home
- *     for the "is the index present?" signal rather than growing a
- *     side-channel module export. See decisions-log 2026-04-24.
- *   - S15 added `expandContextBySlug(slug)` for `query_codebase_graph`
- *     which has a `projectSlug` input but no `runId` — approved by
- *     user directive Q2 (2026-04-24) as the same additive-method
- *     pattern that landed Q9. The existing `expandContext({ runId })`
- *     surface is preserved for future `runId`-aware callers; both
- *     paths share the per-slug cache in the implementation.
+ * Kept as a documentation-only marker (mirrors the SqliteVecClient
+ * marker above) so a future grep for the symbol returns a deliberate
+ * "removed by design" hit rather than a missing-import puzzle.
  */
-export interface GraphifyClient {
-  /**
-   * Load the community subgraph for the project associated with the
-   * given `runId`, expanding `depth` hops around the pack's own
-   * seed nodes. The runId is resolved to its project slug via the
-   * `runs` + `projects` tables inside this client. Missing graph.json
-   * → returns `{ nodes: [], edges: [] }`; callers that need to
-   * distinguish "missing" from "empty" must query `getIndexStatus`
-   * first.
-   */
-  expandContext(args: { readonly runId: string; readonly depth: number }): Promise<{
-    readonly nodes: ReadonlyArray<unknown>;
-    readonly edges: ReadonlyArray<unknown>;
-  }>;
-  /**
-   * Slug-addressed variant of `expandContext` landed in S15 (user
-   * directive Q2 2026-04-24). Intended for callers that already
-   * have the project slug and do not have a runId — the
-   * `query_codebase_graph` tool is the first consumer. Shares the
-   * per-slug cache with `expandContext`; a missing graph.json
-   * returns `{ nodes: [], edges: [] }` (callers that need to
-   * distinguish "missing" from "empty" must call `getIndexStatus`
-   * BEFORE this method, per §S15 flow).
-   */
-  expandContextBySlug(slug: string): Promise<{
-    readonly nodes: ReadonlyArray<unknown>;
-    readonly edges: ReadonlyArray<unknown>;
-  }>;
-  /**
-   * Check whether `<graphifyRoot>/<slug>/graph.json` exists on disk.
-   * Returns `{ present: true }` when the file is readable, or
-   * `{ present: false, howToFix }` with the documented remediation
-   * string from §S15 so the tool handler can surface it verbatim
-   * without re-deriving the message.
-   */
-  getIndexStatus(slug: string): Promise<{ readonly present: boolean; readonly howToFix?: string }>;
-}
 
 // ---------------------------------------------------------------------------
 // Aggregated shapes.
@@ -240,7 +195,6 @@ export interface ContextDeps {
   readonly featurePack: FeaturePackStore;
   readonly contextPack: ContextPackStore;
   readonly runRecorder: RunRecorder;
-  readonly graphify: GraphifyClient;
 }
 
 /** Per-call fields the registry populates for every invocation. */
@@ -255,9 +209,8 @@ export interface PerCallContext {
    * Canonical `runs.agent_type` for the caller. Populated by the
    * transport from the MCP `initialize.clientInfo.name` handshake
    * value (via `src/lib/agent-type.ts::mapAgentType`). Additive slot
-   * landed in S8 (user directive Q2 2026-04-24) — same "reserved
-   * future-transport-metadata" pattern as S7c's
-   * `GraphifyClient.getIndexStatus`. Tests inject `'unknown'` via
+   * landed in S8 (user directive Q2 2026-04-24) as a reserved
+   * future-transport-metadata slot. Tests inject `'unknown'` via
    * `makeFakeDeps` when they don't care about the value.
    */
   readonly agentType: string;

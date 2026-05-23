@@ -67,7 +67,7 @@ describe('lib/errors — mcpErrorResult', () => {
   });
 
   it('translates a NotImplementedError (subclass of AppError) with the INTERNAL code', () => {
-    const env = mcpErrorResult(new NotImplementedError('graphify.expandContext'));
+    const env = mcpErrorResult(new NotImplementedError('feature-pack.get'));
     const payload = JSON.parse(env.content[0]?.text ?? '{}') as Record<string, unknown>;
     expect(payload.error).toBe('internal');
     expect(payload.message).toMatch(/not implemented yet/);

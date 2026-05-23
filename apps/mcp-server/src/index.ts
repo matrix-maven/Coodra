@@ -21,7 +21,6 @@ import { createAuthClient } from './lib/auth.js';
 import { createContextPackStore } from './lib/context-pack.js';
 import { createDbClient } from './lib/db.js';
 import { createFeaturePackStore } from './lib/feature-pack.js';
-import { createGraphifyClient } from './lib/graphify.js';
 import { createMcpLogger } from './lib/logger.js';
 import { createMcpDispatchHandler } from './lib/outbox-dispatch.js';
 import { createPolicyClient } from './lib/policy.js';
@@ -44,7 +43,7 @@ const SERVER_VERSION = '0.0.0' as const;
  *   - Full `ContextDeps` bag wired from `src/lib/*` factories, even
  *     though only `policy` is consumed at call time in S7a. The
  *     remaining lib clients (db, auth, featurePack, contextPack,
- *     runRecorder, sqliteVec, graphify) exist as stubs that throw
+ *     runRecorder) exist as stubs that throw
  *     `NotImplementedError` — their bodies fill in across S7b/c.
  *     Wiring them now locks the boot-order contract so S7b/c are
  *     function-body changes, not file additions.
@@ -140,11 +139,6 @@ async function main(): Promise<void> {
   // Module 05 reshape (2026-05-08): no sqliteVec wiring — agent-driven NL
   // assembly replaces the embedding pipeline. See
   // docs/feature-packs/05-agent-driven-nl-assembly/spec.md.
-  const graphify = createGraphifyClient({
-    db: dbHandle,
-    ...(env.COODRA_GRAPHIFY_ROOT ? { graphifyRoot: env.COODRA_GRAPHIFY_ROOT } : {}),
-  });
-
   const deps: ContextDeps = Object.freeze({
     db: dbClient.client,
     logger: sharedLogger,
@@ -153,7 +147,6 @@ async function main(): Promise<void> {
     featurePack,
     contextPack,
     runRecorder,
-    graphify,
   });
 
   const registry = new ToolRegistry({ deps });

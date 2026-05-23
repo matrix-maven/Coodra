@@ -73,6 +73,8 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //   M02 S11/12 + M05 + M06 batch  (2026-05-08 → 2026-05-09):
     //     list_context_packs + read_context_pack + list_features +
     //     get_feature + get_feature_file + query_run_diff → 16
+    //   Module 09 G1 (2026-05-21): query_codebase_graph removed → 15
+    //   Module 09 G2 (2026-05-21): seed_feature_packs_from_graph added → 16
     expect(tools.length).toBe(16);
   });
 

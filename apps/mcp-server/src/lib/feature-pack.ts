@@ -57,10 +57,26 @@ const CACHE_TTL_MS = 60_000 as const;
 // meta.json schema + return shapes
 // ---------------------------------------------------------------------------
 
+/**
+ * Structural metadata for a Feature Pack seeded from a Graphify
+ * code-graph community (Module 09 / G2). Optional — only graph-seeded
+ * packs carry it. A plain `z.object` (not `.strict()`) so a future
+ * Graphify field is tolerated rather than rejected at read time.
+ */
+export const featurePackStructureSchema = z.object({
+  source: z.string().min(1),
+  communityId: z.string().min(1),
+  label: z.string().min(1),
+  godNodes: z.array(z.string()),
+  memberFiles: z.array(z.string()),
+});
+export type FeaturePackStructure = z.infer<typeof featurePackStructureSchema>;
+
 const metaJsonSchema = z.object({
   slug: z.string().min(1),
   parentSlug: z.string().min(1).nullable().optional(),
   sourceFiles: z.array(z.string().min(1)).optional(),
+  structure: featurePackStructureSchema.optional(),
 });
 export type FeaturePackMeta = z.infer<typeof metaJsonSchema>;
 
@@ -69,6 +85,8 @@ export interface FeaturePackContent {
   readonly implementation: string;
   readonly techstack: string;
   readonly sourceFiles: ReadonlyArray<string>;
+  /** Graphify code-graph structure — present only on graph-seeded packs. */
+  readonly structure?: FeaturePackStructure;
 }
 
 export interface FeaturePackMetadata {
@@ -98,7 +116,7 @@ export interface FeaturePackGetReturn extends FeaturePackReturn {
 // Factory
 // ---------------------------------------------------------------------------
 
-function defaultFeaturePacksRoot(): string {
+export function defaultFeaturePacksRoot(): string {
   // Defaults assume the compiled process starts from the repo root
   // (the CLI, the mcp-server's own dist, tests with explicit
   // fixtures). Tests pass an explicit `featurePacksRoot` so they do
@@ -187,6 +205,8 @@ async function readPackFromDisk(
       implementation: implTxt ?? '',
       techstack: techTxt ?? '',
       sourceFiles: parsed.data.sourceFiles ?? [],
+      // `structure` is present only on Graphify-seeded packs (Module 09).
+      ...(parsed.data.structure !== undefined ? { structure: parsed.data.structure } : {}),
     },
     meta: parsed.data,
   };
