@@ -159,7 +159,7 @@ if (response.ok) {
 }
 ```
 
-If you are writing an agent that consumes a tool with a discriminated-union output, your contract is `response.ok && response.data.ok`. Tools that use this pattern: `get_run_id` (S8). Future tools that will use it: `search_packs_nl` (S11, `no_embeddings_yet` fallback), `query_codebase_graph` (S15, `graphify_index_missing` fallback). Plan your caller code accordingly.
+If you are writing an agent that consumes a tool with a discriminated-union output, your contract is `response.ok && response.data.ok`. Tools that use this pattern: `get_run_id` (S8), `search_packs_nl` (S11, `no_embeddings_yet` fallback), `seed_feature_packs_from_graph` (Module 09 G2, `project_not_found` fallback). Plan your caller code accordingly.
 
 ## 9.2 Creating a new Hook Handler
 

@@ -798,7 +798,7 @@ Tools you'll exercise during the test:
 | `record_decision` | At every design choice |
 | `save_context_pack` | At session end (richer than the bridge's auto digest) |
 | `check_policy` | Before every write/edit/delete/bash — Claude calls this; you verify it fired |
-| `query_codebase_graph` | Soft-fails to `codebase_graph_not_indexed` because Graphify is deferred — see ADR-010 |
+| `seed_feature_packs_from_graph` | Module 09 — when the agent calls it with a Leiden community payload, you see one draft `feature_packs` row per community + on-disk pack files under `docs/feature-packs/` |
 
 ---
 
@@ -1003,8 +1003,6 @@ Things that are NOT failures (don't waste capture budget on these):
   app on `:3000`; Coodra web-v2 listens on `:3001` in dev.
 - MCP server saying "already initialized" between two probe scripts. Documented
   quirk in §3.3.
-- `query_codebase_graph` returning `codebase_graph_not_indexed`. Documented in
-  ADR-010 — Graphify producer is deferred.
 - A feature add without `--description` warning about the TODO placeholder.
   That's the quality heuristic firing correctly.
 

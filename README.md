@@ -141,7 +141,8 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 | Group | Tools |
 |---|---|
 | **Identity** | `get_run_id` · `ping` |
-| **Architectural context** | `get_feature_pack` · `list_features` · `get_feature` · `get_feature_file` · `query_codebase_graph` |
+| **Architectural context** | `get_feature_pack` · `list_features` · `get_feature` · `get_feature_file` |
+| **Knowledge bootstrap** | `seed_feature_packs_from_graph` (Module 09 · Graphify communities → draft Feature Packs) |
 | **Cross-session memory** | `save_context_pack` · `list_context_packs` · `read_context_pack` · `search_packs_nl` |
 | **Decisions** | `record_decision` · `query_decisions` |
 | **Policy + runs** | `check_policy` · `query_run_history` · `query_run_diff` |

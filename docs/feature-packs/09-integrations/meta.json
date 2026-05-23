@@ -1,0 +1,30 @@
+{
+  "slug": "09-integrations",
+  "parentSlug": "06-run-diff",
+  "sourceFiles": [
+    "system-architecture.md",
+    "essentialsforclaude/11-adrs.md",
+    "essentialsforclaude/05-agent-trigger-contract.md",
+    "External api and library reference.md",
+    "apps/mcp-server/src/tools/**",
+    "apps/mcp-server/src/lib/graphify.ts",
+    "apps/mcp-server/src/framework/tool-context.ts",
+    "packages/cli/src/lib/mcp-integrations/**",
+    "packages/cli/src/commands/**",
+    "apps/web-v2/app/settings/integrations/**",
+    "apps/web-v2/app/onboarding/team/**",
+    "docs/features/**"
+  ],
+  "isActive": true,
+  "kind": "module-spec",
+  "module": "09",
+  "title": "External MCP Integrations (Jira + Graphify)",
+  "summary": "Module 09 integrates Jira and Graphify into Coodra with one shared pattern: wire the external system's own MCP server into the agent's config, and have Coodra provide fusion tools + skill recipes that compose it with the knowledge layer. Coodra builds no Jira REST client and no Graphify graph reader. Track 9A (Jira) = Direct: onboarding writes Atlassian's Rovo MCP server (mcp.atlassian.com/v1/mcp/authv2, per-user OAuth); Epic->Feature Pack, Story->Run, on-request write-back. Track 9B (Graphify) = Option C: onboarding writes Graphify's own stdio MCP server (python -m graphify.serve); the dead query_codebase_graph tool + graphify.ts reader are retired; a new seed_feature_packs_from_graph tool turns Leiden communities into draft Feature Packs; get_feature_pack gains a structure block. A shared 9-Core substrate (MCP-config writer, /settings/integrations page, coodra <x> enable/disable/status CLI) is built once. Supersedes the build-our-own Jira design in system-architecture.md section 22 and the original ADR-010 Graphify reader/importer.",
+  "supersedes": [
+    "system-architecture.md section 22 — build-our-own Jira REST client + OAuth app + webhooks",
+    "Original ADR-010 / section 17 — Coodra-owned Graphify graph.json reader + community importer"
+  ],
+  "supersededBy": null,
+  "createdAt": "2026-05-21",
+  "lastReviewedAt": "2026-05-21"
+}

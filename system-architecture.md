@@ -899,83 +899,68 @@ Solo-mode v1 scope: this pattern fires only for Claude Code's hook envelope (whi
 
 ## 17. Graphify Integration — Full Flow
 
+> **Rewritten 2026-05-21 (Module 09, Option C).** The previous §17 described a
+> Coodra-owned `graph.json` reader, two `/api/graphify/*` web endpoints, a
+> `graphify_graphs` table, and `knowledge_edges` — none of which were ever
+> built; their assumptions were stale. The Option-C design below is implemented
+> by Module 09 (`docs/feature-packs/09-integrations/`); see also
+> `essentialsforclaude/11-adrs.md` ADR-010 (rewritten).
+
 ### What Graphify Is
 
-Graphify is a separate static analysis CLI tool (not built by Coodra). It parses a codebase, builds a dependency graph (nodes = symbols, edges = dependencies), and uses Leiden community detection to cluster symbols into logical modules. Output: `graph.json` with `nodes`, `edges`, `communities`.
+Graphify (`safishamsi/graphify`, MIT, PyPI package `graphifyy`) is a mature,
+actively-developed codebase-knowledge-graph tool — tree-sitter AST extraction
+across 30+ languages plus SQL, docs, and PDFs, with Leiden community detection.
+It is **not built by Coodra**. Running it (`graphify .`, or the `/graphify`
+skill inside an AI assistant) produces a `graphify-out/` directory in the repo:
+`graph.json` (the full graph, NetworkX node-link format — every node carries a
+`community` integer), `GRAPH_REPORT.md`, and `graph.html`. Crucially, Graphify
+also ships **its own MCP stdio server** — `python -m graphify.serve
+graphify-out/graph.json` — exposing `query_graph`, `get_node`, `get_neighbors`,
+and `shortest_path`.
 
-Coodra does not own Graphify's analysis logic. It consumes the output.
+### How Coodra Consumes Graphify — Option C
 
-### The Two Import Paths (Both Already Implemented)
+Coodra wires Graphify's **own MCP server** into the agent's MCP config, next to
+the `coodra` server. The agent queries Graphify directly for structural
+questions — blast radius before a refactor, "where is X defined?", dependency
+paths. Coodra builds **no** `graph.json` reader, **no** producer, **no** parser.
+This is the same "wire the external MCP server, don't rebuild it" pattern Coodra
+uses for the Jira integration (§22), and the Pattern-20 thesis applied to
+structural context: ship the integration as wiring + recipes, not as a service.
 
-**Path A — `/api/graphify/analyze` (store the knowledge graph):**
-```
-graph.json → POST /api/graphify/analyze
-  → Build degree map from edges (for god-node detection)
-  → Identify top-20 highest-degree nodes (architectural hubs)
-  → Extract community summaries: { id, label, fileCount, symbolCount }
-  → Deactivate previous active graph for this project
-  → INSERT graphify_graphs record (isActive = true)
-  → Returns: { graphId, nodeCount, edgeCount, communityCount, godNodes }
-```
+### Coodra's Leverage — Fusing Structure Into the Knowledge Layer
 
-The stored graph powers the interactive vis-network visualization at `/dashboard/[project]/graph`.
+Coodra's value-add is making the **knowledge layer graph-aware**:
 
-**Path B — `/api/graphify/import` (create Feature Pack drafts):**
-```
-graph.json → POST /api/graphify/import
-  → Parse each community → create one FeaturePack draft per community
-  → Each pack:
-      name: community label
-      slug: normalized label
-      content.description: "Key hubs: X, Y. N files, M symbols."
-      content.source: "graphify"
-      graphifyAnalysis: { modules, godNodes, fileCount, symbolCount, communityHash }
-      sourceFiles: unique file paths in the community
-  → INSERT packs with isActive = false (draft, requires tech lead review)
-  → CREATE knowledge_edges: feature_pack → touches_file for each sourceFile
-  → Returns: { created, updated, skipped, stale, total, packIds }
-```
+- **`coodra__seed_feature_packs_from_graph`** — a new MCP tool. The agent (which
+  holds both the `coodra` and `graphify` MCP servers) fetches the Leiden
+  community breakdown from Graphify and hands it to Coodra, which creates one
+  **draft** Feature Pack per community — name from the community label, a
+  `structure` block populated (god nodes, member files, community id),
+  `status='draft'` for tech-lead review. This is the cold-start fix: a fresh
+  repo gets a Feature Pack skeleton without manual authoring. Idempotent on a
+  community hash — re-seeding updates packs; a vanished community flags its pack
+  stale.
+- **`get_feature_pack`** gains an optional `structure` block, so every session
+  start can deliver code topology alongside human intent.
 
-Graphify packs start as **inactive drafts** — they never reach agents until a tech lead adds architectural constraints and activates them.
+No schema migration is required — the `structure` block lives inside
+`feature_packs.content_json`.
 
-**Update mode:** On re-import, compare `graphifyCommunityHash` (SHA-256 of sorted file list + symbol list). Hash unchanged → skip. Hash changed → update pack, increment version. Community disappeared → mark old pack `isStale = true`.
+### What Is Retired
 
-### Coodra CLI Orchestration
+The `query_codebase_graph` MCP tool and `apps/mcp-server/src/lib/graphify.ts`
+read `~/.coodra/graphify/<slug>/graph.json` — a path nothing ever writes
+(Graphify writes `<repo>/graphify-out/graph.json`) — so the tool was permanently
+in a `codebase_graph_not_indexed` soft-failure. Module 09 (track 9B, phase G1)
+removes both. Structural queries are answered by Graphify's own MCP server.
 
-```bash
-$ coodra graphify analyze ./my-project
+### Cross-References
 
-→ Check: which graphify || prompt to install
-→ Run: graphify analyze ./my-project --output /tmp/ctx-graph.json
-→ POST /api/graphify/analyze { graph: <file contents>, projectSlug: <current> }
-→ Display: "Graph stored: 847 nodes, 1,243 edges, 12 communities.
-            Top hubs: authMiddleware, db.ts, userService"
-→ Prompt: "Create Feature Pack drafts from communities? [y/N]"
-→ If yes: POST /api/graphify/import { graph: <same>, projectSlug: <current> }
-→ Display: "12 draft packs created. Review: http://localhost:3000/dashboard/myapp/packs"
-```
-
-Both API endpoints are already implemented. The CLI command is the new work.
-
-### Graphify in the Knowledge Graph
-
-After import, `knowledge_edges` records link each feature pack to its source files:
-```
-feature_pack:auth-module → touches_file → src/middleware/auth.ts
-feature_pack:auth-module → touches_file → src/lib/tokens.ts
-feature_pack:auth-module → touches_file → src/routes/login.ts
-```
-
-Querying "which feature packs touch this file?" becomes a simple `JOIN` on `knowledge_edges`.
-
-### Graphify in the MCP Read Path
-
-`get_feature_pack` returns the activated pack's content. For a Graphify-sourced pack, this includes:
-- `content.description`: community summary with god nodes
-- `sourceFiles`: file paths in the community
-- `graphifyAnalysis.godNodes`: high-degree symbols the agent should be aware of
-
-An agent touching `src/middleware/auth.ts` can retrieve the auth module's feature pack and immediately understand the key symbols, architectural hubs, and tech lead's constraints — before making any changes.
+- `essentialsforclaude/11-adrs.md` — ADR-010 (rewritten).
+- `docs/feature-packs/09-integrations/` — Module 09 spec, implementation plan, techstack.
+- §22 — the Jira integration, the sibling external-MCP integration under Module 09.
 
 ---
 
@@ -2280,9 +2265,9 @@ Anti-patterns banned:
 - *"Useful for..."* — hedging. If it's useful, say when.
 - Descriptions outside the word-count envelope — **40–80 words is the soft target, 120 is the hard maximum** (amended 2026-04-23 per Q-02-6; the old ~80-word cap was too tight for tools with structured outputs that need an extra sentence of shape documentation). Character length is additionally capped at < 800 as a belt-and-braces defence against the system-prompt budget.
 
-### 24.4 Core Tool Manifest — 10 Coodra Tools
+### 24.4 Core Tool Manifest — 16 Coodra Tools
 
-> Slice 4 (2026-05-03 audit) added the 10th tool, `query_decisions` — see entry below `query_codebase_graph`. Pre-Slice-4 the manifest was 9 tools (Phase 4 Fix F's `ping` + the original 8); Slice 4 adds `query_decisions` to close the cross-session memory gap (audit §3.5: `record_decision` writes were unreadable from the agent surface). Section header retained as-is for git history; canonical count is 10.
+> The live `tools/list` handshake is the source of truth — 16 tools as of Module 09 G2 (`seed_feature_packs_from_graph` added; `query_codebase_graph` retired in G1). The §24.9 manifest test asserts the exact set on every push. The per-tool entries below document the load-bearing surfaces; `ping`, `list_context_packs`, `read_context_pack`, `list_features`, `get_feature`, `get_feature_file`, and `query_run_diff` are covered by that test rather than re-specced here.
 
 These are the tools every project using Coodra exposes. They bind the agent to the Feature Pack / Context Pack / Policy / Decision lifecycle described in §2 and §18.
 
@@ -2366,20 +2351,19 @@ These are the tools every project using Coodra exposes. They bind the agent to t
 **Soft-failures:**
 - `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered.
 
-#### `query_codebase_graph`
-> Call this BEFORE making significant structural changes to understand the code's dependency graph. Returns the community subgraph (nodes + edges) from the Graphify-indexed codebase. Use to find blast radius before refactoring, to locate the correct module for a new feature, or to answer "where is X defined?" without reading every file.
+#### `query_codebase_graph` — RETIRED (Module 09 / G1, 2026-05-21)
 
-**Input:** `{ projectSlug: string, query: string }`
-**Returns (success, M02):** `{ ok: true, nodes: ReadonlyArray<unknown>, edges: ReadonlyArray<unknown>, indexed: true, notice?: 'query_filtering_deferred_to_m05' }`
-- `nodes` / `edges` are typed `unknown` at M02 — Module 05 owns the rich `{ name, kind, file, callers, callees, community }` projection and replaces this handler with a typed-filtering version.
-- `indexed: true` is an observability primitive — locked `true` on success (the handler only returns success after `getIndexStatus` confirms the file exists). Distinct from `ok`: a success with `nodes: []` is legitimate empty state; the same outer shape with `ok: false` is a soft-failure.
-- `notice: 'query_filtering_deferred_to_m05'` is present whenever M02 returns the full subgraph without applying `query` filtering — same advisory-marker pattern as `search_packs_nl`'s `no_embeddings_yet`. Module 05 drops this marker when it lands typed filtering.
-**Mechanism:** reads `graph.json` nodes/edges loaded by §17. At M02 the handler calls `ctx.graphify.getIndexStatus(slug)` BEFORE `ctx.graphify.expandContextBySlug(slug)`; the ordering is load-bearing — without the status probe, a missing index would silently fall through to `{ nodes: [], edges: [] }` and callers could not distinguish "no results" from "no index".
-**Soft-failures (two distinct shapes — distinct remediations):**
+> Removed in Module 09 (track 9B / phase G1). This tool and `apps/mcp-server/src/lib/graphify.ts` read `~/.coodra/graphify/<slug>/graph.json` — a path nothing ever populated, so the tool was permanently soft-failing. Structural queries ("blast radius", "where is X defined?", dependency paths) are now answered by **Graphify's own MCP server** (`query_graph` / `get_node` / `get_neighbors` / `shortest_path`), wired into the agent config via `coodra graphify enable`. Coodra does not wrap Graphify (ADR-010, Option C). See §17 and `docs/feature-packs/09-integrations/`.
+
+#### `seed_feature_packs_from_graph`
+> Call this to bootstrap Feature Packs for a project from its code graph. After fetching the Leiden community breakdown from the Graphify MCP server — each community's label, god-node symbols, and member files — pass the communities here. The tool creates one DRAFT Feature Pack per community; drafts stay hidden from agents until a tech lead reviews and activates them.
+
+**Input:** `{ projectSlug: string, communities: Array<{ communityId: string, label: string, godNodes?: string[], memberFiles?: string[], summary?: string }> }`
+**Returns:** `{ ok: true, seeded: Array<{ slug: string, communityId: string, created: boolean }>, count: number }` — `created` is `true` for a brand-new draft pack, `false` when an existing pack of that slug was updated in place (idempotent re-seed).
+**Side-effect:** writes one `feature_packs` row per community with `status='draft'` — ON CONFLICT (slug) updates content columns only, never `status`/`orgId`, so a re-seed cannot un-publish a lead-activated pack — then materialises `<featurePacksRoot>/<slug>/{spec,implementation,techstack}.md` + `meta.json`. The `meta.json` `structure` block (community id, god nodes, member files) is the machine-readable home of the Graphify data; `get_feature_pack` surfaces it on `pack.content.structure` once a tech lead activates the draft (G2.1).
+**Soft-failure** (canonical shape per `essentialsforclaude/09-common-patterns.md §9.1.2`):
 - `{ ok: false, error: 'project_not_found', howToFix: string }` — the `projectSlug` is not registered in the `projects` table. Remediation: `coodra init`.
-- `{ ok: false, error: 'codebase_graph_not_indexed', howToFix: string }` — the project exists but no `graph.json` is present on disk at `<graphifyRoot>/<slug>/graph.json`. Remediation: ``run `graphify scan` at repo root``.
-**Empty result** (index present, graph.json parses to `{ nodes: [], edges: [] }`) → `{ ok: true, nodes: [], edges: [], indexed: true, notice: 'query_filtering_deferred_to_m05' }` — NOT a soft-failure. Same rule as `search_packs_nl` / `query_run_history`.
-**Fail-open (§7):** lib-internal read / parse failures (graph.json exists but is truncated or malformed) collapse to `{ nodes: [], edges: [] }` at the lib layer with `indexed` still `true` — distinct from `codebase_graph_not_indexed` which is caller-addressable.
+**Module 09 / track 9B / phase G2.** Coodra never reads `graph.json` itself — the agent fetches the community breakdown from Graphify's MCP server and hands it here (ADR-010, Option C).
 
 #### `get_run_id`
 > Call this at the START of any session that will write code, if the current `runId` is not already in context from a session-start hook. Returns the current in-progress session's runId (UUID) which binds all subsequent tool calls, decisions, and context packs to a single durable record. Most other tools accept this runId as an argument. Call once per session and reuse the value.
@@ -2445,7 +2429,8 @@ This table is the **source-of-truth mapping** the `CLAUDE.md §5 Agent Trigger C
 | About to run a shell command | `check_policy { toolName: 'bash', toolInput: { command } }` | Always |
 | Chose a library / designed an API / made an implementation decision | `record_decision` | Immediately, not batched |
 | User asked "what was done before on X?" | `search_packs_nl { query: X }`, `query_run_history` | Before answering from memory |
-| User asked "what does this part of the code do?" | `query_codebase_graph { query }` | Before reading files one by one |
+| User asked "what does this code do?" / "where is X defined?" | Graphify MCP's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` — when the `graphify` server is wired (`coodra graphify enable`) | Before reading files one by one |
+| User wants to bootstrap Feature Packs from the code graph | `seed_feature_packs_from_graph` — fetch the Leiden communities from the Graphify MCP first | Cold-start, when the knowledge layer is empty |
 | User referenced a JIRA key (PROJ-123) | `jira_get_issue { key: 'PROJ-123' }` | JIRA integration active |
 | User asked "what am I assigned?" | `jira_list_my_issues` | JIRA integration active |
 | User referenced a PR number | `github_get_pr` or `github_get_pr_context` if reviews needed | GitHub integration active |

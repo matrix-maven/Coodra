@@ -38,15 +38,46 @@ The VS Code extension uses SQLite (`better-sqlite3` + `sqlite-vec`) as the **pri
 
 Cursor hooks are command-based (stdin/stdout JSON) while Claude Code supports HTTP hooks. Coodra uses a single adapter script (`.cursor/hooks/coodra.sh`) that reads Cursor's JSON from stdin, normalizes field names (e.g., `conversation_id` → `session_id`), POSTs to the hooks-bridge, and translates the response back to Cursor's stdout format. Same semantics, different transport. See `system-architecture.md` §15 for full adapter specification.
 
-## ADR-010 — Graphify import for cold-start
+## ADR-010 — Graphify consumed via its own MCP server (Option C, rewritten 2026-05-21)
 
-Graphify (`safishamsi/graphify`, MIT license) produces a `graph.json` with tree-sitter AST nodes clustered by Leiden community detection. Coodra imports this output to seed initial Feature Pack content — each community becomes a Feature Pack section. Solves the cold-start problem (first session runs without context) without requiring manual Feature Pack authoring.
+> **Supersedes the original ADR-010** ("Graphify import for cold-start" — a
+> Coodra-owned `graph.json` reader plus a never-built community-to-Feature-Pack
+> importer). That design was never completed and its assumptions are stale: the
+> reader pointed at `~/.coodra/graphify/<slug>/graph.json`, a path nothing ever
+> writes, so `query_codebase_graph` was permanently soft-failing.
 
-**Status (2026-05-03 audit §13 — Slice 11 option b):**
-- **Reader: implemented in M02.** `apps/mcp-server/src/lib/graphify.ts` reads `~/.coodra/graphify/<projectSlug>/graph.json` and the MCP tool `query_codebase_graph` exposes the result with a fail-open soft-failure shape (`codebase_graph_not_indexed` when the file is absent).
-- **Producer: deferred — depends on external `graphify` CLI** (https://github.com/safishamsi/graphify) until an in-repo producer ships. No current owning module.
-- **Seeding flow (the original ADR-010 promise — "import to seed initial Feature Pack content"): not yet implemented.** `createFeaturePackStore.upsert()` accepts pre-authored markdown; it does not generate structure from a `graph.json`. A future module will own the import-to-Feature-Pack pipeline.
-- **What this means in practice:** users who want `query_codebase_graph` to return real data must `npm i -g graphify` (or equivalent) and run `graphify scan` at the repo root before opening a Coodra session. The audit observed that the demo had no graphify index and the tool was permanently in soft-failure; that's by design until the producer story is resolved. Slice 10 (manifest description polish) adds an inline recovery hint so agents surface the install step to users.
+Graphify (`safishamsi/graphify`, MIT, PyPI package `graphifyy`) is a mature,
+actively-developed codebase-knowledge-graph tool — tree-sitter extraction +
+Leiden community detection, 50k+ GitHub stars, ~daily releases. It ships **its
+own MCP stdio server** — `python -m graphify.serve graphify-out/graph.json` —
+exposing `query_graph`, `get_node`, `get_neighbors`, `shortest_path`.
+
+**Decision.** Coodra consumes Graphify by **wiring Graphify's own MCP server
+into the agent's config** (next to the `coodra` server) — the same "wire the
+external MCP, don't rebuild it" pattern used for Jira and consistent with
+Pattern 20 / ADR-012 / ADR-013 (ship intelligence as records and recipes, not
+as services). Coodra builds **no** `graph.json` reader, **no** producer, **no**
+parser.
+
+**What is retired.** The `query_codebase_graph` MCP tool and
+`apps/mcp-server/src/lib/graphify.ts` are removed (Module 09, phase G1).
+Graphify's own MCP answers structural queries — blast radius, "where is X
+defined?", dependency paths — and does so better.
+
+**What is added (Coodra's leverage).** Coodra's knowledge layer becomes
+graph-aware:
+- A new `coodra__seed_feature_packs_from_graph` MCP tool — the agent (holding
+  both MCP servers) fetches the Leiden community breakdown from Graphify and
+  hands it to Coodra, which creates one **draft** Feature Pack per community.
+  This is the original ADR-010 cold-start promise, done the Option-C way.
+- `get_feature_pack` gains an optional `structure` block (community id, god
+  nodes, member files), populated at seed time.
+- No schema migration: the `structure` block lives in `feature_packs.content_json`.
+
+**Why not the alternatives.** Having Coodra subprocess-manage the `graphify`
+Python CLI (the old producer plan) is brittle against a ~daily release cadence.
+Reimplementing graph queries inside Coodra duplicates a 50k-star tool, worse.
+Full design: `system-architecture.md §17` and `docs/feature-packs/09-integrations/`.
 
 ## ADR-011 — Policy Engine as Non-Human Identity (NHI) infrastructure
 

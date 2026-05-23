@@ -1612,27 +1612,67 @@ Architecture’s `turbo build` in CI aligns with this pattern. [ppl-ai-file-uplo
 
 ## Graphify CLI
 
-**Nature:** External static analysis CLI invoked via Coodra CLI; not part of this repository. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+**Nature:** External tool — not part of this repository. `safishamsi/graphify`
+(MIT, PyPI package **`graphifyy`** — double-y; the CLI command is `graphify`). A
+mature codebase-knowledge-graph tool: 50k+ GitHub stars, ~daily releases,
+current line 0.8.x. Coodra consumes it via **Option C** (ADR-010, rewritten) —
+Coodra wires Graphify's *own MCP server* into the agent's config and builds no
+graph reader, producer, or parser. See `system-architecture.md` §17 and
+`docs/feature-packs/09-integrations/`.
 
-Architecture usage: [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+### Install
 
 ```bash
-coodra graphify analyze ./my-project
-
-# internally runs:
-graphify analyze ./my-project --output /tmp/ctx-graph.json
-
-# then posts graph.json to:
-POST /api/graphify/analyze
-POST /api/graphify/import
+uv tool install graphifyy        # recommended (alternative: pipx install graphifyy)
+pip install "graphifyy[mcp]"     # the [mcp] extra adds the stdio MCP server
 ```
 
-Because no official Graphify documentation was retrieved in this research, you must:
+Python 3.10+. It is **not** an npm package.
 
-- Verify the actual CLI name (`graphify`) and argument syntax (`analyze`, `--output`) against its official docs.  
-- Confirm `graph.json` schema (nodes, edges, communities) and whether it is stable across Graphify versions. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+### What it produces
 
-This is explicitly flagged in the architecture as an open decision; schema stability requires manual validation. [ppl-ai-file-upload.s3.amazonaws](https://ppl-ai-file-upload.s3.amazonaws.com/web/direct-files/attachments/28356926/e4e460e8-fe3c-4f55-b291-2a78271d88e6/system-architecture.md?AWSAccessKeyId=ASIA2F3EMEYE3MY3T5JN&Signature=8FIvmLoCYSJ6NxP7DhxVc8Qpjc0%3D&x-amz-security-token=IQoJb3JpZ2luX2VjEPP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIFiExgsPLb9lUsn%2FEwIaSRcBrulhBweWpop3MwxGbAkIAiBvRShUUTiKmou%2Fxf%2FvuZ7FlEltkCcY6VJI58Sbs8X7ayr8BAi8%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F8BEAEaDDY5OTc1MzMwOTcwNSIMZvv0SYJ8%2FV%2B1ereyKtAE7Xba3%2Fx3vMytWOuP2TCaaCFfm0aQbCHzTPq8x9tMeiRrWJyCPKNapsvKy2UZWb388fNHumdsI0YEx4ufPPfRwWppGL%2F5TE7slRt5avdicaArLFv%2BewgnPZRDGqOtUaOarh6maUTslgqxpGXMjk5YZ109WXl3IshUWWMS7rypot7gGdevUYMWNutAIplJazSWhCGRGIEvIqKzdxpun1XatGGcGB7UlWFN%2BDHFJ3ITV4oDqEUTlz%2BsOYjE4lxuc8QIt7AlTsAwUkcBggr4kJNO7RMvFJFW1CSxplif46eBFhmrI%2FBPKXgSbNxE%2Frwbrqyj5mKWSqtwjWk%2Fr5VgSEUspEPrJzB7n63%2B1CXsnJ3TW5ZTm9frVdtquRthMj5LmuS7vj9zap7AFOW3YKjSz4AfiqZAgwvGEyWVua7So0tQnxdvolK0HJS%2BuXalbiB%2BxgCHC%2Bv9WqgPYk7BIP%2BO1bWUK2WFzn%2F1nYd1U0nQACzMWpXoluNcOdNlCiimpHirx3HxtPXMWLZMlyGxRHOjvT0ZCvFt4iN1j%2FICYw2rDbPBOvKzCEGs9u6IUOQFHMOX9zpXsoQ5CVhiJ%2FXb7N8Jj0D1BSm8lb%2BRrJABTFJjjM8Sv6efkYg9kyGtoSof5ThCtHiwgdYS2q%2BDbGuNAU8QHuuDfLGP0njbgtgPWjIvpv6sq8jRSGQbZkZSds8uzIZ%2Bs0ZvSP80ikQxjCb2ed8RvwjNW5Y2%2BabFmXNUPpiyPGB4ZG8d0gNbiuJ4%2FwjTNxVOcd53SivcoEdjJX9QfZ1Xpz9svjCW%2BILPBjqZAffWM775KKTJPS30orTm4AuyrQihe%2BiGVdl30Vvn9qKd8nA3VSsnC3Jwl%2Fu1B36pLAEtMsvBPvY3eGjIk8sbayXnqSbDSg6%2FRV74wy1nd85FMy%2BOeJxXshopaKehnOnZ7IaQX3ucr47uYeU9nHf9JcXbquA36ncZIkSvpwl1glhPK1f4DO1vns2E4NL1aAitQL%2FT8sZlZRlh8g%3D%3D&Expires=1776336983)
+`graphify .` (or the `/graphify` skill inside an AI assistant) writes a
+`graphify-out/` directory at the repo root:
+
+- `graph.json` — the full graph, **NetworkX node-link format**. Nodes carry
+  `id`, `label`, `file_type`, `source_file`, and a `community` integer (Leiden
+  cluster). The edge array is keyed **`links`** (node-link convention), each with
+  `relation` and `confidence` (`EXTRACTED | INFERRED | AMBIGUOUS`). Hyperedges
+  live under `graph.hyperedges`.
+- `GRAPH_REPORT.md` — god nodes, surprising connections, suggested questions.
+- `graph.html` — an interactive visualization.
+
+`graphify-out/` is meant to be committed to git (Graphify ships a git merge
+driver so `graph.json` union-merges without conflicts).
+
+### The MCP server (how Coodra consumes it)
+
+Graphify exposes its graph as a stdio MCP server:
+
+```bash
+python -m graphify.serve graphify-out/graph.json
+```
+
+Tools: `query_graph` (IDF-weighted natural-language query → scoped subgraph),
+`get_node`, `get_neighbors`, `shortest_path`. The server hot-reloads when
+`graph.json` changes on disk. Coodra's onboarding (Module 09, track 9B) writes a
+`graphify` entry into the agent's MCP config pointing at this command; the agent
+then queries the codebase graph directly.
+
+**Gotchas**
+
+- The official PyPI package is `graphifyy`; other `graphify*` packages are
+  unaffiliated.
+- The `graphify` CLI has **no** `scan` / `analyze` subcommand — building is
+  `graphify .` or the `/graphify` skill; the MCP server is `python -m
+  graphify.serve`.
+- `graph.json` is NetworkX node-link format: the edge array key is `links`, not
+  `edges`. Graphify's own loader bridges an `edges` key when present, but
+  downstream consumers must expect `links`.
+- The MCP server requires `graphify-out/graph.json` to already exist — Graphify
+  must have run at least once — and the `[mcp]` extra must be installed.
+- Exact MCP-config entry shape (`python` vs `uvx`, a possible `graphify serve`
+  subcommand) is confirmed at implementation (Module 09, phase G3).
 
 ***
 

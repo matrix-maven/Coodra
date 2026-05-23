@@ -95,7 +95,7 @@ Triggers: *"what was done before?"*, *"has X been tried?"*, *"what is the state 
 
 Triggers: *"refactor X"*, *"rename Y across the codebase"*, *"where is Z defined?"*, *"what depends on A?"*.
 
-`coodra__query_codebase_graph { projectSlug, query }` returns the symbol-level dependency graph from the Graphify index. Use it to find blast radius before touching shared code. Fall back to reading files only if the graph is empty.
+When the **Graphify integration is active** (Module 09 track 9B — the `graphify` MCP server is wired into your config), call its tools to find blast radius before touching shared code: `query_graph` (natural-language query → scoped subgraph), `get_node`, `get_neighbors`, `shortest_path`. Graphify is consumed via its **own** MCP server (ADR-010, Option C) — Coodra does not wrap it. If Graphify is not configured, fall back to reading files. The former `coodra__query_codebase_graph` tool is retired — see ADR-010 and `system-architecture.md §17`.
 
 ## 5.7 JIRA triggers (when the JIRA integration is active)
 
