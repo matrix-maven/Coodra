@@ -2,4 +2,4 @@
 // rerun `pnpm --filter @coodra/cli build` (or run the script directly) after
 // bumping `package.json#version`. The committed value MUST match package.json so
 // `__tests__/unit/version-sync.test.ts` passes in CI.
-export const VERSION = '0.2.0-beta.9';
+export const VERSION = '0.2.0-beta.10';
