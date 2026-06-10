@@ -121,3 +121,10 @@ export {
   scheduleDurableWrite,
 } from './schedule-durable-write.js';
 export { postgresSchema, sqliteSchema } from './schema/index.js';
+export {
+  getWikiDetail,
+  listWikisDetailed,
+  type WikiDetail,
+  type WikiListItem,
+  type WikiPageDetail,
+} from './wikis.js';

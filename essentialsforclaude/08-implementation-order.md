@@ -14,6 +14,8 @@ Modules MUST be implemented in order. Each depends on the previous ones.
 | 05 | NL Assembly | 01, 02 | `docs/feature-packs/05-nl-assembly/` |
 | 06 | Semantic Diff | 01, 03 | `docs/feature-packs/06-semantic-diff/` |
 | 07 | VS Code Extension | 02, 03, 04, 08a | `docs/feature-packs/07-vscode-extension/` |
+| 09 | External MCP Integrations (Jira + Graphify) | 02, 03, 08a | `docs/feature-packs/09-integrations/` |
+| 10 | Deep Wiki (agent-authored codebase wiki, ADR-017) | 01, 02, 04, 08a | `docs/feature-packs/10-deep-wiki/` |
 
 **Why Module 08a is numbered 08a, not 08:** the original "Module 08 Distribution" plan included a marketing site, npm publish automation, and an Anthropic MCP marketplace listing. Per the user directive 2026-04-24, marketing and distribution-channel work is **out of scope** for this project — only the CLI portion remains, hence the `08a` suffix. There is no Module 08b. Future channel work (marketing site, npm publish flag day, marketplace submission) is tracked in `context_memory/pending-user-actions.md` as user-side ops, not in the module sequence.
 

@@ -147,7 +147,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('applies the generated migrations and creates the fifteen-object logical schema', () => {
+  it('applies the generated migrations and creates the seventeen-object logical schema', () => {
     const handle = createSqliteDb({ path: dbPath });
     try {
       migrateSqlite(handle.db);
@@ -191,6 +191,10 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         // mode. SQLite mirror exists for structural parity even though
         // only cloud Postgres ever populates rows in practice.
         'team_invites',
+        // Module 10 (2026-06-06) — Deep Wiki. `wiki_pages` holds the
+        // content/progress rows; `wikis` holds the structure envelope.
+        'wiki_pages',
+        'wikis',
       ]);
     } finally {
       handle.close();
@@ -212,8 +216,8 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND substr(name, 1, 18) <> 'context_packs_vec_'`,
         )
         .get() as { n: number };
-      // 14 schema tables + context_packs_vec virtual table = 15.
-      expect(rows.n).toBe(15);
+      // 16 schema tables + context_packs_vec virtual table = 17.
+      expect(rows.n).toBe(17);
     } finally {
       first.close();
     }

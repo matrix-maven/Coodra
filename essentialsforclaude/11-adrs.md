@@ -316,3 +316,54 @@ surface**, consumed through Rovo's MCP. Coodra's contribution is the **wiring**,
 the **Run↔issue link** (so history is Jira-aware), and **on-request write-back**
 (so the ticket reflects what the agent did). Feature Packs remain human/agent-
 authored at module granularity — never minted from epics.
+
+## ADR-017 — Deep Wiki is agent-authored; Coodra ships the schema + persistence + render, runs no LLM (2026-06-06)
+
+Module 10. A **Deep Wiki** is a DeepWiki-style (Cognition's DeepWiki /
+`AsyncFuncAI/deepwiki-open`) hierarchical, mind-map explanation of a codebase,
+produced by a **two-pass, schema-first** flow: a *structure pass* plans a
+`WikiStructure` (sections + pages, each with importance, relevant files, a
+parent for the hierarchy, and a diagram flag); a *content pass* authors each
+page's Markdown with Mermaid diagrams + code citations.
+
+**Decision.** The user's coding agent (Claude Code / Codex / Cursor) **is the
+model.** Coodra runs **no** LLM, embeddings, or vector store — it ships:
+
+- the **schema** — `@coodra/shared/wiki` (`WikiStructure` / `WikiSection` /
+  `WikiPage` / `WikiPageContent`, Zod, with a referential-integrity
+  `superRefine` so a malformed plan is rejected at the MCP boundary);
+- the **persistence** MCP tools — `wiki_save_structure` (pass 1; writes a
+  pending page skeleton), `wiki_save_page` (pass 2; authors one page),
+  `wiki_status` (progress / resume). Manifest **17 → 20**;
+- the **CLI** — `coodra wiki generate|status|list|open|clean`. `generate`
+  writes a bounded grounding snapshot (`.coodra/wiki-grounding.md`) + an
+  authoring recipe (`.coodra/wiki-job.md`) and scaffolds a `deep-wiki-author`
+  Feature (pulled on trigger);
+- the **web render** — `/wiki` + `/wiki/[id]`: hierarchical mind-map nav +
+  Markdown (react-markdown + remark-gfm) + Mermaid (client component);
+- optional **Graphify grounding** — communities → candidate sections,
+  high-degree nodes → high-importance pages (degrades to file-tree-only when
+  Graphify isn't wired).
+
+This is the same thesis as ADR-012/013/015/016: **ship intelligence as records
+and recipes, not as a service.** No new secrets, no embeddings infra,
+air-gap-friendly.
+
+**Storage.** `wikis` (the structure envelope) + `wiki_pages` (per-page
+content/state), dual-dialect (SQLite + Postgres, schema-parity-tested),
+team-synced (push dispatch + team-rows-puller + handler enqueues) so a wiki
+authored on the admin's machine renders cross-machine. DB-primary (local SQLite
+solo; cloud Postgres team) — the web reads the DB, like decisions/runs. A
+re-plan (`wiki_save_structure` with the same slug) replaces the wiki
+(DELETE-then-INSERT of the page skeleton), mirroring `run_diffs` idempotency.
+
+**Deferred.** DeepWiki's signature **"Ask the wiki" RAG chat** is a later phase
+— it needs the wiki to exist first and is a separate retrieval surface.
+
+**Why not run an LLM in Coodra (the deepwiki-open shape).** `deepwiki-open` runs
+its own Gemini/OpenAI pipeline + embeddings + RAG. For Coodra that would mean
+API keys, a vector store, recurring cost, and a runtime failure mode — and it
+contradicts the platform thesis. The agent the user already has, wired to the
+Coodra MCP, is a better-positioned model: it can read the actual files, follow
+imports, and query Graphify. Coodra's leverage is the schema, the durable record,
+and the render — not a second inference engine.

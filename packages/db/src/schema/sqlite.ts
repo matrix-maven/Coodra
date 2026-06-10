@@ -624,3 +624,101 @@ export const teamInvites = sqliteTable(
 
 export type TeamInvite = typeof teamInvites.$inferSelect;
 export type NewTeamInvite = typeof teamInvites.$inferInsert;
+
+/**
+ * Module 10 — Deep Wiki (2026-06-06). `wikis` holds the structure pass:
+ * one row per generated wiki, keyed `(project_id, slug)`. `structure_json`
+ * is the `WikiStructure` envelope (title/description/mode + the full
+ * page+section hierarchy) validated by `@coodra/shared/wiki`'s
+ * `wikiStructureSchema` at the MCP boundary before it lands here.
+ *
+ * Regeneration semantics: `wiki_save_structure` upserts by
+ * `(project_id, slug)` — re-planning the same wiki replaces the row's
+ * structure and DELETE-then-INSERTs its `wiki_pages` skeleton in one
+ * transaction (parallels `run_diffs`' DELETE-then-INSERT idempotency;
+ * a re-plan legitimately supersedes a prior incomplete attempt).
+ *
+ * `generated_by_run_id` is the run that produced the structure (ON
+ * DELETE SET NULL — the wiki outlives its originating session, like
+ * decisions). `created_by_user_id` / `org_id` carry team attribution +
+ * multi-tenancy (NULL on solo; populated from the verified Clerk JWT in
+ * team mode), mirroring `feature_packs`.
+ */
+export const wikis = sqliteTable(
+  'wikis',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    // 'comprehensive' | 'concise' — see @coodra/shared/wiki wikiModeSchema.
+    mode: text('mode').notNull().default('comprehensive'),
+    // WIKI_SCHEMA_VERSION at write time. Lets a future reader migrate
+    // an old structure envelope shape forward.
+    schemaVersion: integer('schema_version').notNull().default(1),
+    // JSON-encoded WikiStructure (sections + page metadata). text on both
+    // dialects for parity; the handler JSON.parses via wikiStructureSchema.
+    structureJson: text('structure_json').notNull(),
+    generatedByRunId: text('generated_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdByUserId: text('created_by_user_id'),
+    orgId: text('org_id'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('wikis_project_slug_uk').on(t.projectId, t.slug),
+    index('wikis_project_updated_idx').on(t.projectId, t.updatedAt),
+  ],
+);
+
+/**
+ * Module 10 — Deep Wiki page rows (the content pass). One row per page
+ * in the parent wiki's structure. `wiki_save_structure` inserts the full
+ * skeleton (every page `state='pending'`, empty body); `wiki_save_page`
+ * flips a row to `state='authored'` with its Markdown body + citations.
+ *
+ * The render reads page metadata (title/importance/parentId/relevantFiles)
+ * from `wikis.structure_json` and joins these rows by `page_id` for state
+ * + body — so structure stays single-sourced and these rows are the
+ * content/progress store. `wiki_status` (and the CLI) derive "X / Y
+ * authored" from `state` counts here.
+ *
+ * `citations` is a JSON-encoded array of `{ file, startLine?, endLine? }`
+ * (default '[]'). `authored_by_run_id` (ON DELETE SET NULL) records which
+ * session authored the body. UNIQUE(wiki_id, page_id) makes re-authoring
+ * a page an idempotent overwrite. ON DELETE CASCADE on `wiki_id` wipes a
+ * wiki's pages when the wiki is deleted / regenerated.
+ */
+export const wikiPages = sqliteTable(
+  'wiki_pages',
+  {
+    id: text('id').primaryKey(),
+    wikiId: text('wiki_id')
+      .notNull()
+      .references(() => wikis.id, { onDelete: 'cascade' }),
+    // The stable page id from the parent structure's `pages[].id`.
+    pageId: text('page_id').notNull(),
+    // 'pending' | 'authored' — see @coodra/shared/wiki wikiPageStateSchema.
+    state: text('state').notNull().default('pending'),
+    contentMarkdown: text('content_markdown').notNull().default(''),
+    // JSON-encoded WikiCitation[]; '[]' when the page has none / is pending.
+    citations: text('citations').notNull().default('[]'),
+    authoredByRunId: text('authored_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdByUserId: text('created_by_user_id'),
+    orgId: text('org_id'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('wiki_pages_wiki_page_uk').on(t.wikiId, t.pageId),
+    index('wiki_pages_wiki_state_idx').on(t.wikiId, t.state),
+  ],
+);
+
+export type Wiki = typeof wikis.$inferSelect;
+export type NewWiki = typeof wikis.$inferInsert;
+export type WikiPageRow = typeof wikiPages.$inferSelect;
+export type NewWikiPageRow = typeof wikiPages.$inferInsert;

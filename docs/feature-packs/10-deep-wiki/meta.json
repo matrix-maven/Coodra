@@ -1,0 +1,32 @@
+{
+  "slug": "10-deep-wiki",
+  "parentSlug": "09-integrations",
+  "sourceFiles": [
+    "essentialsforclaude/11-adrs.md",
+    "system-architecture.md",
+    "packages/shared/src/wiki/**",
+    "packages/db/src/wikis.ts",
+    "packages/db/src/schema/sqlite.ts",
+    "packages/db/src/schema/postgres.ts",
+    "apps/mcp-server/src/tools/wiki-save-structure/**",
+    "apps/mcp-server/src/tools/wiki-save-page/**",
+    "apps/mcp-server/src/tools/wiki-status/**",
+    "apps/mcp-server/src/lib/wiki-store.ts",
+    "packages/cli/src/commands/wiki.ts",
+    "packages/cli/src/lib/wiki/**",
+    "apps/web-v2/app/wiki/**",
+    "apps/web-v2/components/wiki/**",
+    "apps/web-v2/lib/queries/wiki.ts",
+    "apps/sync-daemon/src/lib/dispatch.ts",
+    "apps/sync-daemon/src/lib/team-rows-puller.ts"
+  ],
+  "isActive": true,
+  "kind": "module-spec",
+  "module": "10",
+  "title": "Deep Wiki (agent-authored codebase wiki)",
+  "summary": "Module 10 adds a DeepWiki-style hierarchical/mind-map explanation of a codebase. Coodra runs no LLM: the user's coding agent (Claude Code / Codex / Cursor) is the model, and Coodra ships the schema, the persistence, and the render (ADR-017; same thesis as ADR-012/013/015/016 — ship records and recipes, not a service). Two-pass, schema-first flow: a structure pass plans a WikiStructure (sections + pages with importance, relevant files, parentId hierarchy, diagram flag) persisted via wiki_save_structure; a content pass authors each page's Markdown (with Mermaid + code citations) via wiki_save_page; wiki_status drives progress/resume. Manifest 17 -> 20. Storage: wikis (structure envelope) + wiki_pages (per-page content/state), dual-dialect SQLite + Postgres, team-synced (push dispatch + team-rows-puller + handler enqueues) so a wiki authored on one machine renders cross-machine. CLI: coodra wiki generate/status/list/open/clean writes a grounding snapshot + an authoring recipe and scaffolds a deep-wiki-author Feature. Web: /wiki + /wiki/[id] render the mind-map nav + Markdown (react-markdown + remark-gfm) + Mermaid. Optional Graphify grounding (communities -> sections; god-nodes -> important pages). Deferred: the DeepWiki 'Ask the wiki' RAG chat.",
+  "supersedes": [],
+  "supersededBy": null,
+  "createdAt": "2026-06-06",
+  "lastReviewedAt": "2026-06-06"
+}

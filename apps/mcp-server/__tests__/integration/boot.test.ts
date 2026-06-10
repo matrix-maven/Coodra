@@ -83,7 +83,10 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     Atlassian's Rovo MCP, not Coodra's) → 16
     //   Module 09 J3 (2026-05-31): prepare_jira_comment added (the on-request
     //     write-back helper — assembles the summary; the agent posts via Rovo) → 17
-    expect(tools.length).toBe(17);
+    //   Module 10 (2026-06-06): Deep Wiki — wiki_save_structure +
+    //     wiki_save_page + wiki_status added (DeepWiki-style two-pass codebase
+    //     wiki; agent is the model, Coodra is schema + persistence) → 20
+    expect(tools.length).toBe(20);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

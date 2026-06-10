@@ -122,6 +122,19 @@ import {
 } from './commands/template.js';
 import { runUninstallCommand, type UninstallIO, type UninstallOptions } from './commands/uninstall.js';
 import { runUpgradeCommand, type UpgradeIO, type UpgradeOptions } from './commands/upgrade.js';
+import {
+  runWikiCleanCommand,
+  runWikiGenerateCommand,
+  runWikiListCommand,
+  runWikiOpenCommand,
+  runWikiStatusCommand,
+  type WikiCleanOptions,
+  type WikiGenerateOptions,
+  type WikiIO,
+  type WikiListOptions,
+  type WikiOpenOptions,
+  type WikiStatusOptions,
+} from './commands/wiki.js';
 import { VERSION } from './version.js';
 
 interface BuildProgramOptions {
@@ -151,6 +164,12 @@ interface BuildProgramOptions {
   readonly runJiraEnable?: (options: JiraEnableOptions, io?: JiraIO) => Promise<unknown>;
   readonly runJiraDisable?: (options: JiraDisableOptions, io?: JiraIO) => Promise<unknown>;
   readonly runJiraStatus?: (options: JiraStatusOptions, io?: JiraIO) => Promise<unknown>;
+  readonly wikiIO?: WikiIO;
+  readonly runWikiGenerate?: (options: WikiGenerateOptions, io?: WikiIO) => Promise<unknown>;
+  readonly runWikiStatus?: (options: WikiStatusOptions, io?: WikiIO) => Promise<unknown>;
+  readonly runWikiList?: (options: WikiListOptions, io?: WikiIO) => Promise<unknown>;
+  readonly runWikiOpen?: (options: WikiOpenOptions, io?: WikiIO) => Promise<unknown>;
+  readonly runWikiClean?: (slug: string, options: WikiCleanOptions, io?: WikiIO) => Promise<unknown>;
   readonly teamIO?: TeamCommandIO;
   readonly runTeamLogin?: (options: TeamLoginOptions, io?: TeamCommandIO) => Promise<unknown>;
   readonly runTeamLogout?: (io?: TeamCommandIO) => Promise<unknown>;
@@ -405,6 +424,69 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyStatusOptions) => {
       await graphifyStatusRunner(opts, options.graphifyIO);
+    });
+
+  // Module 10 (Deep Wiki) — `coodra wiki {generate,status,list,open,clean}`.
+  // Coodra runs no LLM: `generate` writes a grounding snapshot + an authoring
+  // recipe the user's coding agent runs against the wiki_* MCP tools; the
+  // result lands in the local store and renders in the web app at /wiki.
+  const wikiGenerateRunner = options.runWikiGenerate ?? runWikiGenerateCommand;
+  const wikiStatusRunner = options.runWikiStatus ?? runWikiStatusCommand;
+  const wikiListRunner = options.runWikiList ?? runWikiListCommand;
+  const wikiOpenRunner = options.runWikiOpen ?? runWikiOpenCommand;
+  const wikiCleanRunner = options.runWikiClean ?? runWikiCleanCommand;
+  const wiki = program
+    .command('wiki')
+    .description(
+      'Generate a DeepWiki-style, hierarchical/mind-map explanation of this codebase. Your coding agent (Claude ' +
+        'Code / Codex / Cursor) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
+    );
+  wiki
+    .command('generate')
+    .description(
+      'Write the codebase grounding snapshot + authoring recipe (.coodra/wiki-job.md) and scaffold the ' +
+        'deep-wiki-author Feature, then tell your agent to build the wiki. Re-using the slug re-plans the wiki.',
+    )
+    .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
+    .option(
+      '--mode <mode>',
+      'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
+    )
+    .option('--force', 'Overwrite the deep-wiki-author Feature recipe if it already exists.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: WikiGenerateOptions) => {
+      await wikiGenerateRunner(opts, options.wikiIO);
+    });
+  wiki
+    .command('status')
+    .description('Show Deep Wiki generation progress (pages authored vs pending) for this project. Read-only.')
+    .option('--slug <slug>', 'Which wiki to report on (default: the project slug).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: WikiStatusOptions) => {
+      await wikiStatusRunner(opts, options.wikiIO);
+    });
+  wiki
+    .command('list')
+    .description('List the Deep Wikis for this project with their page counts. Read-only.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: WikiListOptions) => {
+      await wikiListRunner(opts, options.wikiIO);
+    });
+  wiki
+    .command('open')
+    .description('Open the Deep Wiki view in the Coodra web app (must be running — `coodra start`).')
+    .option('--web-url <url>', 'Base URL of the Coodra web app (default: $COODRA_WEB_URL or http://localhost:3001).')
+    .option('--json', 'Print the URL as JSON instead of opening a browser.')
+    .action(async (opts: WikiOpenOptions) => {
+      await wikiOpenRunner(opts, options.wikiIO);
+    });
+  wiki
+    .command('clean')
+    .argument('<slug>', 'Wiki slug to delete (kebab-case).')
+    .description('Delete a Deep Wiki and its pages from the local store. Irreversible.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: WikiCleanOptions) => {
+      await wikiCleanRunner(slug, opts, options.wikiIO);
     });
 
   // Module 09 Track 9A (Jira = Direct, ADR-016) — `coodra jira

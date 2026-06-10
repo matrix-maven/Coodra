@@ -50,6 +50,8 @@ describe('buildProgram — full surface (post-S8)', () => {
       'ui',
       'uninstall',
       'upgrade',
+      // Module 10 — Deep Wiki (generate/status/list/open/clean).
+      'wiki',
     ]);
 
     const team = program.commands.find((c) => c.name() === 'team');
@@ -99,6 +101,12 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(graphifyCmd).toBeDefined();
     const graphifySub = graphifyCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(graphifySub).toEqual(['disable', 'enable', 'status']);
+
+    // Module 10 — `coodra wiki {generate,status,list,open,clean}`.
+    const wikiCmd = program.commands.find((c) => c.name() === 'wiki');
+    expect(wikiCmd).toBeDefined();
+    const wikiSub = wikiCmd?.commands.map((c) => c.name()).sort() ?? [];
+    expect(wikiSub).toEqual(['clean', 'generate', 'list', 'open', 'status']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {

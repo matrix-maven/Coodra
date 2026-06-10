@@ -159,6 +159,33 @@ This is the on-demand handoff mechanism for narrative recaps. The structured aut
 | `save_context_pack` fails | Retry once. If it still fails, write the same content to `context_memory/sessions/<timestamp>-<topic>.md` manually so the work is not lost, and flag in `context_memory/blockers.md`. |
 | A tool description in `tools/list` looks wrong or outdated | Do NOT "guess around it". Raise it in `context_memory/open-questions.md` and ask. The manifest is the contract. |
 
+## 5.10b Deep Wiki triggers (Module 10, ADR-017)
+
+When the user asks to **generate / build / refresh the deep wiki** (or "document
+the architecture as a wiki"), they will usually have run `coodra wiki generate`
+first — which writes the per-run job (`.coodra/wiki-job.md`) + a grounding
+snapshot (`.coodra/wiki-grounding.md`) and scaffolds the `deep-wiki-author`
+Feature. **You are the model; Coodra runs no LLM.** Run the two-pass flow:
+
+1. `coodra__get_run_id { projectSlug }` → `runId`. Read `.coodra/wiki-grounding.md`
+   (and, if Graphify is wired, `query_graph` / `get_neighbors` for real
+   structure).
+2. **Pass 1** — plan a `WikiStructure` (sections + pages: id, title,
+   description, importance, parentId for the hierarchy, relevantFiles,
+   relatedPageIds, wantsDiagram) and persist it:
+   `coodra__wiki_save_structure { runId, slug, structure }` → keep the `wikiId`
+   + `pendingPageIds`.
+3. **Pass 2** — for each pending page, read its `relevantFiles` and author
+   Markdown (with a ```mermaid diagram where `wantsDiagram`) via
+   `coodra__wiki_save_page { runId, wikiId, pageId, content }`. Use
+   `coodra__wiki_status { wikiId }` to see what's still pending and to resume in
+   a later session. Re-calling `wiki_save_structure` with the same slug re-plans
+   (replaces) the wiki.
+
+Both `wiki_*` outputs use the canonical soft-failure shape (`run_not_found`,
+`auth_required`, `wiki_not_found`, `page_not_in_structure`) — check
+`response.ok && response.data.ok`. The result renders in the web app at `/wiki`.
+
 ## 5.11 What NOT to do
 
 - Don't call `check_policy` once and assume the answer holds for the rest of the session. Every write is a new check.

@@ -1,139 +1,146 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1776851177660,
-      "tag": "0000_free_wind_dancer",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1776873615885,
-      "tag": "0001_clean_rafael_vega",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1777011736778,
-      "tag": "0002_fixed_adam_warlock",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1777042203381,
-      "tag": "0003_slow_meteorite",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1777317746082,
-      "tag": "0004_skinny_onslaught",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1777405200000,
-      "tag": "0005_silent_thanos",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1777805841619,
-      "tag": "0006_lush_switch",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1777818590586,
-      "tag": "0007_bitter_miek",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1777881958000,
-      "tag": "0008_run_events_orphan_backfill",
-      "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1778224000000,
-      "tag": "0009_m05_agent_driven",
-      "breakpoints": true
-    },
-    {
-      "idx": 10,
-      "version": "7",
-      "when": 1778310400000,
-      "tag": "0010_projects_cwd",
-      "breakpoints": true
-    },
-    {
-      "idx": 11,
-      "version": "7",
-      "when": 1778400000000,
-      "tag": "0011_m06_run_diffs",
-      "breakpoints": true
-    },
-    {
-      "idx": 12,
-      "version": "7",
-      "when": 1778460000000,
-      "tag": "0012_team_actor_attribution",
-      "breakpoints": true
-    },
-    {
-      "idx": 13,
-      "version": "7",
-      "when": 1778500000000,
-      "tag": "0013_team_migration_tables",
-      "breakpoints": true
-    },
-    {
-      "idx": 14,
-      "version": "7",
-      "when": 1778443602682,
-      "tag": "0014_team_invites",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "7",
-      "when": 1778688000000,
-      "tag": "0015_features",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "7",
-      "when": 1778688100000,
-      "tag": "0016_feature_packs_cloud_sync",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "7",
-      "when": 1778688200000,
-      "tag": "0017_knowledge_audit",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "7",
-      "when": 1778688300000,
-      "tag": "0018_feature_packs_org_id",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "postgresql",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "7",
+			"when": 1776851177660,
+			"tag": "0000_free_wind_dancer",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1776873615885,
+			"tag": "0001_clean_rafael_vega",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1777011736778,
+			"tag": "0002_fixed_adam_warlock",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1777042203381,
+			"tag": "0003_slow_meteorite",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1777317746082,
+			"tag": "0004_skinny_onslaught",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1777405200000,
+			"tag": "0005_silent_thanos",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1777805841619,
+			"tag": "0006_lush_switch",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1777818590586,
+			"tag": "0007_bitter_miek",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1777881958000,
+			"tag": "0008_run_events_orphan_backfill",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1778224000000,
+			"tag": "0009_m05_agent_driven",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1778310400000,
+			"tag": "0010_projects_cwd",
+			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1778400000000,
+			"tag": "0011_m06_run_diffs",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1778460000000,
+			"tag": "0012_team_actor_attribution",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "7",
+			"when": 1778500000000,
+			"tag": "0013_team_migration_tables",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "7",
+			"when": 1778443602682,
+			"tag": "0014_team_invites",
+			"breakpoints": true
+		},
+		{
+			"idx": 15,
+			"version": "7",
+			"when": 1778688000000,
+			"tag": "0015_features",
+			"breakpoints": true
+		},
+		{
+			"idx": 16,
+			"version": "7",
+			"when": 1778688100000,
+			"tag": "0016_feature_packs_cloud_sync",
+			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1778688200000,
+			"tag": "0017_knowledge_audit",
+			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1778688300000,
+			"tag": "0018_feature_packs_org_id",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1780756847840,
+			"tag": "0019_wikis",
+			"breakpoints": true
+		}
+	]
 }

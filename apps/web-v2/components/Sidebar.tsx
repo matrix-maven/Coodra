@@ -170,6 +170,7 @@ export function Sidebar({
             items: [
               { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
               { href: '/features', label: 'Features', icon: <IconLedger /> },
+              { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },
             ],
           },
@@ -203,6 +204,7 @@ export function Sidebar({
             items: [
               { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
               { href: '/features', label: 'Features', icon: <IconLedger /> },
+              { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },
             ],
           },

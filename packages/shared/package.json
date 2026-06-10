@@ -51,6 +51,10 @@
     "./features": {
       "types": "./dist/features/index.d.ts",
       "import": "./dist/features/index.js"
+    },
+    "./wiki": {
+      "types": "./dist/wiki/index.d.ts",
+      "import": "./dist/wiki/index.js"
     }
   },
   "files": [

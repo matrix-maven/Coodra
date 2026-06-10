@@ -86,6 +86,12 @@ const SYNC_TABLES = [
   // + implementation.md + techstack.md + meta.json bundled into the
   // `content_json` column added by migration 0015/0016).
   'feature_packs',
+  // Module 10 (Deep Wiki, 2026-06-06) — wikis (the structure envelope) +
+  // wiki_pages (per-page content) so a wiki authored on the admin's
+  // machine reaches cloud and renders cross-machine. Both mutable →
+  // ON CONFLICT DO UPDATE.
+  'wikis',
+  'wiki_pages',
 ] as const;
 type SyncTableName = (typeof SYNC_TABLES)[number];
 
@@ -203,6 +209,10 @@ async function syncOne(args: SyncOneArgs): Promise<boolean> {
       return syncFeatures(args);
     case 'feature_packs':
       return syncFeaturePacks(args);
+    case 'wikis':
+      return syncWikis(args);
+    case 'wiki_pages':
+      return syncWikiPages(args);
   }
 }
 
@@ -820,6 +830,134 @@ async function syncContextPacks({ localDb, cloudDb, lookup, log, jobId }: SyncOn
     })
     .onConflictDoNothing({ target: postgresSchema.contextPacks.id });
   log.debug({ event: 'sync_context_packs_pushed', jobId, packId: row.id }, 'context_packs row synced');
+  return true;
+}
+
+/**
+ * Module 10 — push a local `wikis` row (and its parent project / run) to
+ * cloud. Shared by `syncWikis` and `syncWikiPages` (the latter needs the
+ * parent wiki present before its page FK can land). Returns:
+ *   - 'pushed'     — wiki row is now in cloud.
+ *   - 'local_only' — parent project belongs to a local-only org; caller skips.
+ *   - 'missing'    — local wiki row not found; caller treats as transient.
+ */
+async function ensureWikiInCloud(
+  localDb: SqliteHandle,
+  cloudDb: PostgresHandle,
+  wikiId: string,
+): Promise<EnsureParentOutcome> {
+  const lt = sqliteSchema.wikis;
+  const row = (await localDb.db.select().from(lt).where(eq(lt.id, wikiId)).limit(1))[0];
+  if (!row) return 'missing';
+  // Ensure parents: when the wiki is tied to a run, push project+run;
+  // otherwise just the project. Either path short-circuits local-only.
+  if (row.generatedByRunId !== null) {
+    const outcome = await ensureRunAndProjectInCloud(localDb, cloudDb, row.generatedByRunId);
+    if (outcome !== 'pushed') return outcome;
+  } else {
+    const outcome = await ensureProjectInCloud(localDb, cloudDb, row.projectId);
+    if (outcome !== 'pushed') return outcome;
+  }
+  const ct = postgresSchema.wikis;
+  await cloudDb.db
+    .insert(ct)
+    .values({
+      id: row.id,
+      projectId: row.projectId,
+      slug: row.slug,
+      title: row.title,
+      description: row.description,
+      mode: row.mode,
+      schemaVersion: row.schemaVersion,
+      structureJson: row.structureJson,
+      generatedByRunId: row.generatedByRunId,
+      createdByUserId: row.createdByUserId,
+      orgId: row.orgId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: [ct.id],
+      set: {
+        title: row.title,
+        description: row.description,
+        mode: row.mode,
+        schemaVersion: row.schemaVersion,
+        structureJson: row.structureJson,
+        generatedByRunId: row.generatedByRunId,
+        createdByUserId: row.createdByUserId,
+        orgId: row.orgId,
+        updatedAt: row.updatedAt,
+      },
+    });
+  return 'pushed';
+}
+
+/**
+ * Module 10 — wikis push. The structure envelope is mutable (a re-plan
+ * replaces structure_json), so ON CONFLICT (id) DO UPDATE.
+ */
+async function syncWikis({ localDb, cloudDb, lookup, log, jobId }: SyncOneArgs): Promise<boolean> {
+  if (lookup.kind !== 'id') return false;
+  const outcome = await ensureWikiInCloud(localDb, cloudDb, lookup.value);
+  if (outcome === 'missing') return false; // caller treats as transient
+  // 'local_only' → clean skip; 'pushed' → success. Both consume the job.
+  log.debug({ event: 'sync_wikis_pushed', jobId, wikiId: lookup.value, outcome }, 'wikis row synced');
+  return true;
+}
+
+/**
+ * Module 10 — wiki_pages push. Ensures the parent wiki (+ its project /
+ * run) is in cloud first, then upserts the authored page. The page's
+ * `authored_by_run_id` FK is nulled when that run can't be guaranteed in
+ * cloud (mirrors how policy_decisions nulls matched_rule_id) so the
+ * content always lands even if the run lineage hasn't synced.
+ */
+async function syncWikiPages({ localDb, cloudDb, lookup, log, jobId }: SyncOneArgs): Promise<boolean> {
+  if (lookup.kind !== 'id') return false;
+  const lt = sqliteSchema.wikiPages;
+  const row = (await localDb.db.select().from(lt).where(eq(lt.id, lookup.value)).limit(1))[0];
+  if (!row) return false;
+  const wikiOutcome = await ensureWikiInCloud(localDb, cloudDb, row.wikiId);
+  if (wikiOutcome === 'local_only') return true;
+  if (wikiOutcome === 'missing') return false;
+  let authoredByRunId = row.authoredByRunId;
+  if (authoredByRunId !== null) {
+    const runOutcome = await ensureRunAndProjectInCloud(localDb, cloudDb, authoredByRunId);
+    if (runOutcome !== 'pushed') authoredByRunId = null; // drop the FK rather than fail the page
+  }
+  const ct = postgresSchema.wikiPages;
+  await cloudDb.db
+    .insert(ct)
+    .values({
+      id: row.id,
+      wikiId: row.wikiId,
+      pageId: row.pageId,
+      state: row.state,
+      contentMarkdown: row.contentMarkdown,
+      citations: row.citations,
+      authoredByRunId,
+      createdByUserId: row.createdByUserId,
+      orgId: row.orgId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: [ct.wikiId, ct.pageId],
+      set: {
+        state: row.state,
+        contentMarkdown: row.contentMarkdown,
+        citations: row.citations,
+        authoredByRunId,
+        createdByUserId: row.createdByUserId,
+        orgId: row.orgId,
+        updatedAt: row.updatedAt,
+      },
+    });
+  log.debug(
+    { event: 'sync_wiki_pages_pushed', jobId, pageRowId: row.id, wikiId: row.wikiId, pageId: row.pageId },
+    'wiki_pages row synced',
+  );
   return true;
 }
 

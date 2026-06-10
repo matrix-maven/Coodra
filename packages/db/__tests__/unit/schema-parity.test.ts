@@ -57,6 +57,11 @@ const tablePairs = [
   // solo writes to local SQLite from filesystem walks; team mode keeps
   // both in sync via the sync-daemon's syncFeatures dispatch.
   ['features', sq.features, pg.features],
+  // Module 10 — Deep Wiki (2026-06-06). Both dialects hold rows: solo
+  // writes to local SQLite via the wiki_* MCP tools; team mode syncs to
+  // cloud Postgres so the web /wiki render works cross-machine.
+  ['wikis', sq.wikis, pg.wikis],
+  ['wiki_pages', sq.wikiPages, pg.wikiPages],
 ] as const;
 
 /** Columns whose dialect-specific type difference is architecturally intentional. */
@@ -68,8 +73,8 @@ function columnsOf(table: unknown): Record<string, Column> {
   return getTableColumns(table as Parameters<typeof getTableColumns>[0]) as Record<string, Column>;
 }
 
-describe('fourteen-table schema is present in both dialects', () => {
-  it('SQLite exports all fourteen tables', () => {
+describe('sixteen-table schema is present in both dialects', () => {
+  it('SQLite exports all sixteen tables', () => {
     expect(sq.projects).toBeDefined();
     expect(sq.runs).toBeDefined();
     expect(sq.runEvents).toBeDefined();
@@ -84,9 +89,11 @@ describe('fourteen-table schema is present in both dialects', () => {
     expect(sq.runDiffs).toBeDefined();
     expect(sq.teamInvites).toBeDefined();
     expect(sq.features).toBeDefined();
+    expect(sq.wikis).toBeDefined();
+    expect(sq.wikiPages).toBeDefined();
   });
 
-  it('Postgres exports all fourteen tables', () => {
+  it('Postgres exports all sixteen tables', () => {
     expect(pg.projects).toBeDefined();
     expect(pg.runs).toBeDefined();
     expect(pg.runEvents).toBeDefined();
@@ -101,6 +108,8 @@ describe('fourteen-table schema is present in both dialects', () => {
     expect(pg.runDiffs).toBeDefined();
     expect(pg.teamInvites).toBeDefined();
     expect(pg.features).toBeDefined();
+    expect(pg.wikis).toBeDefined();
+    expect(pg.wikiPages).toBeDefined();
   });
 });
 

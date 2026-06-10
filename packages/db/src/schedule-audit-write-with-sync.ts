@@ -52,7 +52,13 @@ export type SyncTableName =
   // on developer B pulls cloud → local. The push side reuses this
   // paired-enqueue pattern; the pull side is a separate poller in
   // apps/sync-daemon/src/lib/kill-switch-puller.ts.
-  | 'kill_switches';
+  | 'kill_switches'
+  // Module 10 (Deep Wiki, 2026-06-06): wikis + wiki_pages sync so a wiki
+  // authored on the admin's machine renders cross-machine. Mutable tables
+  // (re-plan replaces the structure; authoring flips a page) — pushed by
+  // id with ON CONFLICT DO UPDATE; pulled by the team-rows-puller.
+  | 'wikis'
+  | 'wiki_pages';
 
 export type SyncLookup =
   | { readonly kind: 'id'; readonly value: string }

@@ -37,6 +37,11 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   per ADR-010 / ADR-015 — Coodra consumes Graphify by
                                   configuration, not code, and mints no Feature Packs
                                   from it.
+        wiki                      Generate a DeepWiki-style, hierarchical/mind-map
+                                  explanation of this codebase. Your coding agent
+                                  (Claude Code / Codex / Cursor) is the model; Coodra
+                                  ships the grounding, the MCP persistence tools, and
+                                  the web render.
         jira                      Wire Atlassian's Jira (Rovo) remote MCP server into
                                   your agent config (Claude Code / Cursor / Windsurf /
                                   Codex). Direct per ADR-016 — Coodra consumes Jira by

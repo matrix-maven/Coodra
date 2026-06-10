@@ -18,6 +18,9 @@ import { createReadContextPackToolRegistration } from './read-context-pack/manif
 import { createRecordDecisionToolRegistration } from './record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from './save-context-pack/manifest.js';
 import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.js';
+import { createWikiSavePageToolRegistration } from './wiki-save-page/manifest.js';
+import { createWikiSaveStructureToolRegistration } from './wiki-save-structure/manifest.js';
+import { createWikiStatusToolRegistration } from './wiki-status/manifest.js';
 
 /**
  * `apps/mcp-server/src/tools/index.ts` — registration barrel.
@@ -88,6 +91,16 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // only when the user asks). Coodra's only two Jira tools. Tool count 15 → 17.
   registry.register(createLinkRunToIssueToolRegistration({ db: deps.db }));
   registry.register(createPrepareJiraCommentToolRegistration({ db: deps.db }));
+  // Module 10 (Deep Wiki, 2026-06-06): the DeepWiki-style two-pass flow.
+  // The agent plans a hierarchical/mind-map wiki and persists it via
+  // wiki_save_structure (pass 1, writes a pending page skeleton), authors
+  // each page via wiki_save_page (pass 2, Markdown + Mermaid + citations),
+  // and resumes via wiki_status. Coodra runs no LLM/embeddings — the agent
+  // is the model; Coodra is the schema + persistence + web render
+  // (ADR-012/013 "ship records, not services"). Tool count 17 → 20.
+  registry.register(createWikiSaveStructureToolRegistration({ db: deps.db }));
+  registry.register(createWikiSavePageToolRegistration({ db: deps.db }));
+  registry.register(createWikiStatusToolRegistration({ db: deps.db }));
   // Module 09 (External MCP Integrations, track 9B): Graphify is consumed
   // as its OWN MCP server wired alongside Coodra (ADR-010 / ADR-015) — the
   // agent calls Graphify's query_graph/get_node/etc. directly. Coodra mints

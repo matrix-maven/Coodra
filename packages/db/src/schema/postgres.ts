@@ -493,6 +493,73 @@ export type MigrationMapEntry = typeof migrationMap.$inferSelect;
 export type NewMigrationMapEntry = typeof migrationMap.$inferInsert;
 
 /**
+ * Module 10 — Deep Wiki (postgres mirror of sqlite.ts::wikis). Both
+ * dialects hold rows: solo writes to local SQLite via the MCP tools;
+ * team mode keeps cloud Postgres in sync via the sync-daemon so the
+ * web `/wiki` render works cross-machine. See `./sqlite.ts::wikis` for
+ * the full design rationale + idempotency contract. Schema-parity test
+ * enforces column-name + dataType + notNull match.
+ */
+export const wikis = pgTable(
+  'wikis',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    description: text('description').notNull(),
+    mode: text('mode').notNull().default('comprehensive'),
+    schemaVersion: integer('schema_version').notNull().default(1),
+    structureJson: text('structure_json').notNull(),
+    generatedByRunId: text('generated_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdByUserId: text('created_by_user_id'),
+    orgId: text('org_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wikis_project_slug_uk').on(t.projectId, t.slug),
+    index('wikis_project_updated_idx').on(t.projectId, t.updatedAt),
+  ],
+);
+
+/**
+ * Module 10 — Deep Wiki page rows (postgres mirror of
+ * sqlite.ts::wikiPages). See `./sqlite.ts::wikiPages` for the full
+ * design rationale (skeleton-then-author lifecycle, content/progress
+ * store, citations JSON shape).
+ */
+export const wikiPages = pgTable(
+  'wiki_pages',
+  {
+    id: text('id').primaryKey(),
+    wikiId: text('wiki_id')
+      .notNull()
+      .references(() => wikis.id, { onDelete: 'cascade' }),
+    pageId: text('page_id').notNull(),
+    state: text('state').notNull().default('pending'),
+    contentMarkdown: text('content_markdown').notNull().default(''),
+    citations: text('citations').notNull().default('[]'),
+    authoredByRunId: text('authored_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdByUserId: text('created_by_user_id'),
+    orgId: text('org_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('wiki_pages_wiki_page_uk').on(t.wikiId, t.pageId),
+    index('wiki_pages_wiki_state_idx').on(t.wikiId, t.state),
+  ],
+);
+
+export type Wiki = typeof wikis.$inferSelect;
+export type NewWiki = typeof wikis.$inferInsert;
+export type WikiPageRow = typeof wikiPages.$inferSelect;
+export type NewWikiPageRow = typeof wikiPages.$inferInsert;
+
+/**
  * Phase F.3.c — `knowledge_audit` (2026-05-11). **Postgres-only**.
  *
  * Append-only audit log of every mutation to a knowledge artifact

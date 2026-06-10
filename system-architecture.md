@@ -1203,7 +1203,7 @@ All four target agents (Claude Code, Cursor, Windsurf, Codex) support native rem
 
 ### 22.4 Rovo's Jira tools (agent-facing; NOT Coodra-owned)
 
-These tools appear in the agent's `tools/list` **because Rovo is wired in**, not because Coodra advertises them. They do NOT count toward Coodra's manifest — which is **17 tools** (§24.4): the 15 pre-Jira tools plus Coodra's two Jira tools, `link_run_to_issue` (§22.5) and `prepare_jira_comment` (§22.6). The agent calls Rovo's tools directly; Coodra's role is to tell the agent *when* (the §5.7 trigger contract). The load-bearing subset:
+These tools appear in the agent's `tools/list` **because Rovo is wired in**, not because Coodra advertises them. They do NOT count toward Coodra's manifest — which is **20 tools** (§24.4): the 17 through Module 09 (incl. Coodra's two Jira tools `link_run_to_issue` (§22.5) and `prepare_jira_comment` (§22.6)) plus Module 10's three Deep Wiki tools (`wiki_save_structure`, `wiki_save_page`, `wiki_status`; ADR-017). The agent calls Rovo's tools directly; Coodra's role is to tell the agent *when* (the §5.7 trigger contract). The load-bearing subset:
 
 | Rovo tool | Use |
 |---|---|
@@ -1962,9 +1962,9 @@ Anti-patterns banned:
 - *"Useful for..."* — hedging. If it's useful, say when.
 - Descriptions outside the word-count envelope — **40–80 words is the soft target, 120 is the hard maximum** (amended 2026-04-23 per Q-02-6; the old ~80-word cap was too tight for tools with structured outputs that need an extra sentence of shape documentation). Character length is additionally capped at < 800 as a belt-and-braces defence against the system-prompt budget.
 
-### 24.4 Core Tool Manifest — 17 Coodra Tools
+### 24.4 Core Tool Manifest — 20 Coodra Tools
 
-> The live `tools/list` handshake is the source of truth — **17 tools** as of Module 09 ADR-016 (Jira = Direct: the post-ADR-015 15 + `link_run_to_issue` (J2) + `prepare_jira_comment` (J3), both 2026-05-31). History: `query_codebase_graph` retired in G1; `seed_feature_packs_from_graph` + `build_codebase_graph` retired in ADR-015 (Graphify is query-only via its own MCP) → 15; `link_run_to_issue` (J2) → 16; `prepare_jira_comment` (J3) → 17. The §24.9 manifest test asserts the exact set on every push. The per-tool entries below document the load-bearing surfaces; `ping`, `list_context_packs`, `read_context_pack`, `list_features`, `get_feature`, `get_feature_file`, and `query_run_diff` are covered by that test rather than re-specced here.
+> The live `tools/list` handshake is the source of truth — **20 tools** as of Module 10 (Deep Wiki, ADR-017). History: `query_codebase_graph` retired in G1; `seed_feature_packs_from_graph` + `build_codebase_graph` retired in ADR-015 (Graphify is query-only via its own MCP) → 15; `link_run_to_issue` (J2) → 16; `prepare_jira_comment` (J3) → 17; Module 10 added `wiki_save_structure` + `wiki_save_page` + `wiki_status` (the agent-authored Deep Wiki two-pass flow, ADR-017) → **20**. The §24.9 manifest test asserts the exact set on every push. The per-tool entries below document the load-bearing surfaces; `ping`, `list_context_packs`, `read_context_pack`, `list_features`, `get_feature`, `get_feature_file`, `query_run_diff`, and the three `wiki_*` tools are covered by that test rather than re-specced here.
 
 These are the tools every project using Coodra exposes. They bind the agent to the Feature Pack / Context Pack / Policy / Decision lifecycle described in §2 and §18.
 

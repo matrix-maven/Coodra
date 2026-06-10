@@ -49,7 +49,7 @@ Plus an **on-demand skill layer** (Anthropic Skills pattern) the agent pulls onl
 ```mermaid
 flowchart LR
   A["Claude Code<br/>Cursor<br/>Windsurf"]
-  B["MCP Server<br/>:3100<br/>17 tools"]
+  B["MCP Server<br/>:3100<br/>20 tools"]
   H["Hooks Bridge<br/>:3101<br/>Pre / Post / Start / End"]
   S["Sync Daemon<br/>team mode only"]
   D[("SQLite<br/>~/.coodra/data.db")]
@@ -171,7 +171,7 @@ Single tarball via esbuild — `npm i -g @coodra/cli` is the only install step. 
 
 ```
 apps/
-  mcp-server/    Coodra MCP server (17 tools)
+  mcp-server/    Coodra MCP server (20 tools)
   hooks-bridge/  Claude Code / Cursor / Windsurf hook receiver
   sync-daemon/   Team-mode cloud sync (push + pull)
   web-v2/        Admin + audit-trail UI (Next.js 15)

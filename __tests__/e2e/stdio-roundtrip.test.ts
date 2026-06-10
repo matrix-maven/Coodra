@@ -92,6 +92,8 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
     //   ADR-015 (2026-05-23): seed_feature_packs_from_graph + build_codebase_graph retired → 15
     //   Module 09 J2 (2026-05-31): link_run_to_issue added → 16
     //   Module 09 J3 (2026-05-31): prepare_jira_comment added → 17
+    //   Module 10 (2026-06-06): Deep Wiki — wiki_save_structure +
+    //     wiki_save_page + wiki_status added → 20
     expect(names).toEqual(
       [
         'check_policy',
@@ -111,6 +113,9 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
         'record_decision',
         'save_context_pack',
         'search_packs_nl',
+        'wiki_save_page',
+        'wiki_save_structure',
+        'wiki_status',
       ].sort(),
     );
   });

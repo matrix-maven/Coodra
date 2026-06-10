@@ -1749,3 +1749,47 @@ after it fails — teammates should use the curl/`team join` path only (the
 canonical Phase-G flow the cli.sh already invokes). The first-`coodra start`
 health timeout on the teammate's box looked like cold-boot slowness (succeeded on
 retry), not the launchd/systemd teardown race — left as-is pending a repro.
+
+## 2026-06-06 — Module 10 Deep Wiki (agent-authored codebase wiki)
+
+**Decision.** Build a DeepWiki-style hierarchical/mind-map codebase wiki where
+the user's coding agent is the model and Coodra ships the schema + persistence +
+render. Coodra runs NO LLM/embeddings (ADR-017; same thesis as ADR-012/013/015/016).
+Manifest **17 → 20** tools. User-approved scope: full vertical slice; the
+"Ask-the-wiki" RAG chat deferred.
+
+**What landed (7 phases):**
+- **Schema** — `@coodra/shared/wiki`: `WikiStructure`/`WikiSection`/`WikiPage`/
+  `WikiPageContent` (Zod + referential-integrity `superRefine`) + disk-path
+  helpers. New `./wiki` subpath export.
+- **DB** — `wikis` (structure envelope) + `wiki_pages` (per-page content/state),
+  dual-dialect; migrations `sqlite/0017_wikis.sql` + `postgres/0019_wikis.sql`.
+  Hand-cleaned the drizzle generator's stale-snapshot drift (it re-emitted the
+  hand-written 0014–0018 objects); the new snapshots now capture all 16 tables,
+  fixing the drift for future `db:generate`. Schema-parity 14→16; client
+  table-count 15→17.
+- **MCP** — `wiki_save_structure` (pass 1, pending skeleton, upsert by
+  project+slug), `wiki_save_page` (pass 2, author one page), `wiki_status`
+  (resume). `z.union` (not `discriminatedUnion`) for multi-soft-failure outputs
+  (Zod v4 rejects shared `ok:false` discriminators). `lib/wiki-store.ts` shared
+  dialect-dispatch.
+- **CLI** — `coodra wiki generate|status|list|open|clean` + `lib/wiki/`
+  (grounding bundle from file tree + README + Graphify graph; job file;
+  `deep-wiki-author` Feature recipe scaffold).
+- **Web** — `/wiki` + `/wiki/[id]`: mind-map nav + Markdown + Mermaid. Added
+  `react-markdown`@10 + `remark-gfm`@4 + `mermaid`@11. `@coodra/db` read helpers
+  (`listWikisDetailed`/`getWikiDetail`).
+- **Team sync** — `SyncTableName` + dispatch push (`syncWikis`/`syncWikiPages`,
+  ON CONFLICT DO UPDATE) + team-rows-puller (`pullWikis`/`pullWikiPages`) +
+  handler enqueues (guarded by `COODRA_MODE==='team'`).
+
+**Alternatives considered.** Coodra-runs-its-own-LLM-pipeline (deepwiki-open
+shape) — rejected: needs API keys, embeddings, a vector store, recurring cost,
+contradicts ADR-012/013. Ask-the-wiki RAG chat — deferred (needs the wiki first).
+
+**Verify.** Typecheck 13/13, lint clean, unit 13/13 packages green (shared 25
+wiki, db wiki-roundtrip 5, mcp 7 wiki-flow integration + manifest/schema units,
+cli wiki tests, web `next build` both routes). e2e tool inventory updated 17→20.
+The cloud push/pull round-trip mirrors the proven features/decisions sync;
+end-to-end team validation needs a live Postgres (sync-daemon integration tests,
+Docker) — out of scope for this session, flagged for the user.

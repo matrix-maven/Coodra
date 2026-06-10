@@ -57,6 +57,12 @@ const EXPECTED_TOOLS = [
   // Module 09 J3 (2026-05-31) — the on-request write-back helper (assembles
   // the session summary; the agent posts it via Rovo's addCommentToJiraIssue).
   'prepare_jira_comment',
+  // Module 10 (2026-06-06) — Deep Wiki two-pass flow: plan the structure,
+  // author each page, resume via status. The agent is the model; Coodra is
+  // the schema + persistence + web render (ADR-012/013).
+  'wiki_save_structure',
+  'wiki_save_page',
+  'wiki_status',
 ] as const;
 
 interface Harness {
@@ -156,6 +162,41 @@ describe('manifest-e2e — minimal-valid-input round-trip per tool', () => {
     link_run_to_issue: { runId: 'run_does_not_exist', issueRef: 'PROBE-1' },
     // run_does_not_exist → the run_not_found soft-failure branch (accepted).
     prepare_jira_comment: { runId: 'run_does_not_exist' },
+    // run_does_not_exist → run_not_found (accepted). The structure is a
+    // minimal-but-valid single-page WikiStructure so it clears the input
+    // schema's referential-integrity superRefine before the run check.
+    wiki_save_structure: {
+      runId: 'run_does_not_exist',
+      slug: 'probe',
+      structure: {
+        schemaVersion: 1,
+        title: 'Probe',
+        description: 'probe',
+        mode: 'concise',
+        sections: [],
+        pages: [
+          {
+            id: 'intro',
+            title: 'Intro',
+            description: 'probe',
+            importance: 'low',
+            parentId: null,
+            relevantFiles: [],
+            relatedPageIds: [],
+            wantsDiagram: false,
+          },
+        ],
+      },
+    },
+    // run_does_not_exist → run_not_found (accepted).
+    wiki_save_page: {
+      runId: 'run_does_not_exist',
+      wikiId: 'wiki_x',
+      pageId: 'intro',
+      content: { contentMarkdown: '# x' },
+    },
+    // wiki_x does not exist → wiki_not_found (accepted).
+    wiki_status: { wikiId: 'wiki_x' },
   };
 
   for (const name of EXPECTED_TOOLS) {

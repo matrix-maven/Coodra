@@ -306,6 +306,13 @@ export interface TeamRowsPullSummary {
    * whose `checksum` column differed from the local mirror.
    */
   readonly featurePacks: number;
+  /**
+   * Module 10 — Deep Wiki structure rows pulled this tick (cloud rows
+   * whose updated_at was newer than the local mirror's).
+   */
+  readonly wikis: number;
+  /** Module 10 — Deep Wiki page rows pulled this tick. */
+  readonly wikiPages: number;
 }
 
 const ZERO_SUMMARY: TeamRowsPullSummary = Object.freeze({
@@ -316,6 +323,8 @@ const ZERO_SUMMARY: TeamRowsPullSummary = Object.freeze({
   runs: 0,
   features: 0,
   featurePacks: 0,
+  wikis: 0,
+  wikiPages: 0,
 });
 
 export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHandle {
@@ -904,6 +913,155 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
     return touched;
   }
 
+  /**
+   * Module 10 — wikis pull. Cloud `wikis` → local SQLite mirror, so the
+   * laptop-team web render and `coodra wiki status/list` see teammate-
+   * authored wikis. Mutable (a re-plan replaces structure_json), so
+   * ON CONFLICT(id) DO UPDATE — but only when the cloud row is newer than
+   * the local mirror (`updated_at`), which also prevents a machine from
+   * clobbering its own freshly-authored wiki with its own pushed-back copy.
+   *
+   * No high-water-mark filter (same rationale as pullRuns). FK to runs is
+   * not enforced on insert in the daemon's local handle (foreign_keys off),
+   * matching pullDecisions; a missing generated_by_run_id just stays
+   * dangling until the run arrives.
+   */
+  async function pullWikis(): Promise<number> {
+    const ct = postgresSchema.wikis;
+    let cloudRows: Array<typeof ct.$inferSelect>;
+    try {
+      cloudRows = await cloudDb.db.select().from(ct).orderBy(sql`${ct.updatedAt} DESC`).limit(PULL_CHUNK_SIZE);
+    } catch (err) {
+      log.warn(
+        { event: 'team_rows_wikis_pull_failed', err: err instanceof Error ? err.message : String(err) },
+        'cloud SELECT wikis threw — will retry next tick',
+      );
+      return 0;
+    }
+    if (cloudRows.length === 0) return 0;
+    let touched = 0;
+    for (const row of cloudRows) {
+      try {
+        const cloudUpdated = Math.floor(row.updatedAt.getTime() / 1000);
+        const localRow = localDb.raw.prepare('SELECT updated_at FROM wikis WHERE id = ? LIMIT 1').get(row.id) as
+          | { updated_at: number }
+          | undefined;
+        if (localRow !== undefined && localRow.updated_at >= cloudUpdated) continue; // local same-or-newer
+        const stmt = localDb.raw.prepare(`
+          INSERT INTO wikis
+            (id, project_id, slug, title, description, mode, schema_version,
+             structure_json, generated_by_run_id, created_by_user_id, org_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            description = excluded.description,
+            mode = excluded.mode,
+            schema_version = excluded.schema_version,
+            structure_json = excluded.structure_json,
+            generated_by_run_id = excluded.generated_by_run_id,
+            created_by_user_id = excluded.created_by_user_id,
+            org_id = excluded.org_id,
+            updated_at = excluded.updated_at
+        `);
+        const r = stmt.run(
+          row.id,
+          row.projectId,
+          row.slug,
+          row.title,
+          row.description,
+          row.mode,
+          row.schemaVersion,
+          row.structureJson,
+          row.generatedByRunId,
+          row.createdByUserId,
+          row.orgId,
+          Math.floor(row.createdAt.getTime() / 1000),
+          cloudUpdated,
+        );
+        if (r.changes > 0) touched += 1;
+      } catch (err) {
+        log.warn(
+          {
+            event: 'team_rows_wikis_insert_failed',
+            wikiId: row.id,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'local wikis upsert threw — will re-pull next tick',
+        );
+      }
+    }
+    return touched;
+  }
+
+  /**
+   * Module 10 — wiki_pages pull. Cloud `wiki_pages` → local mirror.
+   * Mutable (authoring flips state + body), ON CONFLICT(wiki_id, page_id)
+   * DO UPDATE, gated on cloud `updated_at` newer than local. Runs after
+   * pullWikis so the parent wiki row exists locally.
+   */
+  async function pullWikiPages(): Promise<number> {
+    const ct = postgresSchema.wikiPages;
+    let cloudRows: Array<typeof ct.$inferSelect>;
+    try {
+      cloudRows = await cloudDb.db.select().from(ct).orderBy(sql`${ct.updatedAt} DESC`).limit(PULL_CHUNK_SIZE);
+    } catch (err) {
+      log.warn(
+        { event: 'team_rows_wiki_pages_pull_failed', err: err instanceof Error ? err.message : String(err) },
+        'cloud SELECT wiki_pages threw — will retry next tick',
+      );
+      return 0;
+    }
+    if (cloudRows.length === 0) return 0;
+    let touched = 0;
+    for (const row of cloudRows) {
+      try {
+        const cloudUpdated = Math.floor(row.updatedAt.getTime() / 1000);
+        const localRow = localDb.raw
+          .prepare('SELECT updated_at FROM wiki_pages WHERE wiki_id = ? AND page_id = ? LIMIT 1')
+          .get(row.wikiId, row.pageId) as { updated_at: number } | undefined;
+        if (localRow !== undefined && localRow.updated_at >= cloudUpdated) continue;
+        const stmt = localDb.raw.prepare(`
+          INSERT INTO wiki_pages
+            (id, wiki_id, page_id, state, content_markdown, citations,
+             authored_by_run_id, created_by_user_id, org_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(wiki_id, page_id) DO UPDATE SET
+            state = excluded.state,
+            content_markdown = excluded.content_markdown,
+            citations = excluded.citations,
+            authored_by_run_id = excluded.authored_by_run_id,
+            created_by_user_id = excluded.created_by_user_id,
+            org_id = excluded.org_id,
+            updated_at = excluded.updated_at
+        `);
+        const r = stmt.run(
+          row.id,
+          row.wikiId,
+          row.pageId,
+          row.state,
+          row.contentMarkdown,
+          row.citations,
+          row.authoredByRunId,
+          row.createdByUserId,
+          row.orgId,
+          Math.floor(row.createdAt.getTime() / 1000),
+          cloudUpdated,
+        );
+        if (r.changes > 0) touched += 1;
+      } catch (err) {
+        log.warn(
+          {
+            event: 'team_rows_wiki_pages_insert_failed',
+            pageRowId: row.id,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'local wiki_pages upsert threw — will re-pull next tick',
+        );
+      }
+    }
+    return touched;
+  }
+
   async function tickOnce(): Promise<TeamRowsPullSummary> {
     // Order matters — projects first (everything FKs to projects.id),
     // then runs (decisions/context_packs/run_events FK to runs.id),
@@ -916,15 +1074,29 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
     // run-dependent batch.
     const projects = await pullProjects();
     const runs = await pullRuns();
-    const [decisions, contextPacks, runEvents, features, featurePacks] = await Promise.all([
+    // wikis must land before wiki_pages (the page FKs to wikis.id) — pull
+    // them sequentially, then the rest of the dependent tables in parallel.
+    const wikis = await pullWikis();
+    const [decisions, contextPacks, runEvents, features, featurePacks, wikiPages] = await Promise.all([
       pullDecisions(),
       pullContextPacks(),
       pullRunEvents(),
       pullFeatures(),
       pullFeaturePacks(),
+      pullWikiPages(),
     ]);
-    const summary: TeamRowsPullSummary = { projects, runs, decisions, contextPacks, runEvents, features, featurePacks };
-    if (projects + runs + decisions + contextPacks + runEvents + features + featurePacks > 0) {
+    const summary: TeamRowsPullSummary = {
+      projects,
+      runs,
+      decisions,
+      contextPacks,
+      runEvents,
+      features,
+      featurePacks,
+      wikis,
+      wikiPages,
+    };
+    if (projects + runs + decisions + contextPacks + runEvents + features + featurePacks + wikis + wikiPages > 0) {
       log.info({ event: 'team_rows_pulled', ...summary }, 'team-rows pull tick complete');
     }
     return summary;
