@@ -24,6 +24,14 @@ export const listContextPacksInputSchema = z
       .optional()
       .describe(`Max packs to return (default ${DEFAULT_LIMIT}, capped at ${MAX_LIMIT}).`),
     cursor: z.string().optional().describe('Opaque cursor from a prior call. Pass to fetch the next page.'),
+    runId: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'Optional. Pass your current runId (from get_run_id) so browsing prior Context Packs is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not affect pagination or results.',
+      ),
   })
   .strict()
   .describe('Input for coodra__list_context_packs.');

@@ -23,6 +23,14 @@ export const getFeaturePackInputSchema = z
       .max(1024)
       .optional()
       .describe('Optional path to resolve against `sourceFiles` globs; deepest match wins.'),
+    runId: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'Optional. Pass your current runId (from get_run_id) so this feature-pack reuse is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not change which pack is resolved.',
+      ),
   })
   .strict()
   .describe('Input for coodra__get_feature_pack.');

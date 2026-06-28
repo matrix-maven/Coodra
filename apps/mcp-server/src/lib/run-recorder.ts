@@ -78,7 +78,19 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
   return {
     async record(args) {
       assertArgs(args);
-      const eventId = `re_${args.idempotencyKey.key}_${args.phase}`;
+      // The event id is the `run_events` primary key with ON CONFLICT (id)
+      // DO NOTHING. It MUST include the runId: the reuse-read tools'
+      // idempotency keys are pure functions of the request ARGS (e.g.
+      // `readonly:search_packs_nl:<slug>:<query>`), so without the runId an
+      // identical parameterized reuse-read issued by a SECOND run would
+      // collide on the same id and be silently dropped — undercounting the
+      // ROI reuse / distinct-run metrics and mis-attributing the reuse to
+      // whichever run wrote first (adversarial-review finding, 2026-06-21).
+      // Write tools (record_decision etc.) already embed runId in their key,
+      // so the prefix is redundant-but-harmless there; `norun` only occurs
+      // for the null-runId audit path which the MCP registry never takes.
+      const runScope = args.runId ?? 'norun';
+      const eventId = `re_${runScope}_${args.idempotencyKey.key}_${args.phase}`;
       const payloadObj = {
         input: args.input,
         output: args.output ?? null,

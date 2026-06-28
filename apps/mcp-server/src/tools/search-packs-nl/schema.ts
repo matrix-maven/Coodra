@@ -41,6 +41,14 @@ export const searchPacksNlInputSchema = z
       .max(MAX_LIMIT)
       .optional()
       .describe(`Max results (default 50, capped at ${MAX_LIMIT}). Ordered by created_at DESC.`),
+    runId: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'Optional. Pass your current runId (from get_run_id) so this knowledge-reuse read is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not filter or change results.',
+      ),
   })
   .strict()
   .describe('Input for coodra__search_packs_nl.');

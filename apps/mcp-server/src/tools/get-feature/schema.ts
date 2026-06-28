@@ -23,6 +23,14 @@ export const getFeatureInputSchema = z
       .min(1, 'slug is required')
       .max(64, 'slug must be ≤ 64 chars')
       .regex(/^[a-z0-9_-]+$/, 'slug must be lowercase letters, digits, hyphens or underscores'),
+    runId: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'Optional. Pass your current runId (from get_run_id) so pulling this Feature (skill) is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not change the returned feature.',
+      ),
   })
   .strict()
   .describe('Input for coodra__get_feature.');

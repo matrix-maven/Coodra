@@ -55,6 +55,10 @@
     "./wiki": {
       "types": "./dist/wiki/index.d.ts",
       "import": "./dist/wiki/index.js"
+    },
+    "./roi": {
+      "types": "./dist/roi/index.d.ts",
+      "import": "./dist/roi/index.js"
     }
   },
   "files": [

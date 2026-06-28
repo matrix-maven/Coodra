@@ -146,6 +146,7 @@ export function Sidebar({
             label: 'Workspace',
             items: [
               { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
+              { href: '/roi', label: 'ROI', icon: <IconChart /> },
               { href: '/projects', label: 'Projects', icon: <IconStack /> },
             ],
           },
@@ -181,6 +182,7 @@ export function Sidebar({
             label: 'Workspace',
             items: [
               { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
+              { href: '/roi', label: 'ROI', icon: <IconChart /> },
               { href: '/projects', label: 'Projects', icon: <IconStack /> },
             ],
           },
@@ -470,6 +472,17 @@ function IconDashboard() {
       <rect x="14" y="3" width="7" height="5" />
       <rect x="14" y="12" width="7" height="9" />
       <rect x="3" y="16" width="7" height="5" />
+    </svg>
+  );
+}
+function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <path d="M4 20V4" />
+      <path d="M4 20h16" />
+      <rect x="7" y="12" width="3" height="5" />
+      <rect x="12" y="8" width="3" height="9" />
+      <rect x="17" y="5" width="3" height="12" />
     </svg>
   );
 }

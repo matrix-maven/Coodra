@@ -1,6 +1,6 @@
 {
   "name": "@coodra/cli",
-  "version": "0.2.0-beta.21",
+  "version": "0.2.0-beta.22",
   "private": false,
   "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",
@@ -99,6 +99,8 @@
     "start": "node dist/index.js",
     "cli": "node dist/index.js",
     "test:unit": "vitest run",
+    "//smoke:core": "Cross-platform end-to-end smoke for the Core (Claude Code) install path: init → start (mcp-server + hooks-bridge) → /healthz → status → stop. Requires `build` first. Drives the windows-latest CI job; runs identically on any OS for local validation.",
+    "smoke:core": "node scripts/core-smoke.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo",

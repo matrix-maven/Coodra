@@ -46,6 +46,14 @@ export const queryRunHistoryInputSchema = z
       .min(1, 'limit must be >= 1')
       .max(MAX_LIMIT, `limit must be <= ${MAX_LIMIT}`)
       .default(DEFAULT_LIMIT),
+    runId: z
+      .string()
+      .min(1)
+      .max(512)
+      .optional()
+      .describe(
+        'Optional. Pass your current runId (from get_run_id) so this prior-work recall is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not filter the history (use issueRef/status for that).',
+      ),
   })
   .strict()
   .describe('Input for coodra__query_run_history.');

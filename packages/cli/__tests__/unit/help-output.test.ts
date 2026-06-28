@@ -28,6 +28,9 @@ describe('coodra --help (snapshot-locked surface)', () => {
         stop [options]            Stop Coodra daemons. Idempotent.
         status [options]          Print unified project + service state for the
                                   current cwd.
+        metrics|roi [options]     Print Coodra ROI / value KPIs (knowledge captured,
+                                  reuse, governance, modeled net value) for this
+                                  machine.
         agents [options]          Show per-agent wiring status (Claude Code, Cursor,
                                   Windsurf, Codex). Read-only — use \`coodra init\` to
                                   wire and \`coodra uninstall\` to strip.

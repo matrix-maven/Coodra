@@ -34,6 +34,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'login',
       'logout',
       'logs',
+      'metrics',
       'org',
       'pack',
       'pause',

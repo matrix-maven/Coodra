@@ -87,9 +87,11 @@ Do not batch these. Do not wait for `save_context_pack`. Log each as you make it
 Triggers: *"what was done before?"*, *"has X been tried?"*, *"what is the state of Y?"*, *"why did we choose Z?"*.
 
 1. `coodra__query_decisions { projectSlug, query?, runId?, limit: 10 }` — direct read of the `decisions` table for this project. Use this **first** for "what did we decide about X?" / "why did we pick Y?" — every `record_decision` call is durable history and this is the authoritative read-path. Quoted descriptions and rationales surface verbatim; if a query string is supplied it LIKE-matches against description+rationale.
-2. `coodra__search_packs_nl { projectSlug, query }` — semantic search over prior context packs (LIKE-substring fallback until M05 NL Assembly ships embeddings).
-3. `coodra__query_run_history { projectSlug, limit: 10 }` — chronological recent runs.
+2. `coodra__search_packs_nl { projectSlug, query, runId }` — semantic search over prior context packs (LIKE-substring fallback until M05 NL Assembly ships embeddings).
+3. `coodra__query_run_history { projectSlug, limit: 10, runId }` — chronological recent runs.
 4. Answer from the retrieved data. **Do not answer from memory.** If all three return empty, say so — don't confabulate.
+
+> **Pass your `runId` on knowledge-reuse reads (the ROI signal).** `search_packs_nl`, `query_run_history`, `get_feature_pack`, `get_feature`, and `list_context_packs` each accept an optional `runId` (the one `get_run_id` minted this session). When you supply it, the MCP registry records the call as an `mcp_call` `run_events` row, which is how Coodra measures **knowledge reuse / continuity** on the `/roi` dashboard and `coodra roi` — "this run consciously consulted prior decisions/packs instead of re-deriving them." It is attribution-only: it never filters or changes the result. For `query_decisions` / `read_context_pack`, their `runId` is a *filter/lookup* (decisions/pack **for** that run), so only pass it when you actually want to scope to a specific run — don't pass your own run's id just for attribution there.
 
 ## 5.6 Before structural refactors or unfamiliar code navigation
 

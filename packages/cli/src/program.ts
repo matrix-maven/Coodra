@@ -41,6 +41,7 @@ import {
 import { type LoginIO, type LoginOptions, runLoginCommand } from './commands/login.js';
 import { type LogoutIO, type LogoutOptions, runLogoutCommand } from './commands/logout.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
+import { type MetricsIO, type MetricsOptions, runMetricsCommand } from './commands/metrics.js';
 import {
   type OrgIO,
   type OrgStatusOptions,
@@ -154,6 +155,8 @@ interface BuildProgramOptions {
   readonly runStop?: (options: StopOptions, io?: StopIO) => Promise<unknown>;
   readonly statusIO?: StatusIO;
   readonly runStatus?: (options: StatusOptions, io?: StatusIO) => Promise<unknown>;
+  readonly metricsIO?: MetricsIO;
+  readonly runMetrics?: (options: MetricsOptions, io?: MetricsIO) => Promise<unknown>;
   readonly agentsIO?: AgentsIO;
   readonly runAgents?: (options: AgentsOptions, io?: AgentsIO) => Promise<unknown>;
   readonly graphifyIO?: GraphifyIO;
@@ -361,6 +364,19 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: StatusOptions) => {
       await statusRunner(opts, options.statusIO);
+    });
+
+  const metricsRunner = options.runMetrics ?? runMetricsCommand;
+  program
+    .command('metrics')
+    .alias('roi')
+    .description(
+      'Print Coodra ROI / value KPIs (knowledge captured, reuse, governance, modeled net value) for this machine.',
+    )
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .option('--project <slug>', 'Limit the per-project breakdown to a single project slug.')
+    .action(async (opts: MetricsOptions) => {
+      await metricsRunner(opts, options.metricsIO);
     });
 
   const agentsRunner = options.runAgents ?? runAgentsCommand;
