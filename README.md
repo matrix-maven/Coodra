@@ -134,6 +134,28 @@ Switch any time: `coodra team setup` (admin, once per team) → `coodra invite <
 
 ---
 
+## Return on context — the payoff, measured
+
+Coodra's whole bet is that **context is cheaper than re-discovery**. Authoring a pack or recording a decision costs minutes; the payoff compounds on every session after. The built-in **`/roi` dashboard** (and the `coodra roi` CLI — identical math) proves it across four dimensions, with a hard rule printed on every screen: **● measured** counts are stated plainly; **◐ modeled** dollars are derived from those counts × transparent, *editable* assumptions and always shown as a conservative–base–optimistic band. Nothing is "trust us, we save you money" — every dollar links to its formula and source.
+
+<div align="center">
+<img src="docs/assets/roi/roi-hero.png" alt="Coodra /roi dashboard — net value, benefit-cost ratio, and ROI with measured vs. modeled chips" width="860">
+</div>
+
+| What you get back | How Coodra delivers it | Quantified |
+|---|---|---|
+| **Time** | Agents stop re-deriving how a module works every session; recorded decisions are recalled, not re-debated. | Developer minutes reclaimed per knowledge reuse — anchored to the Parnin & Rugaber **10–15 min** interruption-recovery cost, at a $78/hr fully-loaded rate. |
+| **Money** | Context compression (a ~4k-token pack instead of ~12k of blind discovery), prompt-cache reuse, and runaway-loop prevention. | Tokens saved × the published model rate card ($5/MTok in, cache-read 0.1×). |
+| **Knowledge** | Decisions + Context Packs become a compounding asset, not a cost that resets each session. | Reuse rate as the **KCS Link Rate** (target 60–80%); decision-completeness (DIQ); knowledge-captured corpus. |
+| **Safety** | Every agent action is policy-checked before it runs; unsafe writes and runaway loops are stopped. | Governed-action coverage; runaway block valued at ~40k tokens + ~15 min of avoided cleanup. |
+| **Teamwork** | One developer's captured decision is injected into a teammate's next session — local-first, cloud-synced, role-scoped. | Shared memory across laptops; one-click `coodra invite`; admin/member/viewer RBAC. |
+
+**Illustrative, for a 10-developer team (modeled, base case):** ~$268/mo direct API credits avoided **plus** ~240 developer-hours reclaimed — net **≈$18k/month**, with a conservative–optimistic band of **$8.5k–$27.6k**. Halve every assumption and it's still strongly net-positive in month one. The exact figure is *yours to set* — change the constants, recompute.
+
+→ **Read the full, honest value story** (with the complete model, every formula, and the worked example): [`docs/value-story.md`](docs/value-story.md).
+
+---
+
 ## The 15 MCP tools
 
 Grouped by intent. Every tool ships a five-part description so the agent's planner knows exactly when to call it (and when not to).
@@ -164,6 +186,16 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 ```
 
 Single tarball via esbuild — `npm i -g @coodra/cli` is the only install step. Native modules (`better-sqlite3`, `sqlite-vec`) stay external so they install correctly per platform.
+
+### Platform support
+
+| Platform | Status | Notes |
+|---|---|---|
+| macOS (arm64 / x64) | ✅ Full | launchd-managed daemons; all surfaces |
+| Linux (x64 / arm64) | ✅ Full | systemd-user daemons; all surfaces |
+| **Windows (x64)** | ✅ **Core** | `npm i -g @coodra/cli` → `coodra init` → `coodra start` wires **Claude Code** (MCP server + Hooks Bridge). Daemons run via the detached-child fallback manager; native `better-sqlite3` + `sqlite-vec-windows-x64` install per-platform. Proven by the `windows-latest` CI smoke. |
+
+On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), the **Cursor / Windsurf** shell hook adapters (`.sh` + `curl` + `python3` — Claude Code's HTTP hooks are unaffected), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
 
 ---
 
