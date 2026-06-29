@@ -2,7 +2,7 @@
 
 Thanks for thinking about contributing — Coodra is open source under MIT and we welcome both human and AI-assisted contributions.
 
-This guide covers the dev loop, commit conventions, and a few project-specific guardrails. For the full architectural picture read [`system-architecture.md`](system-architecture.md); for the standing agent rules that govern day-to-day work, read [`CLAUDE.md`](CLAUDE.md) and the imported files in [`essentialsforclaude/`](essentialsforclaude/).
+This guide covers the dev loop, commit conventions, and a few project-specific guardrails. For the full architectural picture read [`system-architecture.md`](system-architecture.md).
 
 ---
 
@@ -31,7 +31,7 @@ Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](do
 
 | Path | What lives here | When to touch it |
 |---|---|---|
-| `apps/mcp-server` | The MCP server — 26 tools agents call | Adding/changing an agent-facing tool |
+| `apps/mcp-server` | The MCP server — 20 tools agents call | Adding/changing an agent-facing tool |
 | `apps/hooks-bridge` | Hono HTTP service that receives Claude Code / Cursor hooks | Adding a hook event handler, policy in-line behaviour |
 | `apps/sync-daemon` | Team-mode cloud sync (outbox + pullers) | Cloud-sync logic for a new table type |
 | `apps/web-v2` | Next.js admin/audit UI | UI changes for solo + team views |
@@ -41,8 +41,6 @@ Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](do
 | `packages/shared` | Cross-cutting Zod schemas, auth helpers, logger | Anything imported by more than one app |
 | `packages/policy` | Pure policy-decision engine | New policy match types |
 | `docs/feature-packs/<NN>-<slug>/` | Per-module specs (spec, implementation, techstack) | Designing a new module |
-| `docs/context-packs/` | Permanent records of completed work | Don't edit by hand — produced by `coodra__save_context_pack` |
-| `essentialsforclaude/` | Standing rules loaded by `CLAUDE.md` | Updating agent-wide policy |
 
 ---
 
@@ -65,7 +63,7 @@ A change is ready to merge when:
 2. **Tests**: every public function in the change has a unit test, and `pnpm test:unit` passes.
 3. **Lint**: `pnpm lint` passes (or, if you added auto-fixable formatting drift, run `pnpm lint:fix`).
 4. **Integration / E2E**: if your change touches a service boundary or migration, `pnpm test:integration` (and `pnpm test:e2e` for full-lifecycle changes) is green locally.
-5. **Documentation**: if you changed an architectural decision, public CLI flag, or MCP tool surface, the relevant `docs/feature-packs/<module>/` files are updated in the same PR. New ADRs go in `essentialsforclaude/11-adrs.md`.
+5. **Documentation**: if you changed an architectural decision, public CLI flag, or MCP tool surface, the relevant `docs/feature-packs/<module>/` files are updated in the same PR. Note any new architectural decision in the PR description.
 
 CI runs all of the above on every PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
@@ -73,7 +71,7 @@ CI runs all of the above on every PR — see [`.github/workflows/ci.yml`](.githu
 
 ## Project-specific guardrails
 
-A few rules the project enforces beyond standard OSS hygiene. The full version lives in [`essentialsforclaude/01-development-discipline.md`](essentialsforclaude/01-development-discipline.md); the short version:
+A few rules the project enforces beyond standard OSS hygiene:
 
 1. **No shallow proxies.** Don't ship a function that returns a hardcoded success because the real wire call isn't wired yet. If a feature can't be fully implemented in your PR, either complete it or split it; never fake it.
 2. **No `any`, no `as`.** Use Zod schemas at every service boundary and infer TypeScript types from them. If you reach for `any`, redesign the interface.
@@ -93,7 +91,7 @@ schema.ts     # Zod input/output schemas
 manifest.ts   # { name, description, inputSchema } registered in src/tools/index.ts
 ```
 
-The `manifest.ts` description follows a five-part recipe (trigger phrase → return shape → why the agent needs it → when NOT to call → 40-80 words). A test in `__tests__/unit/.../manifest.test.ts` enforces the shape. See [`essentialsforclaude/09-common-patterns.md`](essentialsforclaude/09-common-patterns.md) §9.1 for the full template.
+The `manifest.ts` description follows a five-part recipe (trigger phrase → return shape → why the agent needs it → when NOT to call → 40-80 words). A test in `__tests__/unit/.../manifest.test.ts` enforces the shape.
 
 ---
 
@@ -101,7 +99,7 @@ The `manifest.ts` description follows a five-part recipe (trigger phrase → ret
 
 - **Bugs**: open a GitHub Issue. Include `coodra doctor --json` output and your OS / Node version.
 - **Security issues**: please *don't* file a public issue — email `abishai95141@gmail.com` directly.
-- **Architecture questions**: open a Discussion, or skim `system-architecture.md` first (it's long but indexed in `essentialsforclaude/references/architecture-map.md`).
+- **Architecture questions**: open a Discussion, or skim `system-architecture.md` first (it's long but indexed).
 
 ---
 

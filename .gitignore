@@ -97,3 +97,23 @@ supabase/.temp/
 
 # npm pack tarballs
 *.tgz
+
+# --- Internal artifacts: kept on each maintainer's machine, excluded from the public repo ---
+# AI-agent operating rules + per-session working memory (used locally, not shipped)
+/CLAUDE.md
+/essentialsforclaude/
+/context_memory/
+# Presentation / stakeholder-demo materials
+/presentation/
+# Internal reference + planning notes
+/External api and library reference.md
+/COODRA_FUNCTEST_GUIDE.md
+/jira-integration-plan.md
+/docs/archive/
+/docs/audit/
+/docs/verification/
+/docs/roi-kpi-reference.md
+/docs/coodra-roi-and-metrics-architecture.md
+/docs/team-hosted-web-and-cli-install-plan.md
+/docs/DEMO-full-coordination.md
+/docs/context-packs/

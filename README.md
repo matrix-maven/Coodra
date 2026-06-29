@@ -216,14 +216,11 @@ packages/
 
 docs/
   feature-packs/   Per-module specs (spec.md / implementation.md / techstack.md)
-  context-packs/   Permanent records of completed modules
   DEVELOPMENT.md   Local dev loop
   deploy/          Self-host stack docs (deploy/compose.yaml ships 5 services)
-
-essentialsforclaude/   Standing agent rules — auto-loaded by CLAUDE.md
 ```
 
-Full architectural spec: [`system-architecture.md`](system-architecture.md) (25 sections, source of truth). Navigation map: [`essentialsforclaude/references/architecture-map.md`](essentialsforclaude/references/architecture-map.md).
+Full architectural spec: [`system-architecture.md`](system-architecture.md) (25 sections, source of truth).
 
 ---
 
@@ -250,8 +247,6 @@ Coverage: ~180 unit-test files across 9 workspaces, plus an e2e suite that boots
 ## Contributing
 
 PRs welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev loop, commit conventions, and the project-specific guardrails (no shallow proxies, no `any`, idempotency at every write, schema changes only through Drizzle migrations).
-
-If you are an **AI coding agent** reading this: every session in this repo auto-loads [`CLAUDE.md`](CLAUDE.md). Follow the trigger contract in [`essentialsforclaude/05-agent-trigger-contract.md`](essentialsforclaude/05-agent-trigger-contract.md), record decisions as you make them, save your Context Pack at session end.
 
 ---
 

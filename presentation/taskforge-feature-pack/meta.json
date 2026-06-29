@@ -1,6 +1,0 @@
-{
-  "slug": "taskforge-demo",
-  "parentSlug": null,
-  "sourceFiles": ["src/**", "package.json", "tsconfig.json", "vitest.config.ts"],
-  "isActive": true
-}
