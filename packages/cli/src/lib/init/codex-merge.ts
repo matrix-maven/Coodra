@@ -8,7 +8,7 @@ import type { WriteOutcome } from './types.js';
  * `packages/cli/src/lib/init/codex-merge.ts` — beta.95 (Scope A).
  *
  * Writes the `coodra` MCP entry into Codex CLI's config so a Codex
- * session can spawn the bundled Coodra MCP server and call the 26
+ * session can spawn the bundled Coodra MCP server and call the
  * `coodra__*` tools.
  *
  * **Project-scoped, not global.** Codex reads MCP servers from either
@@ -31,6 +31,19 @@ import type { WriteOutcome } from './types.js';
  * preserved unless `--force`; every other table in the file is left
  * byte-untouched (smol-toml round-trips them).
  */
+
+/**
+ * The one-line caveat every surface that writes `.codex/config.toml`
+ * should print. Field-reported (2026-07-02): a user wired Coodra via the
+ * project config and saw "why doesn't Codex list it?" — because project
+ * MCP servers (a) load only after the repo is trusted in Codex, (b) need
+ * a new thread / app restart to take effect, and (c) don't appear in the
+ * Desktop app's GLOBAL MCP settings list even when active.
+ */
+export const CODEX_PROJECT_CONFIG_NOTE =
+  'Codex loads .codex/config.toml only in a trusted repo — accept the trust prompt, ' +
+  'then start a new thread (or restart Codex). Project MCP servers may not appear in the ' +
+  "Desktop app's global MCP settings list even when active.";
 
 /** True when the entry matches `b` under canonical comparison. */
 export function isCodexEntryEqual(a: CoodraMcpEntry, b: unknown): boolean {

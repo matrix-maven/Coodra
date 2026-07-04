@@ -416,6 +416,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     )
     .option('--graph <path>', 'Path to the Graphify graph JSON (default: graphify-out/graph.json).')
     .option('--force', 'Overwrite an existing drifted `graphify` entry with the baseline.')
+    .option(
+      '--install',
+      'If no verified graphifyy[mcp] interpreter is found, install it into ./.venv without asking (creates the venv when absent).',
+    )
+    .option('--no-install', 'Never offer to install graphifyy[mcp]; wire the entry and print the manual steps.')
     .option('--dry-run', 'Report what would change without touching disk.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyEnableOptions) => {

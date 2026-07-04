@@ -10,6 +10,15 @@
  */
 
 export {
+  extractMermaidBlocks,
+  lintMarkdownMermaid,
+  lintMermaid,
+  type MarkdownMermaidIssue,
+  type MarkdownMermaidLintResult,
+  type MermaidBlock,
+  type MermaidLintIssue,
+} from './mermaid-lint.js';
+export {
   WIKI_DOCS_DIRNAME,
   WIKI_JOB_RELPATH,
   WIKI_STRUCTURE_FILENAME,

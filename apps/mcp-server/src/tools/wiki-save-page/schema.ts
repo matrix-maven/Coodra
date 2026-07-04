@@ -53,6 +53,35 @@ const pageNotInStructureBranch = z
   .object({ ok: z.literal(false), error: z.literal('page_not_in_structure'), howToFix: z.string().min(1) })
   .strict();
 
+// 2026-07-02 — Mermaid gate. Some wiki runs shipped diagrams the web
+// renderer rejects (the page shows raw diagram source); the structural
+// lint now runs at this boundary so the AGENT fixes the diagram before
+// the page counts as authored.
+const invalidMermaidBranch = z
+  .object({
+    ok: z.literal(false),
+    error: z.literal('invalid_mermaid'),
+    howToFix: z.string().min(1),
+    issues: z
+      .array(
+        z
+          .object({
+            blockIndex: z.number().int().nonnegative().describe('Which ```mermaid block (0-based).'),
+            markdownLine: z.number().int().positive().describe('Line in contentMarkdown.'),
+            line: z.number().int().positive().describe('Line within the diagram block.'),
+            message: z.string().min(1),
+          })
+          .strict(),
+      )
+      .min(1)
+      .describe('Every structural error found — fix all, then re-call wiki_save_page.'),
+  })
+  .strict();
+
+const diagramMissingBranch = z
+  .object({ ok: z.literal(false), error: z.literal('diagram_missing'), howToFix: z.string().min(1) })
+  .strict();
+
 // z.union (not discriminatedUnion): multiple `ok: false` branches share
 // the discriminator, which Zod v4 rejects for discriminatedUnion.
 export const wikiSavePageOutputSchema = z.union([
@@ -61,6 +90,8 @@ export const wikiSavePageOutputSchema = z.union([
   authRequiredBranch,
   wikiNotFoundBranch,
   pageNotInStructureBranch,
+  invalidMermaidBranch,
+  diagramMissingBranch,
 ]);
 
 export type WikiSavePageInput = z.infer<typeof wikiSavePageInputSchema>;

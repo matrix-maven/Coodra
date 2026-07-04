@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
 import { cancelAllInProgressRunsAction } from '@/lib/actions/runs';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { tryGetActor } from '@/lib/auth';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import { fmtClock, fmtClockSec } from '@/lib/format';
@@ -223,7 +224,7 @@ export default async function DashboardPage({
                       <div className={`row__dot ${dotCls}`}></div>
                       <div className="row__main">
                         <div className="row__title">
-                          {run.agentType} · <em>{run.sessionId.slice(0, 12)}</em>
+                          {agentTypeLabel(run.agentType)} · <em>{run.sessionId.slice(0, 12)}</em>
                         </div>
                         <div className="row__sub">
                           run · {run.id.slice(0, 8)} · started {fmtClockSec(run.startedAt)}

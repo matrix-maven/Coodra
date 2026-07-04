@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { ActorBadge } from '@/components/ActorBadge';
 import { Topbar } from '@/components/Topbar';
+import { actorDisplayNameProp } from '@/lib/actor-display';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { listAllPacks } from '@/lib/queries/all-context-packs';
 import { resolveClerkDisplayNames } from '@/lib/queries/clerk-users';
@@ -218,10 +219,7 @@ export default async function ContextPacksPage({ searchParams }: { searchParams:
                         <ActorBadge
                           userId={p.createdByUserId}
                           viewerUserId={viewerUserId}
-                          {...((p.createdByUserId !== null && userDisplayNames.get(p.createdByUserId)?.label) !==
-                          undefined
-                            ? { displayName: userDisplayNames.get(p.createdByUserId as string)!.label }
-                            : {})}
+                          {...actorDisplayNameProp(p.createdByUserId, userDisplayNames)}
                         />
                       </td>
                     ) : null}

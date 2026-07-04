@@ -149,10 +149,31 @@ describe('wiki_save_page — input + output schema', () => {
     ).toBe(false);
   });
 
-  it('parses all four soft-failure branches', () => {
-    for (const error of ['run_not_found', 'auth_required', 'wiki_not_found', 'page_not_in_structure'] as const) {
+  it('parses every howToFix-only soft-failure branch', () => {
+    for (const error of [
+      'run_not_found',
+      'auth_required',
+      'wiki_not_found',
+      'page_not_in_structure',
+      'diagram_missing',
+    ] as const) {
       expect(wikiSavePageOutputSchema.safeParse({ ok: false, error, howToFix: 'x' }).success).toBe(true);
     }
+  });
+
+  it('parses the invalid_mermaid branch with its per-line issues', () => {
+    expect(
+      wikiSavePageOutputSchema.safeParse({
+        ok: false,
+        error: 'invalid_mermaid',
+        howToFix: 'fix the diagram',
+        issues: [{ blockIndex: 0, markdownLine: 5, line: 2, message: 'unclosed "["' }],
+      }).success,
+    ).toBe(true);
+    // The issues array is required and non-empty for this branch.
+    expect(
+      wikiSavePageOutputSchema.safeParse({ ok: false, error: 'invalid_mermaid', howToFix: 'x', issues: [] }).success,
+    ).toBe(false);
   });
 });
 

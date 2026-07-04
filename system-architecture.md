@@ -2106,8 +2106,8 @@ This table is the **source-of-truth mapping** the `CLAUDE.md §5 Agent Trigger C
 | Session start | `get_run_id`, `get_feature_pack`, `query_run_history { status: 'in_progress', limit: 1 }` | Always, in parallel |
 | Session start with `runs.issueRef` set | + `getJiraIssue` (Rovo) | Atlassian Rovo MCP wired |
 | Session start with `runs.prRef` set | + `github_get_pr_context` | GitHub integration active |
-| About to edit, create, or delete a file | `check_policy { toolName: 'write_file' }`, then `get_feature_pack { filePath }` if not already loaded for that area | Always |
-| About to run a shell command | `check_policy { toolName: 'bash', toolInput: { command } }` | Always |
+| About to edit, create, or delete a file | `check_policy { toolName: 'Write' }` (real agent tool name: `Write` \| `Edit` \| `MultiEdit` \| `NotebookEdit` — the default policy matches these exact names), then `get_feature_pack { filePath }` if not already loaded for that area | Always |
+| About to run a shell command | `check_policy { toolName: 'Bash', toolInput: { command } }` | Always |
 | Chose a library / designed an API / made an implementation decision | `record_decision` | Immediately, not batched |
 | User asked "what was done before on X?" | `search_packs_nl { query: X }`, `query_run_history` | Before answering from memory |
 | User asked "what does this code do?" / "where is X defined?" | Graphify MCP's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` — when the `graphify` server is wired (`coodra graphify enable`) | Before reading files one by one |

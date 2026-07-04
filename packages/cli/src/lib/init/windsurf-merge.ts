@@ -9,7 +9,7 @@ import type { WriteOutcome } from './types.js';
  *
  * Writes the `coodra` MCP entry into Windsurf Cascade's MCP config
  * so a Cascade session can spawn the bundled Coodra MCP server and
- * call the 26 `coodra__*` tools.
+ * call the `coodra__*` tools.
  *
  * **Global, not project-scoped.** Unlike Claude Code (`.mcp.json`) and
  * Codex (`.codex/config.toml`), Windsurf has no project-level MCP
@@ -32,8 +32,16 @@ import type { WriteOutcome } from './types.js';
 /**
  * Resolve the canonical Windsurf MCP config path. `userHome` override
  * lets tests point at a tmpdir instead of the runner's real home.
+ *
+ * F2 (2026-07-04): `COODRA_WINDSURF_CONFIG_PATH` env override, mirroring
+ * `CLAUDE_SETTINGS_PATH` for Claude Code. Windsurf's MCP config is a
+ * single GLOBAL file (`~/.codeium/windsurf/mcp_config.json`), so without a
+ * redirect a scratch / CI `coodra init` writes the operator's real file.
+ * When set, this env var wins over both the arg and the home default.
  */
 export function defaultWindsurfMcpConfigPath(userHome?: string): string {
+  const override = process.env.COODRA_WINDSURF_CONFIG_PATH;
+  if (typeof override === 'string' && override.length > 0) return override;
   const home = userHome ?? homedir();
   return join(home, '.codeium', 'windsurf', 'mcp_config.json');
 }

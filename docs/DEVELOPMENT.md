@@ -217,6 +217,30 @@ pnpm --filter @coodra/shared test:unit
 pnpm --filter @coodra/db typecheck
 ```
 
+### Windows (x64) core-install smoke
+
+The Core (Claude Code) install path is supported on Windows x64 and gated by a
+`windows-latest` CI job (`.github/workflows/ci.yml` → `windows-core-smoke`). The
+same end-to-end check runs on any OS, so you can validate it locally before CI:
+
+```bash
+pnpm --filter @coodra/cli build        # produces dist/ + dist/runtime/{mcp-server,hooks-bridge}
+pnpm --filter @coodra/cli smoke:core   # init → start → /healthz → status → stop, against a temp COODRA_HOME
+```
+
+It asserts `coodra init` writes `.mcp.json` (with a `node`-spawned MCP entry —
+PATH-resolved on Windows) + the Claude Code hook settings, then that
+`coodra start` brings up the mcp-server + hooks-bridge daemons and both pass
+`/healthz`. The smoke sets `COODRA_REQUIRE_VEC=1`, so the mcp-server boots only
+if **both** native deps loaded (`better-sqlite3` prebuild + `sqlite-vec`'s
+platform `.dll`/`.so`/`.dylib`) — a `/healthz` 200 then proves the native load
+**and** that the SQLite DB migrated and the HTTP server bound. It uses ports
+39100/39101 and forces `COODRA_DAEMON_MANAGER=fallback` (the PID-file manager)
+so it never collides with a real `coodra start` — launchd/systemd unit names
+are global per user (`com.coodra.<name>`), so without the override the smoke's
+stop would boot out your live daemons. The `web` dashboard is out of scope on
+Windows and is skipped.
+
 ### Regenerating Drizzle migrations
 
 After changing `packages/db/src/schema/{sqlite,postgres}.ts`:

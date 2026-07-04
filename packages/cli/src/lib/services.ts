@@ -137,7 +137,30 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
       else if (descriptor.name === 'hooks-bridge') port = bridgePort;
       else if (descriptor.name === 'web') port = webPort;
     }
-    const resolvedBin = await resolveRuntimeBinary(descriptor.name);
+    // The `web` dashboard is OPTIONAL (W1 2026-05-13): the Claude Code /
+    // MCP / hooks core works without it, and a core-only build (e.g. a
+    // Windows CI build that skips the expensive Next.js standalone, or a
+    // contributor who hasn't run `pnpm --filter @coodra/web-v2 build`)
+    // legitimately ships no web runtime. Skip web when its binary can't
+    // be resolved instead of aborting the whole batch — otherwise
+    // `coodra start` (and every caller) fails outright because the
+    // optional dashboard is absent. mcp-server / hooks-bridge /
+    // sync-daemon stay strict: their absence is a real install fault and
+    // must throw with the structured remediation.
+    let resolvedBin: Awaited<ReturnType<typeof resolveRuntimeBinary>>;
+    try {
+      resolvedBin = await resolveRuntimeBinary(descriptor.name);
+    } catch (err) {
+      // Narrow to read the structured `code` resolveRuntimeBinary attaches
+      // to its Error — no Error subclass exists to instanceof against.
+      const code = (err as { code?: string }).code;
+      if (descriptor.name === 'web' && code === 'COODRA_RUNTIME_BINARY_NOT_FOUND') {
+        // Optional service, no bundle on disk — omit it from the resolved
+        // set. Callers treat a missing `web` entry as "not available".
+        continue;
+      }
+      throw err;
+    }
     const entryPath = resolvedBin.path;
     const entrySource = resolvedBin.source;
     const unitEnv = buildServiceEnv({

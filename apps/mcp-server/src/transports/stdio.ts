@@ -3,7 +3,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolRegistry } from '../framework/tool-registry.js';
-import { mapAgentType } from '../lib/agent-type.js';
+import { resolveAgentType } from '../lib/agent-type.js';
 
 /**
  * Stdio transport bootstrap.
@@ -89,16 +89,18 @@ export async function startStdioTransport(opts: StdioStartOptions): Promise<{
   //
   // agentType is resolved from the MCP client's initialize handshake:
   // `server.getClientVersion()` returns `{ name, version } | undefined`
-  // after the client has finished `initialize`. `mapAgentType` maps
-  // the name string (`claude-code`, `cursor`, …) to the canonical
-  // `runs.agent_type` value (`claude_code`, `cursor`, …). If the client
-  // did not supply a name or the mapping is absent, the value is
+  // after the client has finished `initialize`. `resolveAgentType` maps
+  // the name string (`claude-code`, `codex-mcp-client`, …) to the
+  // canonical `runs.agent_type` value, falling back to the per-config
+  // `COODRA_AGENT_TYPE` env stamp `coodra init` writes into each
+  // agent's MCP entry (stdio = one process per agent config, so the
+  // stamp is unambiguous). If neither resolves, the value is
   // `'unknown'` — see `src/lib/agent-type.ts` for the mapping table
   // and the S8 decisions-log entry for the rationale.
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: args } = req.params;
     const clientName = server.getClientVersion()?.name;
-    const agentType = mapAgentType(clientName);
+    const agentType = resolveAgentType(clientName, process.env);
     const result = await registry.handleCall(name, args ?? {}, sessionId, { agentType });
     // Our ToolResult is shape-compatible with the SDK's CallToolResult
     // ({ content, isError?, structuredContent? }); the cast narrows the

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runInitCommand } from '../../src/commands/init.js';
 import { FORBIDDEN_INIT_KEYS } from '../../src/lib/init/env-merge.js';
 
@@ -316,9 +316,47 @@ describe('runInitCommand — integration', () => {
   it('prompts for Graphify when neither flag is set — "y" wires it', async () => {
     const { io } = makeIO();
     await expect(
-      runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', readPrompt: async () => 'y' }, io),
+      runInitCommand(
+        {
+          cwd,
+          home,
+          userHome,
+          env: {},
+          ide: 'claude',
+          readPrompt: async () => 'y',
+          // Verified stub — keeps the test off the real interpreter probe
+          // AND off the install offer (which would run uv/pip for real).
+          resolvePython: async () => ({ python: '/stub/python', verified: true, source: 'venv' }) as const,
+        },
+        io,
+      ),
     ).rejects.toThrow('__exit__:0');
     expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeDefined();
+  });
+
+  it('offers the graphifyy[mcp] install when nothing verifies, wiring the installed interpreter', async () => {
+    const { io } = makeIO();
+    const offer = vi.fn(
+      async () => ({ python: '/installed/.venv/bin/python', verified: true, source: 'venv' }) as const,
+    );
+    await expect(
+      runInitCommand(
+        {
+          cwd,
+          home,
+          userHome,
+          env: {},
+          ide: 'claude',
+          readPrompt: async () => 'y',
+          resolvePython: async () => ({ python: 'python3', verified: false, source: 'fallback' }) as const,
+          offerGraphifyInstall: offer,
+        },
+        io,
+      ),
+    ).rejects.toThrow('__exit__:0');
+    expect(offer).toHaveBeenCalledOnce();
+    const graphify = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify;
+    expect(graphify.command).toBe('/installed/.venv/bin/python');
   });
 
   it('prompts for Graphify when neither flag is set — "n" (default) skips it', async () => {
@@ -327,5 +365,43 @@ describe('runInitCommand — integration', () => {
       runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', readPrompt: async () => '' }, io),
     ).rejects.toThrow('__exit__:0');
     expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeUndefined();
+  });
+
+  // 2026-07-02 — per-agent onboarding ask: with no --ide flag and an
+  // interactive session, init confirms each agent. Undetected agents can
+  // be opted IN ('y'), detected defaults survive plain Enter.
+  it('asks per agent when no --ide flag is given, wiring only the agents answered yes', async () => {
+    const { io } = makeIO();
+    const answers: string[] = [];
+    // IDE_ORDER is claude, cursor, windsurf, codex. Nothing is detected in
+    // the tmp userHome, so defaults are all No; answer 'y' only for codex.
+    const script = ['n', '', '', 'y'];
+    await expect(
+      runInitCommand(
+        {
+          cwd,
+          home,
+          userHome,
+          env: {},
+          readPrompt: async (q: string) => {
+            answers.push(q);
+            return script[answers.length - 1] ?? '';
+          },
+        },
+        io,
+      ),
+    ).rejects.toThrow('__exit__:0');
+    // Codex got wired (config + AGENTS.md); Claude Code's per-agent
+    // surfaces (CLAUDE.md) did not. `.mcp.json` stays unconditional —
+    // it's the project-level Coodra MCP config, not a per-agent one.
+    await expect(stat(join(cwd, '.codex', 'config.toml'))).resolves.toBeDefined();
+    await expect(stat(join(cwd, 'AGENTS.md'))).resolves.toBeDefined();
+    await expect(stat(join(cwd, 'CLAUDE.md'))).rejects.toThrow();
+    expect(answers.some((q) => q.includes('Codex'))).toBe(true);
+    expect(answers.some((q) => q.includes('Claude Code'))).toBe(true);
+    // The Codex trust/restart caveat is surfaced.
+    const codexToml = await readFile(join(cwd, '.codex', 'config.toml'), 'utf8');
+    expect(codexToml).toContain('mcp_servers');
+    expect(codexToml).toContain('COODRA_AGENT_TYPE = "codex"');
   });
 });

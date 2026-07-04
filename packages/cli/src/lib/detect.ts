@@ -146,6 +146,14 @@ export async function detectLanguages(root: string): Promise<Language[]> {
  */
 export const IDE_ORDER: readonly IDE[] = ['claude', 'cursor', 'windsurf', 'codex'] as const;
 
+/** Human-readable agent names, keyed by the IDE id. One map for every command surface. */
+export const IDE_DISPLAY: Readonly<Record<IDE, string>> = {
+  claude: 'Claude Code',
+  cursor: 'Cursor',
+  windsurf: 'Windsurf',
+  codex: 'Codex',
+};
+
 /**
  * Resolve the final list of IDEs to wire from the `--ide` flag and the
  * `detectIDE` result.

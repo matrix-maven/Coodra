@@ -45,7 +45,9 @@ export type KnownAgentType =
  *   - Claude Code:   'claude-ai' (prior to 2026-02) or 'claude-code'
  *   - Cursor:        'cursor-vscode' (observed) / 'cursor'
  *   - Windsurf:      'windsurf'
- *   - Codex:         'codex' / 'codex-cli' (beta.95 — Codex CLI MCP client)
+ *   - Codex:         'codex-mcp-client' (observed — openai/codex names its
+ *                    MCP client this, NOT 'codex'; missing it stamped every
+ *                    Codex run 'unknown') / 'codex' / 'codex-cli'
  *   - VS Code + Copilot Chat: 'github-copilot-chat-vscode' (observed)
  *   - MCP Inspector: 'mcp-inspector'
  *
@@ -61,15 +63,43 @@ export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Obje
   windsurf: 'windsurf',
   codex: 'codex',
   'codex-cli': 'codex',
+  'codex-mcp-client': 'codex',
   'github-copilot-chat-vscode': 'vscode_copilot',
   'mcp-inspector': 'mcp_inspector',
 });
 
 /**
+ * Substring fallback for client names the exact table doesn't list.
+ * Clients rename across releases ('codex' → 'codex-mcp-client' is the
+ * observed case that stamped every Codex run 'unknown'); a product-name
+ * substring is far more stable than the exact string. Ordered — first
+ * match wins. 'copilot' is checked before 'cursor'/'claude' so a name
+ * like 'github-copilot-…' can never mis-bucket.
+ */
+const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentType: KnownAgentType]> = Object.freeze([
+  ['copilot', 'vscode_copilot'],
+  ['codex', 'codex'],
+  ['claude', 'claude_code'],
+  ['cursor', 'cursor'],
+  ['windsurf', 'windsurf'],
+]);
+
+/** The canonical values accepted from the COODRA_AGENT_TYPE env stamp. */
+const KNOWN_AGENT_TYPES: ReadonlySet<string> = new Set<KnownAgentType>([
+  'claude_code',
+  'cursor',
+  'windsurf',
+  'codex',
+  'vscode_copilot',
+  'mcp_inspector',
+]);
+
+/**
  * Resolve the `runs.agent_type` value from a `clientInfo.name`.
  *
  * - Unknown / missing / non-string input → `'unknown'`.
- * - Known input → the mapped canonical value.
+ * - Known input → the mapped canonical value (exact table first, then
+ *   the product-name substring heuristics).
  * - Case-insensitive lookup — clients sometimes capitalise.
  *
  * This function is pure, synchronous, and free of side effects. It is
@@ -80,6 +110,36 @@ export function mapAgentType(clientName: unknown): KnownAgentType {
   if (typeof clientName !== 'string' || clientName.length === 0) {
     return 'unknown';
   }
-  const mapped = AGENT_TYPE_MAPPING[clientName.toLowerCase()];
-  return mapped ?? 'unknown';
+  const lowered = clientName.toLowerCase();
+  const mapped = AGENT_TYPE_MAPPING[lowered];
+  if (mapped !== undefined) return mapped;
+  for (const [substring, agentType] of AGENT_TYPE_HEURISTICS) {
+    if (lowered.includes(substring)) return agentType;
+  }
+  return 'unknown';
+}
+
+/**
+ * Full resolution chain for a transport: clientInfo mapping first, then
+ * the `COODRA_AGENT_TYPE` env stamp, then `'unknown'`.
+ *
+ * The env stamp exists for the stdio case: `coodra init` writes ONE MCP
+ * config per agent (`.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`,
+ * Windsurf's `mcp_config.json`) and each spawns its own server process, so
+ * a per-entry `COODRA_AGENT_TYPE` is unambiguous — it identifies the agent
+ * even when the client ships a `clientInfo.name` we've never seen. It is a
+ * FALLBACK only: a clientInfo name that maps always wins, so a shared HTTP
+ * process (where one env would cover many clients — the reason the S8
+ * design rejected env-only) is never mislabeled by the stamp.
+ */
+export function resolveAgentType(clientName: unknown, env: NodeJS.ProcessEnv = process.env): KnownAgentType {
+  const mapped = mapAgentType(clientName);
+  if (mapped !== 'unknown') return mapped;
+  const stamp = env.COODRA_AGENT_TYPE?.trim().toLowerCase();
+  if (stamp !== undefined && KNOWN_AGENT_TYPES.has(stamp)) {
+    // Safe narrow: KNOWN_AGENT_TYPES is a Set built from KnownAgentType
+    // literals, so membership proves the string is one of them.
+    return stamp as KnownAgentType;
+  }
+  return 'unknown';
 }

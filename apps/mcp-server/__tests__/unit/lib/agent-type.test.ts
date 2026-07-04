@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_TYPE_MAPPING, type KnownAgentType, mapAgentType } from '../../../src/lib/agent-type.js';
+import {
+  AGENT_TYPE_MAPPING,
+  type KnownAgentType,
+  mapAgentType,
+  resolveAgentType,
+} from '../../../src/lib/agent-type.js';
 
 /**
  * Unit tests for `src/lib/agent-type.ts`.
@@ -21,6 +26,21 @@ describe('mapAgentType', () => {
 
   it('returns "unknown" for an unmapped client name', () => {
     expect(mapAgentType('totally-new-agent-nobody-has-seen')).toBe<KnownAgentType>('unknown');
+  });
+
+  it('maps the observed openai/codex client name codex-mcp-client to codex', () => {
+    expect(mapAgentType('codex-mcp-client')).toBe<KnownAgentType>('codex');
+  });
+
+  it('falls back to product-name substring heuristics for renamed clients', () => {
+    expect(mapAgentType('openai-codex')).toBe<KnownAgentType>('codex');
+    expect(mapAgentType('claude-desktop')).toBe<KnownAgentType>('claude_code');
+    expect(mapAgentType('cursor-agent-2')).toBe<KnownAgentType>('cursor');
+    expect(mapAgentType('windsurf-editor')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('copilot-chat')).toBe<KnownAgentType>('vscode_copilot');
+    // 'copilot' outranks the other substrings so a combined product name
+    // like GitHub's never mis-buckets.
+    expect(mapAgentType('github-copilot-cursor-bridge')).toBe<KnownAgentType>('vscode_copilot');
   });
 
   it('maps Claude Code handshake names to claude_code', () => {
@@ -54,6 +74,24 @@ describe('mapAgentType', () => {
     expect(mapAgentType('CLAUDE-CODE')).toBe<KnownAgentType>('claude_code');
     expect(mapAgentType('Cursor')).toBe<KnownAgentType>('cursor');
     expect(mapAgentType('Windsurf')).toBe<KnownAgentType>('windsurf');
+  });
+});
+
+describe('resolveAgentType — clientInfo first, COODRA_AGENT_TYPE env stamp second', () => {
+  it('uses the clientInfo mapping when it resolves, ignoring the env stamp', () => {
+    expect(resolveAgentType('claude-code', { COODRA_AGENT_TYPE: 'codex' })).toBe<KnownAgentType>('claude_code');
+  });
+
+  it('falls back to a valid env stamp when clientInfo is unmapped or missing', () => {
+    expect(resolveAgentType('some-brand-new-client', { COODRA_AGENT_TYPE: 'codex' })).toBe<KnownAgentType>('codex');
+    expect(resolveAgentType(undefined, { COODRA_AGENT_TYPE: 'windsurf' })).toBe<KnownAgentType>('windsurf');
+    // Stamp is trimmed + case-normalised — env files get hand-edited.
+    expect(resolveAgentType(undefined, { COODRA_AGENT_TYPE: ' Codex ' })).toBe<KnownAgentType>('codex');
+  });
+
+  it('rejects an invalid env stamp and returns unknown', () => {
+    expect(resolveAgentType(undefined, { COODRA_AGENT_TYPE: 'not-a-real-agent' })).toBe<KnownAgentType>('unknown');
+    expect(resolveAgentType(undefined, {})).toBe<KnownAgentType>('unknown');
   });
 });
 

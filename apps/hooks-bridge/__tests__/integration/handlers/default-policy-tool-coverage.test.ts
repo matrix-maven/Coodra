@@ -169,4 +169,13 @@ describe('default policy — every file-mutating tool denied for dangerous paths
     const out = await postPreToolUse('Write', 'src/app.ts', 'allow-sanity');
     expect(out.permissionDecision).toBe('allow');
   });
+
+  // F6 (2026-07-04): the seeded "ask before Bash" rule must surface to
+  // Claude Code as permissionDecision='ask' — a genuine user-confirmation
+  // tier, not silently collapsed to 'allow' as it was before this fix.
+  it('PreToolUse Bash → asks for confirmation (permissionDecision=ask) with a reason', async () => {
+    const out = await postPreToolUse('Bash', 'rm -rf node_modules', 'bash-ask');
+    expect(out.permissionDecision).toBe('ask');
+    expect((out.permissionDecisionReason ?? '').length).toBeGreaterThan(0);
+  });
 });

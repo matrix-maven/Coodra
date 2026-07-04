@@ -64,7 +64,7 @@ export interface PolicyDecisionPayloadV1 {
   readonly toolName: string;
   readonly toolUseId?: string;
   readonly toolInputSnapshot: string;
-  readonly permissionDecision: 'allow' | 'deny';
+  readonly permissionDecision: 'allow' | 'deny' | 'ask';
   readonly matchedRuleId: string | null;
   readonly reason: string;
 }
@@ -206,7 +206,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             typeof eventType !== 'string' ||
             typeof toolName !== 'string' ||
             typeof toolInputSnapshot !== 'string' ||
-            (permissionDecision !== 'allow' && permissionDecision !== 'deny') ||
+            (permissionDecision !== 'allow' && permissionDecision !== 'deny' && permissionDecision !== 'ask') ||
             typeof reason !== 'string' ||
             resolution === null
           ) {

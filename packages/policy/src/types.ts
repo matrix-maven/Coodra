@@ -17,7 +17,16 @@ import type { IdempotencyKey } from '@coodra/shared/idempotency';
  * imported from `framework/policy-wrapper.js` keep compiling.
  */
 
-export type PolicyDecision = 'allow' | 'deny';
+/**
+ * Policy decision tiers. `'ask'` (2026-07-04, E2E finding F6) is a real,
+ * enforced tier — a matched rule with `decision='ask'` propagates to
+ * Claude Code's PreToolUse `permissionDecision: 'ask'` (user-confirmation
+ * prompt). Agents without an ask tier (Cursor / Windsurf hooks, which
+ * only speak allow/deny) degrade `'ask'` → `'allow'` at the bridge
+ * serialization boundary — an ask is not a block. `FAIL_OPEN_RESULT`
+ * stays `'allow'`.
+ */
+export type PolicyDecision = 'allow' | 'deny' | 'ask';
 
 export interface PolicyInput {
   readonly toolName: string;

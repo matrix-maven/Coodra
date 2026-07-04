@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { detectIDE, type IDE, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
+import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
+import { type InstallCommandRunner, offerGraphifyInstall } from '../lib/init/graphify-install.js';
 import {
   type GraphifyPythonResolution,
   type GraphifyPythonResolver,
   resolveGraphifyPython,
+  type VerifyResult,
 } from '../lib/init/graphify-python.js';
 import {
   DEFAULT_GRAPHIFY_GRAPH_PATH,
@@ -16,6 +18,7 @@ import {
   wireGraphify,
 } from '../lib/init/graphify-wire.js';
 import type { WriteOutcome } from '../lib/init/types.js';
+import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
 
@@ -46,13 +49,6 @@ import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
  * never-clobber write.
  */
 
-const IDE_DISPLAY: Record<IDE, string> = {
-  claude: 'Claude Code',
-  cursor: 'Cursor',
-  windsurf: 'Windsurf',
-  codex: 'Codex',
-};
-
 export interface GraphifyEnableOptions {
   /** `--ide` — claude | cursor | windsurf | codex | all (comma-separated). Autodetect when omitted. */
   readonly ide?: string;
@@ -74,6 +70,22 @@ export interface GraphifyEnableOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Injectable interpreter resolver (tests). Defaults to the real probe-and-verify path. */
   readonly resolvePython?: GraphifyPythonResolver;
+  /**
+   * `--install` / `--no-install` — when no verified interpreter is found,
+   * `true` installs `graphifyy[mcp]` into `<cwd>/.venv` without asking,
+   * `false` suppresses the offer, `undefined` (default) prompts on a TTY.
+   */
+  readonly install?: boolean;
+  /** Injectable prompt reader (tests). Defaults to readline on a TTY. */
+  readonly readPrompt?: (question: string) => Promise<string>;
+  /** Injectable install subprocess runner (tests). */
+  readonly installRunner?: InstallCommandRunner;
+  /** Injectable uv-availability probe (tests). */
+  readonly probeUv?: () => Promise<boolean>;
+  /** Injectable post-install verifier (tests). */
+  readonly verifyInstall?: (pythonPath: string) => Promise<VerifyResult>;
+  /** Override `process.platform` (tests — venv layout differs on win32). */
+  readonly platform?: NodeJS.Platform;
 }
 
 export interface GraphifyDisableOptions {
@@ -191,7 +203,11 @@ function renderUnverifiedNotice(resolution: GraphifyPythonResolution, graphPath:
     lines.push(pc.gray(`  (probe: ${resolution.detail})`));
   }
   lines.push('');
-  lines.push(`  ${pc.cyan('1.')} Install Graphify so \`${python} -m graphify.serve\` resolves. Use an isolated venv:`);
+  lines.push(`  ${pc.cyan('1.')} Install Graphify so \`${python} -m graphify.serve\` resolves. The easy path:`);
+  lines.push(
+    `       ${pc.gray('coodra graphify enable --install')}   ${pc.gray('(creates ./.venv and installs graphifyy[mcp])')}`,
+  );
+  lines.push(`     or do it by hand in an isolated venv:`);
   lines.push(`       ${pc.gray('uv venv .venv')}`);
   lines.push(`       ${pc.gray('uv pip install --python .venv/bin/python "graphifyy[mcp]"')}`);
   lines.push(`     then re-run — auto-detection will pick it up, or pin it explicitly:`);
@@ -247,12 +263,11 @@ export async function runGraphifyEnableCommand(
   // blindly defaulting to bare `python3`, which on most machines fails to
   // spawn and shows up as a "failed" MCP server in the agent.
   const resolver = options.resolvePython ?? resolveGraphifyPython;
-  const resolution = await resolver({
+  let resolution = await resolver({
     ...(options.python !== undefined ? { explicit: options.python } : {}),
     cwd,
     env,
   });
-  const python = resolution.python;
 
   const selection = resolveIdeSelection({ flag: options.ide, detected: await detectIDE({ homeDir: userHome }) });
   if (!selection.ok) {
@@ -265,6 +280,34 @@ export async function runGraphifyEnableCommand(
       json,
     );
   }
+
+  // Install-first (2026-07-02): when nothing verified and the user didn't
+  // pin --python, offer to install graphifyy[mcp] into <cwd>/.venv NOW —
+  // wiring a dead entry and printing manual steps left users with a
+  // "failed" MCP server and a /graphify command that didn't work. An
+  // existing .venv is the user's — the prompt asks before touching it.
+  // Skipped on --dry-run; in --json mode only an explicit --install runs
+  // it (no prompts in machine mode), with progress on stderr.
+  if (!resolution.verified && options.python === undefined && !dryRun && !(json && options.install !== true)) {
+    const interactive = options.readPrompt !== undefined || process.stdin.isTTY === true;
+    resolution = await offerGraphifyInstall({
+      resolution,
+      cwd,
+      interactive,
+      ...(options.install !== undefined ? { installFlag: options.install } : {}),
+      ...(options.readPrompt !== undefined
+        ? { readPrompt: options.readPrompt }
+        : interactive
+          ? { readPrompt: terminalReadPrompt }
+          : {}),
+      writeStdout: json ? io.writeStderr : io.writeStdout,
+      ...(options.installRunner !== undefined ? { runner: options.installRunner } : {}),
+      ...(options.verifyInstall !== undefined ? { verify: options.verifyInstall } : {}),
+      ...(options.probeUv !== undefined ? { probeUv: options.probeUv } : {}),
+      ...(options.platform !== undefined ? { platform: options.platform } : {}),
+    });
+  }
+  const python = resolution.python;
 
   const results: IdeActionResult[] = [];
   for (const ide of selection.ides) {

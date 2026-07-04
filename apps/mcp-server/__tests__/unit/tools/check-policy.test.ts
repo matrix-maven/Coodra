@@ -272,8 +272,8 @@ describe('check_policy — input schema boundaries', () => {
   });
 });
 
-describe("check_policy — output schema: 'ask' remains reachable but lock-down test for evaluator paths is enforced in integration", () => {
-  it("schema permits 'ask' as a permissionDecision (forward-compat for CODEOWNERS / branch-protection integrations)", () => {
+describe("check_policy — output schema: 'ask' is a real emitted tier (F6, 2026-07-04)", () => {
+  it("schema permits 'ask' as a permissionDecision (emitted by a matched rule with decision='ask', e.g. the seeded 'ask before Bash' rule)", () => {
     const parsed = checkPolicyOutputSchema.safeParse({
       ok: true,
       permissionDecision: 'ask',

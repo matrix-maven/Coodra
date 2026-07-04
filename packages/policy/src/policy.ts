@@ -67,28 +67,57 @@ import type { PolicyCheck, PolicyClient, PolicyInput, PolicyResult } from './typ
 const policyLogger = createLogger('policy');
 
 /**
- * `pd:{sessionId}:{toolUseId}:{toolName}:{eventType}` per `system-architecture.md` §4.3.
+ * Deterministic 32-bit FNV-1a hash → 8-char hex. Sync + dependency-free
+ * (works in every runtime — no node:crypto import). Used only to
+ * disambiguate audit-key collisions, so cryptographic strength is not
+ * required; collision probability across one session's tool inputs is
+ * negligible.
+ */
+function fnv1aHex(input: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    h ^= input.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * `pd:{sessionId}:{toolUseId | noturn-<hash>}:{toolName}:{eventType}` per
+ * `system-architecture.md` §4.3.
  *
  * F14 closure (2026-04-27 verification): the original formula
  * `pd:{sessionId}:{toolName}:{eventType}` collapsed legitimately distinct
- * tool invocations within a single session to one audit row — e.g.,
- * Write to file A (deny) and Write to file B (allow) shared the key,
- * the second row was dropped on the UNIQUE index, and the audit trail
- * lost the second decision. SOC2/NHI governance depends on every
- * decision having an audit row, so the formula now includes
- * `toolUseId` (the agent's per-invocation turn id). When toolUseId is
- * absent (older callers), `'no-turn'` falls back — matching the
- * `run_events.id` formula `{sessionId}-{toolUseId}-{phase}` which
- * already had this shape. Retry dedupe (same toolUseId + same toolName
- * + same eventType in the same session) still collapses to one row.
+ * tool invocations within a single session to one audit row — Write to
+ * file A (deny) and Write to file B (allow) shared the key, the second row
+ * was dropped on the UNIQUE index, and the audit trail lost the second
+ * decision. So the formula includes `toolUseId` (the agent's per-invocation
+ * turn id). Retry dedupe (same toolUseId + toolName + eventType in the same
+ * session) still collapses to one row.
+ *
+ * F7 (2026-07-04): when `toolUseId` is absent, the disambiguator is a hash
+ * of the tool input (see `toolInputSnapshot`) rather than the constant
+ * `'no-turn'`, so distinct direct-MCP calls still land distinct rows.
  */
 export function buildPolicyDecisionIdempotencyKey(args: {
   readonly sessionId: string;
   readonly toolUseId?: string;
   readonly toolName: string;
   readonly eventType: string;
+  /**
+   * F7 (E2E finding, 2026-07-04): disambiguator used ONLY when `toolUseId`
+   * is absent. Pre-fix, direct MCP callers that omit `toolUseId` collapsed
+   * every same-tool call in a session onto `'no-turn'`, so three distinct
+   * Write checks (.env deny, .git deny, src allow) landed ONE audit row —
+   * breaking the "every decision has an audit row" invariant. When a turn
+   * id is present it alone disambiguates and this field is ignored, so the
+   * key is byte-identical to pre-fix for the Claude Code bridge path.
+   */
+  readonly toolInputSnapshot?: string;
 }): string {
-  return `pd:${args.sessionId}:${args.toolUseId ?? 'no-turn'}:${args.toolName}:${args.eventType}`;
+  const turn =
+    args.toolUseId ?? (args.toolInputSnapshot !== undefined ? `noturn-${fnv1aHex(args.toolInputSnapshot)}` : 'no-turn');
+  return `pd:${args.sessionId}:${turn}:${args.toolName}:${args.eventType}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +209,7 @@ interface CompiledRule {
   /** `null` = any path matches; otherwise the compiled picomatch result. */
   readonly matchPath: ((p: string) => boolean) | null;
   readonly matchAgentType: string | null;
-  readonly decision: 'allow' | 'deny';
+  readonly decision: 'allow' | 'deny' | 'ask';
   readonly reason: string;
 }
 
@@ -207,7 +236,11 @@ function compileRule(row: {
   decision: string;
   reason: string;
 }): CompiledRule {
-  const decision = row.decision === 'deny' ? 'deny' : 'allow';
+  // F6 (2026-07-04): preserve all three tiers. Pre-fix this collapsed
+  // `'ask'` → `'allow'`, so the seeded "ask before Bash" rule matched but
+  // silently allowed. `'ask'` now propagates through evaluate() → the
+  // check_policy response + the bridge's Claude Code permissionDecision.
+  const decision = row.decision === 'deny' ? 'deny' : row.decision === 'ask' ? 'ask' : 'allow';
   const matcher = row.matchPathGlob ? picomatch(row.matchPathGlob, { dot: false, nobrace: true }) : null;
   return {
     id: row.id,
@@ -454,7 +487,7 @@ export interface RecordPolicyDecisionArgs {
   readonly toolUseId?: string;
   /** JSON string of the tool input — caller controls truncation. */
   readonly toolInputSnapshot: string;
-  readonly permissionDecision: 'allow' | 'deny';
+  readonly permissionDecision: 'allow' | 'deny' | 'ask';
   readonly reason: string;
   readonly matchedRuleId: string | null;
   /** Nullable FK — PreToolUse before a run exists writes NULL per §4.3. */
@@ -486,6 +519,8 @@ export async function recordPolicyDecision(
     ...(args.toolUseId !== undefined ? { toolUseId: args.toolUseId } : {}),
     toolName: args.toolName,
     eventType: args.eventType,
+    // F7: disambiguate no-turn callers by tool input (ignored when toolUseId present).
+    toolInputSnapshot: args.toolInputSnapshot,
   });
 
   const row = {

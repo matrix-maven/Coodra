@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
 import { cancelRunAction } from '@/lib/actions/runs';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { listProjectsForFilter, listRuns } from '@/lib/queries/runs';
 
@@ -223,7 +224,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
                         <div className="tbl__mono">{run.id}</div>
                       </td>
                       <td className="tbl__mono">{run.sessionId.slice(0, 14)}</td>
-                      <td className="tbl__mono">{run.agentType}</td>
+                      <td className="tbl__mono">{agentTypeLabel(run.agentType)}</td>
                       <td>
                         <span className={`badge ${badgeCls}`}>
                           <span className="badge__dot"></span>

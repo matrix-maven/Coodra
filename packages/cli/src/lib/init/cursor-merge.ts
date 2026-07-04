@@ -8,7 +8,7 @@ import type { WriteOutcome } from './types.js';
  *
  * Writes the `coodra` MCP entry into Cursor's per-project MCP config so a
  * Cursor session can spawn the bundled Coodra MCP server and call the
- * 26 `coodra__*` tools.
+ * `coodra__*` tools.
  *
  * **Project-scoped, not global.** Cursor reads MCP servers from either
  * `~/.cursor/mcp.json` (global) or `<repo>/.cursor/mcp.json`

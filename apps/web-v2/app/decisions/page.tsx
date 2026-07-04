@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { ActorBadge } from '@/components/ActorBadge';
 import { Topbar } from '@/components/Topbar';
+import { actorDisplayNameProp } from '@/lib/actor-display';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { resolveClerkDisplayNames } from '@/lib/queries/clerk-users';
 import { listDecisions } from '@/lib/queries/decisions';
@@ -213,10 +214,7 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
                           <ActorBadge
                             userId={d.createdByUserId}
                             viewerUserId={viewerUserId}
-                            {...((d.createdByUserId !== null && userDisplayNames.get(d.createdByUserId)?.label) !==
-                            undefined
-                              ? { displayName: userDisplayNames.get(d.createdByUserId as string)!.label }
-                              : {})}
+                            {...actorDisplayNameProp(d.createdByUserId, userDisplayNames)}
                           />
                         </td>
                       ) : null}

@@ -35,6 +35,11 @@ const pexec = promisify(execFile);
 /** The exact probe Graphify's MCP server needs to satisfy at spawn time. */
 export const GRAPHIFY_IMPORT_PROBE = 'import graphify.serve, mcp';
 
+/** Platform-aware path of the python binary inside a venv dir. */
+export function venvPythonPath(venvDir: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? join(venvDir, 'Scripts', 'python.exe') : join(venvDir, 'bin', 'python');
+}
+
 export type VerifyResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: 'spawn_failed' | 'import_failed'; readonly detail: string };
@@ -152,9 +157,9 @@ export async function graphifyPythonCandidates(opts: {
   const list: PythonCandidate[] = [];
 
   if (env.VIRTUAL_ENV !== undefined && env.VIRTUAL_ENV.length > 0) {
-    list.push({ path: join(env.VIRTUAL_ENV, 'bin', 'python'), source: 'virtualenv' });
+    list.push({ path: venvPythonPath(env.VIRTUAL_ENV), source: 'virtualenv' });
   }
-  list.push({ path: join(cwd, '.venv', 'bin', 'python'), source: 'venv' });
+  list.push({ path: venvPythonPath(join(cwd, '.venv')), source: 'venv' });
 
   const shebang = graphifyShebangPython(env);
   if (shebang !== null) list.push({ path: shebang, source: 'graphify-shebang' });

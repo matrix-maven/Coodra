@@ -61,6 +61,19 @@ export interface BuildMcpEntryOptions {
    * auto-loaded by shells.
    */
   readonly localHookSecret?: string;
+  /**
+   * Which agent this MCP entry is written FOR (`claude_code` / `cursor` /
+   * `windsurf` / `codex`). Stamped as `COODRA_AGENT_TYPE` in the entry's
+   * env so the spawned stdio server can attribute `runs.agent_type` even
+   * when the client's `initialize.clientInfo.name` is one the server's
+   * mapping table has never seen (the observed failure: Codex ships
+   * 'codex-mcp-client', which stamped every Codex run 'unknown' in the
+   * web app). The server treats the stamp as a FALLBACK — a clientInfo
+   * name that maps always wins (`apps/mcp-server/src/lib/agent-type.ts::
+   * resolveAgentType`). Safe per-entry because each agent has its own
+   * config file and spawns its own server process.
+   */
+  readonly agentType?: 'claude_code' | 'cursor' | 'windsurf' | 'codex';
 }
 
 export interface CoodraMcpEntry {
@@ -114,6 +127,9 @@ export function buildCoodraMcpEntry(options: BuildMcpEntryOptions): CoodraMcpEnt
   }
   if (typeof options.localHookSecret === 'string' && options.localHookSecret.length > 0) {
     env.LOCAL_HOOK_SECRET = options.localHookSecret;
+  }
+  if (options.agentType !== undefined) {
+    env.COODRA_AGENT_TYPE = options.agentType;
   }
   return {
     command: 'node',

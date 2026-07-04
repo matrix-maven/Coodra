@@ -7,6 +7,7 @@ import {
   type RoiResult,
 } from '@coodra/shared/roi';
 import { Topbar } from '@/components/Topbar';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import { fetchRoiSnapshot, type RoiNamedCount, type RoiSnapshot, type RoiTrendPoint } from '@/lib/queries/roi';
 
@@ -505,7 +506,7 @@ function AgentMix({ mix, total }: { mix: ReadonlyArray<RoiNamedCount>; total: nu
       {mix.map((m) => (
         <LeverRow
           key={m.name}
-          label={m.name}
+          label={agentTypeLabel(m.name)}
           value={fmtInt(m.count)}
           pct={(m.count / total) * 100}
           color="var(--accent-soft)"

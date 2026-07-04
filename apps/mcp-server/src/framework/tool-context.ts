@@ -148,7 +148,7 @@ export interface RunRecorder {
     idempotencyKey: IdempotencyKey;
     input: unknown;
     output?: unknown;
-    decision?: 'allow' | 'deny';
+    decision?: 'allow' | 'deny' | 'ask';
     reason?: string | null;
   }): Promise<void>;
 }

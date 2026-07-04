@@ -18,7 +18,8 @@ npx @coodra/cli init
 
 | Command | Purpose |
 |---|---|
-| `coodra init [--project-slug] [--ide] [--no-graphify] [--dry-run] [--force]` | Set up Coodra in the current project: writes `~/.coodra/`, applies migrations + seeds the F7 sentinel project, merges `.mcp.json`, writes `.coodra.json`, writes `.env` with solo-mode sentinels, seeds a Feature Pack folder. Idempotent merge by default; `--force` overwrites baselines. |
+| `coodra init [--project-slug] [--ide] [--no-graphify] [--dry-run] [--force]` | Set up Coodra in the current project: writes `~/.coodra/`, applies migrations + seeds the F7 sentinel project, merges `.mcp.json`, writes `.coodra.json`, writes `.env` with solo-mode sentinels, seeds a Feature Pack folder. Interactive runs ask per agent ("Wire Claude Code? / Cursor? / Windsurf? / Codex?" — detection sets the default); `--ide` overrides. Idempotent merge by default; `--force` overwrites baselines. |
+| `coodra graphify enable [--ide] [--python] [--install\|--no-install] [--force]` | Wire Graphify's own codebase-graph MCP server next to `coodra` in each agent config. Auto-detects a verified `graphifyy[mcp]` interpreter; when none is found it offers to install into `./.venv` (asks before touching an existing venv; `--install` skips the prompt). `disable` / `status` siblings included. |
 | `coodra start [--no-mcp] [--no-hooks] [--foreground]` | Launch MCP Server + Hooks Bridge as background daemons via the platform's native manager (launchd / systemd) or detached fallback. Polls `/healthz` until ready. |
 | `coodra stop [--service <name>] [--uninstall]` | Stop running daemons. Idempotent. `--uninstall` also removes the daemon-manager unit. |
 | `coodra status [--json]` | Print unified project + service state for the current cwd: project slug + registration, mode, service health probes (MCP `/healthz` + bridge `/healthz`), recent run + last decision + open blockers. |

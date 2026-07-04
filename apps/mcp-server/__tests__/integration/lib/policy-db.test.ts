@@ -278,6 +278,9 @@ describe('lib/policy — recordPolicyDecision audit writes', () => {
         sessionId: 'sess_audit',
         toolName: 'write_file',
         eventType: 'PreToolUse',
+        // F7 (2026-07-04): recordPolicyDecision keys no-turn callers by tool
+        // input, so the expected key must include the same snapshot.
+        toolInputSnapshot: JSON.stringify({ file_path: 'src/a.ts' }),
       }),
     );
   });

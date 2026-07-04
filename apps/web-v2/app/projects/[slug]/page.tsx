@@ -4,6 +4,7 @@ import { Topbar } from '@/components/Topbar';
 import { installTemplateAction } from '@/lib/actions/packs';
 import { deleteProjectAction, renameProjectAction, resetProjectAction } from '@/lib/actions/projects';
 import { cancelAllInProgressRunsAction } from '@/lib/actions/runs';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { resolveProjectFromParams } from '@/lib/project-context';
 import { fetchProjectFeaturesSnapshot } from '@/lib/queries/features';
@@ -199,7 +200,7 @@ export default async function ProjectHomePage({
                       <div className={`row__dot ${dotCls}`}></div>
                       <div className="row__main">
                         <div className="row__title">
-                          {run.agentType} · <em>{run.sessionId.slice(0, 12)}</em>
+                          {agentTypeLabel(run.agentType)} · <em>{run.sessionId.slice(0, 12)}</em>
                         </div>
                         <div className="row__sub">
                           run · {run.id.slice(0, 8)} · started {fmtClockSec(run.startedAt)}

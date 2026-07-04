@@ -112,7 +112,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   });
 
   it('buildInstructionBlock embeds the slug and the core trigger-contract tools', async () => {
-    const block = buildInstructionBlock('the-slug');
+    const block = buildInstructionBlock('the-slug', 'AGENTS.md');
     expect(block).toContain('the-slug');
     for (const tool of [
       'coodra__get_run_id',
@@ -125,14 +125,35 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     }
   });
 
+  // 2026-07-02: the block is per-agent — each file pins the agentType its
+  // agent must pass to get_run_id so runs never land as "unknown agent"
+  // on the dashboard (the observed Codex failure: its MCP client name
+  // 'codex-mcp-client' wasn't in the server's mapping table).
+  it.each([
+    ['CLAUDE.md', 'claude_code', 'Claude Code'],
+    ['.cursorrules', 'cursor', 'Cursor'],
+    ['AGENTS.md', 'codex', 'Codex'],
+    ['.windsurfrules', 'windsurf', 'Windsurf'],
+  ] as const)('%s pins agentType "%s" and names its agent %s', (filename, agentType, displayName) => {
+    const block = buildInstructionBlock('slug-x', filename);
+    expect(block).toContain(`agentType: "${agentType}"`);
+    expect(block).toContain(displayName);
+  });
+
+  it('only CLAUDE.md carries the agentSessionId (hooks-bridge reconciliation) hint', () => {
+    expect(buildInstructionBlock('s', 'CLAUDE.md')).toContain('agentSessionId');
+    expect(buildInstructionBlock('s', 'AGENTS.md')).not.toContain('agentSessionId');
+    expect(buildInstructionBlock('s', '.cursorrules')).not.toContain('agentSessionId');
+    expect(buildInstructionBlock('s', '.windsurfrules')).not.toContain('agentSessionId');
+  });
+
   // 0.2.0-beta.1: CLAUDE.md + .cursorrules added to InstructionFileName.
-  // The block is agent-neutral, so the same content lands in each
-  // filename. These tests lock that the new filenames are accepted by
-  // the merger AND the remover.
+  // These tests lock that the new filenames are accepted by the merger
+  // AND the remover.
   it.each([
     'CLAUDE.md' as const,
     '.cursorrules' as const,
-  ])('greenfield: creates %s with the same marker-wrapped block', async (filename) => {
+  ])('greenfield: creates %s with the marker-wrapped block', async (filename) => {
     const result = await mergeInstructionFile({ cwd, filename, projectSlug: 'four-agents', dryRun: false });
     expect(result.action).toBe('wrote');
     const body = await readFile(join(cwd, filename), 'utf8');

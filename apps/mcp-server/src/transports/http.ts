@@ -10,7 +10,7 @@ import { Hono } from 'hono';
 
 import type { McpServerEnv } from '../config/env.js';
 import type { ToolRegistry } from '../framework/tool-registry.js';
-import { mapAgentType } from '../lib/agent-type.js';
+import { resolveAgentType } from '../lib/agent-type.js';
 import { SOLO_IDENTITY, verifyClerkJwt, verifyLocalHookSecret } from '../lib/auth.js';
 
 /**
@@ -132,7 +132,7 @@ function buildSdkServer(opts: HttpStartOptions, sessionId: string): McpSdkServer
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: args } = req.params;
     const clientName = server.getClientVersion()?.name;
-    const agentType = mapAgentType(clientName);
+    const agentType = resolveAgentType(clientName, process.env);
     const result = await registry.handleCall(name, args ?? {}, sessionId, { agentType });
     return result as unknown as CallToolResult;
   });

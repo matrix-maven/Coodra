@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { Topbar } from '@/components/Topbar';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { compactDuration, fmtClockSec, fmtRelative } from '@/lib/format';
 import { usePoll } from '@/lib/poll';
 import type { SerializedRunState } from '@/lib/queries/run-state';
@@ -87,7 +88,7 @@ export function RunLiveClient({ runId, initialSnapshot, initialLastModified }: R
           <div>
             <div className="head__num">/02 · AUDIT · LIVE · run {runId.slice(0, 8)}</div>
             <h1 className="head__title">
-              {snapshot.run.agentType} · <em>{snapshot.run.sessionId.slice(0, 14)}</em>
+              {agentTypeLabel(snapshot.run.agentType)} · <em>{snapshot.run.sessionId.slice(0, 14)}</em>
             </h1>
             <p className="head__lede">
               SSE-style poll from <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>{url}</span>.

@@ -137,7 +137,7 @@ export interface RunRecorder {
   recordPolicyDecision(args: {
     readonly event: HookEvent;
     readonly projectId: string | undefined;
-    readonly decision: 'allow' | 'deny';
+    readonly decision: 'allow' | 'deny' | 'ask';
     readonly reason: string;
     readonly matchedRuleId: string | null;
   }): void;
@@ -494,6 +494,9 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       ensureSessionOpenInflight(event, projectId);
       // F7 closure (2026-04-27): no projectId resolved → __global__ FK fallback.
       const effectiveProjectId = projectId ?? GLOBAL_PROJECT_ID;
+      // F7 (2026-07-04): compute once and reuse for BOTH the payload and the
+      // sync-lookup key so the idempotency key matches the dispatch-time key.
+      const toolInputSnapshot = clampToolInput(event.toolInput);
       const resolution: RunIdResolution = {
         kind: 'session_lookup',
         sessionId: event.sessionId,
@@ -509,7 +512,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         toolName: event.toolName,
         // F14 closure (2026-04-27): include toolUseId for the 4-segment key.
         ...(event.turnId !== undefined ? { toolUseId: event.turnId } : {}),
-        toolInputSnapshot: clampToolInput(event.toolInput),
+        toolInputSnapshot,
         permissionDecision: decision,
         matchedRuleId,
         reason,
@@ -519,6 +522,9 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         ...(event.turnId !== undefined ? { toolUseId: event.turnId } : {}),
         toolName: event.toolName,
         eventType: 'PreToolUse',
+        // F7: same snapshot the payload carries → sync-lookup key matches
+        // the dispatch-time recordPolicyDecision key.
+        toolInputSnapshot,
       });
       void scheduleAuditWriteWithSync(deps.db, {
         audit: { queue: 'policy_decision', payload },

@@ -12,11 +12,18 @@ import type { WriteOutcome } from './types.js';
  *   - Codex   → `<repo>/AGENTS.md`        (Codex reads it on the first turn)
  *   - Windsurf→ `<repo>/.windsurfrules`   (Cascade applies it to everything)
  *
- * Why this matters: the agent has the 26 `coodra__*` MCP tools wired
+ * Why this matters: the agent has the `coodra__*` MCP tools wired
  * via `.mcp.json` / `.codex/config.toml` / `.cursor/mcp.json` /
  * `~/.codeium/windsurf/mcp_config.json`, but without an instruction
  * file it doesn't know WHEN to call them. The instruction file IS the
  * trigger contract.
+ *
+ * The block is generated PER AGENT (2026-07-02): the shared contract is
+ * identical across all four files, but each file names its own agent and
+ * pins the `agentType` value the agent must pass to `get_run_id` — this
+ * is what attributes runs to "Codex" / "Cursor" / … on the dashboard
+ * instead of "unknown agent" when the client's MCP handshake name isn't
+ * one the server recognises.
  *
  * For Claude Code specifically, the hooks-bridge ALSO injects a
  * runtime `additionalContext` payload at SessionStart — so CLAUDE.md
@@ -36,14 +43,32 @@ export const INSTRUCTION_BLOCK_END = '<!-- coodra:end -->';
 
 export type InstructionFileName = 'AGENTS.md' | '.windsurfrules' | '.cursorrules' | 'CLAUDE.md';
 
+/** Which agent each instruction file belongs to — drives the per-agent lines in the block. */
+const INSTRUCTION_FILE_AGENT: Readonly<
+  Record<InstructionFileName, { readonly agentType: string; readonly displayName: string }>
+> = {
+  'CLAUDE.md': { agentType: 'claude_code', displayName: 'Claude Code' },
+  '.cursorrules': { agentType: 'cursor', displayName: 'Cursor' },
+  'AGENTS.md': { agentType: 'codex', displayName: 'Codex' },
+  '.windsurfrules': { agentType: 'windsurf', displayName: 'Windsurf' },
+};
+
 /**
- * Build the marker-wrapped agent operating contract for `projectSlug`.
- * Agent-neutral — the same block works for Codex (`AGENTS.md`) and
- * Windsurf (`.windsurfrules`): both just call the MCP tools.
+ * Build the marker-wrapped agent operating contract for `projectSlug`,
+ * targeted at the agent that reads `filename`. The contract body is
+ * identical across all four agents; the per-agent parts are the agent's
+ * name and the pinned `agentType` it must pass to `get_run_id` so runs
+ * are attributed correctly (a client whose MCP handshake name the server
+ * doesn't recognise would otherwise land as "unknown agent").
  */
-export function buildInstructionBlock(projectSlug: string): string {
+export function buildInstructionBlock(projectSlug: string, filename: InstructionFileName): string {
+  const agent = INSTRUCTION_FILE_AGENT[filename];
+  const sessionIdHint =
+    filename === 'CLAUDE.md'
+      ? ' When a Coodra SessionStart hook gave you a session id, pass it as\n   `agentSessionId` so this call and the hooks-bridge resolve to ONE run.'
+      : '';
   return `${INSTRUCTION_BLOCK_START}
-## Coodra — agent operating contract
+## Coodra — agent operating contract (${agent.displayName})
 
 This project uses **Coodra**, an MCP server providing Feature Packs
 (project blueprints), Features (on-demand skills), Context Packs (records of
@@ -54,8 +79,10 @@ Coodra works; if you don't call them, Coodra does nothing.**
 Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool that takes it.
 
 ### At the start of every session — do this first
-1. \`coodra__get_run_id { projectSlug: "${projectSlug}" }\` — obtains the
-   \`runId\` that binds this session. Cache it; reuse it in every later call.
+1. \`coodra__get_run_id { projectSlug: "${projectSlug}", agentType: "${agent.agentType}" }\`
+   — obtains the \`runId\` that binds this session. Cache it; reuse it in
+   every later call. ALWAYS pass \`agentType: "${agent.agentType}"\` — it
+   attributes this run to ${agent.displayName} on the Coodra dashboard.${sessionIdHint}
 2. \`coodra__get_feature_pack { projectSlug: "${projectSlug}" }\` — the
    architectural blueprint + conventions + permitted files for this project.
    Read it before writing code.
@@ -126,7 +153,7 @@ export interface MergeInstructionFileOptions {
  */
 export async function mergeInstructionFile(options: MergeInstructionFileOptions): Promise<WriteOutcome> {
   const path = join(options.cwd, options.filename);
-  const block = buildInstructionBlock(options.projectSlug);
+  const block = buildInstructionBlock(options.projectSlug, options.filename);
   const exists = await pathExists(path);
 
   if (!exists) {

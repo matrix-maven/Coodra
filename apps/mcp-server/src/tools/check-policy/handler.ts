@@ -35,9 +35,10 @@ import type { CheckPolicyInput, CheckPolicyOutput } from './schema.js';
  *   3. `ctx.policy.evaluate(input)` — cache-first, cockatiel-fused,
  *      fail-open on every error. Returns
  *      `{ decision, reason, matchedRuleId }` where `decision` is
- *      `'allow' | 'deny'` (never `'ask'` at M02 — see §24.4 note).
+ *      `'allow' | 'deny' | 'ask'`. `'ask'` (E2E finding F6, 2026-07-04)
+ *      propagates from a matched rule whose `decision='ask'`.
  *   4. Map to response:
- *        permissionDecision = evaluator's decision (never 'ask')
+ *        permissionDecision = evaluator's decision (allow | deny | ask)
  *        reason             = machine enum (no_rule_matched |
  *                             rule_matched | policy_engine_unavailable)
  *        ruleReason         = rule.reason text when matched, else null
@@ -58,10 +59,12 @@ import type { CheckPolicyInput, CheckPolicyOutput } from './schema.js';
  * agent-supplied large-body inputs (user Q4 push-back 2026-04-24).
  * A `…[truncated:N]` suffix preserves original-size forensics.
  *
- * `'ask'` never reaches the response at M02 — the evaluator only
- * emits `'allow' | 'deny'`. `'ask'` stays in the output enum for
- * forward compatibility with CODEOWNERS and branch-protection
- * integrations (future slices will populate it).
+ * `'ask'` reaches the response when a rule matches with `decision='ask'`
+ * (E2E finding F6, 2026-07-04). The seeded default policy's "ask before
+ * Bash" rule now round-trips: rule matched → `permissionDecision: 'ask'`
+ * → Claude Code renders a user-confirmation prompt. Cursor / Windsurf,
+ * whose hook responses have no ask tier, degrade `'ask'` → `'allow'` at
+ * the bridge serialization boundary (an ask is not a block).
  */
 
 const handlerLogger = createLogger('mcp-server.tool.check_policy');
@@ -188,6 +191,9 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       ...(input.toolUseId !== undefined ? { toolUseId: input.toolUseId } : {}),
       toolName: input.toolName,
       eventType: input.eventType,
+      // F7: same disambiguator the dispatch-time recordPolicyDecision uses,
+      // so the sync-lookup key and the DB key stay identical.
+      toolInputSnapshot,
     });
     void scheduleAuditWriteWithSync(deps.db, {
       audit: { queue: 'policy_decision', payload: auditPayload },

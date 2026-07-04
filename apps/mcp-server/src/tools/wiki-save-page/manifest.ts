@@ -32,11 +32,11 @@ export function createWikiSavePageToolRegistration(
     title: 'Coodra: wiki_save_page',
     description:
       'Call this in the content pass of Deep Wiki generation, once per page, after wiki_save_structure created the ' +
-      'page skeleton. Author the page Markdown grounded in its relevant files — explanations, code citations, and ' +
-      '```mermaid diagrams where wantsDiagram is set — and persist it with optional structured citations. Flips the ' +
-      'page from pending to authored; re-authoring overwrites. Loop over the pendingPageIds until none remain. ' +
-      'Returns { ok: true, wikiId, pageId, state, authoredCount, pageCount, remaining } or { ok: false, error: ' +
-      '"run_not_found" | "auth_required" | "wiki_not_found" | "page_not_in_structure", howToFix }.',
+      "skeleton. Author Markdown grounded in the page's relevant files — explanations, code citations, ```mermaid " +
+      'diagrams where wantsDiagram is set. Mermaid is lint-gated: structural errors return "invalid_mermaid" with ' +
+      'per-line issues; a wantsDiagram page without a diagram returns "diagram_missing" — fix and re-call. Loop ' +
+      'over pendingPageIds until none remain. Returns { ok: true, wikiId, pageId, state, authoredCount, pageCount, ' +
+      'remaining } or { ok: false, error, howToFix }.',
     inputSchema: wikiSavePageInputSchema,
     outputSchema: wikiSavePageOutputSchema,
     idempotencyKey: wikiSavePageIdempotencyKey,

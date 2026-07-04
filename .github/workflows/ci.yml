@@ -200,6 +200,76 @@ jobs:
         # Only requires bash + curl + python3 — no Node, no pnpm.
         run: bash scripts/hook-adapters/__tests__/smoke.sh
 
+  windows-core-smoke:
+    name: windows core (Claude Code) install smoke
+    # Proves the Core (Claude Code) install path works on Windows x64
+    # (2026-06-16): native deps install, `coodra init` wires .mcp.json +
+    # the Claude Code hooks, and `coodra start` brings up the mcp-server +
+    # hooks-bridge daemons (sqlite-vec-windows-x64 + better-sqlite3 prebuild
+    # load, SQLite migrates, HTTP /healthz binds). The `web` dashboard and
+    # the Cursor/Windsurf shell hook adapters are deliberately out of scope.
+    runs-on: windows-latest
+    needs: verify
+    timeout-minutes: 25
+    # Use Git Bash for every step so `set -e` / multi-line semantics match the
+    # Linux jobs — PowerShell does NOT fail a multi-line step on a mid-block
+    # native-command non-zero exit, which would mask a broken build.
+    defaults:
+      run:
+        shell: bash
+    env:
+      COODRA_MODE: solo
+      CLERK_SECRET_KEY: sk_test_replace_me
+      LOG_LEVEL: error
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Print toolchain versions
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Approve build scripts
+        # Fetches the win32-x64 prebuilt binaries: better-sqlite3 (node-ABI
+        # prebuild via prebuild-install) + sqlite-vec-windows-x64 (the .dll
+        # loadable extension). If either prebuild is missing for the runner's
+        # Node ABI this step fails loud — exactly the signal we want.
+        run: pnpm rebuild
+
+      - name: Build the core in dependency order (no web — Core scope)
+        # `cli build`'s bundle.mjs soft-skips the web standalone (absent here)
+        # and produces dist/index.js + dist/runtime/{mcp-server,hooks-bridge,
+        # sync-daemon} + dist/runtime/drizzle — everything the smoke needs.
+        # The Windows-specific CLI logic (coodra-home, daemon selection,
+        # web-skip) is unit-tested cross-platform via `platform` overrides on
+        # the `verify` job, so this job's authoritative signal is the live
+        # end-to-end smoke below rather than re-running the unit suite here.
+        run: |
+          pnpm --filter @coodra/shared build
+          pnpm --filter @coodra/db build
+          pnpm --filter @coodra/policy build
+          pnpm --filter @coodra/cli build
+
+      - name: Core install smoke (init → start → /healthz → status → stop)
+        # The decisive Windows proof. The smoke sets COODRA_REQUIRE_VEC=1, so
+        # the mcp-server boots ONLY if BOTH native deps loaded (better-sqlite3
+        # prebuild + sqlite-vec-windows-x64 .dll); a /healthz 200 then means
+        # the SQLite DB migrated and the HTTP server bound on Windows.
+        run: pnpm --filter @coodra/cli smoke:core
+
   e2e:
     name: end-to-end (manifest + transport + idempotency + full session)
     runs-on: ubuntu-latest

@@ -14,14 +14,27 @@ import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
-import { detectIDE, detectLanguages, detectProjectRoot, resolveIdeSelection } from '../lib/detect.js';
+import {
+  detectIDE,
+  detectLanguages,
+  detectProjectRoot,
+  type IDE,
+  IDE_DISPLAY,
+  IDE_ORDER,
+  resolveIdeSelection,
+} from '../lib/detect.js';
 import { defaultClaudeSettingsPath, mergeClaudeSettings } from '../lib/init/claude-settings-merge.js';
-import { mergeCodexConfig } from '../lib/init/codex-merge.js';
+import { CODEX_PROJECT_CONFIG_NOTE, mergeCodexConfig } from '../lib/init/codex-merge.js';
 import { writeCoodraJson } from '../lib/init/coodra-json.js';
 import { mergeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
 import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
-import { type GraphifyPythonResolver, resolveGraphifyPython } from '../lib/init/graphify-python.js';
+import { type OfferGraphifyInstallOptions, offerGraphifyInstall } from '../lib/init/graphify-install.js';
+import {
+  type GraphifyPythonResolution,
+  type GraphifyPythonResolver,
+  resolveGraphifyPython,
+} from '../lib/init/graphify-python.js';
 import { DEFAULT_GRAPHIFY_GRAPH_PATH, wireGraphify } from '../lib/init/graphify-wire.js';
 import { mergeInstructionFile } from '../lib/init/instruction-files.js';
 import { wireJira } from '../lib/init/jira-wire.js';
@@ -32,9 +45,11 @@ import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { bundledMigrationsDir, resolveRuntimeBinary } from '../lib/runtime-paths.js';
 import { readTeamConfig } from '../lib/team-config.js';
+import { upsertEnvKey } from '../lib/team-init/finalize-config.js';
 import { listAvailableTemplates, resolveTemplatePath } from '../lib/template-paths.js';
 import { detectTemplate } from '../lib/templates/detect.js';
 import { loadTemplate, type TemplateDefinition, TemplateLoadError } from '../lib/templates/load-template.js';
+import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { commandTitle, hintLine, okLine, pc, terminalWidth } from '../ui/index.js';
 
 export interface InitOptions {
@@ -57,6 +72,12 @@ export interface InitOptions {
   readonly env?: NodeJS.ProcessEnv;
   /** Injectable Graphify interpreter resolver (tests). Defaults to the real probe-and-verify path. */
   readonly resolvePython?: GraphifyPythonResolver;
+  /**
+   * Injectable graphifyy[mcp] install offer (tests). Defaults to the real
+   * prompt-consent → uv/pip install → re-verify flow in
+   * `lib/init/graphify-install.ts`.
+   */
+  readonly offerGraphifyInstall?: (opts: OfferGraphifyInstallOptions) => Promise<GraphifyPythonResolution>;
   /**
    * Module 08b S13: feature-pack template selector. Bare name resolves
    * via `resolveTemplatePath` (user-installed → bundled). A path
@@ -139,18 +160,11 @@ export interface InitReport {
 
 /**
  * W6 / beta.6 (2026-05-14) — terminal prompt used by `runInitCommand`
- * to ask "team or solo project?" on a team-capable machine. Mirrors
- * `team-init.ts::defaultReadPrompt`. Tests inject `options.readPrompt`.
+ * for the team/solo, per-agent wire, Graphify, and Jira questions.
+ * Tests inject `options.readPrompt`. 2026-07-02: now the shared
+ * `lib/terminal-prompt.ts::terminalReadPrompt`.
  */
-async function defaultInitReadPrompt(prompt: string): Promise<string> {
-  const { createInterface } = await import('node:readline/promises');
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  try {
-    return await rl.question(prompt);
-  } finally {
-    rl.close();
-  }
-}
+const defaultInitReadPrompt = terminalReadPrompt;
 
 export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEFAULT_INIT_IO): Promise<never> {
   const env = options.env ?? process.env;
@@ -208,7 +222,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStderr(`${pc.red('coodra init')}: ${ideSelection.error}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
-  const ides = ideSelection.ides;
+  let ides = ideSelection.ides;
 
   // Phase D (clarity-pass-plan, 2026-05-11) — surface the machine's
   // mode in the first lines of `coodra init` output. Projects
@@ -298,10 +312,44 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     } else {
       io.writeStdout(`${pc.green('✓')} --ide ${options.ide}: wiring ${ides.join(', ')} (overrides detection).\n`);
     }
-  } else if (ides.length === 0) {
-    io.writeStdout(
-      `  ${pc.gray('→')} ${pc.gray('No IDEs to wire. Install Claude Code, Cursor, Windsurf, or Codex CLI, then re-run `coodra init`.')}\n`,
-    );
+  } else {
+    // Per-agent onboarding ask (2026-07-02): with no `--ide` flag and an
+    // interactive session, confirm each agent explicitly instead of
+    // silently wiring whatever detection found. Detection sets the
+    // DEFAULT answer (detected → Y/n, not detected → y/N) so pressing
+    // Enter four times reproduces the old behaviour — but the user can
+    // now opt an undetected agent in (installing it later) or a detected
+    // one out. Non-interactive runs keep detection-only (scripted
+    // installs must not hang on a prompt).
+    const agentAskInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
+    if (agentAskInteractive) {
+      const agentReadPrompt = options.readPrompt ?? defaultInitReadPrompt;
+      io.writeStdout(
+        `\n${pc.bold('Which agents should Coodra wire?')} ${pc.gray('(MCP config + rules file per agent; Enter keeps the detected default)')}\n`,
+      );
+      const chosen: IDE[] = [];
+      for (const agent of IDE_ORDER) {
+        const detected = detectedIdes.includes(agent);
+        const suffix = detected ? '' : pc.gray(' (not detected)');
+        const defaults = detected ? `${pc.cyan('Y')}/n` : `y/${pc.cyan('N')}`;
+        const answer = (await agentReadPrompt(`  Wire ${IDE_DISPLAY[agent]}?${suffix} [${defaults}]: `))
+          .trim()
+          .toLowerCase();
+        const yes = detected ? answer !== 'n' && answer !== 'no' : answer === 'y' || answer === 'yes';
+        if (yes) chosen.push(agent);
+      }
+      ides = chosen;
+      io.writeStdout(
+        ides.length > 0
+          ? `${pc.green('✓')} Wiring: ${ides.map((i) => IDE_DISPLAY[i]).join(', ')}\n`
+          : `${pc.gray('·')} No agents selected — MCP config and rules files will be skipped.\n`,
+      );
+    }
+    if (ides.length === 0) {
+      io.writeStdout(
+        `  ${pc.gray('→')} ${pc.gray('No IDEs to wire. Install Claude Code, Cursor, Windsurf, or Codex CLI, then re-run `coodra init`.')}\n`,
+      );
+    }
   }
 
   // Resolve and create ~/.coodra/{logs,pids} (data.db is created by openLocalDb).
@@ -388,6 +436,21 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
         }
         if (teamOrgId === undefined) {
           teamOrgId = process.env.COODRA_TEAM_ORG_ID;
+        }
+        // F9 (E2E finding, 2026-07-04): if the user picked (or defaulted
+        // to) a TEAM project but we could not resolve an org id, the
+        // project silently registers under `__solo__` and never syncs —
+        // while the earlier "Project scope: team" line implied it would.
+        // Warn loudly and point at the fix instead of failing quietly.
+        if (teamOrgId === undefined || teamOrgId.length === 0) {
+          io.writeStdout(
+            `${pc.yellow('⚠')} Could not resolve your team org id, so this project registers as ${pc.gray(
+              'solo',
+            )} (local-only, NOT synced to the team).\n` +
+              `  ${pc.gray('→')} Run ${pc.cyan('coodra login')} to authenticate, then re-run ${pc.cyan(
+                'coodra init --team',
+              )} — or set ${pc.cyan('COODRA_TEAM_ORG_ID')} in ~/.coodra/.env.\n`,
+          );
         }
       }
 
@@ -506,6 +569,17 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   } catch {
     localHookSecret = randomBytes(32).toString('hex');
   }
+  // F3 (E2E finding, 2026-07-04): honour the operator's port env instead
+  // of hardcoding. Pre-fix, `HOOKS_BRIDGE_PORT=39101 coodra init` still
+  // wrote 3101 into .env + the Claude Code hook URLs, so hooks POSTed to
+  // the wrong bridge. A parse guard keeps the documented defaults when the
+  // env var is absent or non-numeric.
+  const portFromEnv = (name: string, fallback: string): string => {
+    const raw = env[name];
+    if (raw === undefined) return fallback;
+    const n = Number(raw);
+    return Number.isInteger(n) && n > 0 && n < 65536 ? String(n) : fallback;
+  };
   const baselineEnv: BaselineEnv = {
     // Module 04 Phase 4 H6 — COODRA_MODE intentionally omitted. See
     // BaselineEnv type comment for the full reason. tldr: project .env
@@ -514,9 +588,29 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     CLERK_SECRET_KEY: 'sk_test_replace_me',
     CLERK_PUBLISHABLE_KEY: 'pk_test_replace_me',
     LOCAL_HOOK_SECRET: localHookSecret,
-    MCP_SERVER_PORT: '3100',
-    HOOKS_BRIDGE_PORT: '3101',
+    MCP_SERVER_PORT: portFromEnv('MCP_SERVER_PORT', '3100'),
+    HOOKS_BRIDGE_PORT: portFromEnv('HOOKS_BRIDGE_PORT', '3101'),
   };
+
+  // F1 (E2E finding, 2026-07-04): persist the resolved LOCAL_HOOK_SECRET to
+  // $COODRA_HOME/.env so subsequent inits + the daemons all read the SAME
+  // secret. Pre-fix nothing wrote the home .env, so every init minted a
+  // fresh secret: the Claude Code hook header and the daemon's secret
+  // drifted apart and every hook event 401'd (the exact symptom the reuse
+  // block above tries to prevent — but the file it reads never existed).
+  // Solo mode bypasses hook auth so it was masked; team / non-sentinel
+  // setups hit the 401. Idempotent upsert; skipped on --dry-run.
+  if (!dryRun) {
+    try {
+      upsertEnvKey(join(coodraHome, '.env'), 'LOCAL_HOOK_SECRET', localHookSecret);
+    } catch (err) {
+      io.writeStdout(
+        `${pc.yellow('⚠')} Could not persist LOCAL_HOOK_SECRET to ${join(coodraHome, '.env')}: ${
+          err instanceof Error ? err.message : String(err)
+        }\n`,
+      );
+    }
+  }
 
   const outcomes: WriteOutcome[] = [];
 
@@ -537,18 +631,24 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // has the rows — web /decisions and /context-packs render empty.
   const machineDatabaseUrl =
     machineCfg.mode === 'team' && machineCfg.team !== undefined ? process.env.DATABASE_URL : undefined;
-  const mcpEntry = buildCoodraMcpEntry({
-    mcpServerBin,
-    clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
-    migrationsDir,
-    coodraHome,
-    mode: machineCfg.mode,
-    ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
-      ? { databaseUrl: machineDatabaseUrl }
-      : {}),
-    localHookSecret,
-  });
-  outcomes.push(await mergeMcpJson({ cwd: root, entry: mcpEntry, force, dryRun }));
+  // One MCP entry per agent — identical except for the COODRA_AGENT_TYPE
+  // stamp, which lets the spawned stdio server attribute runs.agent_type
+  // correctly even for clients whose initialize clientInfo.name is
+  // unrecognised (Codex's 'codex-mcp-client' was landing as 'unknown').
+  const mcpEntryFor = (agentType: 'claude_code' | 'cursor' | 'windsurf' | 'codex') =>
+    buildCoodraMcpEntry({
+      mcpServerBin,
+      clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
+      migrationsDir,
+      coodraHome,
+      mode: machineCfg.mode,
+      ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
+        ? { databaseUrl: machineDatabaseUrl }
+        : {}),
+      localHookSecret,
+      agentType,
+    });
+  outcomes.push(await mergeMcpJson({ cwd: root, entry: mcpEntryFor('claude_code'), force, dryRun }));
 
   // Write/merge .env with solo-mode sentinels
   outcomes.push(await mergeEnvFile({ cwd: root, baseline: baselineEnv, force, dryRun }));
@@ -556,7 +656,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // Per-agent wiring — gated on the resolved `ides` list (detection or
   // explicit `--ide`). Each agent gets two pieces:
   //   1. MCP config — tells the agent how to spawn the bundled coodra
-  //      MCP server (the 26 `coodra__*` tools).
+  //      MCP server (the `coodra__*` tools).
   //   2. Instruction file — the trigger contract telling the agent
   //      WHEN to call which tool. Same marker-wrapped block per agent.
   //
@@ -588,7 +688,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
   if (ides.includes('cursor')) {
     try {
-      outcomes.push(await mergeCursorMcpConfig({ cwd: root, entry: mcpEntry, force, dryRun }));
+      outcomes.push(await mergeCursorMcpConfig({ cwd: root, entry: mcpEntryFor('cursor'), force, dryRun }));
       outcomes.push(await mergeInstructionFile({ cwd: root, filename: '.cursorrules', projectSlug, dryRun }));
     } catch (err) {
       io.writeStderr(`${pc.yellow('⚠')} Could not wire Cursor integration: ${(err as Error).message}\n`);
@@ -596,15 +696,16 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
   if (ides.includes('codex')) {
     try {
-      outcomes.push(await mergeCodexConfig({ cwd: root, entry: mcpEntry, force, dryRun }));
+      outcomes.push(await mergeCodexConfig({ cwd: root, entry: mcpEntryFor('codex'), force, dryRun }));
       outcomes.push(await mergeInstructionFile({ cwd: root, filename: 'AGENTS.md', projectSlug, dryRun }));
+      io.writeStdout(`  ${pc.gray('→')} ${pc.gray(CODEX_PROJECT_CONFIG_NOTE)}\n`);
     } catch (err) {
       io.writeStderr(`${pc.yellow('⚠')} Could not wire Codex integration: ${(err as Error).message}\n`);
     }
   }
   if (ides.includes('windsurf')) {
     try {
-      outcomes.push(await mergeWindsurfMcpConfig({ entry: mcpEntry, force, dryRun, userHome }));
+      outcomes.push(await mergeWindsurfMcpConfig({ entry: mcpEntryFor('windsurf'), force, dryRun, userHome }));
       outcomes.push(await mergeInstructionFile({ cwd: root, filename: '.windsurfrules', projectSlug, dryRun }));
     } catch (err) {
       io.writeStderr(`${pc.yellow('⚠')} Could not wire Windsurf integration: ${(err as Error).message}\n`);
@@ -748,10 +849,25 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     // Auto-detect + verify an interpreter that can `import graphify.serve,
     // mcp` instead of hardcoding bare `python3` (which usually can't, and
     // would write a graphify entry the agent reports as "failed").
-    const graphifyResolution = await (options.resolvePython ?? resolveGraphifyPython)({
+    let graphifyResolution = await (options.resolvePython ?? resolveGraphifyPython)({
       cwd: root,
       env: options.env ?? process.env,
     });
+    // Install-first (2026-07-02): nothing verified → offer to install
+    // graphifyy[mcp] into <root>/.venv BEFORE wiring, so the entry points
+    // at an interpreter that works. An existing .venv is the user's — the
+    // prompt asks before touching it. Non-interactive runs skip the offer
+    // (unchanged behaviour: wire + print the manual steps).
+    if (!graphifyResolution.verified && !dryRun) {
+      const graphifyInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
+      graphifyResolution = await (options.offerGraphifyInstall ?? offerGraphifyInstall)({
+        resolution: graphifyResolution,
+        cwd: root,
+        interactive: graphifyInteractive,
+        ...(graphifyInteractive ? { readPrompt: options.readPrompt ?? defaultInitReadPrompt } : {}),
+        writeStdout: io.writeStdout,
+      });
+    }
     for (const ide of ides) {
       try {
         outcomes.push(
@@ -777,7 +893,8 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     } else {
       io.writeStdout(
         `${pc.green('✓')} Wired Graphify's MCP server (structural-query tool). ${pc.yellow('No working interpreter found yet —')}\n` +
-          `  ${pc.gray('install ─ `uv venv .venv && uv pip install --python .venv/bin/python "graphifyy[mcp]"`')}\n` +
+          `  ${pc.gray('install ─ `coodra graphify enable --install` (creates ./.venv + installs graphifyy[mcp]),')}\n` +
+          `  ${pc.gray('  or by hand ─ `uv venv .venv && uv pip install --python .venv/bin/python "graphifyy[mcp]"`')}\n` +
           `  ${pc.gray('then build the graph ─ `/graphify .` in the assistant (or `.venv/bin/graphify update .`)')}\n` +
           `  ${pc.gray('then re-wire ─ `coodra graphify enable --force` (auto-detects), or pin `--python .venv/bin/python`')}\n`,
       );

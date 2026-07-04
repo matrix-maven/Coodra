@@ -158,6 +158,26 @@ export function renderWikiRecipe(args: {
   lines.push('})');
   lines.push('```');
   lines.push('');
+  lines.push('### Mermaid rules — the server lint-gates every diagram');
+  lines.push('');
+  lines.push(
+    '`wiki_save_page` structurally lints every ```mermaid block BEFORE accepting the page. A broken diagram returns `{ ok: false, error: "invalid_mermaid", issues: [...] }` — fix each listed line and re-call. A `wantsDiagram: true` page with no ```mermaid block returns `diagram_missing`. To pass first time:',
+  );
+  lines.push('');
+  lines.push(
+    '- Declare the diagram type on the FIRST line: `flowchart TD`, `sequenceDiagram`, `classDiagram`, `erDiagram`, …',
+  );
+  lines.push(
+    '- Wrap any flowchart label containing parentheses/brackets in double quotes: `A["calls fn(x)"]` — never `A[calls fn(x)]` (the #1 render breakage).',
+  );
+  lines.push('- Close every `subgraph` / `alt` / `opt` / `loop` / `par` with `end`; keep (), [], {} balanced.');
+  lines.push(
+    '- One diagram per fenced block; keep node ids simple (letters/digits/underscores), put prose in the quoted label.',
+  );
+  lines.push(
+    '- Re-read your diagram line by line before saving — the lint catches structure, but only YOU can make it truthful to the code.',
+  );
+  lines.push('');
   lines.push(
     'Work one page at a time for stability. Call `coodra__wiki_status({ wikiId })` whenever you need to see what is still pending (e.g. after an interruption — you can resume in a later session without re-planning).',
   );

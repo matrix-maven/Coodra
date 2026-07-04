@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { Topbar } from '@/components/Topbar';
 import { cancelRunAction } from '@/lib/actions/runs';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { compactDuration, fmtClockSec, fmtRelative } from '@/lib/format';
 import { getRun } from '@/lib/queries/runs';
 
@@ -38,7 +39,7 @@ export default async function RunDetailPage({
           <div>
             <div className="head__num">/02 · AUDIT · RUN {run.id.slice(0, 8)}</div>
             <h1 className="head__title">
-              {run.agentType} · <em>{run.sessionId.slice(0, 14)}</em>
+              {agentTypeLabel(run.agentType)} · <em>{run.sessionId.slice(0, 14)}</em>
             </h1>
             <p className="head__lede">
               session <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink-dim)' }}>{run.sessionId}</span> ·
@@ -93,7 +94,7 @@ export default async function RunDetailPage({
           <Cell label="Duration" value={durationLabel} sub={`${fmtRelative(run.startedAt)} → now`} />
           <Cell label="Events" value={String(events.length)} sub={summarizeEvents(events)} />
           <Cell label="Decisions" value={`${allowCount + denyCount}`} sub={`${allowCount} allow · ${denyCount} deny`} />
-          <Cell label="Mode" value={run.mode} sub={`${run.agentType} · ${run.id.slice(0, 8)}`} />
+          <Cell label="Mode" value={run.mode} sub={`${agentTypeLabel(run.agentType)} · ${run.id.slice(0, 8)}`} />
         </div>
 
         <div className="run-grid" style={runGrid}>

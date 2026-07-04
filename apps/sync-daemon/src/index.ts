@@ -3,7 +3,7 @@
 import './bootstrap/ensure-stderr-logging.js';
 
 import { OutboxWorker } from '@coodra/cli/lib/outbox';
-import { createDb, type PostgresHandle, type SqliteHandle } from '@coodra/db';
+import { createDb, migrateSqlite, type PostgresHandle, type SqliteHandle } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 
 import { env } from './config/env.js';
@@ -23,10 +23,14 @@ import { createTeamRowsPuller } from './lib/team-rows-puller.js';
  *    stop the worker (await in-flight dispatch) then close both
  *    handles.
  *
- * The sync-daemon does NOT migrate either DB. Local SQLite migrations
- * land at bridge + mcp-server boot. Cloud Postgres migrations are run
- * out-of-band by `coodra cloud-migrate` (M04a S1) before the daemon
- * starts.
+ * The sync-daemon idempotently applies LOCAL SQLite migrations at boot
+ * (F10, 2026-07-04). It used to rely on the bridge + mcp-server migrating
+ * first; on a daemon-first boot against a fresh COODRA_HOME that left it
+ * warning `no such table: runs/decisions/...` on every tick until another
+ * service migrated. `migrateSqlite` is idempotent (drizzle tracks state),
+ * so applying here converges the daemon regardless of boot order. Cloud
+ * Postgres migrations are still run out-of-band by `coodra cloud-migrate`
+ * (M04a S1) before the daemon starts.
  */
 
 const bootLogger = createLogger('sync-daemon.boot');
@@ -41,6 +45,22 @@ async function main(): Promise<void> {
   }
   const localDb: SqliteHandle = localDbHandle;
   bootLogger.info({ event: 'local_db_opened', kind: localDb.kind }, 'local sqlite handle opened');
+
+  // F10 (2026-07-04): idempotently ensure the local schema exists so a
+  // daemon-first boot against a fresh COODRA_HOME doesn't spin warning
+  // "no such table" until another service migrates. No-op on a warm DB.
+  try {
+    migrateSqlite(localDb.db);
+    bootLogger.info({ event: 'local_migrations_applied' }, 'local sqlite migrations idempotent-applied at boot');
+  } catch (err) {
+    // Non-fatal: a concurrent migrator (mcp-server booting at the same
+    // instant) may hold the write lock. The pullers retry every tick, and
+    // the next boot re-applies. Log and continue rather than crash-loop.
+    bootLogger.warn(
+      { event: 'local_migrations_failed', err: err instanceof Error ? err.message : String(err) },
+      'local sqlite migration at boot failed; pullers will retry as schema becomes available',
+    );
+  }
 
   // (2) Cloud Postgres handle.
   const cloudDbHandle = createDb({ kind: 'cloud', postgres: { databaseUrl: env.DATABASE_URL } });

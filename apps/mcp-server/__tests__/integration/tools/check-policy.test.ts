@@ -107,7 +107,13 @@ function unwrap(result: { readonly content: ReadonlyArray<{ type: string; text: 
 function seedDenyRule(
   h: Harness,
   projectId: string,
-  opts: { readonly matchToolName: string; readonly matchPathGlob: string | null; readonly reason: string },
+  opts: {
+    readonly matchToolName: string;
+    readonly matchPathGlob: string | null;
+    readonly reason: string;
+    /** F6 (2026-07-04): defaults to 'deny'; pass 'ask' to exercise the ask tier. */
+    readonly decision?: 'allow' | 'deny' | 'ask';
+  },
 ): string {
   const policyId = `pol_${randomUUID()}`;
   const ruleId = `rule_${randomUUID()}`;
@@ -118,9 +124,9 @@ function seedDenyRule(
     .prepare(
       `INSERT INTO policy_rules (id, policy_id, priority, match_event_type, match_tool_name,
          match_path_glob, match_agent_type, decision, reason)
-       VALUES (?, ?, 10, 'PreToolUse', ?, ?, '*', 'deny', ?)`,
+       VALUES (?, ?, 10, 'PreToolUse', ?, ?, '*', ?, ?)`,
     )
-    .run(ruleId, policyId, opts.matchToolName, opts.matchPathGlob, opts.reason);
+    .run(ruleId, policyId, opts.matchToolName, opts.matchPathGlob, opts.decision ?? 'deny', opts.reason);
   return ruleId;
 }
 
@@ -218,8 +224,8 @@ describe('check_policy — no_rule_matched path', () => {
     expect(rows[0]?.agentType).toBe('claude_code');
     expect(rows[0]?.eventType).toBe('PreToolUse');
     expect(rows[0]?.toolName).toBe('Write');
-    // F14 (2026-04-27): no toolUseId supplied → 'no-turn' fallback
-    expect(rows[0]?.idempotencyKey).toBe('pd:sess_nrm:no-turn:Write:PreToolUse');
+    // F7 (2026-07-04): no toolUseId → the disambiguator is a hash of the tool input.
+    expect(rows[0]?.idempotencyKey).toMatch(/^pd:sess_nrm:noturn-[0-9a-f]{8}:Write:PreToolUse$/);
   });
 });
 
@@ -306,6 +312,45 @@ describe('check_policy — deny via path glob', () => {
     if (!out.ok) return;
     expect(out.permissionDecision).toBe('allow');
     expect(out.reason).toBe('no_rule_matched');
+  });
+
+  // F6 (2026-07-04): the ask tier is real, not collapsed to allow. A rule
+  // with decision='ask' (the seeded "ask before Bash" rule) must round-trip
+  // to permissionDecision='ask' and land an audit row recording 'ask'.
+  it("Bash against an 'ask' rule returns permissionDecision='ask' (not silently allowed) with a matching audit row", async () => {
+    const ruleId = seedDenyRule(h, h.projectA, {
+      matchToolName: 'Bash',
+      matchPathGlob: null,
+      decision: 'ask',
+      reason: 'Bash invocations require user confirmation',
+    });
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'check_policy',
+        {
+          projectSlug: h.slugA,
+          sessionId: 'sess_ask',
+          agentType: 'claude_code',
+          eventType: 'PreToolUse',
+          toolName: 'Bash',
+          toolInput: { command: 'rm -rf node_modules' },
+        },
+        'sess_ask',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.permissionDecision).toBe('ask');
+    expect(out.reason).toBe('rule_matched');
+    expect(out.ruleReason).toBe('Bash invocations require user confirmation');
+    expect(out.matchedRuleId).toBe(ruleId);
+    expect(out.failOpen).toBe(false);
+
+    await flushSetImmediate(h.handle);
+    const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.permissionDecision).toBe('ask');
   });
 });
 
@@ -394,8 +439,42 @@ describe('check_policy — idempotent audit dedupe', () => {
 
     const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);
     expect(rows).toHaveLength(1);
-    // F14 (2026-04-27): no toolUseId supplied → 'no-turn' fallback
-    expect(rows[0]?.idempotencyKey).toBe('pd:sess_dup:no-turn:Write:PreToolUse');
+    // F7 (2026-07-04): no toolUseId supplied → the disambiguator is a hash of
+    // the tool input (identical input both calls → identical hash → 1 row).
+    expect(rows[0]?.idempotencyKey).toMatch(/^pd:sess_dup:noturn-[0-9a-f]{8}:Write:PreToolUse$/);
+  });
+
+  // F7 (2026-07-04): distinct tool inputs in the SAME session with NO
+  // toolUseId must produce DISTINCT audit rows. Pre-fix both collapsed onto
+  // `no-turn`, so three different Write targets landed a single row — the
+  // "every decision has an audit row" (SOC2/NHI) invariant was broken.
+  it('same session, no toolUseId, DIFFERENT tool inputs produce distinct rows', async () => {
+    const registry = buildRegistry(h);
+    const call = async (filePath: string) =>
+      unwrap(
+        await registry.handleCall(
+          'check_policy',
+          {
+            projectSlug: h.slugA,
+            sessionId: 'sess_multi',
+            agentType: 'claude_code',
+            eventType: 'PreToolUse',
+            toolName: 'Write',
+            toolInput: { file_path: filePath },
+          },
+          'sess_multi',
+        ),
+      );
+    await call('/repo/.env');
+    await call('/repo/.git/config');
+    await call('/repo/src/app.ts');
+    await flushSetImmediate(h.handle);
+    await flushSetImmediate(h.handle);
+
+    const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);
+    expect(rows).toHaveLength(3);
+    const uniqueKeys = new Set(rows.map((r) => r.idempotencyKey));
+    expect(uniqueKeys.size).toBe(3);
   });
 
   it('same (toolName, eventType) across different sessionIds produces two rows', async () => {
@@ -421,7 +500,10 @@ describe('check_policy — idempotent audit dedupe', () => {
     const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);
     expect(rows).toHaveLength(2);
     const keys = rows.map((r) => r.idempotencyKey).sort();
-    expect(keys).toEqual(['pd:sess_one:no-turn:Write:PreToolUse', 'pd:sess_two:no-turn:Write:PreToolUse']);
+    // F7 (2026-07-04): no toolUseId → the disambiguator is a hash of the
+    // (identical) tool input; the sessionId segment still differs → 2 rows.
+    expect(keys[0]).toMatch(/^pd:sess_one:noturn-[0-9a-f]{8}:Write:PreToolUse$/);
+    expect(keys[1]).toMatch(/^pd:sess_two:noturn-[0-9a-f]{8}:Write:PreToolUse$/);
   });
 });
 

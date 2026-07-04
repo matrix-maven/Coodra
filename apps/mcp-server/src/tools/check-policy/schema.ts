@@ -30,10 +30,10 @@ import { z } from 'zod';
  * need to display "why was this blocked?" read `ruleReason`; systems
  * that branch on machine state read `reason`.
  *
- * `'ask'` stays in the output enum per §24.4 wording but the S14
- * evaluator never emits it — CODEOWNERS and branch-protection
- * integrations (future slices) will populate it. A unit test locks
- * this invariant across the M02 evaluator paths.
+ * `'ask'` is emitted when a rule matches with `decision='ask'` (E2E
+ * finding F6, 2026-07-04) — e.g. the seeded "ask before Bash" rule.
+ * `permissionDecision: 'ask'` maps to Claude Code's user-confirmation
+ * prompt; agents without an ask tier degrade it to allow at the bridge.
  */
 
 export const checkPolicyInputSchema = z

@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { detectIDE, type IDE, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
+import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
 import { jiraConfigPath, ROVO_MCP_URL, readJiraPresence, unwireJira, wireJira } from '../lib/init/jira-wire.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { pc } from '../ui/compat.js';
@@ -29,13 +29,6 @@ import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
  * substrate (`external-mcp-merge.ts` for JSON agents,
  * `external-codex-merge.ts` for Codex's TOML).
  */
-
-const IDE_DISPLAY: Record<IDE, string> = {
-  claude: 'Claude Code',
-  cursor: 'Cursor',
-  windsurf: 'Windsurf',
-  codex: 'Codex',
-};
 
 export interface JiraEnableOptions {
   /** `--ide` — claude | cursor | windsurf | codex | all (comma-separated). Autodetect when omitted. */

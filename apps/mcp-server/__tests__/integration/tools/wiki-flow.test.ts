@@ -198,6 +198,70 @@ describe('Deep Wiki flow — structure → status → content → status', () =>
     expect(JSON.parse(intro?.citations ?? '[]')).toEqual([{ file: 'README.md' }]);
   });
 
+  it('lint-gates mermaid: broken diagrams and missing wantsDiagram diagrams are rejected before the write', async () => {
+    const registry = buildRegistry(h.handle);
+    const runId = await mintRun(registry, 'coodra', 'sess_mmd');
+    const struct = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_mmd',
+      ),
+    );
+    if (!struct.ok) throw new Error('structure save failed');
+    const wikiId = struct.wikiId;
+
+    // Broken diagram (the classic unquoted-parens label) → invalid_mermaid.
+    const broken = unwrap<WikiSavePageOutput>(
+      await registry.handleCall(
+        'wiki_save_page',
+        {
+          runId,
+          wikiId,
+          pageId: 'intro',
+          content: { contentMarkdown: '# Intro\n\n```mermaid\nflowchart TD\n  A[calls fn(x)] --> B\n```' },
+        },
+        'sess_mmd',
+      ),
+    );
+    expect(broken.ok).toBe(false);
+    if (!broken.ok && broken.error === 'invalid_mermaid') {
+      expect(broken.issues.length).toBeGreaterThan(0);
+      expect(broken.issues[0]?.message).toContain('double quotes');
+    } else {
+      throw new Error(`expected invalid_mermaid, got ${JSON.stringify(broken)}`);
+    }
+
+    // wantsDiagram page with no ```mermaid block → diagram_missing.
+    const missing = unwrap<WikiSavePageOutput>(
+      await registry.handleCall(
+        'wiki_save_page',
+        { runId, wikiId, pageId: 'intro', content: { contentMarkdown: '# Intro\n\nprose only' } },
+        'sess_mmd',
+      ),
+    );
+    expect(!missing.ok && missing.error).toBe('diagram_missing');
+
+    // Neither rejection wrote anything — the page is still pending.
+    const status = unwrap<WikiStatusOutput>(await registry.handleCall('wiki_status', { wikiId }, 'sess_mmd'));
+    expect(status.ok && status.pendingCount).toBe(2);
+
+    // The corrected diagram (quoted label) is accepted.
+    const fixed = unwrap<WikiSavePageOutput>(
+      await registry.handleCall(
+        'wiki_save_page',
+        {
+          runId,
+          wikiId,
+          pageId: 'intro',
+          content: { contentMarkdown: '# Intro\n\n```mermaid\nflowchart TD\n  A["calls fn(x)"] --> B\n```' },
+        },
+        'sess_mmd',
+      ),
+    );
+    expect(fixed.ok).toBe(true);
+  });
+
   it('re-planning the same slug replaces the wiki (status=replaced, pages reset to pending)', async () => {
     const registry = buildRegistry(h.handle);
     const runId = await mintRun(registry, 'coodra', 'sess_2');
@@ -330,9 +394,11 @@ describe('Deep Wiki flow — structure → status → content → status', () =>
       ),
     );
     if (!struct.ok) throw new Error('structure save failed');
+    // The 'mcp-server' page has wantsDiagram: false — prose-only content
+    // passes the mermaid gate; this test is about the sync enqueue.
     await registry.handleCall(
       'wiki_save_page',
-      { runId, wikiId: struct.wikiId, pageId: 'intro', content: { contentMarkdown: '# Intro' } },
+      { runId, wikiId: struct.wikiId, pageId: 'mcp-server', content: { contentMarkdown: '# MCP Server' } },
       'sess_7',
     );
 
