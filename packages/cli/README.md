@@ -52,6 +52,24 @@ These codes are stable across versions — shell scripts can rely on them.
 
 Override with `COODRA_HOME=/path/to/dir` in the environment.
 
+## Publishing from source
+
+`dist/` is git-ignored and the tarball is fully bundled, so publish from a clean
+clone of the monorepo:
+
+```bash
+corepack enable      # pinned pnpm@10.33.0
+pnpm install         # from the repo root
+cd packages/cli
+npm publish          # prepublishOnly builds the workspace + verifies the bundle
+```
+
+`npm publish` triggers `pnpm -w run build` (turbo, dependency-ordered) and a
+bundle-integrity assert before upload — no separate build step needed. Use
+`npm publish --dry-run` to rehearse. To publish under a different npm account,
+change `name` in `package.json` to a scope you own (the build is name-agnostic),
+then `npm login && npm publish`.
+
 ## Documentation
 
 - Full spec — [`docs/feature-packs/08a-cli/spec.md`](../../docs/feature-packs/08a-cli/spec.md)

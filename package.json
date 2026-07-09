@@ -7,11 +7,11 @@
   "author": "Abishai <abishai95141@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Abishai95141/Coodra.git"
+    "url": "git+https://github.com/matrix-maven/Coodra.git"
   },
-  "homepage": "https://github.com/Abishai95141/Coodra#readme",
+  "homepage": "https://github.com/matrix-maven/Coodra#readme",
   "bugs": {
-    "url": "https://github.com/Abishai95141/Coodra/issues"
+    "url": "https://github.com/matrix-maven/Coodra/issues"
   },
   "type": "module",
   "packageManager": "pnpm@10.33.0",

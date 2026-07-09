@@ -8,7 +8,7 @@
 
 <img src="docs/brand/coodra-pillars.svg" alt="Feature Pack · Context Pack · Policy" height="16">
 
-[![CI](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/Abishai95141/Coodra/actions/workflows/ci.yml)
+[![CI](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coodra/cli/beta.svg)](https://www.npmjs.com/package/@coodra/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
@@ -224,6 +224,47 @@ Full architectural spec: [`system-architecture.md`](system-architecture.md) (25 
 
 ---
 
+## Build & publish from source
+
+The CLI ships as **one self-contained npm tarball** — esbuild inlines every
+workspace package and JS dependency into `dist/`, and the MCP server, hooks
+bridge, sync daemon, and web dashboard are bundled under `dist/runtime/`. Only
+the two native modules (`better-sqlite3`, `sqlite-vec`) stay external so they
+install correctly per platform. `dist/` is git-ignored, so you build it from a
+clean clone.
+
+**Prerequisites:** Node ≥ 22.16 and pnpm 10.33 (via Corepack — no separate
+install). Works on Linux and macOS.
+
+```bash
+git clone https://github.com/matrix-maven/Coodra.git
+cd Coodra
+corepack enable            # provisions the pinned pnpm@10.33.0
+pnpm install
+cd packages/cli
+npm publish                # prepublishOnly builds the whole workspace, then verifies the bundle
+```
+
+That's it — `npm publish` runs `pnpm -w run build` (turbo, dependency-ordered)
+and a bundle-integrity assert before it uploads, so you never ship a half-built
+tarball. To rehearse without uploading, run `npm publish --dry-run`. To inspect
+the exact tarball contents, `npm pack` (writes a `.tgz` you can extract).
+
+**Publishing to _your own_ npm account.** The package name is `@coodra/cli` — a
+scoped name. npm lets you publish a scoped package only if you own that scope:
+
+- **You're a member of the `@coodra` npm org** → `npm publish` works as-is (the
+  package is already marked `publishConfig.access: public`).
+- **You want to publish under your own account/scope** → change the `name` field
+  in [`packages/cli/package.json`](packages/cli/package.json) to a name you own
+  (e.g. `@your-scope/coodra-cli`, or an unclaimed unscoped name), then
+  `npm publish`. Nothing else needs to change — the build is name-agnostic.
+
+Run `npm login` (or set `NODE_AUTH_TOKEN` in CI) first so npm has your
+credentials.
+
+---
+
 ## Status
 
 **`@coodra/cli@0.2.0-beta.3`** — public beta.
@@ -238,7 +279,7 @@ Coverage: ~180 unit-test files across 9 workspaces, plus an e2e suite that boots
 
 ## Get help
 
-- **Bug?** [Open an issue](https://github.com/Abishai95141/Coodra/issues) — include `coodra doctor --json` plus your OS / Node version.
+- **Bug?** [Open an issue](https://github.com/matrix-maven/Coodra/issues) — include `coodra doctor --json` plus your OS / Node version.
 - **Security concern?** Email [abishai95141@gmail.com](mailto:abishai95141@gmail.com). Please do not file a public issue.
 - **Architecture question?** Start at [`system-architecture.md`](system-architecture.md). It is long but indexed.
 
