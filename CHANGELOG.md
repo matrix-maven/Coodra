@@ -4,6 +4,30 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- **`'ask'` policy tier — now enforced end-to-end.** A policy rule with `decision='ask'` (e.g. the seeded "ask before Bash" rule) propagates through the evaluator → `check_policy` → the hooks-bridge → Claude Code's `permissionDecision: 'ask'` (a real user-confirmation prompt). Previously the evaluator collapsed `'ask'` to `'allow'`, so the advertised confirmation tier silently did nothing. Cursor / Windsurf (no ask tier in their hook responses) degrade `'ask'` → `'allow'` at the serialization boundary. (E2E finding F6.)
+
+### Changed
+
+- **`packages/cli` publishes cleanly from a fresh clone.** `prepublishOnly` now runs a dependency-ordered workspace build (`scripts/build-for-publish.mjs`) before the bundle-integrity assert, so `pnpm install && cd packages/cli && npm publish` works from a pristine checkout (`dist/` is git-ignored). The build order pins web-v2 **before** the cli bundle — a bare `turbo run build` can't guarantee this because `cli ↔ web-v2` would be a dependency cycle. README + `packages/cli/README.md` document the flow and the `@coodra`-scope / rename note for publishing to another npm account.
+- **`init` persists `LOCAL_HOOK_SECRET` to `$COODRA_HOME/.env`** so the daemons and every agent config share one secret (previously every `init` minted a fresh one → false drift on re-init and team-mode hook `401`s). (F1.)
+- **`init` honours `HOOKS_BRIDGE_PORT` / `MCP_SERVER_PORT`** from the environment instead of hardcoding `3101` / `3100` into `.env` and the hook URLs. (F3.)
+- **`init --team` warns and points at `coodra login`** when it can't resolve a team org, instead of silently registering the project as `__solo__` (which never syncs). (F9.)
+- **Repository / homepage / bug URLs** now point at `github.com/matrix-maven/Coodra`.
+- **Trigger-contract + `system-architecture.md` §24** use the real agent tool names (`Write` / `Edit` / `MultiEdit` / `NotebookEdit` / `Bash`) and the correct `sessionId` (not `runId`), so a doc-following agent's `check_policy` calls actually match the seeded rules. (F5 / F4.)
+
+### Removed
+
+- **`apps/web` (`@coodra/web`)** — the deprecated Module 04 web app, superseded by `apps/web-v2`. It was undepended-on, unshipped (the CLI bundles web-v2), absent from CI's build steps, and failed a clean build (13 cascading typecheck errors, masked locally by a persisted `dist/`). Its removal fixes `pnpm build` / the publish path on a cold checkout and drops ~140 files + 82 tests that only exercised dead code. web-v2 (44 routes, incl. its own Clerk sign-in) is the sole web surface.
+
+### Fixed
+
+- **`policy_decisions` audit rows no longer collapse** when the caller omits a `toolUseId`: the idempotency key now includes a hash of the tool input, so distinct decisions (`.env` deny vs `src/app.ts` allow in one session) each get their own row. (F7.)
+- **`sync-daemon` idempotently applies local SQLite migrations at boot**, so a daemon-first boot against a fresh `COODRA_HOME` no longer spins `no such table` until another service migrates. (F10.)
+- **`COODRA_WINDSURF_CONFIG_PATH`** env override for the global Windsurf MCP config, mirroring `CLAUDE_SETTINGS_PATH` — scratch / CI runs no longer touch the operator's real `~/.codeium/windsurf/mcp_config.json`. (F2.)
+- **Docs:** `save_context_pack` is documented as persisting to the Coodra store (DB), not to `docs/context-packs/` on disk. (F8.)
+
 ## [0.2.0-beta.9] — 2026-05-18
 
 ### Changed
