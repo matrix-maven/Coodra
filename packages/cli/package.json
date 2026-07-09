@@ -1,8 +1,8 @@
 {
   "name": "@coodra/cli",
-  "version": "0.2.0-beta.25",
+  "version": "0.2.0-beta.26",
   "private": false,
-  "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
+  "description": "Coodra CLI \u2014 single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -99,14 +99,14 @@
     "start": "node dist/index.js",
     "cli": "node dist/index.js",
     "test:unit": "vitest run",
-    "//smoke:core": "Cross-platform end-to-end smoke for the Core (Claude Code) install path: init → start (mcp-server + hooks-bridge) → /healthz → status → stop. Requires `build` first. Drives the windows-latest CI job; runs identically on any OS for local validation.",
+    "//smoke:core": "Cross-platform end-to-end smoke for the Core (Claude Code) install path: init \u2192 start (mcp-server + hooks-bridge) \u2192 /healthz \u2192 status \u2192 stop. Requires `build` first. Drives the windows-latest CI job; runs identically on any OS for local validation.",
     "smoke:core": "node scripts/core-smoke.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "clean": "rm -rf dist .turbo",
     "//install:global": "Symlink the workspace build into the user's global npm prefix so `coodra` on $PATH points at the local dist/. --force overwrites any stale install (e.g. the pre-rename `@coodra/cli` package). Run after `pnpm --filter @coodra/cli build`.",
     "install:global": "npm i -g --force .",
-    "//prepublishOnly": "Builds the workspace in the proven dependency order (scripts/build-for-publish.mjs — web-v2 BEFORE cli's bundle, which a bare `turbo run build` can't guarantee because cli↔web-v2 would be a dependency cycle) THEN asserts the bundled web + service runtimes are present. So a clean clone publishes with just `pnpm install && cd packages/cli && npm publish` — dist/ is gitignored, so without the build the assert would refuse. Turbo-cached, so re-publishes are fast.",
+    "//prepublishOnly": "Builds the workspace in the proven dependency order (scripts/build-for-publish.mjs \u2014 web-v2 BEFORE cli's bundle, which a bare `turbo run build` can't guarantee because cli\u2194web-v2 would be a dependency cycle) THEN asserts the bundled web + service runtimes are present. So a clean clone publishes with just `pnpm install && cd packages/cli && npm publish` \u2014 dist/ is gitignored, so without the build the assert would refuse. Turbo-cached, so re-publishes are fast.",
     "prepublishOnly": "node scripts/build-for-publish.mjs && node scripts/prepublish-assert.mjs"
   },
   "//dependencies": "Only true npm-resolvable runtime deps live here (decision dec_83ba10c1). Native modules are kept external from the bundle so they install correctly per platform; everything else is inlined. Workspace deps + bundleable npm deps moved to devDependencies so `pnpm publish` / `npm install` of the published tarball does not try to resolve `workspace:*` placeholders.",
@@ -114,7 +114,7 @@
     "better-sqlite3": "^12.9.0",
     "sqlite-vec": "0.1.9"
   },
-  "//devDependencies": "Phase 3 Fix E (2026-05-02): @coodra/{mcp-server,hooks-bridge} were previously declared here so the bundle.mjs script's esbuild could resolve their imports via cli's node_modules. They were removed because pnpm + turbo treats devDependencies as ^build edges, and apps/{mcp-server,hooks-bridge} also declare @coodra/cli (for /lib/outbox), which produced a build-time cycle that turbo refused to schedule. esbuild reads apps/{mcp-server,hooks-bridge}/src/index.ts via absolute filesystem paths and resolves their transitive imports through the workspace-root node_modules — no cli-local dep declaration is needed.",
+  "//devDependencies": "Phase 3 Fix E (2026-05-02): @coodra/{mcp-server,hooks-bridge} were previously declared here so the bundle.mjs script's esbuild could resolve their imports via cli's node_modules. They were removed because pnpm + turbo treats devDependencies as ^build edges, and apps/{mcp-server,hooks-bridge} also declare @coodra/cli (for /lib/outbox), which produced a build-time cycle that turbo refused to schedule. esbuild reads apps/{mcp-server,hooks-bridge}/src/index.ts via absolute filesystem paths and resolves their transitive imports through the workspace-root node_modules \u2014 no cli-local dep declaration is needed.",
   "//ui-deps": "react + ink + ink-* power the interactive TUI (`coodra` no-args / `coodra ui`) and live in devDependencies, not dependencies: they are pure-JS and esbuild inlines them into dist/index.js at bundle time (same treatment as commander/execa/zod). Only the two native modules stay in `dependencies`. @types/react is dev-only typings.",
   "devDependencies": {
     "@clerk/backend": "^3.4.7",
