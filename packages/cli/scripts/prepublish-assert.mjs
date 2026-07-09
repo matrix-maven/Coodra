@@ -27,10 +27,19 @@ const here = dirname(fileURLToPath(import.meta.url));
 const cliRoot = resolve(here, '..');
 const repoRoot = resolve(cliRoot, '..', '..');
 
+// Windows: `build-for-publish.mjs` skips the apps/web-v2 build (its Next.js
+// standalone output doesn't complete reliably on Windows), so the web
+// runtime is legitimately absent from a Windows-built tarball. Relax the web
+// requirement + freshness check here to match, and warn — a Windows publish
+// ships WITHOUT the dashboard. The official, complete package is published
+// from macOS / Linux / CI, where this assert enforces the web runtime fully.
+const isWindows = process.platform === 'win32';
+
 const required = [
   // The Next.js standalone server entrypoint. If missing, the published
   // CLI has no web runtime and `coodra start --web` would fail at boot.
-  resolve(cliRoot, 'dist/runtime/web/apps/web-v2/server.js'),
+  // Enforced everywhere EXCEPT Windows (see note above).
+  ...(isWindows ? [] : [resolve(cliRoot, 'dist/runtime/web/apps/web-v2/server.js')]),
   // The MCP server runtime. Less likely to be missing (its build path
   // doesn't depend on web-v2) but still worth asserting before publish.
   resolve(cliRoot, 'dist/runtime/mcp-server/index.js'),
@@ -78,25 +87,37 @@ function newestMtime(start) {
   return newest;
 }
 
-const webV2 = resolve(repoRoot, 'apps/web-v2');
-const sourceRoots = ['lib', 'app', 'components', 'middleware.ts', 'next.config.ts'].map((p) => join(webV2, p));
-const newestSource = Math.max(...sourceRoots.filter(existsSync).map(newestMtime));
-const bundledServer = resolve(cliRoot, 'dist/runtime/web/apps/web-v2/server.js');
-const bundledMtime = statSync(bundledServer).mtimeMs;
+// Freshness check is web-specific, so it only runs where the web is built
+// (i.e. NOT on Windows — see the note at the top).
+if (!isWindows) {
+  const webV2 = resolve(repoRoot, 'apps/web-v2');
+  const sourceRoots = ['lib', 'app', 'components', 'middleware.ts', 'next.config.ts'].map((p) => join(webV2, p));
+  const newestSource = Math.max(...sourceRoots.filter(existsSync).map(newestMtime));
+  const bundledServer = resolve(cliRoot, 'dist/runtime/web/apps/web-v2/server.js');
+  const bundledMtime = statSync(bundledServer).mtimeMs;
 
-if (newestSource > bundledMtime) {
-  console.error('publish refused: bundled web-v2 standalone is older than source.');
-  console.error('');
-  console.error('  newest apps/web-v2 source: ' + new Date(newestSource).toISOString());
-  console.error('  bundled server.js:         ' + new Date(bundledMtime).toISOString());
-  console.error('');
-  console.error('Fix (delete caches + rebuild):');
-  console.error('  find . -name ".tsbuildinfo" -not -path "*/node_modules/*" -delete');
-  console.error('  rm -rf apps/web-v2/.next packages/cli/dist .turbo');
-  console.error('  pnpm --filter @coodra/web-v2 build');
-  console.error('  pnpm --filter @coodra/cli build');
-  console.error('  npm publish ...');
-  process.exit(1);
+  if (newestSource > bundledMtime) {
+    console.error('publish refused: bundled web-v2 standalone is older than source.');
+    console.error('');
+    console.error('  newest apps/web-v2 source: ' + new Date(newestSource).toISOString());
+    console.error('  bundled server.js:         ' + new Date(bundledMtime).toISOString());
+    console.error('');
+    console.error('Fix (delete caches + rebuild):');
+    console.error('  find . -name ".tsbuildinfo" -not -path "*/node_modules/*" -delete');
+    console.error('  rm -rf apps/web-v2/.next packages/cli/dist .turbo');
+    console.error('  pnpm --filter @coodra/web-v2 build');
+    console.error('  pnpm --filter @coodra/cli build');
+    console.error('  npm publish ...');
+    process.exit(1);
+  }
 }
 
-console.log('prepublish-assert: ok (' + required.length + ' artifacts present, web bundle fresher than source)');
+if (isWindows) {
+  console.log(
+    'prepublish-assert: ok (Windows — ' +
+      required.length +
+      ' core artifacts present; web dashboard NOT bundled. Publish the complete package from macOS / Linux / CI).',
+  );
+} else {
+  console.log('prepublish-assert: ok (' + required.length + ' artifacts present, web bundle fresher than source)');
+}

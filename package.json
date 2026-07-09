@@ -31,7 +31,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:functional": "bash __tests__/functional/run-all.sh",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
-    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
+    "//prepare": "Cross-platform git-hooks wiring. The old `... 2>/dev/null || true` used POSIX shell redirection that fails under Windows cmd (where npm runs lifecycle scripts), breaking `pnpm install`. The node one-liner swallows errors on every OS.",
+    "prepare": "node -e \"const { execSync } = require('node:child_process'); try { execSync('git config core.hooksPath .githooks', { stdio: 'ignore' }); } catch {}\""
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.12",

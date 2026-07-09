@@ -36,12 +36,32 @@ const steps = [
   ['@coodra/cli', 'build'],
 ];
 
-// Windows: `pnpm` on PATH is `pnpm.cmd` (or a corepack shim), and
+// Windows: apps/web-v2's Next.js `output: 'standalone'` build does not
+// complete reliably on Windows, so we skip it to let the publish proceed.
+// The consequence is REAL and loud below: a tarball built on Windows omits
+// the web dashboard (`dist/runtime/web/`), so `coodra start` on that install
+// runs headless (services.ts skips the web when its binary is absent).
+// Publish the OFFICIAL, complete package from macOS / Linux / CI, where
+// web-v2 builds. `prepublish-assert.mjs` relaxes its web requirement on
+// Windows so the two stay consistent.
+const isWindows = process.platform === 'win32';
+const platformSteps = isWindows ? steps.filter(([pkg]) => pkg !== '@coodra/web-v2') : steps;
+
+if (isWindows) {
+  process.stderr.write(
+    '\n[build-for-publish] ⚠ Windows detected — SKIPPING the apps/web-v2 build.\n' +
+      '    The tarball produced here will NOT include the web dashboard, and\n' +
+      '    `coodra start` on the published install will run without it.\n' +
+      '    Publish the official, complete package from macOS / Linux / CI.\n',
+  );
+}
+
+// `pnpm` on PATH is `pnpm.cmd` (or a corepack shim) on Windows, and
 // `execFile` does NOT do PATHEXT resolution — a bare `execFileSync('pnpm', …)`
 // throws ENOENT. `shell: true` delegates name resolution to the system shell
 // (cmd.exe on Windows, /bin/sh elsewhere), which resolves the right shim. All
 // arguments here are hardcoded constants, so shell interpolation is safe.
-for (const [pkg, script] of steps) {
+for (const [pkg, script] of platformSteps) {
   process.stdout.write(`\n[build-for-publish] pnpm --filter ${pkg} run ${script}\n`);
   try {
     execFileSync('pnpm', ['--filter', pkg, 'run', script], { cwd: repoRoot, stdio: 'inherit', shell: true });

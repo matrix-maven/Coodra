@@ -5,9 +5,13 @@ name: Pages
 # We deliberately do NOT use "Deploy from a branch" with source `/docs`,
 # because that mode publishes EVERY file under docs/ — the design specs,
 # context packs, audit reports, etc. — which we want kept in the repo
-# but not exposed at https://abishai95141.github.io/Coodra/. The Actions
+# but not exposed at https://matrix-maven.github.io/Coodra/. The Actions
 # workflow stages a clean tree under `_site/` containing only the
 # rendered HTML, then uploads that as the Pages artifact.
+#
+# NOTE: this workflow only deploys once GitHub Pages is enabled on the repo
+# with Source = "GitHub Actions" (Settings → Pages). Until then it fails at
+# the `configure-pages` step and https://matrix-maven.github.io/Coodra/ 404s.
 
 on:
   push:
