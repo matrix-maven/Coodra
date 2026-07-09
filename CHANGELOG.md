@@ -23,6 +23,7 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ### Fixed
 
+- **`npm publish` works on Windows.** `scripts/build-for-publish.mjs` spawned `pnpm` with `execFileSync('pnpm', …)`, which throws `ENOENT` on Windows (the shim is `pnpm.cmd` and `execFile` does no PATHEXT resolution). Added `shell: true` so the system shell resolves the right binary on every OS. The publish flow (`pnpm install && cd packages/cli && npm publish`) now runs identically on Windows, macOS, and Linux.
 - **`policy_decisions` audit rows no longer collapse** when the caller omits a `toolUseId`: the idempotency key now includes a hash of the tool input, so distinct decisions (`.env` deny vs `src/app.ts` allow in one session) each get their own row. (F7.)
 - **`sync-daemon` idempotently applies local SQLite migrations at boot**, so a daemon-first boot against a fresh `COODRA_HOME` no longer spins `no such table` until another service migrates. (F10.)
 - **`COODRA_WINDSURF_CONFIG_PATH`** env override for the global Windsurf MCP config, mirroring `CLAUDE_SETTINGS_PATH` — scratch / CI runs no longer touch the operator's real `~/.codeium/windsurf/mcp_config.json`. (F2.)

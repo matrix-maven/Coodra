@@ -36,10 +36,15 @@ const steps = [
   ['@coodra/cli', 'build'],
 ];
 
+// Windows: `pnpm` on PATH is `pnpm.cmd` (or a corepack shim), and
+// `execFile` does NOT do PATHEXT resolution — a bare `execFileSync('pnpm', …)`
+// throws ENOENT. `shell: true` delegates name resolution to the system shell
+// (cmd.exe on Windows, /bin/sh elsewhere), which resolves the right shim. All
+// arguments here are hardcoded constants, so shell interpolation is safe.
 for (const [pkg, script] of steps) {
   process.stdout.write(`\n[build-for-publish] pnpm --filter ${pkg} run ${script}\n`);
   try {
-    execFileSync('pnpm', ['--filter', pkg, 'run', script], { cwd: repoRoot, stdio: 'inherit' });
+    execFileSync('pnpm', ['--filter', pkg, 'run', script], { cwd: repoRoot, stdio: 'inherit', shell: true });
   } catch (err) {
     process.stderr.write(
       `\n[build-for-publish] FAILED at "${pkg} run ${script}". ` +
