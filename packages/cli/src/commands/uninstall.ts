@@ -1,6 +1,7 @@
 import { rm, stat } from 'node:fs/promises';
 import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
+import { detectProjectRoot } from '../lib/detect.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
 import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
@@ -76,6 +77,8 @@ interface UninstallStepResult {
 interface UninstallJson {
   readonly ok: true;
   readonly purged: boolean;
+  /** The resolved project root every project-scoped remover targeted. */
+  readonly projectRoot: string;
   readonly steps: ReadonlyArray<UninstallStepResult>;
   readonly preserved?: ReadonlyArray<string>;
   readonly npmUninstallCommand: string;
@@ -87,7 +90,15 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   const purge = options.purge === true;
   const dryRun = options.dryRun === true;
   const homePath = io.coodraHome ?? resolveCoodraHome();
-  const cwd = io.cwd ?? process.cwd();
+  // Resolve the SAME project root `coodra init` used — init walks up from
+  // cwd to the nearest marker (`.git` / `package.json` / …) and writes
+  // `.mcp.json`, `.cursor/mcp.json`, `CLAUDE.md`, `.codex/config.toml`
+  // there. Uninstall previously used the raw `process.cwd()`, so running
+  // it from a subdirectory inspected a DIFFERENT `.cursor/mcp.json` and
+  // truthfully reported "no coodra entry to remove" while the real entry
+  // persisted (field bug 2026-07-12). An explicit `io.cwd` (tests /
+  // scripting) is honoured verbatim.
+  const cwd = io.cwd ?? (await detectProjectRoot(process.cwd())).root;
   const bridgePort = io.bridgePort ?? 3101;
 
   const steps: UninstallStepResult[] = [];
@@ -186,6 +197,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     const payload: UninstallJson = {
       ok: true,
       purged: purge,
+      projectRoot: cwd,
       steps,
       preserved,
       npmUninstallCommand,
@@ -193,6 +205,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     io.writeStdout(`${JSON.stringify(payload, null, 2)}\n`);
   } else {
     io.writeStdout(`${pc.green('✓')} coodra uninstall ${dryRun ? '(dry-run) ' : ''}complete:\n`);
+    io.writeStdout(`  ${pc.gray(`project root: ${cwd}`)}\n`);
     for (const s of steps) {
       const symbol = s.action === 'failed' ? pc.red('✗') : s.action === 'unchanged' ? pc.dim('—') : pc.green('•');
       io.writeStdout(`  ${symbol} ${s.step}: ${s.action} (${s.notes})\n`);

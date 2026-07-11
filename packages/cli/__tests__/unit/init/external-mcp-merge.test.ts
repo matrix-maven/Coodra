@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   type ExternalMcpEntry,
+  findExternalMcpServerByContent,
   mergeExternalMcpServer,
   readExternalMcpServerPresence,
   removeExternalMcpServer,
@@ -237,6 +238,115 @@ describe('removeExternalMcpServer', () => {
     const result = await removeExternalMcpServer({ filePath, name: 'graphify', dryRun: true });
     expect(result.action).toBe('merged');
     expect(JSON.parse(await readFile(filePath, 'utf8')).mcpServers.graphify.command).toBe('python3');
+  });
+});
+
+describe('findExternalMcpServerByContent', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'coodra-ext-mcp-find-'));
+  });
+
+  it('finds a foreign key by URL substring regardless of entry shape (Windsurf serverUrl, disabled)', async () => {
+    const filePath = join(dir, 'mcp_config.json');
+    await writeFile(
+      filePath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            coodra: { command: 'node', args: ['/abs/mcp-server.js'] },
+            'atlassian-mcp-server': { serverUrl: 'https://mcp.atlassian.com/v1/mcp', disabled: true },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    const key = await findExternalMcpServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBe('atlassian-mcp-server');
+  });
+
+  it('excludes the excludeName key itself — a lone coodra-managed `atlassian` entry is null', async () => {
+    const filePath = join(dir, '.mcp.json');
+    await writeFile(
+      filePath,
+      JSON.stringify(
+        { mcpServers: { atlassian: { type: 'http', url: 'https://mcp.atlassian.com/v1/mcp/authv2' } } },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    const key = await findExternalMcpServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('detects an `npx mcp-remote <url>` stdio shim by its args', async () => {
+    const filePath = join(dir, '.mcp.json');
+    await writeFile(
+      filePath,
+      JSON.stringify(
+        {
+          mcpServers: {
+            'jira-shim': { command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.atlassian.com/v1/sse'] },
+          },
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    const key = await findExternalMcpServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBe('jira-shim');
+  });
+
+  it('returns null when no entry mentions the needle', async () => {
+    const filePath = join(dir, '.mcp.json');
+    await writeFile(
+      filePath,
+      JSON.stringify({ mcpServers: { coodra: { command: 'node' }, memory: { command: 'npx' } } }, null, 2),
+      'utf8',
+    );
+    const key = await findExternalMcpServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('returns null for a missing file (advisory, never a hard failure)', async () => {
+    const key = await findExternalMcpServerByContent({
+      filePath: join(dir, 'does-not-exist.json'),
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('returns null for an unparseable (invalid JSON) file instead of throwing', async () => {
+    const filePath = join(dir, '.mcp.json');
+    await writeFile(filePath, '{ not json — mcp.atlassian.com', 'utf8');
+    const key = await findExternalMcpServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
   });
 });
 

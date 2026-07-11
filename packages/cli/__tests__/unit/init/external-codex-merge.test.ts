@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  findExternalCodexServerByContent,
   mergeExternalCodexServer,
   readExternalCodexServerPresence,
   removeExternalCodexServer,
@@ -233,6 +234,87 @@ describe('removeExternalCodexServer', () => {
     const result = await removeExternalCodexServer({ filePath, name: 'graphify', dryRun: true });
     expect(result.action).toBe('merged');
     expect(tomlServers(await readFile(filePath, 'utf8')).graphify?.command).toBe('python3');
+  });
+});
+
+describe('findExternalCodexServerByContent', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'coodra-ext-codex-find-'));
+  });
+
+  it('finds a foreign key by URL substring regardless of table shape (url variant, disabled)', async () => {
+    const filePath = join(dir, 'config.toml');
+    await writeFile(
+      filePath,
+      '[mcp_servers.coodra]\ncommand = "node"\n\n' +
+        '[mcp_servers.atlassian-mcp-server]\nurl = "https://mcp.atlassian.com/v1/mcp"\ndisabled = true\n',
+      'utf8',
+    );
+    const key = await findExternalCodexServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBe('atlassian-mcp-server');
+  });
+
+  it('excludes the excludeName key itself — a lone coodra-managed `atlassian` table is null', async () => {
+    const filePath = join(dir, 'config.toml');
+    await writeFile(filePath, '[mcp_servers.atlassian]\nurl = "https://mcp.atlassian.com/v1/mcp/authv2"\n', 'utf8');
+    const key = await findExternalCodexServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('detects an `npx mcp-remote <url>` stdio shim by its args', async () => {
+    const filePath = join(dir, 'config.toml');
+    await writeFile(
+      filePath,
+      '[mcp_servers.jira-shim]\ncommand = "npx"\nargs = ["-y", "mcp-remote", "https://mcp.atlassian.com/v1/sse"]\n',
+      'utf8',
+    );
+    const key = await findExternalCodexServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBe('jira-shim');
+  });
+
+  it('returns null when no table mentions the needle', async () => {
+    const filePath = join(dir, 'config.toml');
+    await writeFile(filePath, '[mcp_servers.coodra]\ncommand = "node"\n', 'utf8');
+    const key = await findExternalCodexServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('returns null for a missing file (advisory, never a hard failure)', async () => {
+    const key = await findExternalCodexServerByContent({
+      filePath: join(dir, 'does-not-exist.toml'),
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
+  });
+
+  it('returns null for an unparseable (invalid TOML) file instead of throwing', async () => {
+    const filePath = join(dir, 'config.toml');
+    await writeFile(filePath, '[unclosed table header mcp.atlassian.com\n', 'utf8');
+    const key = await findExternalCodexServerByContent({
+      filePath,
+      needle: 'mcp.atlassian.com',
+      excludeName: 'atlassian',
+    });
+    expect(key).toBeNull();
   });
 });
 

@@ -37,8 +37,9 @@ export function createWikiSaveStructureToolRegistration(
       'explanation of the codebase from the file tree, README, and (if wired) Graphify. Persists the WikiStructure — ' +
       'title, description, mode, and the page hierarchy (each page with importance, relevant files, parent, related ' +
       'pages, wantsDiagram). Coodra writes a pending page skeleton you then fill via wiki_save_page. Re-using the same ' +
-      'slug replaces the wiki. Returns { ok: true, wikiId, slug, mode, pageCount, status, pendingPageIds } or ' +
-      '{ ok: false, error: "run_not_found" | "auth_required", howToFix }.',
+      'slug re-plans the wiki; once pages are authored that requires replace: true (else wiki_exists protects them). ' +
+      'Returns { ok: true, wikiId, slug, mode, pageCount, status, pendingPageIds } or ' +
+      '{ ok: false, error: "run_not_found" | "auth_required" | "wiki_exists", howToFix }.',
     inputSchema: wikiSaveStructureInputSchema,
     outputSchema: wikiSaveStructureOutputSchema,
     idempotencyKey: wikiSaveStructureIdempotencyKey,

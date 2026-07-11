@@ -81,8 +81,11 @@ Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool 
 ### At the start of every session — do this first
 1. \`coodra__get_run_id { projectSlug: "${projectSlug}", agentType: "${agent.agentType}" }\`
    — obtains the \`runId\` that binds this session. Cache it; reuse it in
-   every later call. ALWAYS pass \`agentType: "${agent.agentType}"\` — it
-   attributes this run to ${agent.displayName} on the Coodra dashboard.${sessionIdHint}
+   every later call. Pass \`agentType: "${agent.agentType}"\` — it
+   attributes this run to ${agent.displayName} on the Coodra dashboard.
+   This file was generated for ${agent.displayName}. If you are a
+   DIFFERENT agent reading it, pass YOUR own type instead — one of
+   \`"claude_code" | "cursor" | "windsurf" | "codex"\`.${sessionIdHint}
 2. \`coodra__get_feature_pack { projectSlug: "${projectSlug}" }\` — the
    architectural blueprint + conventions + permitted files for this project.
    Read it before writing code.

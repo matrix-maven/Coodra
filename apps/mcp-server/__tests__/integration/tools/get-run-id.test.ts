@@ -132,6 +132,68 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
 });
 
 // ---------------------------------------------------------------------------
+// agentType precedence — a KNOWN transport-resolved ctx.agentType beats the
+// input.agentType param (field fix 2026-07-12: Windsurf parroting a
+// Codex-authored AGENTS.md passed agentType: "codex" and mislabeled its runs)
+// ---------------------------------------------------------------------------
+
+describe('get_run_id — agentType precedence (known transport identity beats the input param)', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('stamps the transport ctx.agentType when it is known, ignoring input.agentType (the field scenario)', async () => {
+    const registry = buildRegistry(h.handle, 'solo');
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'windsurf-proj', agentType: 'codex' },
+      'sess_field',
+      { agentType: 'windsurf' },
+    );
+    const out = unwrap(result);
+    expect(out.ok).toBe(true);
+    const runs = await h.handle.db
+      .select()
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.sessionId, 'sess_field'));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.agentType).toBe('windsurf');
+  });
+
+  it('falls back to input.agentType when the transport resolved unknown (param fallback preserved)', async () => {
+    const registry = buildRegistry(h.handle, 'solo');
+    // No 4th-arg agentType — the registry defaults ctx.agentType to 'unknown'.
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'codex-proj', agentType: 'codex' },
+      'sess_param',
+    );
+    const out = unwrap(result);
+    expect(out.ok).toBe(true);
+    const runs = await h.handle.db
+      .select()
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.sessionId, 'sess_param'));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.agentType).toBe('codex');
+  });
+
+  it('stamps unknown when the transport resolved unknown and no input param was supplied', async () => {
+    const registry = buildRegistry(h.handle, 'solo');
+    const result = await registry.handleCall('get_run_id', { projectSlug: 'anon-proj' }, 'sess_anon');
+    const out = unwrap(result);
+    expect(out.ok).toBe(true);
+    const runs = await h.handle.db.select().from(sqliteSchema.runs).where(eq(sqliteSchema.runs.sessionId, 'sess_anon'));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.agentType).toBe('unknown');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Team mode — structured soft-failure on unknown slug
 // ---------------------------------------------------------------------------
 

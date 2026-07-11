@@ -175,6 +175,49 @@ export async function removeExternalMcpServer(options: {
   return { path: filePath, action: 'merged', notes: `removed the ${name} entry` };
 }
 
+/**
+ * Scan every `mcpServers` entry EXCEPT `excludeName` for one whose
+ * serialized value contains `needle` (e.g. a vendor URL host like
+ * `mcp.atlassian.com`). Returns the first matching key, or `null`.
+ *
+ * Why serialize-and-substring instead of reading specific fields: the
+ * same vendor server appears as `{ url }` (Cursor/Codex), `{ serverUrl }`
+ * (Windsurf), `{ type: 'http', url }` (Claude Code), or an
+ * `npx mcp-remote <url>` stdio shim — and users' IDEs write their own
+ * shapes too (`disabled: true` variants, custom keys like
+ * `atlassian-mcp-server`). A substring over the canonical JSON catches
+ * every shape without a per-client parser. Field bug 2026-07-12: `coodra
+ * jira enable` keyed only on the literal `atlassian` name and blindly
+ * added a second Atlassian server next to the user's existing
+ * `atlassian-mcp-server` entry.
+ *
+ * Missing or unparseable files return `null` — detection is advisory,
+ * never a hard failure.
+ */
+export async function findExternalMcpServerByContent(options: {
+  readonly filePath: string;
+  readonly needle: string;
+  readonly excludeName: string;
+}): Promise<string | null> {
+  if (!(await pathExists(options.filePath))) return null;
+  let parsed: McpJsonShape;
+  try {
+    parsed = parseMcpJson(await readFile(options.filePath, 'utf8'), options.filePath);
+  } catch {
+    return null;
+  }
+  const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
+  for (const [key, value] of Object.entries(servers)) {
+    if (key === options.excludeName) continue;
+    try {
+      if (JSON.stringify(value).includes(options.needle)) return key;
+    } catch {
+      // Circular / non-serializable entry — cannot match, skip it.
+    }
+  }
+  return null;
+}
+
 export interface McpServerPresence {
   /** Whether the config file exists. */
   readonly exists: boolean;

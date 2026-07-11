@@ -106,6 +106,32 @@ describe('wiki_save_structure — input schema', () => {
         .success,
     ).toBe(false);
   });
+
+  it('accepts the optional replace flag as a boolean (replace guard, field fix 2026-07-12)', () => {
+    expect(
+      wikiSaveStructureInputSchema.safeParse({ runId: 'r', slug: 'coodra', structure: validStructure(), replace: true })
+        .success,
+    ).toBe(true);
+    expect(
+      wikiSaveStructureInputSchema.safeParse({
+        runId: 'r',
+        slug: 'coodra',
+        structure: validStructure(),
+        replace: false,
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a non-boolean replace flag', () => {
+    expect(
+      wikiSaveStructureInputSchema.safeParse({
+        runId: 'r',
+        slug: 'coodra',
+        structure: validStructure(),
+        replace: 'yes',
+      }).success,
+    ).toBe(false);
+  });
 });
 
 describe('wiki_save_structure — output schema', () => {
@@ -127,6 +153,23 @@ describe('wiki_save_structure — output schema', () => {
     for (const error of ['run_not_found', 'auth_required'] as const) {
       expect(wikiSaveStructureOutputSchema.safeParse({ ok: false, error, howToFix: 'x' }).success).toBe(true);
     }
+  });
+
+  it('parses the wiki_exists branch with the existing wikiId + counts', () => {
+    expect(
+      wikiSaveStructureOutputSchema.safeParse({
+        ok: false,
+        error: 'wiki_exists',
+        wikiId: 'wiki_1',
+        authoredCount: 1,
+        pageCount: 2,
+        howToFix: 'pass replace: true to re-plan',
+      }).success,
+    ).toBe(true);
+    // The branch requires the existing wikiId — a bare howToFix-only shape is rejected.
+    expect(wikiSaveStructureOutputSchema.safeParse({ ok: false, error: 'wiki_exists', howToFix: 'x' }).success).toBe(
+      false,
+    );
   });
 });
 

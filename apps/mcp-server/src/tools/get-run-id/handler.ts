@@ -238,12 +238,21 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
 
   return async function getRunIdHandler(input: GetRunIdInput, ctx: ToolContext): Promise<GetRunIdOutput> {
     // F9 + F10 closure (verification 2026-04-27): when the caller
-    // supplies an agentSessionId / agentType, use those as the
-    // canonical session-binding values. Otherwise fall back to the
-    // transport-generated ctx.sessionId / ctx.agentType (legacy
-    // behaviour preserved for callers that omit the fields).
+    // supplies an agentSessionId, use it as the canonical session-binding
+    // value. Otherwise fall back to the transport-generated ctx.sessionId
+    // (legacy behaviour preserved for callers that omit the field).
     const effectiveSessionId = input.agentSessionId ?? ctx.sessionId;
-    const effectiveAgentType = input.agentType ?? ctx.agentType;
+    // Agent-type precedence (field fix 2026-07-12): the transport-resolved
+    // identity WINS when it is known. On stdio it comes from the per-agent
+    // `COODRA_AGENT_TYPE` stamp `coodra init` wrote into the very config
+    // entry that launched this server; on HTTP from the client's own
+    // initialize handshake. The `input.agentType` param, by contrast, is
+    // instruction-file text that ANY agent may parrot — AGENTS.md is a
+    // de-facto cross-agent standard, so Windsurf reading a Codex-generated
+    // AGENTS.md dutifully passed `agentType: "codex"` and mislabeled its
+    // runs. The param stays as the fallback for transports that resolve
+    // 'unknown' (e.g. manually wired configs without the env stamp).
+    const effectiveAgentType = ctx.agentType !== 'unknown' ? ctx.agentType : (input.agentType ?? ctx.agentType);
 
     const resolved = await resolveProjectId(deps, input.projectSlug);
 

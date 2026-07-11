@@ -15,6 +15,13 @@ import { z } from 'zod';
  * project from `runs.projectId`. `slug` keys the wiki within the project
  * (kebab-case; typically the project slug) so a re-plan replaces the same
  * wiki rather than spawning duplicates.
+ *
+ * Replace guard (field fix 2026-07-12): a re-plan against a wiki that
+ * already has AUTHORED pages soft-fails with `wiki_exists` unless
+ * `replace: true` is passed — two agents defaulting to the project slug
+ * used to silently wipe each other's authored wikis (the re-plan is a
+ * DELETE-then-INSERT). A pending-only skeleton (nothing authored yet) is
+ * still replaced freely so an agent can iterate on its plan mid-flow.
  */
 export const wikiSaveStructureInputSchema = z
   .object({
@@ -24,10 +31,18 @@ export const wikiSaveStructureInputSchema = z
       .min(1, 'slug is required')
       .max(WIKI_LIMITS.MAX_ID)
       .regex(WIKI_ID_RE, 'slug must be kebab-case (lowercase, digits, hyphens)')
-      .describe('Wiki slug within the project (kebab-case; usually the project slug). Re-using it replaces the wiki.'),
+      .describe(
+        'Wiki slug within the project (kebab-case; usually the project slug). Re-using it re-plans the wiki (requires replace: true once pages are authored).',
+      ),
     structure: wikiStructureSchema.describe(
       'The full WikiStructure: title/description/mode + the page+section hierarchy.',
     ),
+    replace: z
+      .boolean()
+      .optional()
+      .describe(
+        'Set true to replace an existing wiki that already has AUTHORED pages (a destructive re-plan: every authored page is deleted). Without it, the call soft-fails with wiki_exists to protect authored work. Only pass it when the user explicitly asked for a re-plan/refresh.',
+      ),
   })
   .strict()
   .describe('Input for coodra__wiki_save_structure.');
@@ -62,10 +77,27 @@ const authRequiredBranch = z
   })
   .strict();
 
+const wikiExistsBranch = z
+  .object({
+    ok: z.literal(false),
+    error: z.literal('wiki_exists'),
+    /** The existing wiki the caller may resume via wiki_status. */
+    wikiId: z.string().min(1),
+    authoredCount: z.number().int().nonnegative(),
+    pageCount: z.number().int().nonnegative(),
+    howToFix: z.string().min(1),
+  })
+  .strict();
+
 // z.union (not discriminatedUnion): Zod v4 rejects a discriminated union
 // with multiple members sharing the same `ok: false` discriminator. Same
 // shape as save_context_pack's multi-soft-failure output.
-export const wikiSaveStructureOutputSchema = z.union([successBranch, runNotFoundBranch, authRequiredBranch]);
+export const wikiSaveStructureOutputSchema = z.union([
+  successBranch,
+  runNotFoundBranch,
+  authRequiredBranch,
+  wikiExistsBranch,
+]);
 
 export type WikiSaveStructureInput = z.infer<typeof wikiSaveStructureInputSchema>;
 export type WikiSaveStructureOutput = z.infer<typeof wikiSaveStructureOutputSchema>;

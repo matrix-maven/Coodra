@@ -57,6 +57,29 @@ describe('mapAgentType', () => {
     expect(mapAgentType('windsurf')).toBe<KnownAgentType>('windsurf');
   });
 
+  it('maps the Windsurf brand family (codeium / cascade / devin) to windsurf', () => {
+    expect(mapAgentType('codeium')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('cascade')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('devin')).toBe<KnownAgentType>('windsurf');
+    // Case-insensitive like every other entry.
+    expect(mapAgentType('Devin')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('CODEIUM')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('Cascade')).toBe<KnownAgentType>('windsurf');
+  });
+
+  it('checks codex LAST in the heuristics so composite names bucket to the other product token', () => {
+    // Field report 2026-07-12: Windsurf runs were mislabeled codex.
+    expect(mapAgentType('windsurf-codex-bridge')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('codeium-codex-shim')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('cascade-codex')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('devin-codex-agent')).toBe<KnownAgentType>('windsurf');
+    expect(mapAgentType('my-cursor-codex')).toBe<KnownAgentType>('cursor');
+    // 'copilot' still outranks everything, codex included.
+    expect(mapAgentType('github-copilot-codex-bridge')).toBe<KnownAgentType>('vscode_copilot');
+    // A name with ONLY the codex token still resolves to codex.
+    expect(mapAgentType('some-codex-thing')).toBe<KnownAgentType>('codex');
+  });
+
   it('maps Codex handshake names to codex (beta.95)', () => {
     expect(mapAgentType('codex')).toBe<KnownAgentType>('codex');
     expect(mapAgentType('codex-cli')).toBe<KnownAgentType>('codex');
@@ -92,6 +115,40 @@ describe('resolveAgentType — clientInfo first, COODRA_AGENT_TYPE env stamp sec
   it('rejects an invalid env stamp and returns unknown', () => {
     expect(resolveAgentType(undefined, { COODRA_AGENT_TYPE: 'not-a-real-agent' })).toBe<KnownAgentType>('unknown');
     expect(resolveAgentType(undefined, {})).toBe<KnownAgentType>('unknown');
+  });
+});
+
+describe('resolveAgentType — preferEnvStamp (stdio: the coodra-init config stamp beats the handshake)', () => {
+  it('lets a valid env stamp win over the clientInfo mapping when preferEnvStamp is true', () => {
+    // Field report 2026-07-12: Windsurf launched from its own stamped
+    // config entry but shipped a codex-flavored clientInfo name.
+    expect(
+      resolveAgentType('codex-mcp-client', { COODRA_AGENT_TYPE: 'windsurf' }, { preferEnvStamp: true }),
+    ).toBe<KnownAgentType>('windsurf');
+  });
+
+  it('keeps clientInfo-first precedence for the same inputs WITHOUT the option (HTTP default unchanged)', () => {
+    expect(resolveAgentType('codex-mcp-client', { COODRA_AGENT_TYPE: 'windsurf' })).toBe<KnownAgentType>('codex');
+    expect(resolveAgentType('codex-mcp-client', { COODRA_AGENT_TYPE: 'windsurf' }, {})).toBe<KnownAgentType>('codex');
+  });
+
+  it('falls back to the clientInfo mapping when the stamp is invalid, even with preferEnvStamp', () => {
+    expect(
+      resolveAgentType('codex-mcp-client', { COODRA_AGENT_TYPE: 'not-a-type' }, { preferEnvStamp: true }),
+    ).toBe<KnownAgentType>('codex');
+  });
+
+  it('resolves a stamp-only setup (unknown clientName) in both modes', () => {
+    expect(
+      resolveAgentType('never-seen-client', { COODRA_AGENT_TYPE: 'windsurf' }, { preferEnvStamp: true }),
+    ).toBe<KnownAgentType>('windsurf');
+    expect(resolveAgentType('never-seen-client', { COODRA_AGENT_TYPE: 'windsurf' })).toBe<KnownAgentType>('windsurf');
+  });
+
+  it('trims + lowercases the stamp before matching (env files get hand-edited)', () => {
+    expect(
+      resolveAgentType('codex-mcp-client', { COODRA_AGENT_TYPE: '  Windsurf ' }, { preferEnvStamp: true }),
+    ).toBe<KnownAgentType>('windsurf');
   });
 });
 

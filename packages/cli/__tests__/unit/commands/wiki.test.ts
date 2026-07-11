@@ -12,7 +12,7 @@ import {
   runWikiStatusCommand,
   type WikiIO,
 } from '../../../src/commands/wiki.js';
-import { assembleGrounding, renderGroundingMarkdown } from '../../../src/lib/wiki/grounding.js';
+import { assembleGrounding, type GroundingResult, renderGroundingMarkdown } from '../../../src/lib/wiki/grounding.js';
 import { buildWikiJob, deepWikiFeatureFrontmatter, renderWikiRecipe } from '../../../src/lib/wiki/recipe.js';
 
 /** An IO that captures stdout/stderr and turns exit() into a throw we can assert on. */
@@ -72,6 +72,69 @@ describe('wiki grounding', () => {
     expect(md).toContain('## Directory rollup');
     expect(md).toContain('## Files');
     expect(md).toContain('## README');
+  });
+
+  // 2026-07-12 field fix: a depth-first walk exhausted the file cap inside
+  // the first alphabetical subtree, silently starving later top-level dirs.
+  // The walk is now breadth-first with a 1500-file cap so every top-level
+  // area appears in the sample even when one subtree alone exceeds the cap.
+  it('breadth-first walk with the 1500-file cap samples every top-level dir', () => {
+    mkdirSync(join(dir, 'aaa', 'nested'), { recursive: true });
+    for (let i = 0; i < 1600; i++) {
+      writeFileSync(join(dir, 'aaa', 'nested', `f${String(i).padStart(4, '0')}.ts`), '', 'utf8');
+    }
+    mkdirSync(join(dir, 'zzz'), { recursive: true });
+    for (let i = 0; i < 5; i++) {
+      writeFileSync(join(dir, 'zzz', `z${i}.ts`), '', 'utf8');
+    }
+    const g = assembleGrounding({ cwd: dir, projectSlug: 'demo' });
+    expect(g.truncated).toBe(true);
+    expect(g.fileCount).toBe(1500);
+    expect(g.files).toHaveLength(1500);
+    // Depth-first would have burned the whole budget inside aaa/nested and
+    // dropped zzz entirely; breadth-first samples depth-1 files first.
+    expect(g.files).toContain('zzz/z0.ts');
+    expect(g.files).toContain('src/index.ts');
+  });
+
+  it('renders the capped-SAMPLE warning blockquote when the file list is truncated', () => {
+    const truncated: GroundingResult = {
+      projectSlug: 'demo',
+      cwd: '/repo',
+      fileCount: 1500,
+      truncated: true,
+      dirRollup: [{ dir: 'src', files: 1500 }],
+      files: ['src/a.ts'],
+      readme: null,
+      manifests: [],
+      graphify: null,
+    };
+    const md = renderGroundingMarkdown(truncated);
+    expect(md).toContain('## Files (1500+, sample capped)');
+    expect(md).toContain('⚠ **This file list is a capped SAMPLE');
+    expect(md).toContain('Do NOT plan the wiki structure from this list alone');
+
+    const complete = renderGroundingMarkdown({ ...truncated, truncated: false });
+    expect(complete).toContain('## Files (1500)');
+    expect(complete).not.toContain('capped SAMPLE');
+  });
+
+  it('caps the directory rollup at 30 and prints how many more top-level entries exist', () => {
+    const rollup = Array.from({ length: 34 }, (_, i) => ({ dir: `d${String(i).padStart(2, '0')}`, files: 34 - i }));
+    const md = renderGroundingMarkdown({
+      projectSlug: 'demo',
+      cwd: '/repo',
+      fileCount: 34,
+      truncated: false,
+      dirRollup: rollup,
+      files: ['d00/a.ts'],
+      readme: null,
+      manifests: [],
+      graphify: null,
+    });
+    expect(md).toContain('- `d29/`');
+    expect(md).not.toContain('- `d30/`');
+    expect(md).toContain('…and 4 more top-level entries');
   });
 
   it('summarises a graphify graph when present', () => {
@@ -138,6 +201,61 @@ describe('wiki recipe', () => {
     expect(md).toContain('Do NOT create files');
     expect(md).toContain('DEEP_WIKI.md');
     expect(md).toContain('Preflight');
+  });
+
+  // 2026-07-12: the structure block is mode-aware — comprehensive derives
+  // the page count from the repo (under-covering is the failure mode);
+  // concise pins a small flat page budget.
+  it('comprehensive mode targets 12–30 pages and biases toward adding pages', () => {
+    const md = renderWikiRecipe({
+      projectSlug: 'demo',
+      slug: 'demo',
+      mode: 'comprehensive',
+      groundingPath: '.coodra/wiki-grounding.md',
+      includeJobHeader: false,
+    });
+    expect(md).toContain('Coverage target (comprehensive mode)');
+    expect(md).toContain('12–30 pages');
+    expect(md).toContain('when in doubt, ADD the page');
+    expect(md).not.toContain('6–12 focused pages');
+  });
+
+  it('concise mode targets 6–12 focused flat pages', () => {
+    const md = renderWikiRecipe({
+      projectSlug: 'demo',
+      slug: 'demo',
+      mode: 'concise',
+      groundingPath: '.coodra/wiki-grounding.md',
+      includeJobHeader: false,
+    });
+    expect(md).toContain('Coverage target (concise mode)');
+    expect(md).toContain('6–12 focused pages');
+    expect(md).not.toContain('12–30 pages');
+    expect(md).not.toContain('when in doubt, ADD the page');
+  });
+
+  it('pass 1 explains the wiki_exists soft-failure and the replace: true re-plan escape hatch', () => {
+    const md = renderWikiRecipe({
+      projectSlug: 'demo',
+      slug: 'demo',
+      mode: 'comprehensive',
+      groundingPath: '.coodra/wiki-grounding.md',
+      includeJobHeader: true,
+    });
+    expect(md).toContain('wiki_exists');
+    expect(md).toContain('replace: true');
+  });
+
+  it("the quality bar says SPLIT crowded pages — never 'Prefer fewer, deeper pages'", () => {
+    const md = renderWikiRecipe({
+      projectSlug: 'demo',
+      slug: 'demo',
+      mode: 'comprehensive',
+      groundingPath: '.coodra/wiki-grounding.md',
+      includeJobHeader: true,
+    });
+    expect(md).toContain('SPLIT them into two pages');
+    expect(md).not.toContain('Prefer fewer, deeper pages');
   });
 
   it('the deep-wiki-author feature frontmatter has a trigger description', () => {

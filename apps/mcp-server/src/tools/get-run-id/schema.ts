@@ -53,8 +53,10 @@ export const getRunIdInputSchema = z
       .enum(['claude_code', 'cursor', 'windsurf', 'codex', 'unknown'])
       .optional()
       .describe(
-        'Agent type stamp for the runs row. When present, overrides the transport guess ' +
-          '(which defaults to "unknown" for HTTP).',
+        'Agent type stamp for the runs row. Fallback only: it applies when the transport ' +
+          'cannot resolve the agent itself (resolves "unknown" — e.g. HTTP with an ' +
+          'unrecognized client name, or stdio without a COODRA_AGENT_TYPE config stamp). ' +
+          'A known transport-resolved identity wins over this param.',
       ),
   })
   .strict()

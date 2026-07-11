@@ -1,8 +1,17 @@
 import { homedir } from 'node:os';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
-import { jiraConfigPath, ROVO_MCP_URL, readJiraPresence, unwireJira, wireJira } from '../lib/init/jira-wire.js';
+import {
+  type ForeignAtlassianServer,
+  findForeignAtlassianServer,
+  jiraConfigPath,
+  ROVO_MCP_URL,
+  readJiraPresence,
+  unwireJira,
+  wireJira,
+} from '../lib/init/jira-wire.js';
 import type { WriteOutcome } from '../lib/init/types.js';
+import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
 
@@ -43,6 +52,12 @@ export interface JiraEnableOptions {
   readonly cwd?: string;
   /** Override `$HOME` for tests. */
   readonly userHome?: string;
+  /**
+   * Override the interactive prompt reader (tests). When provided, the
+   * pre-existing-Atlassian confirmation prompt is considered interactive
+   * regardless of TTY state.
+   */
+  readonly readPrompt?: (question: string) => Promise<string>;
 }
 
 export interface JiraDisableOptions {
@@ -170,8 +185,56 @@ export async function runJiraEnableCommand(
     );
   }
 
+  // Field fix 2026-07-12: detect a PRE-EXISTING Atlassian MCP server wired
+  // under any OTHER key (e.g. the user's own `atlassian-mcp-server`, even
+  // `disabled: true`) before adding Coodra's `atlassian` entry — blindly
+  // adding used to leave two Atlassian servers side by side. Interactive
+  // runs ask once; non-interactive runs skip with a notice; `--force`
+  // proceeds without asking.
+  const skipIdes = new Map<IDE, ForeignAtlassianServer>();
+  if (options.force !== true) {
+    const foreign: ForeignAtlassianServer[] = [];
+    for (const ide of selection.ides) {
+      const found = await findForeignAtlassianServer({ ide, cwd, userHome });
+      if (found !== null) foreign.push(found);
+    }
+    if (foreign.length > 0) {
+      const interactive = !json && !dryRun && (options.readPrompt !== undefined || process.stdin.isTTY === true);
+      let addAnyway = false;
+      if (interactive) {
+        io.writeStdout(`${pc.yellow('!')} An Atlassian MCP server is already wired:\n`);
+        for (const f of foreign) {
+          io.writeStdout(`    • ${IDE_DISPLAY[f.ide]}: key '${f.key}' in ${pc.gray(f.configPath)}\n`);
+        }
+        const readPrompt = options.readPrompt ?? terminalReadPrompt;
+        const answer = (await readPrompt(`  Add Coodra's 'atlassian' entry anyway? [y/${pc.cyan('N')}]: `))
+          .trim()
+          .toLowerCase();
+        addAnyway = answer === 'y' || answer === 'yes';
+        io.writeStdout('\n');
+      }
+      if (!addAnyway) {
+        for (const f of foreign) skipIdes.set(f.ide, f);
+      }
+    }
+  }
+
   const results: IdeActionResult[] = [];
   for (const ide of selection.ides) {
+    const skipped = skipIdes.get(ide);
+    if (skipped !== undefined) {
+      results.push({
+        kind: 'outcome',
+        ide,
+        displayName: IDE_DISPLAY[ide],
+        outcome: {
+          path: skipped.configPath,
+          action: 'unchanged',
+          notes: `existing Atlassian MCP server (key '${skipped.key}') — skipped; re-run with --force to add Coodra's 'atlassian' entry anyway`,
+        },
+      });
+      continue;
+    }
     try {
       const outcome = await wireJira({ ide, cwd, userHome, force: options.force === true, dryRun });
       results.push({ kind: 'outcome', ide, displayName: IDE_DISPLAY[ide], outcome });
@@ -289,6 +352,8 @@ interface JiraIdeStatus {
   readonly exists: boolean;
   readonly wired: boolean;
   readonly unreadable: boolean;
+  /** Pre-existing Atlassian server under a non-Coodra key, or null. */
+  readonly foreignKey: string | null;
 }
 
 function renderStatusRow(s: JiraIdeStatus): string {
@@ -301,6 +366,12 @@ function renderStatusRow(s: JiraIdeStatus): string {
   } else if (s.wired) {
     glyph = pc.green('✓');
     note = `${s.configPath} — atlassian MCP entry present`;
+  } else if (s.foreignKey !== null) {
+    // An Atlassian server IS reachable — just not under Coodra's key.
+    // Reporting "no atlassian entry" here would mislead the user into
+    // enabling a duplicate (field bug 2026-07-12).
+    glyph = pc.green('✓');
+    note = `${s.configPath} — Atlassian wired under key '${s.foreignKey}' (not Coodra-managed)`;
   } else if (s.exists) {
     glyph = pc.yellow('◌');
     note = `${s.configPath} — no atlassian entry`;
@@ -345,11 +416,14 @@ export async function runJiraStatusCommand(
   }
   io.writeStdout('\n');
   const anyWired = statuses.some((s) => s.wired);
+  const anyForeign = statuses.some((s) => !s.wired && s.foreignKey !== null);
   io.writeStdout(
     hintLine(
       anyWired
         ? '  Run `coodra jira disable` to remove the wiring.'
-        : '  Run `coodra jira enable` to wire Atlassian Jira (Rovo) into your agent config.',
+        : anyForeign
+          ? '  An Atlassian MCP server is already wired outside Coodra — the agent can reach Jira as-is. `coodra jira enable` would ask before adding a second entry.'
+          : '  Run `coodra jira enable` to wire Atlassian Jira (Rovo) into your agent config.',
     ),
   );
   io.writeStdout('\n');

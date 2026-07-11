@@ -87,20 +87,22 @@ export async function startStdioTransport(opts: StdioStartOptions): Promise<{
   // validation, and post-phase policy check. Returns the MCP-shaped
   // envelope directly.
   //
-  // agentType is resolved from the MCP client's initialize handshake:
-  // `server.getClientVersion()` returns `{ name, version } | undefined`
-  // after the client has finished `initialize`. `resolveAgentType` maps
-  // the name string (`claude-code`, `codex-mcp-client`, …) to the
-  // canonical `runs.agent_type` value, falling back to the per-config
-  // `COODRA_AGENT_TYPE` env stamp `coodra init` writes into each
-  // agent's MCP entry (stdio = one process per agent config, so the
-  // stamp is unambiguous). If neither resolves, the value is
+  // agentType resolution on stdio PREFERS the per-config
+  // `COODRA_AGENT_TYPE` env stamp `coodra init` writes into each agent's
+  // MCP entry: stdio = one process per agent config, so the stamp is
+  // ground truth for which agent launched this server — stronger than a
+  // name heuristic (field report 2026-07-12: Windsurf runs mislabeled
+  // `codex`). When no valid stamp is present, `resolveAgentType` falls
+  // back to mapping the MCP client's initialize handshake name
+  // (`server.getClientVersion()` → `{ name, version } | undefined`) —
+  // `claude-code`, `codex-mcp-client`, … — to the canonical
+  // `runs.agent_type` value. If neither resolves, the value is
   // `'unknown'` — see `src/lib/agent-type.ts` for the mapping table
   // and the S8 decisions-log entry for the rationale.
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: args } = req.params;
     const clientName = server.getClientVersion()?.name;
-    const agentType = resolveAgentType(clientName, process.env);
+    const agentType = resolveAgentType(clientName, process.env, { preferEnvStamp: true });
     const result = await registry.handleCall(name, args ?? {}, sessionId, { agentType });
     // Our ToolResult is shape-compatible with the SDK's CallToolResult
     // ({ content, isError?, structuredContent? }); the cast narrows the

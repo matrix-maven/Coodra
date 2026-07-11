@@ -37,7 +37,7 @@ import {
 } from '../lib/init/graphify-python.js';
 import { DEFAULT_GRAPHIFY_GRAPH_PATH, wireGraphify } from '../lib/init/graphify-wire.js';
 import { mergeInstructionFile } from '../lib/init/instruction-files.js';
-import { wireJira } from '../lib/init/jira-wire.js';
+import { findForeignAtlassianServer, wireJira } from '../lib/init/jira-wire.js';
 import { buildCoodraMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { mergeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
@@ -946,6 +946,24 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   if (wireJiraChoice && ides.length > 0) {
     for (const ide of ides) {
       try {
+        // Field fix 2026-07-12: an Atlassian MCP server may already be
+        // wired under another key (e.g. the user's own
+        // `atlassian-mcp-server`). Adding Coodra's `atlassian` entry next
+        // to it would leave two Atlassian servers — skip and say so
+        // (`coodra jira enable` asks interactively; `--force` overrides).
+        const foreign = force ? null : await findForeignAtlassianServer({ ide, cwd: root, userHome });
+        if (foreign !== null) {
+          io.writeStdout(
+            `${pc.yellow('⚠')} ${IDE_DISPLAY[ide]}: Atlassian MCP already wired (key '${foreign.key}' in ${foreign.configPath}) — skipped.\n` +
+              `  ${pc.gray("The agent can reach Jira through that entry as-is. Run `coodra jira enable --force` to add Coodra's entry anyway.")}\n`,
+          );
+          outcomes.push({
+            path: foreign.configPath,
+            action: 'unchanged',
+            notes: `existing Atlassian MCP server (key '${foreign.key}') — skipped`,
+          });
+          continue;
+        }
         outcomes.push(await wireJira({ ide, cwd: root, userHome, force, dryRun }));
       } catch (err) {
         io.writeStderr(`${pc.yellow('⚠')} Could not wire Jira for ${ide}: ${(err as Error).message}\n`);

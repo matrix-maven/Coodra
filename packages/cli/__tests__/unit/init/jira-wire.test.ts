@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  ATLASSIAN_URL_HOST,
   buildJiraEntry,
   CODEX_REMOTE_TOPLEVEL,
+  findForeignAtlassianServer,
   JIRA_SERVER_NAME,
   jiraConfigPath,
   ROVO_MCP_URL,
@@ -247,6 +249,7 @@ describe('readJiraPresence', () => {
       exists: false,
       wired: false,
       unreadable: false,
+      foreignKey: null,
     });
   });
 
@@ -275,5 +278,94 @@ describe('readJiraPresence', () => {
 
   it('the server key is the canonical "atlassian"', () => {
     expect(JIRA_SERVER_NAME).toBe('atlassian');
+  });
+
+  it('sets foreignKey when a foreign Atlassian entry exists alongside wired:false', async () => {
+    await writeFile(
+      join(cwd, '.mcp.json'),
+      `${JSON.stringify(
+        { mcpServers: { 'atlassian-mcp-server': { serverUrl: 'https://mcp.atlassian.com/v1/mcp', disabled: true } } },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+    expect(await readJiraPresence({ ide: 'claude', cwd, userHome: home })).toEqual({
+      exists: true,
+      wired: false,
+      unreadable: false,
+      foreignKey: 'atlassian-mcp-server',
+    });
+  });
+
+  it('foreignKey stays null when only the coodra-managed `atlassian` entry exists (wired:true)', async () => {
+    await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
+    expect(await readJiraPresence({ ide: 'claude', cwd, userHome: home })).toEqual({
+      exists: true,
+      wired: true,
+      unreadable: false,
+      foreignKey: null,
+    });
+  });
+});
+
+// Field bug 2026-07-12: `coodra jira enable` keyed only on the literal
+// `atlassian` name, so a user whose IDE already carried an Atlassian MCP
+// server under a different key (e.g. `atlassian-mcp-server`) ended up
+// with TWO Atlassian servers. `findForeignAtlassianServer` is the
+// content-based detector callers use to ask/skip instead.
+describe('findForeignAtlassianServer', () => {
+  let cwd: string;
+  let home: string;
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), 'coodra-jira-foreign-cwd-'));
+    home = await mkdtemp(join(tmpdir(), 'coodra-jira-foreign-home-'));
+  });
+
+  it('the needle host covers every Rovo endpoint variant', () => {
+    expect(ATLASSIAN_URL_HOST).toBe('mcp.atlassian.com');
+    expect(ROVO_MCP_URL).toContain(ATLASSIAN_URL_HOST);
+  });
+
+  it('finds `atlassian-mcp-server` in the Windsurf serverUrl shape, even disabled', async () => {
+    const configPath = join(home, '.codeium', 'windsurf', 'mcp_config.json');
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(home, '.codeium', 'windsurf'), { recursive: true });
+    await writeFile(
+      configPath,
+      `${JSON.stringify(
+        { mcpServers: { 'atlassian-mcp-server': { serverUrl: 'https://mcp.atlassian.com/v1/mcp', disabled: true } } },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+    expect(await findForeignAtlassianServer({ ide: 'windsurf', cwd, userHome: home })).toEqual({
+      ide: 'windsurf',
+      configPath,
+      key: 'atlassian-mcp-server',
+    });
+  });
+
+  it("returns null when only Coodra's own `atlassian` entry is wired", async () => {
+    await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
+    expect(await findForeignAtlassianServer({ ide: 'claude', cwd, userHome: home })).toBeNull();
+  });
+
+  it('finds a differently-keyed Atlassian table in Codex TOML', async () => {
+    const { mkdir } = await import('node:fs/promises');
+    await mkdir(join(cwd, '.codex'), { recursive: true });
+    const configPath = join(cwd, '.codex', 'config.toml');
+    await writeFile(configPath, '[mcp_servers.my-jira]\nurl = "https://mcp.atlassian.com/v1/mcp"\n', 'utf8');
+    expect(await findForeignAtlassianServer({ ide: 'codex', cwd, userHome: home })).toEqual({
+      ide: 'codex',
+      configPath,
+      key: 'my-jira',
+    });
+  });
+
+  it('returns null when the config file is missing', async () => {
+    expect(await findForeignAtlassianServer({ ide: 'cursor', cwd, userHome: home })).toBeNull();
   });
 });

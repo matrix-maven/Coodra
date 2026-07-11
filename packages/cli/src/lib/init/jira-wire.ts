@@ -1,11 +1,13 @@
 import { join } from 'node:path';
 import { type IDE, IDE_ORDER } from '../detect.js';
 import {
+  findExternalCodexServerByContent,
   mergeExternalCodexServer,
   readExternalCodexServerPresence,
   removeExternalCodexServer,
 } from './external-codex-merge.js';
 import {
+  findExternalMcpServerByContent,
   type McpEntry,
   mergeExternalMcpServer,
   readExternalMcpServerPresence,
@@ -70,6 +72,53 @@ export const ROVO_MCP_URL = 'https://mcp.atlassian.com/v1/mcp/authv2';
  * global — another remote server may still rely on it).
  */
 export const CODEX_REMOTE_TOPLEVEL: Record<string, unknown> = { experimental_use_rmcp_client: true };
+
+/**
+ * The one string that identifies "an Atlassian MCP server" regardless of
+ * entry key or shape: every Rovo endpoint variant (`/v1/mcp`,
+ * `/v1/mcp/authv2`, the deprecated `/v1/sse`) lives on this host, whether
+ * wired as `url` / `serverUrl` / an `npx mcp-remote` shim, under any key
+ * (`atlassian`, `atlassian-mcp-server`, …), enabled or `disabled: true`.
+ */
+export const ATLASSIAN_URL_HOST = 'mcp.atlassian.com';
+
+/** A pre-existing Atlassian MCP server found under a non-Coodra key. */
+export interface ForeignAtlassianServer {
+  readonly ide: IDE;
+  readonly configPath: string;
+  /** The `mcpServers` / `mcp_servers` key the entry lives under. */
+  readonly key: string;
+}
+
+/**
+ * Detect a pre-existing Atlassian MCP server in `ide`'s config that is
+ * NOT Coodra's own `atlassian` entry — any key whose entry mentions
+ * `mcp.atlassian.com`. Field bug 2026-07-12: enable keyed only on the
+ * literal `atlassian` name, so a user whose IDE already carried
+ * `atlassian-mcp-server` ended up with TWO Atlassian servers. Callers
+ * use this to ask/skip instead of blindly adding a duplicate.
+ */
+export async function findForeignAtlassianServer(options: {
+  readonly ide: IDE;
+  readonly cwd: string;
+  readonly userHome: string;
+}): Promise<ForeignAtlassianServer | null> {
+  const configPath = jiraConfigPath(options.ide, options.cwd, options.userHome);
+  const key =
+    options.ide === 'codex'
+      ? await findExternalCodexServerByContent({
+          filePath: configPath,
+          needle: ATLASSIAN_URL_HOST,
+          excludeName: JIRA_SERVER_NAME,
+        })
+      : await findExternalMcpServerByContent({
+          filePath: configPath,
+          needle: ATLASSIAN_URL_HOST,
+          excludeName: JIRA_SERVER_NAME,
+        });
+  if (key === null) return null;
+  return { ide: options.ide, configPath, key };
+}
 
 /**
  * Resolve the agent's MCP-config path for `ide`. Claude Code, Cursor and
@@ -172,6 +221,13 @@ export interface JiraServerPresence {
   readonly wired: boolean;
   /** True when the file exists but cannot be parsed. */
   readonly unreadable: boolean;
+  /**
+   * Key of a pre-existing Atlassian MCP server wired under a DIFFERENT
+   * name (e.g. the user's own `atlassian-mcp-server`), or `null` when
+   * none. Lets `status` surface "Atlassian is reachable, just not
+   * Coodra-managed" instead of a misleading "no atlassian entry".
+   */
+  readonly foreignKey: string | null;
 }
 
 /** Read-only probe — does `ide`'s config carry the `atlassian` entry? */
@@ -181,8 +237,10 @@ export async function readJiraPresence(options: {
   readonly userHome: string;
 }): Promise<JiraServerPresence> {
   const filePath = jiraConfigPath(options.ide, options.cwd, options.userHome);
-  if (options.ide === 'codex') {
-    return readExternalCodexServerPresence({ filePath, name: JIRA_SERVER_NAME });
-  }
-  return readExternalMcpServerPresence({ filePath, name: JIRA_SERVER_NAME });
+  const base =
+    options.ide === 'codex'
+      ? await readExternalCodexServerPresence({ filePath, name: JIRA_SERVER_NAME })
+      : await readExternalMcpServerPresence({ filePath, name: JIRA_SERVER_NAME });
+  const foreign = await findForeignAtlassianServer(options);
+  return { ...base, foreignKey: foreign?.key ?? null };
 }

@@ -140,6 +140,19 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(block).toContain(displayName);
   });
 
+  // 2026-07-12: the pinned agentType is a default, not a hard rule — an
+  // agent reading a file generated for a different client (e.g. Claude
+  // Code reading AGENTS.md) must pass its OWN type, so the block carries
+  // an explicit cross-agent caveat instead of 'ALWAYS pass'.
+  it('AGENTS.md output carries the cross-agent caveat (pass YOUR own agentType)', async () => {
+    await mergeInstructionFile({ cwd, filename: 'AGENTS.md', projectSlug: 'x-agent', dryRun: false });
+    const body = await readFile(join(cwd, 'AGENTS.md'), 'utf8');
+    expect(body).toContain('This file was generated for Codex.');
+    expect(body).toContain('pass YOUR own type instead');
+    expect(body).toContain('`"claude_code" | "cursor" | "windsurf" | "codex"`');
+    expect(body).not.toContain('ALWAYS pass');
+  });
+
   it('only CLAUDE.md carries the agentSessionId (hooks-bridge reconciliation) hint', () => {
     expect(buildInstructionBlock('s', 'CLAUDE.md')).toContain('agentSessionId');
     expect(buildInstructionBlock('s', 'AGENTS.md')).not.toContain('agentSessionId');

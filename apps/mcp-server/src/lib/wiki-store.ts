@@ -39,7 +39,14 @@ export async function selectRunProjectId(db: DbHandle, runId: string): Promise<s
   return rows[0]?.projectId ?? null;
 }
 
-async function selectWikiIdByProjectSlug(db: DbHandle, projectId: string, slug: string): Promise<string | null> {
+/**
+ * Wiki id for `(projectId, slug)`, or null. Exported for the
+ * `wiki_save_structure` replace-guard: a re-plan against a wiki that
+ * already has AUTHORED pages must be explicit (`replace: true`), so one
+ * agent cannot silently wipe another's authored wiki (field report
+ * 2026-07-12 — two agents on the same default slug overwrote each other).
+ */
+export async function selectWikiIdByProjectSlug(db: DbHandle, projectId: string, slug: string): Promise<string | null> {
   if (db.kind === 'sqlite') {
     const rows = await db.db
       .select({ id: sqliteSchema.wikis.id })

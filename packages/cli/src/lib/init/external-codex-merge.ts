@@ -207,6 +207,38 @@ export async function removeExternalCodexServer(options: {
   return { path: filePath, action: 'merged', notes: `removed the ${name} entry` };
 }
 
+/**
+ * Scan every `mcp_servers` table EXCEPT `excludeName` for one whose
+ * serialized value contains `needle` (e.g. a vendor URL host like
+ * `mcp.atlassian.com`). Returns the first matching key, or `null`.
+ * TOML sibling of `findExternalMcpServerByContent` — see that docblock
+ * for why detection is content-based, not key-based. Missing or
+ * unparseable files return `null` (advisory, never a hard failure).
+ */
+export async function findExternalCodexServerByContent(options: {
+  readonly filePath: string;
+  readonly needle: string;
+  readonly excludeName: string;
+}): Promise<string | null> {
+  if (!(await pathExists(options.filePath))) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseCodexToml(await readFile(options.filePath, 'utf8'), options.filePath);
+  } catch {
+    return null;
+  }
+  const servers = (parsed.mcp_servers as Record<string, unknown> | undefined) ?? {};
+  for (const [key, value] of Object.entries(servers)) {
+    if (key === options.excludeName) continue;
+    try {
+      if (JSON.stringify(value).includes(options.needle)) return key;
+    } catch {
+      // Non-serializable entry — cannot match, skip it.
+    }
+  }
+  return null;
+}
+
 export interface CodexServerPresence {
   /** Whether the config file exists. */
   readonly exists: boolean;

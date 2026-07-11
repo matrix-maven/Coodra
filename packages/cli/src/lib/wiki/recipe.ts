@@ -36,14 +36,32 @@ export function buildWikiJob(args: {
   return { v: 1, projectSlug: args.projectSlug, slug: args.slug, mode: args.mode, groundingPath: args.groundingPath };
 }
 
-const STRUCTURE_BLOCK = `Plan a \`WikiStructure\` (this exact shape — Coodra validates it):
+function structureBlock(mode: WikiMode): string {
+  const coverageTarget =
+    mode === 'comprehensive'
+      ? `Coverage target (comprehensive mode): derive the page count from the
+REPO, not from a default number. Rule of thumb — one page per major
+module / service / package in the grounding's directory rollup (and per
+Graphify community cluster when the graph is wired), PLUS Overview,
+Architecture, Configuration, Data Model, Testing, and
+Operations/Deployment pages where the code warrants them. A real codebase
+typically lands at 12–30 pages; **under-covering is the common failure
+mode — when in doubt, ADD the page.** Group pages into sections so the
+result reads like a hierarchical mind-map (Overview → Architecture →
+per-module pages → Operations), not a flat dump.`
+      : `Coverage target (concise mode): 6–12 focused pages, flat
+(\`sections: []\`). Cover Overview, Architecture, the 3–6 most important
+modules, and Operations. Depth over breadth — but never merge two
+unrelated subsystems into one page.`;
+
+  return `Plan a \`WikiStructure\` (this exact shape — Coodra validates it):
 
 \`\`\`jsonc
 {
   "schemaVersion": 1,
   "title": "<project> — a one-line title",
   "description": "<2–4 sentence overview of what this codebase is>",
-  "mode": "comprehensive",            // "comprehensive" = sections+pages; "concise" = flat pages
+  "mode": "${mode}",            // "comprehensive" = sections+pages; "concise" = flat pages
   "sections": [                          // [] when mode is "concise"
     { "id": "overview", "title": "Overview", "pageIds": ["introduction"], "subsectionIds": ["architecture"] }
   ],
@@ -65,10 +83,10 @@ const STRUCTURE_BLOCK = `Plan a \`WikiStructure\` (this exact shape — Coodra v
 
 Rules that Coodra enforces (a violation is rejected): every \`parentId\` /
 \`relatedPageIds\` / section \`pageIds\` / \`subsectionIds\` must reference an
-id that exists; page ids are unique; ≥ 1 page. Aim for ~8–20 pages for a
-real codebase — group them into sections so the result reads like a
-hierarchical mind-map (Overview → Architecture → per-module pages →
-Operations), not a flat dump.`;
+id that exists; page ids are unique; ≥ 1 page.
+
+${coverageTarget}`;
+}
 
 /**
  * Render the full authoring recipe. `includeJobHeader` adds the
@@ -121,7 +139,7 @@ export function renderWikiRecipe(args: {
   lines.push('');
   lines.push(`1. Call \`coodra__get_run_id({ projectSlug: "${projectSlug}" })\` and keep the \`runId\`.`);
   lines.push(
-    `2. Read \`${groundingPath}\` — the bounded codebase snapshot (stack, directory rollup, file list, README, Graphify summary).`,
+    `2. Read \`${groundingPath}\` — the bounded codebase snapshot (stack, directory rollup, file list, README, Graphify summary). If its file list is marked truncated ("N+, sample capped"), enumerate the under-represented directories yourself before planning — the wiki must cover the REPO, not the sample.`,
   );
   lines.push(
     '3. If the `graphify` MCP server is wired, call its `query_graph` / `get_neighbors` to ground the structure in the real dependency graph (communities → sections; high-degree nodes → important pages).',
@@ -130,10 +148,10 @@ export function renderWikiRecipe(args: {
 
   lines.push('## Pass 1 — plan + save the structure');
   lines.push('');
-  lines.push(STRUCTURE_BLOCK);
+  lines.push(structureBlock(mode));
   lines.push('');
   lines.push(
-    `Then persist it: \`coodra__wiki_save_structure({ runId, slug: "${slug}", structure })\`. It returns \`{ wikiId, pendingPageIds, pageCount }\`. **Keep the \`wikiId\`** — every later call needs it. Re-calling with the same slug re-plans (replaces) the wiki.`,
+    `Then persist it: \`coodra__wiki_save_structure({ runId, slug: "${slug}", structure })\`. It returns \`{ wikiId, pendingPageIds, pageCount }\`. **Keep the \`wikiId\`** — every later call needs it. If a wiki with AUTHORED pages already exists under this slug, the call soft-fails with \`wiki_exists\` — deliberately, so one agent cannot silently wipe another's authored wiki. Re-call with \`replace: true\` ONLY when the user explicitly asked for a re-plan/refresh; otherwise pick a different slug or resume the existing wiki via \`wiki_status\`.`,
   );
   lines.push('');
 
@@ -190,7 +208,7 @@ export function renderWikiRecipe(args: {
   );
   lines.push('');
   lines.push(
-    'Quality bar: a good page teaches — it names the key types/functions, shows how data flows, and links related pages. Prefer fewer, deeper pages over many shallow ones. Ground every claim in a file you actually read.',
+    'Quality bar: a good page teaches — it names the key types/functions, shows how data flows, and links related pages. Make each page deep AND keep coverage: when two subsystems crowd one page, SPLIT them into two pages rather than shallow-merging — never shrink the page count at the cost of an uncovered module. Ground every claim in a file you actually read.',
   );
   lines.push('');
 

@@ -2,10 +2,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runUninstallCommand, type UninstallIO } from '../../src/commands/uninstall.js';
 import { EXIT_OK } from '../../src/exit-codes.js';
+import { mergeCursorMcpConfig } from '../../src/lib/init/cursor-merge.js';
 
 interface Capture {
   stdout: string[];
@@ -13,7 +14,9 @@ interface Capture {
   exitCode: number | null;
 }
 
-function makeIo(args: { homePath: string; cwd: string; settingsPath: string; cap: Capture }): UninstallIO {
+// `cwd` omitted → the command falls back to detectProjectRoot(process.cwd())
+// (the field-bug regression path exercised in Fixture 7).
+function makeIo(args: { homePath: string; cwd?: string; settingsPath: string; cap: Capture }): UninstallIO {
   return {
     writeStdout: (c) => args.cap.stdout.push(c),
     writeStderr: (c) => args.cap.stderr.push(c),
@@ -22,11 +25,14 @@ function makeIo(args: { homePath: string; cwd: string; settingsPath: string; cap
       throw new Error(`__exit__:${code}`);
     },
     coodraHome: args.homePath,
-    cwd: args.cwd,
+    ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     bridgePort: 3101,
     settingsPath: args.settingsPath,
   };
 }
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for assertion.
+const ANSI = /\x1b\[[0-9;]*m/g;
 
 async function expectExit(p: () => Promise<unknown>): Promise<number> {
   try {
@@ -180,5 +186,88 @@ describe('coodra uninstall integration', () => {
     for (const s of payload.steps) {
       expect(s.action).toBe('unchanged');
     }
+  });
+
+  it('Fixture 6 — removes the coodra entry a real init wrote into .cursor/mcp.json (io.cwd honored)', async () => {
+    // Write via the SAME writer `coodra init` uses, so the fixture matches
+    // production bytes rather than a hand-rolled shape.
+    const wrote = await mergeCursorMcpConfig({
+      cwd: projectCwd,
+      entry: { command: 'node', args: ['/abs/runtime/mcp-server.js'] },
+      force: false,
+      dryRun: false,
+    });
+    expect(wrote.action).toBe('wrote');
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ json: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+
+    const payload = JSON.parse(cap.stdout.join('')) as {
+      projectRoot: string;
+      steps: Array<{ step: string; action: string }>;
+    };
+    // io.cwd is honored verbatim as the project root.
+    expect(payload.projectRoot).toBe(projectCwd);
+    expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
+    const next = JSON.parse(readFileSync(join(projectCwd, '.cursor', 'mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(next.mcpServers).not.toHaveProperty('coodra');
+  });
+
+  it('Fixture 7 — THE FIELD BUG: run from a subdirectory still removes the entry at the project root', async () => {
+    // 2026-07-12: uninstall used the raw process.cwd(), so running it from
+    // a subdirectory inspected a DIFFERENT .cursor/mcp.json and truthfully
+    // reported "no coodra entry to remove" while the real entry persisted.
+    // It must now walk up to the same project root `coodra init` used.
+    const repoDir = join(cwd, 'repo');
+    const subDir = join(repoDir, 'sub');
+    mkdirSync(join(repoDir, '.git'), { recursive: true }); // project-root marker
+    mkdirSync(subDir, { recursive: true });
+    await mergeCursorMcpConfig({
+      cwd: repoDir,
+      entry: { command: 'node', args: ['/abs/runtime/mcp-server.js'] },
+      force: false,
+      dryRun: false,
+    });
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(subDir);
+    try {
+      const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+      // io.cwd deliberately UNDEFINED — the command must resolve the root itself.
+      const code = await expectExit(() => runUninstallCommand({ json: true }, makeIo({ homePath, settingsPath, cap })));
+      expect(code).toBe(EXIT_OK);
+
+      const payload = JSON.parse(cap.stdout.join('')) as {
+        projectRoot: string;
+        steps: Array<{ step: string; action: string }>;
+      };
+      expect(payload.projectRoot).toBe(repoDir);
+      expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
+      const next = JSON.parse(readFileSync(join(repoDir, '.cursor', 'mcp.json'), 'utf8')) as {
+        mcpServers: Record<string, unknown>;
+      };
+      expect(next.mcpServers).not.toHaveProperty('coodra');
+    } finally {
+      cwdSpy.mockRestore();
+    }
+  });
+
+  it('Fixture 8 — human output names the resolved project root right after the title', async () => {
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ skipNpmHint: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+    const lines = cap.stdout
+      .join('')
+      .replace(ANSI, '')
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines[0]).toContain('coodra uninstall');
+    expect(lines[1]).toBe(`  project root: ${projectCwd}`);
   });
 });

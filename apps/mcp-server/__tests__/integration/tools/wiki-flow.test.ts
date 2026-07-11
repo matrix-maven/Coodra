@@ -321,6 +321,122 @@ describe('Deep Wiki flow — structure → status → content → status', () =>
     expect(status.ok && status.authoredCount).toBe(0); // old authored page is gone
   });
 
+  it('refuses to re-plan a wiki with authored pages unless replace: true (wiki_exists guard)', async () => {
+    const registry = buildRegistry(h.handle);
+    const runId = await mintRun(registry, 'coodra', 'sess_guard');
+    const first = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_guard',
+      ),
+    );
+    if (!first.ok) throw new Error('structure save failed');
+
+    // Author 'mcp-server' (wantsDiagram: false — prose passes the mermaid gate).
+    const authored = unwrap<WikiSavePageOutput>(
+      await registry.handleCall(
+        'wiki_save_page',
+        { runId, wikiId: first.wikiId, pageId: 'mcp-server', content: { contentMarkdown: '# MCP Server' } },
+        'sess_guard',
+      ),
+    );
+    expect(authored.ok).toBe(true);
+
+    // Re-plan the SAME slug without replace → wiki_exists soft-failure.
+    const blocked = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_guard',
+      ),
+    );
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok && blocked.error === 'wiki_exists') {
+      expect(blocked.wikiId).toBe(first.wikiId);
+      expect(blocked.authoredCount).toBe(1);
+      expect(blocked.pageCount).toBe(2);
+      expect(blocked.howToFix.length).toBeGreaterThan(0);
+    } else {
+      throw new Error(`expected wiki_exists, got ${JSON.stringify(blocked)}`);
+    }
+
+    // Nothing was modified — the authored page survived the refused re-plan.
+    const status = unwrap<WikiStatusOutput>(
+      await registry.handleCall('wiki_status', { wikiId: first.wikiId }, 'sess_guard'),
+    );
+    expect(status.ok && status.authoredCount).toBe(1);
+    expect(status.ok && status.pages.find((p) => p.pageId === 'mcp-server')?.state).toBe('authored');
+  });
+
+  it('replace: true re-plans even with authored pages (status=replaced, pages reset to pending)', async () => {
+    const registry = buildRegistry(h.handle);
+    const runId = await mintRun(registry, 'coodra', 'sess_force');
+    const first = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_force',
+      ),
+    );
+    if (!first.ok) throw new Error('structure save failed');
+    const authored = unwrap<WikiSavePageOutput>(
+      await registry.handleCall(
+        'wiki_save_page',
+        { runId, wikiId: first.wikiId, pageId: 'mcp-server', content: { contentMarkdown: '# MCP Server' } },
+        'sess_force',
+      ),
+    );
+    expect(authored.ok).toBe(true);
+
+    const replaced = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure(), replace: true },
+        'sess_force',
+      ),
+    );
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok) return;
+    expect(replaced.status).toBe('replaced');
+    expect(replaced.wikiId).toBe(first.wikiId);
+    expect(replaced.pendingPageIds.sort()).toEqual(['intro', 'mcp-server']);
+
+    // The authored page was wiped by the destructive re-plan — all pending.
+    const status = unwrap<WikiStatusOutput>(
+      await registry.handleCall('wiki_status', { wikiId: first.wikiId }, 'sess_force'),
+    );
+    expect(status.ok && status.authoredCount).toBe(0);
+    expect(status.ok && status.pendingCount).toBe(2);
+  });
+
+  it('re-plans a pending-only wiki freely without replace (no authored pages → no guard)', async () => {
+    const registry = buildRegistry(h.handle);
+    const runId = await mintRun(registry, 'coodra', 'sess_pending');
+    const first = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_pending',
+      ),
+    );
+    expect(first.ok && first.status).toBe('created');
+    if (!first.ok) return;
+
+    // Nothing authored yet — same-session plan iteration replaces freely.
+    const second = unwrap<WikiSaveStructureOutput>(
+      await registry.handleCall(
+        'wiki_save_structure',
+        { runId, slug: 'coodra', structure: twoPageStructure() },
+        'sess_pending',
+      ),
+    );
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.status).toBe('replaced');
+    expect(second.wikiId).toBe(first.wikiId);
+  });
+
   it('returns run_not_found for an unknown runId', async () => {
     const registry = buildRegistry(h.handle);
     const out = unwrap<WikiSaveStructureOutput>(

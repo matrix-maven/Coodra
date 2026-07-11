@@ -44,7 +44,10 @@ const IGNORED_DIRS = new Set([
   '.DS_Store',
 ]);
 
-const MAX_FILES = 600;
+// 1500 paths ≈ ~100 KB of file list — well within what a structure-pass
+// agent reads comfortably, and 2.5× the old 600 cap that starved coverage
+// on many-small-file repos (field report 2026-07-12).
+const MAX_FILES = 1500;
 const MAX_DEPTH = 7;
 const README_MAX_CHARS = 6_000;
 
@@ -84,31 +87,37 @@ function walk(root: string): { files: string[]; truncated: boolean } {
   const out: string[] = [];
   let truncated = false;
 
-  function recurse(dir: string, depth: number): void {
-    if (truncated || depth > MAX_DEPTH) return;
+  // Breadth-first: every directory at depth N is sampled before ANY file
+  // at depth N+1, so when the MAX_FILES cap hits, the sample still
+  // represents the whole tree — each top-level area appears. The pre-fix
+  // depth-first walk exhausted the budget inside the first alphabetical
+  // subtree and silently dropped entire later subtrees, starving the
+  // wiki structure pass of coverage (field report 2026-07-12).
+  const queue: Array<{ dir: string; depth: number }> = [{ dir: root, depth: 0 }];
+  while (queue.length > 0) {
+    const next = queue.shift() as { dir: string; depth: number };
+    if (next.depth > MAX_DEPTH) continue;
     let entries: Dirent[];
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync(next.dir, { withFileTypes: true });
     } catch {
-      return;
+      continue;
     }
-    // Directories first (stable, predictable ordering), then files.
     const dirs = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && !IGNORED_DIRS.has(e.name));
     const files = entries.filter((e) => e.isFile() && !IGNORED_DIRS.has(e.name));
     for (const f of files) {
       if (out.length >= MAX_FILES) {
         truncated = true;
-        return;
+        break;
       }
-      out.push(relative(root, join(dir, f.name)).split(sep).join('/'));
+      out.push(relative(root, join(next.dir, f.name)).split(sep).join('/'));
     }
+    if (truncated) break;
     for (const d of dirs.sort((a, b) => a.name.localeCompare(b.name))) {
-      recurse(join(dir, d.name), depth + 1);
-      if (truncated) return;
+      queue.push({ dir: join(next.dir, d.name), depth: next.depth + 1 });
     }
   }
 
-  recurse(root, 0);
   out.sort((a, b) => a.localeCompare(b));
   return { files: out, truncated };
 }
@@ -260,9 +269,21 @@ export function renderGroundingMarkdown(g: GroundingResult): string {
   for (const r of g.dirRollup.slice(0, 30)) {
     lines.push(`- \`${r.dir}/\` — ${r.files} file${r.files === 1 ? '' : 's'}`);
   }
+  if (g.dirRollup.length > 30) {
+    lines.push(`- …and ${g.dirRollup.length - 30} more top-level entries`);
+  }
   lines.push('');
 
   lines.push(`## Files (${g.fileCount}${g.truncated ? '+, sample capped' : ''})`);
+  if (g.truncated) {
+    lines.push('');
+    lines.push('> ⚠ **This file list is a capped SAMPLE — the repo holds more files than shown.**');
+    lines.push('> Do NOT plan the wiki structure from this list alone: enumerate the');
+    lines.push('> under-represented directories yourself (list files per top-level dir, or');
+    lines.push('> query Graphify) and make sure every major area of the REPO gets coverage,');
+    lines.push('> not just the sampled files.');
+    lines.push('');
+  }
   lines.push('```');
   for (const f of g.files) lines.push(f);
   lines.push('```');
