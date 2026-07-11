@@ -314,8 +314,8 @@ export function createProjectSlugResolver(options: CreateProjectResolverOptions 
  * validator (`packages/cli/src/lib/init/run.ts`'s `validateSlug`).
  *
  * Reserved-name reject list: filesystem-root-ish basenames where
- * auto-creating a project would be wrong (e.g. `/Users/abishaikc` →
- * `abishaikc` is fine; `/tmp` → `tmp` is reserved). The list is
+ * auto-creating a project would be wrong (e.g. `/Users/alice` →
+ * `alice` is fine; `/tmp` → `tmp` is reserved). The list is
  * conservative; users hitting one of these can ship a `.coodra.json`
  * to be explicit.
  */

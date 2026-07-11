@@ -53,7 +53,10 @@ export function Sidebar({
   mode,
   deploymentMode,
   userInitial = 'A',
-  userName = 'abishaikc',
+  // Neutral fallback — the layout resolves the real OS user and passes it.
+  // NEVER hardcode a personal name here: this default renders on every
+  // install that doesn't override it (E2E finding, 2026-07-09).
+  userName = 'local',
   userRole = 'Local · MIT',
   projects,
   orgSlug = null,

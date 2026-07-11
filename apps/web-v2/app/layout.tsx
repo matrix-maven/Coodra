@@ -1,3 +1,4 @@
+import { userInfo } from 'node:os';
 import type { Metadata } from 'next';
 import { Cormorant_Garamond, Inter_Tight, JetBrains_Mono } from 'next/font/google';
 
@@ -7,6 +8,23 @@ import { clerkAppearance } from '@/lib/clerk-appearance';
 import { resolveDeploymentMode, resolveIdentityMode } from '@/lib/deployment-mode';
 import { listProjects } from '@/lib/queries/projects';
 import './globals.css';
+
+// The sidebar footer shows the machine's user in solo mode. Resolve it at
+// REQUEST time on the serving machine — never at build time, which would bake
+// the builder's username into the published bundle (E2E finding 2026-07-09:
+// `abishaikc` leaked to every install via a hardcoded Sidebar default).
+// `force-dynamic` below guarantees this layout is not statically prerendered.
+export const dynamic = 'force-dynamic';
+
+function resolveLocalUserName(): string {
+  try {
+    const u = userInfo().username;
+    if (typeof u === 'string' && u.length > 0) return u;
+  } catch {
+    // No passwd entry (some containers) — fall through to env / generic.
+  }
+  return process.env.USER ?? process.env.USERNAME ?? process.env.LOGNAME ?? 'local';
+}
 
 const interTight = Inter_Tight({
   subsets: ['latin'],
@@ -41,6 +59,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const idMode = resolveIdentityMode();
   const isTeam = idMode === 'team';
   const projects = (await safeListProjects()).map((p) => ({ slug: p.slug, name: p.name }));
+  const localUserName = resolveLocalUserName();
 
   // Identity resolution: in team mode (laptop or cloud) read from Clerk
   // session (tryGetActor is non-throwing so unauthenticated /auth/sign-in
@@ -106,6 +125,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             projects={projects}
             orgSlug={orgSlug}
             viewerUserId={viewerUserId}
+            userName={localUserName}
+            userInitial={localUserName.charAt(0).toUpperCase() || 'A'}
             footerSlot={footerSlot}
           />
           <main className="main" id="main">
