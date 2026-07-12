@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { z } from 'zod';
+import { defaultClaudeSettingsPath } from '../../lib/init/claude-settings-merge.js';
 import type { Check } from '../types.js';
 
 /**
@@ -20,6 +19,13 @@ import type { Check } from '../types.js';
  *      SessionStart, PreToolUse, PostToolUse, Stop, SessionEnd.
  *   3. Each registration has a hook URL pointing at the configured
  *      bridge endpoint (`http://<bridgeHost>:<bridgePort>/v1/hooks/claude-code`).
+ *
+ * The settings path is resolved via `defaultClaudeSettingsPath(home, env)`
+ * — the SAME resolver `init` / `uninstall` use — so it honours the
+ * `CLAUDE_SETTINGS_PATH` override (F2). Before this, the check hardcoded
+ * `~/.claude/settings.json` and so inspected a different file than the
+ * one init wrote whenever the override was set (scratch / CI / bespoke
+ * setups), producing a false "missing hook registrations" warning.
  *   4. PreToolUse and PostToolUse have a tool-name regex matcher
  *      covering the file-mutating tool set
  *      (Write|Edit|MultiEdit|NotebookEdit|Bash). The literal sentinel
@@ -62,7 +68,11 @@ export const claudeHookRegistrationCheck: Check = {
   name: '~/.claude/settings.json registers all 5 Coodra hook events with correct matchers',
   severity: 'yellow',
   async run(ctx) {
-    const settingsPath = join(homedir(), '.claude', 'settings.json');
+    // Honour CLAUDE_SETTINGS_PATH (F2) via the shared resolver — same path
+    // init/uninstall write to. Home is left to the resolver's homedir()
+    // default (CheckContext has no OS-home field; coodraHome is ~/.coodra,
+    // not the OS home), and the env override wins over home regardless.
+    const settingsPath = defaultClaudeSettingsPath(undefined, ctx.env);
     let raw: string;
     try {
       raw = await readFile(settingsPath, 'utf8');
@@ -71,13 +81,13 @@ export const claudeHookRegistrationCheck: Check = {
       if (code === 'ENOENT') {
         return {
           status: 'yellow',
-          detail: `~/.claude/settings.json not found — Claude Code is not configured to call the Coodra bridge.`,
+          detail: `${settingsPath} not found — Claude Code is not configured to call the Coodra bridge.`,
           remediation: 'Run `coodra init` to write the hook registration.',
         };
       }
       return {
         status: 'yellow',
-        detail: `cannot read ~/.claude/settings.json: ${(err as Error).message}`,
+        detail: `cannot read ${settingsPath}: ${(err as Error).message}`,
       };
     }
 
@@ -87,7 +97,7 @@ export const claudeHookRegistrationCheck: Check = {
     } catch (err) {
       return {
         status: 'yellow',
-        detail: `~/.claude/settings.json invalid JSON or shape: ${(err as Error).message}`,
+        detail: `${settingsPath} invalid JSON or shape: ${(err as Error).message}`,
         remediation: 'Re-run `coodra init` to rewrite the hook registration.',
       };
     }

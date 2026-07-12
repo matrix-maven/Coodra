@@ -182,6 +182,38 @@ describe('claudeHookRegistrationCheck (28)', () => {
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/no-bridge-url|missing/);
   });
+
+  it('honours CLAUDE_SETTINGS_PATH — reads the override file, not ~/.claude (F2 parity with init/uninstall)', async () => {
+    const goodSettings = {
+      hooks: {
+        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
+        PreToolUse: [
+          {
+            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
+            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
+          },
+        ],
+        PostToolUse: [
+          {
+            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
+            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
+          },
+        ],
+        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
+        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
+      },
+    };
+    // Write the valid settings ONLY to a bespoke override path. Leave the
+    // $HOME/.claude/settings.json absent — so if the check ignored the
+    // override (the pre-fix behaviour) it would report "not found".
+    const overridePath = join(homeDir, 'custom', 'settings.json');
+    await mkdir(join(homeDir, 'custom'), { recursive: true });
+    await writeFile(overridePath, JSON.stringify(goodSettings, null, 2), 'utf8');
+    const result = await claudeHookRegistrationCheck.run(
+      ctxWithHome(homeDir, { env: { CLAUDE_SETTINGS_PATH: overridePath } }),
+    );
+    expect(result.status).toBe('green');
+  });
 });
 
 // ---------------------------------------------------------------------------
