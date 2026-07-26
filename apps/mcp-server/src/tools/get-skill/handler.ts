@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { type DbHandle, lookupProjectBySlug } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { featuresRoot, readFeatureRow } from '@coodra/shared/features';
+import { readFeatureRow, skillsRoot } from '@coodra/shared/features';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { GetFeatureInput, GetFeatureOutput } from './schema.js';
@@ -47,7 +47,7 @@ export function createGetFeatureHandler(
           'This project has no recorded cwd. Open Claude Code inside the project root once so the bridge can backfill `projects.cwd`.',
       };
     }
-    const dir = join(featuresRoot(project.cwd), input.slug);
+    const dir = join(skillsRoot(project.cwd), input.slug);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) {
       handlerLogger.info(
         { event: 'get_feature_not_found', projectSlug: input.projectSlug, slug: input.slug, dir },
@@ -56,7 +56,7 @@ export function createGetFeatureHandler(
       return {
         ok: false,
         error: 'feature_not_found',
-        howToFix: `No feature at \`${dir}\`. Call \`coodra__list_features\` to see what's available, or \`coodra feature add ${input.slug}\` to create it.`,
+        howToFix: `No feature at \`${dir}\`. Call \`coodra__list_skills\` to see what's available, or \`coodra skill add ${input.slug}\` to create it.`,
       };
     }
     const row = readFeatureRow(input.slug, dir);
@@ -68,7 +68,7 @@ export function createGetFeatureHandler(
       return {
         ok: false,
         error: 'feature_not_found',
-        howToFix: `\`${dir}\` exists but has no \`feature.md\`. Either remove the empty directory or run \`coodra feature add ${input.slug} --force\` to scaffold one.`,
+        howToFix: `\`${dir}\` exists but has no \`feature.md\`. Either remove the empty directory or run \`coodra skill add ${input.slug} --force\` to scaffold one.`,
       };
     }
 

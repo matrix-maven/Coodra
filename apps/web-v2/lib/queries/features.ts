@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   type FeatureRow,
-  featuresRoot as featuresRootShared,
+  skillsRoot as featuresRootShared,
   generateFeaturesIndex,
   readFeatureRow,
   walkFeatures,

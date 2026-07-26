@@ -981,7 +981,7 @@
     <div class="sidebar__group">
       <div class="sidebar__group-title"><span class="sidebar__group-num">04</span>Reference</div>
       <a class="sidebar__link" href="#cli"><span class="sidebar__link__dot"></span>CLI commands</a>
-      <a class="sidebar__link" href="#mcp-tools"><span class="sidebar__link__dot"></span>MCP tools (16)</a>
+      <a class="sidebar__link" href="#mcp-tools"><span class="sidebar__link__dot"></span>MCP tools (20)</a>
       <a class="sidebar__link" href="#hook-events"><span class="sidebar__link__dot"></span>Hook events</a>
       <a class="sidebar__link" href="#config"><span class="sidebar__link__dot"></span>Configuration</a>
     </div>
@@ -1409,7 +1409,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
         <div class="topo__layer">
           <div class="topo__layer__name">L1 · Protocol</div>
           <div class="topo__nodes">
-            <div class="topo__node"><span class="topo__node__dot"></span>MCP Server <small>:3100 · 16 tools · stdio + HTTP</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>MCP Server <small>:3100 · 20 tools · stdio + HTTP</small></div>
             <div class="topo__node"><span class="topo__node__dot"></span>Hooks Bridge <small>:3101 · Hono · 3 routes</small></div>
           </div>
         </div>
@@ -1453,7 +1453,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
             </tr></thead>
             <tbody>
               <tr>
-                <td><code>mcp-server</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">16 MCP tools · stdio + HTTP transport</span></td>
+                <td><code>mcp-server</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">20 MCP tools · stdio + HTTP transport</span></td>
                 <td><code>3100</code></td>
                 <td><code>127.0.0.1</code></td>
                 <td>SQLite (local)</td>
@@ -1755,7 +1755,7 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
       <div class="section__head">
         <div>
           <div class="section__num">/08 — Reference</div>
-          <h2 class="section__title">MCP <em>tools</em> — all 16.</h2>
+          <h2 class="section__title">MCP <em>tools</em> — all 20.</h2>
         </div>
         <div class="section__head__aside">Source of truth<br>tools/index.ts</div>
       </div>
@@ -1778,14 +1778,18 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
             <tr><td><code>06</code></td><td><code>record_decision</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotent on <code>(runId, sha256(description)[:32])</code>. Surfaces on next session.</td></tr>
             <tr><td><code>07</code></td><td><code>query_run_history</code></td><td><span class="badge">read</span></td><td>Recent runs + attached pack title, chronological.</td></tr>
             <tr><td><code>08</code></td><td><code>check_policy</code></td><td><span class="badge badge--caution">write</span></td><td>Returns <code>allow · ask · deny</code>. Fail-open on evaluator faults.</td></tr>
-            <tr><td><code>09</code></td><td><code>query_codebase_graph</code></td><td><span class="badge">read</span></td><td>Reads <code>~/.coodra/graphify/&lt;slug&gt;/graph.json</code>. Requires external <code>graphify scan</code>.</td></tr>
-            <tr><td><code>10</code></td><td><code>query_decisions</code></td><td><span class="badge">read</span></td><td>Cross-session decision history.</td></tr>
-            <tr><td><code>11</code></td><td><code>list_context_packs</code></td><td><span class="badge">read</span></td><td>Paginated, newest-first.</td></tr>
-            <tr><td><code>12</code></td><td><code>read_context_pack</code></td><td><span class="badge">read</span></td><td>Full body + decisions for one pack.</td></tr>
-            <tr><td><code>13</code></td><td><code>list_features</code></td><td><span class="badge">read</span></td><td>Skill discovery (filtered to <code>status='published'</code>).</td></tr>
-            <tr><td><code>14</code></td><td><code>get_feature</code></td><td><span class="badge">read</span></td><td>Pull-on-trigger; returns frontmatter + body + file list.</td></tr>
-            <tr><td><code>15</code></td><td><code>get_feature_file</code></td><td><span class="badge">read</span></td><td>Reads one supporting file from a feature. 256 KB hard cap. Path-escape guard.</td></tr>
-            <tr><td><code>16</code></td><td><code>query_run_diff</code></td><td><span class="badge">read</span></td><td>Unified diff + per-file numstat. Soft failures: <code>analysis_pending</code>, <code>no_base_sha</code>, <code>git_diff_failed</code>.</td></tr>
+            <tr><td><code>09</code></td><td><code>query_decisions</code></td><td><span class="badge">read</span></td><td>Cross-session decision history.</td></tr>
+            <tr><td><code>10</code></td><td><code>list_context_packs</code></td><td><span class="badge">read</span></td><td>Paginated, newest-first.</td></tr>
+            <tr><td><code>11</code></td><td><code>read_context_pack</code></td><td><span class="badge">read</span></td><td>Full body + decisions for one pack.</td></tr>
+            <tr><td><code>12</code></td><td><code>list_skills</code></td><td><span class="badge">read</span></td><td>Skill discovery (filtered to <code>status='published'</code>).</td></tr>
+            <tr><td><code>13</code></td><td><code>get_skill</code></td><td><span class="badge">read</span></td><td>Pull-on-trigger; returns frontmatter + body + file list.</td></tr>
+            <tr><td><code>14</code></td><td><code>get_skill_file</code></td><td><span class="badge">read</span></td><td>Reads one supporting file from a skill. 256 KB hard cap. Path-escape guard.</td></tr>
+            <tr><td><code>15</code></td><td><code>query_run_diff</code></td><td><span class="badge">read</span></td><td>Unified diff + per-file numstat. Soft failures: <code>analysis_pending</code>, <code>no_base_sha</code>, <code>git_diff_failed</code>.</td></tr>
+            <tr><td><code>16</code></td><td><code>link_run_to_issue</code></td><td><span class="badge badge--caution">write</span></td><td>Binds the run to a Jira issue key (<code>runs.issueRef</code>) so history is Jira-aware. Local link only — no Jira API call.</td></tr>
+            <tr><td><code>17</code></td><td><code>prepare_jira_comment</code></td><td><span class="badge">read</span></td><td>Assembles a markdown comment from the run's Context Pack + top decisions for Rovo's <code>addCommentToJiraIssue</code>. Posts nothing itself.</td></tr>
+            <tr><td><code>18</code></td><td><code>wiki_save_structure</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 1 — persists the planned <code>WikiStructure</code> and writes the pending page skeleton. Re-plan of an authored wiki requires <code>replace: true</code>.</td></tr>
+            <tr><td><code>19</code></td><td><code>wiki_save_page</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 2 — authors one page's Markdown. Mermaid lint-gated: <code>invalid_mermaid</code>, <code>diagram_missing</code>.</td></tr>
+            <tr><td><code>20</code></td><td><code>wiki_status</code></td><td><span class="badge">read</span></td><td>Deep Wiki progress/resume — reports authored vs pending pages. Read-only.</td></tr>
           </tbody>
         </table>
       </div>
@@ -2221,7 +2225,7 @@ cp deploy/.env.example deploy/.env
         <div class="code__head"><span>repo map</span></div>
 <pre class="code"><span class="ck">Coodra/</span>
 ├── apps/
-│   ├── <span class="cn">mcp-server/</span>      <span class="cm"># 16 MCP tools · stdio + HTTP transport</span>
+│   ├── <span class="cn">mcp-server/</span>      <span class="cm"># 20 MCP tools · stdio + HTTP transport</span>
 │   ├── <span class="cn">hooks-bridge/</span>    <span class="cm"># Hono HTTP · 5 Claude Code hook events</span>
 │   ├── <span class="cn">sync-daemon/</span>     <span class="cm"># push + pull workers · team mode only</span>
 │   ├── web/             <span class="cw"># DEPRECATED · do not extend</span>

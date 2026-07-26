@@ -99,7 +99,7 @@ export default async function ProjectHomePage({
                 </form>
               ) : null}
               <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                Features
+                Skills
               </Link>
               <Link className="btn btn--ghost" href={`/runs?project=${encodeURIComponent(project.slug)}`}>
                 Open runs
@@ -300,10 +300,10 @@ export default async function ProjectHomePage({
         <div className="card" style={{ padding: 28, marginTop: 32 }}>
           <div className="card__head">
             <h2 className="card__title">
-              Skill-style <em>features</em>
+              <em>Skills</em>
             </h2>
             <span className="card__role">
-              {featuresSnap.features.length} feature{featuresSnap.features.length === 1 ? '' : 's'} ·{' '}
+              {featuresSnap.features.length} skill{featuresSnap.features.length === 1 ? '' : 's'} ·{' '}
               <span style={{ color: 'var(--ink-dim)' }}>{featuresSnap.featuresRoot}</span>
             </span>
           </div>
@@ -311,17 +311,17 @@ export default async function ProjectHomePage({
           {featuresSnap.features.length === 0 ? (
             <div className="empty" style={{ marginTop: 12 }}>
               <strong>
-                No <em>features</em> yet.
+                No <em>skills</em> yet.
               </strong>
-              Define a feature for each meaningful slice of this project — auth, billing, the import pipeline. Drop in
-              any md / spec / code samples that help an agent understand it. We index the triggers; the agent picks what
-              to load.
+              Define a skill for each meaningful slice of this project — auth, billing, the import pipeline. Drop in any
+              md / spec / code samples that help an agent understand it. We index the triggers; the agent picks what to
+              load.
               <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
-                  + Define your first feature
+                  + Define your first skill
                 </Link>
                 <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                  Open features panel
+                  Open skills panel
                 </Link>
               </div>
             </div>
@@ -370,10 +370,10 @@ export default async function ProjectHomePage({
               </div>
               <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
-                  + Add feature
+                  + Add skill
                 </Link>
                 <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                  Open features panel
+                  Open skills panel
                 </Link>
                 {featuresSnap.features.length > 6 ? (
                   <span

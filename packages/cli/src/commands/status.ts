@@ -1,4 +1,4 @@
-import { access, readFile, stat } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
@@ -377,10 +377,10 @@ async function collectRecentState(coodraHome: string, projectId: string | null):
     let blockerNote: string | null = null;
     try {
       const blockersPath = join(process.cwd(), 'context_memory', 'blockers.md');
-      const stats = await stat(blockersPath);
-      if (stats.size > 0) {
-        const raw = await readFile(blockersPath, 'utf8');
-        if (raw.trim().length > 0) blockerNote = `${raw.trim().slice(0, 80)}…`;
+      const active = activeBlockerTitles(await readFile(blockersPath, 'utf8'));
+      if (active.length > 0) {
+        const latest = active[active.length - 1] ?? '';
+        blockerNote = `${active.length} active — ${latest.slice(0, 70)}`;
       }
     } catch {
       /* no blockers file */
@@ -390,6 +390,31 @@ async function collectRecentState(coodraHome: string, projectId: string | null):
   } finally {
     handle.close();
   }
+}
+
+/**
+ * Titles of the ACTIVE blocker entries in a `context_memory/blockers.md`
+ * body. The file's convention (03-context-memory.md) is one
+ * `## <timestamp> — <title>` section per blocker; resolved entries are
+ * retitled with ✅ / RESOLVED. Counting sections — instead of previewing raw
+ * bytes — keeps the file's explanatory header from surfacing as a phantom
+ * "pending blocker" on projects whose blockers were all resolved.
+ */
+export function activeBlockerTitles(raw: string): string[] {
+  const titles: string[] = [];
+  let inFence = false;
+  for (const line of raw.split('\n')) {
+    // The file's header shows the entry format inside a ``` fence — a `## `
+    // line in there is documentation, not a blocker.
+    if (line.trimStart().startsWith('```')) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence || !line.startsWith('## ')) continue;
+    const title = line.slice(3).trim();
+    if (title.length > 0 && !title.includes('✅') && !/\bRESOLVED\b/i.test(title)) titles.push(title);
+  }
+  return titles;
 }
 
 function formatHumanReport(report: StatusReport): string {
@@ -494,7 +519,7 @@ function formatHumanReport(report: StatusReport): string {
   } else {
     lines.push(
       kvRow(
-        { glyph: checkGlyph('ok'), key: 'pending blocker', value: 'context_memory/blockers.md is empty' },
+        { glyph: checkGlyph('ok'), key: 'pending blocker', value: 'no active blockers' },
         { keyWidth: 16, indent: 2 },
       ),
     );

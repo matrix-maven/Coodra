@@ -36,8 +36,6 @@ import { pc } from '../ui/index.js';
 export interface LogoutOptions {
   readonly home?: string;
   readonly env?: NodeJS.ProcessEnv;
-  /** Force the operation even if no team state exists (currently a no-op flag — logout is already idempotent). */
-  readonly force?: boolean;
 }
 
 export interface LogoutIO {

@@ -1,0 +1,121 @@
+/**
+ * `GraphReport.module.css` — prose styling for Graphify's `GRAPH_REPORT.md`.
+ *
+ * The report is Graphify's own output, not ours: headings, bullet lists, a few
+ * inline code spans, and Obsidian-style `[[wiki links]]` that render as literal
+ * text (there is no wiki to link into). Styling stays deliberately close to the
+ * Deep Wiki reader so the two knowledge surfaces read as one product.
+ */
+
+.markdown {
+  color: var(--ink-soft, var(--ink));
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-family: var(--serif);
+  color: var(--ink);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  margin: 1.6em 0 0.6em;
+}
+
+.markdown h1 {
+  font-size: 22px;
+  margin-top: 0;
+}
+.markdown h2 {
+  font-size: 18px;
+}
+.markdown h3 {
+  font-size: 15px;
+}
+
+.markdown p,
+.markdown ul,
+.markdown ol {
+  margin: 0 0 1em;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 1.3em;
+}
+
+.markdown li {
+  margin: 0.25em 0;
+}
+
+.markdown strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: 1.6em 0;
+}
+
+.link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+
+.codeInline {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--bg-3);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ink);
+}
+
+.pre {
+  background: var(--bg-3);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+
+.codeBlock {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  margin: 0 0 1em;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.table :global(th),
+.table :global(td) {
+  border: 1px solid var(--rule);
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.table :global(th) {
+  background: var(--bg-3);
+  color: var(--ink);
+}

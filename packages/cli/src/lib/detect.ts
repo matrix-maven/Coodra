@@ -1,8 +1,7 @@
-import { access, readFile, realpath } from 'node:fs/promises';
+import { access, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { glob } from 'glob';
-import { z } from 'zod';
 
 /**
  * IDEs / agents we can wire `init` for. Order matters — preference for
@@ -242,40 +241,6 @@ export async function detectIDE(deps: DetectionDeps = {}): Promise<IDE[]> {
     }
   }
   return found;
-}
-
-const mcpEntrySchema = z
-  .object({
-    command: z.string(),
-    args: z.array(z.string()).optional(),
-    env: z.record(z.string(), z.string()).optional(),
-  })
-  .strict();
-
-const mcpConfigSchema = z
-  .object({
-    mcpServers: z.record(z.string(), mcpEntrySchema).optional(),
-  })
-  .passthrough();
-
-export type MCPConfig = z.infer<typeof mcpConfigSchema>;
-
-/**
- * Returns the parsed `.mcp.json` if the file exists and is valid; null when
- * the file is absent. Throws when the file exists but cannot be parsed —
- * `init` should treat that as an error condition the user must resolve.
- */
-export async function detectExistingMCPConfig(root: string): Promise<MCPConfig | null> {
-  const path = join(root, '.mcp.json');
-  let raw: string;
-  try {
-    raw = await readFile(path, 'utf8');
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') return null;
-    throw err;
-  }
-  return mcpConfigSchema.parse(JSON.parse(raw));
 }
 
 /**

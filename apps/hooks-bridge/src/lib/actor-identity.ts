@@ -1,8 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { resolve } from 'node:path';
 
 import { readTeamConfig } from '@coodra/cli/lib/team-config';
+import { getClerkTokenPath } from '@coodra/shared/auth';
 
 /**
  * `apps/hooks-bridge/src/lib/actor-identity.ts` — Phase G slice G.7.
@@ -54,8 +53,6 @@ export interface ActorIdentity {
   readonly source: 'clerk' | 'config';
 }
 
-const TOKEN_FILENAME = 'clerk-token.json';
-
 interface StoredTokenShape {
   readonly version: number;
   readonly token: string;
@@ -69,13 +66,8 @@ interface StoredTokenShape {
   };
 }
 
-function resolveTokenPath(): string {
-  const home = process.env.COODRA_HOME ?? resolve(homedir(), '.coodra');
-  return resolve(home, TOKEN_FILENAME);
-}
-
 function readClerkTokenMirror(): ActorIdentity | null {
-  const path = resolveTokenPath();
+  const path = getClerkTokenPath();
   if (!existsSync(path)) return null;
   let raw: string;
   try {

@@ -47,22 +47,22 @@ export default async function FeaturesPage() {
 
   return (
     <>
-      <Topbar crumb="Features" />
+      <Topbar crumb="Skills" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/05 · KNOWLEDGE · FEATURES</div>
+            <div className="head__num">/05 · KNOWLEDGE · SKILLS</div>
             <h1 className="head__title">
               Skill recipes the agent <em>pulls</em> on demand.
             </h1>
             <p className="head__lede">
-              Features are on-demand skill recipes — small markdown documents the agent indexes at SessionStart and
-              pulls only when a user prompt matches the feature's trigger description. The same pattern as Anthropic
-              Skills. Pull model — never loaded blindly.
+              Skills are on-demand recipes — small markdown documents the agent indexes at SessionStart and pulls only
+              when a user prompt matches the skill's trigger description. The same pattern as Anthropic Skills. Pull
+              model — never loaded blindly.
               <br />
               <span style={{ color: 'var(--ink-mute)', fontSize: 13 }}>
                 Need always-loaded MODULE-level architectural context (spec / impl / techstack / meta)? Those are{' '}
-                <strong>feature packs</strong>, not features — managed at{' '}
+                <strong>Feature Packs</strong>, not skills — managed at{' '}
                 <Link href="/packs" style={{ color: 'var(--accent)' }}>
                   /packs
                 </Link>
@@ -72,11 +72,13 @@ export default async function FeaturesPage() {
           </div>
           <div>
             <div className="head__meta">
-              <strong>{features.length} features</strong>
+              <strong>
+                {features.length} skill{features.length === 1 ? '' : 's'}
+              </strong>
               <br />
               {published} published · {drafts} draft
               <br />
-              docs/features/
+              docs/skills/
             </div>
             <div className="head__actions">
               <Link className="btn btn--ghost" href="/templates">
@@ -89,9 +91,9 @@ export default async function FeaturesPage() {
                 <span
                   className="btn btn--ghost"
                   style={{ opacity: 0.55, cursor: 'not-allowed' }}
-                  title="Author via `coodra feature add <slug>` on the CLI for now. Web authoring lands as a follow-on."
+                  title="Author via `coodra skill add <slug>` on the CLI for now. Web authoring lands as a follow-on."
                 >
-                  + New feature (CLI)
+                  + New skill (CLI)
                 </span>
               ) : (
                 <span
@@ -104,7 +106,7 @@ export default async function FeaturesPage() {
                     border: '1px dashed var(--ink-mute)',
                     borderRadius: 4,
                   }}
-                  title="Viewers can browse every feature but cannot author or edit."
+                  title="Viewers can browse every skill but cannot author or edit."
                 >
                   Read-only · viewer role
                 </span>
@@ -116,10 +118,10 @@ export default async function FeaturesPage() {
         {features.length === 0 ? (
           <div className="empty">
             <strong>
-              No features <em>yet</em>.
+              No skills <em>yet</em>.
             </strong>
             Create one with{' '}
-            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra feature add &lt;slug&gt;</span>{' '}
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra skill add &lt;slug&gt;</span>{' '}
             from any project root. In team mode the row appears here within ~10 seconds of the daemon's next sync tick.
           </div>
         ) : (

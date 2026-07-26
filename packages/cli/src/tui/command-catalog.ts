@@ -6,10 +6,14 @@
  * commander tree; descriptions and argument placeholders come straight
  * from commander itself.
  *
- * Only two things are hand-maintained here, and both are covered by a
- * test that asserts they stay in sync with the program:
- *   - `CATEGORY_OF` — which `/NN` group each top-level command belongs
- *     to (commander has no category metadata).
+ * Only three things are hand-maintained here, and the first is covered
+ * by a test that asserts it stays in sync with the program:
+ *   - `CATEGORY_OF` — which group each top-level command belongs to
+ *     (commander has no category metadata). `tui.test.tsx` asserts its
+ *     key set EQUALS the program's top-level command set — a missing
+ *     entry here made the Terminal view reject a command the catalog
+ *     itself listed (found in the 2026-07-24 QA sweep).
+ *   - `CATEGORIES` — group order + titles (`/NN` numbers are derived).
  *   - `INTERACTIVE` — the handful of commands that need their own
  *     terminal (a readline prompt or a browser sign-in). The TUI cannot
  *     run those in-process because Ink owns stdin in raw mode; a prompt
@@ -58,13 +62,19 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   status: 'diagnose',
   doctor: 'diagnose',
   logs: 'diagnose',
-  agents: 'diagnose',
+  metrics: 'diagnose',
+  agents: 'agents',
+  agent: 'agents',
   run: 'runs',
   export: 'runs',
   policy: 'policy',
   project: 'projects',
+  files: 'projects',
   pack: 'packs',
-  feature: 'features',
+  skill: 'skills',
+  wiki: 'wiki',
+  graphify: 'integrations',
+  jira: 'integrations',
   template: 'templates',
   pause: 'enforcement',
   resume: 'enforcement',
@@ -77,19 +87,26 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   'cloud-migrate': 'team',
 };
 
-/** Category render order + display titles. */
-const CATEGORIES: ReadonlyArray<{ readonly num: string; readonly title: string; readonly key: string }> = [
-  { num: '01', title: 'lifecycle', key: 'lifecycle' },
-  { num: '02', title: 'diagnose', key: 'diagnose' },
-  { num: '03', title: 'runs & audit', key: 'runs' },
-  { num: '04', title: 'policy', key: 'policy' },
-  { num: '05', title: 'projects', key: 'projects' },
-  { num: '06', title: 'feature packs', key: 'packs' },
-  { num: '07', title: 'features', key: 'features' },
-  { num: '08', title: 'templates', key: 'templates' },
-  { num: '09', title: 'enforcement', key: 'enforcement' },
-  { num: '10', title: 'database', key: 'database' },
-  { num: '11', title: 'team & auth', key: 'team' },
+/**
+ * Category render order + display titles. `/NN` numbers are derived from the
+ * position here — never hand-numbered, so inserting a category can't produce
+ * a gap or duplicate.
+ */
+const CATEGORIES: ReadonlyArray<{ readonly title: string; readonly key: string }> = [
+  { title: 'lifecycle', key: 'lifecycle' },
+  { title: 'diagnose', key: 'diagnose' },
+  { title: 'agents', key: 'agents' },
+  { title: 'runs & audit', key: 'runs' },
+  { title: 'policy', key: 'policy' },
+  { title: 'projects', key: 'projects' },
+  { title: 'feature packs', key: 'packs' },
+  { title: 'skills', key: 'skills' },
+  { title: 'deep wiki', key: 'wiki' },
+  { title: 'integrations', key: 'integrations' },
+  { title: 'templates', key: 'templates' },
+  { title: 'enforcement', key: 'enforcement' },
+  { title: 'database', key: 'database' },
+  { title: 'team & auth', key: 'team' },
 ];
 
 /**
@@ -112,6 +129,14 @@ const INTERACTIVE: ReadonlySet<string> = new Set([
   'coodra team migrate',
   'coodra team leave',
   'coodra team login',
+  // These three gate their prompts on `process.stdin.isTTY` — which is TRUE
+  // under Ink's raw-mode stdin, so running them in-process would fight Ink
+  // for input and hang. `files clean` prompts per ask-tier file,
+  // `graphify enable` prompts for legacy-layout migration + the install
+  // offer, `jira enable` prompts when a foreign Atlassian entry exists.
+  'coodra files clean',
+  'coodra graphify enable',
+  'coodra jira enable',
 ]);
 
 /** First sentence of a commander description, capped — commander descriptions run long. */
@@ -177,10 +202,11 @@ function buildCatalog(): { readonly categories: CatalogCategory[]; readonly flat
   }
 
   const categories = CATEGORIES.map((c) => ({
-    num: c.num,
     title: c.title,
     commands: byCategory.get(c.key) ?? [],
-  })).filter((c) => c.commands.length > 0);
+  }))
+    .filter((c) => c.commands.length > 0)
+    .map((c, i) => ({ num: String(i + 1).padStart(2, '0'), title: c.title, commands: c.commands }));
 
   return { categories, flat };
 }

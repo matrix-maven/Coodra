@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 
 import { type DbHandle, lookupProjectBySlug } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { featuresRoot, generateFeaturesIndex } from '@coodra/shared/features';
+import { generateFeaturesIndex, skillsRoot } from '@coodra/shared/features';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import type { ListFeaturesInput, ListFeaturesOutput } from './schema.js';
@@ -17,9 +17,10 @@ import type { ListFeaturesInput, ListFeaturesOutput } from './schema.js';
  *      registration; always populated for projects created post the
  *      2026-05-08 schema bump.
  *
- *   2. `<cwd>/docs/features/` must exist on disk. Otherwise return
- *      `features_dir_missing` so the agent can prompt the user to add a
- *      first feature via the web wizard or `coodra feature add`.
+ *   2. `<cwd>/docs/skills/` (or the legacy `docs/features/`) must exist on
+ *      disk. Otherwise return `features_dir_missing` (stable error code kept
+ *      for back-compat) so the agent can prompt the user to add a first skill
+ *      via the web wizard or `coodra skill add`.
  *
  *   3. Run `generateFeaturesIndex` (idempotent regen-on-read — same
  *      pattern the bridge SessionStart loader uses; the generator
@@ -70,7 +71,7 @@ export function createListFeaturesHandler(
           'This project has no recorded cwd (legacy row from before 2026-05-08). Open Claude Code inside the project root once — the bridge backfills `projects.cwd` on first SessionStart — or re-run `coodra init`.',
       };
     }
-    const root = featuresRoot(project.cwd);
+    const root = skillsRoot(project.cwd);
     if (!existsSync(root) || !statSync(root).isDirectory()) {
       handlerLogger.info(
         { event: 'list_features_dir_missing', projectSlug: input.projectSlug, root },
@@ -79,7 +80,7 @@ export function createListFeaturesHandler(
       return {
         ok: false,
         error: 'features_dir_missing',
-        howToFix: `No \`docs/features/\` directory in this project. Add a first feature via the web UI (Project home → Features → + Add feature) or run \`coodra feature add <slug>\` from inside the project root.`,
+        howToFix: `No \`docs/skills/\` directory in this project. Add a first skill via the web UI (Project home → Skills → + Add) or run \`coodra skill add <slug>\` from inside the project root.`,
       };
     }
 
@@ -102,7 +103,7 @@ export function createListFeaturesHandler(
         ok: false,
         error: 'features_dir_missing',
         howToFix:
-          'Failed to scan `docs/features/`. Check the directory permissions and ensure each subdirectory has a valid `feature.md`.',
+          'Failed to scan the skills directory (`docs/skills/` or legacy `docs/features/`). Check the directory permissions and ensure each subdirectory has a valid `feature.md`.',
       };
     }
 

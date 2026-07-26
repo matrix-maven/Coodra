@@ -18,13 +18,18 @@ describe('buildProgram — full surface (post-S8)', () => {
     const program = buildProgram();
     const top = program.commands.map((c) => c.name()).sort();
     expect(top).toEqual([
+      // Phase 1 — per-agent wiring via the AgentAdapter registry (add/status/remove/repair).
+      'agent',
       // 0.2.0-beta.1 — read-only multi-agent wiring status.
       'agents',
       'cloud-migrate',
       'db',
       'doctor',
       'export',
-      'feature',
+      // Phase 5 — `coodra feature` renamed to `coodra skill` (alias kept); the
+      // command's primary name() is now 'skill'.
+      // Phase 2 — generated-file manifest (files status/clean).
+      'files',
       // Module 09 Track 9B — Graphify MCP wiring (enable/disable/status).
       'graphify',
       'init',
@@ -42,6 +47,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'project',
       'resume',
       'run',
+      'skill',
       'start',
       'status',
       'stop',
@@ -91,17 +97,65 @@ describe('buildProgram — full surface (post-S8)', () => {
     const templateSub = templateCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(templateSub).toEqual(['install', 'list']);
 
-    // 2026-05-08 — features admin under `coodra feature`.
-    const featureCmd = program.commands.find((c) => c.name() === 'feature');
+    // 2026-05-08 — skills admin under `coodra skill` (renamed from `coodra
+    // feature` in Phase 5, 2026-07; `feature` stays as a Commander alias).
+    const featureCmd = program.commands.find((c) => c.name() === 'skill');
     expect(featureCmd).toBeDefined();
+    expect(featureCmd?.aliases()).toContain('feature');
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'remove', 'show']);
+    expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'migrate', 'remove', 'show']);
 
-    // Module 09 Track 9B — `coodra graphify {enable,disable,status}`.
+    // Module 09 Track 9B — `coodra graphify {enable,disable,status}` (wiring),
+    // plus Phase 3's artifact half: {build,open,clean}.
     const graphifyCmd = program.commands.find((c) => c.name() === 'graphify');
     expect(graphifyCmd).toBeDefined();
     const graphifySub = graphifyCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(graphifySub).toEqual(['disable', 'enable', 'status']);
+    expect(graphifySub).toEqual(['build', 'clean', 'disable', 'enable', 'open', 'status']);
+
+    // Phase 2 — `coodra files {status,clean}` over the generated-file manifest.
+    const filesCmd = program.commands.find((c) => c.name() === 'files');
+    expect(filesCmd).toBeDefined();
+    expect(filesCmd?.commands.map((c) => c.name()).sort() ?? []).toEqual(['clean', 'status']);
+
+    // Phase 1 — `coodra agent {add,repair,remove,status}` over the adapter registry.
+    const agentCmd = program.commands.find((c) => c.name() === 'agent');
+    expect(agentCmd).toBeDefined();
+    expect(agentCmd?.commands.map((c) => c.name()).sort() ?? []).toEqual(['add', 'remove', 'repair', 'status']);
+  });
+
+  it('`graphify build --no-llm` reaches the runner as llm:false (Commander negates, it does NOT set noLlm)', async () => {
+    // Regression: the option was first read as `options.noLlm`, which Commander
+    // never sets for a `--no-X` flag — the structural-only build silently ran
+    // the default LLM path until a live run caught it.
+    let seen: { llm?: boolean } | null = null;
+    const program = buildProgram({
+      runGraphifyBuild: async (opts) => {
+        seen = opts;
+      },
+    });
+    await program.parseAsync(['node', 'coodra', 'graphify', 'build', '--no-llm']);
+    expect(seen).not.toBeNull();
+    expect((seen as unknown as { llm?: boolean }).llm).toBe(false);
+
+    // Same negation semantics for `--no-viz` (the large-graph HTML fallback).
+    // Defaults to `true` when the flag is absent, so the fallback is opt-out.
+    let vizSeen: { viz?: boolean } | null = null;
+    const vizProgram = buildProgram({
+      runGraphifyBuild: async (opts) => {
+        vizSeen = opts;
+      },
+    });
+    await vizProgram.parseAsync(['node', 'coodra', 'graphify', 'build', '--no-viz']);
+    expect((vizSeen as unknown as { viz?: boolean }).viz).toBe(false);
+
+    let defaultSeen: { viz?: boolean } | null = null;
+    const defaultProgram = buildProgram({
+      runGraphifyBuild: async (opts) => {
+        defaultSeen = opts;
+      },
+    });
+    await defaultProgram.parseAsync(['node', 'coodra', 'graphify', 'build']);
+    expect((defaultSeen as unknown as { viz?: boolean }).viz).not.toBe(false);
 
     // Module 10 — `coodra wiki {generate,status,list,open,clean}`.
     const wikiCmd = program.commands.find((c) => c.name() === 'wiki');

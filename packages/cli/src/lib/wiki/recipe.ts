@@ -41,13 +41,14 @@ function structureBlock(mode: WikiMode): string {
     mode === 'comprehensive'
       ? `Coverage target (comprehensive mode): derive the page count from the
 REPO, not from a default number. Rule of thumb — one page per major
-module / service / package in the grounding's directory rollup (and per
-Graphify community cluster when the graph is wired), PLUS Overview,
-Architecture, Configuration, Data Model, Testing, and
-Operations/Deployment pages where the code warrants them. A real codebase
-typically lands at 12–30 pages; **under-covering is the common failure
-mode — when in doubt, ADD the page.** Group pages into sections so the
-result reads like a hierarchical mind-map (Overview → Architecture →
+module / service / package in the grounding's directory rollup, cross-checked
+against the Graphify communities the grounding lists (they cluster the code
+that actually references itself), PLUS Overview, Architecture, Configuration,
+Data Model, Testing, and Operations/Deployment pages where the code warrants
+them. Give the god nodes from the grounding their own high-importance pages.
+A real codebase typically lands at 12–30 pages; **under-covering is the
+common failure mode — when in doubt, ADD the page.** Group pages into sections
+so the result reads like a hierarchical mind-map (Overview → Architecture →
 per-module pages → Operations), not a flat dump.`
       : `Coverage target (concise mode): 6–12 focused pages, flat
 (\`sections: []\`). Cover Overview, Architecture, the 3–6 most important
@@ -139,10 +140,19 @@ export function renderWikiRecipe(args: {
   lines.push('');
   lines.push(`1. Call \`coodra__get_run_id({ projectSlug: "${projectSlug}" })\` and keep the \`runId\`.`);
   lines.push(
-    `2. Read \`${groundingPath}\` — the bounded codebase snapshot (stack, directory rollup, file list, README, Graphify summary). If its file list is marked truncated ("N+, sample capped"), enumerate the under-represented directories yourself before planning — the wiki must cover the REPO, not the sample.`,
+    `2. Read \`${groundingPath}\` — the bounded codebase snapshot. It now carries real structure, not just a file list: **stack, directory rollup, file list, README, the Graphify graph (largest communities + god nodes + GRAPH_REPORT.md excerpt), and "Prior recorded work" (this project's own decisions + context packs)**. Use every section:`,
   );
   lines.push(
-    '3. If the `graphify` MCP server is wired, call its `query_graph` / `get_neighbors` to ground the structure in the real dependency graph (communities → sections; high-degree nodes → important pages).',
+    '   - **Graphify communities → candidate sections**, **god nodes → candidate `importance: "high"` pages** — the grounding already lists them. Map communities onto real modules; do NOT mint one page per community (ADR-015).',
+  );
+  lines.push(
+    '   - **Prior recorded work → the architecture that was actually decided.** When the grounding lists a decision with a rationale, the wiki must EXPLAIN that architecture (and cite the reason), not re-derive a different one from the code and contradict it. Pull a full recap with `coodra__read_context_pack` / `coodra__search_packs_nl` when a pack looks load-bearing.',
+  );
+  lines.push(
+    '   - If the file list is marked truncated ("N+, sample capped"), enumerate the under-represented directories yourself before planning — the wiki must cover the REPO, not the sample.',
+  );
+  lines.push(
+    '3. If the `graphify` MCP server is wired, call its `query_graph` / `get_neighbors` / `shortest_path` for neighbours and dependency paths the grounding summary doesn’t already give you.',
   );
   lines.push('');
 

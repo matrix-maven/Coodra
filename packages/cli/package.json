@@ -27,6 +27,10 @@
       "types": "./dist/lib/init/graphify-wire.d.ts",
       "import": "./dist/lib/init/graphify-wire.js"
     },
+    "./lib/graphify": {
+      "types": "./dist/lib/graphify/index.d.ts",
+      "import": "./dist/lib/graphify/index.js"
+    },
     "./lib/init/graphify-python": {
       "types": "./dist/lib/init/graphify-python.d.ts",
       "import": "./dist/lib/init/graphify-python.js"
@@ -103,7 +107,7 @@
     "smoke:core": "node scripts/core-smoke.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
-    "clean": "rm -rf dist .turbo",
+    "clean": "rm -rf dist .turbo .tsbuildinfo",
     "//install:global": "Symlink the workspace build into the user's global npm prefix so `coodra` on $PATH points at the local dist/. --force overwrites any stale install (e.g. the pre-rename `@coodra/cli` package). Run after `pnpm --filter @coodra/cli build`.",
     "install:global": "npm i -g --force .",
     "//prepublishOnly": "Builds the workspace in the proven dependency order (scripts/build-for-publish.mjs \u2014 web-v2 BEFORE cli's bundle, which a bare `turbo run build` can't guarantee because cli\u2194web-v2 would be a dependency cycle) THEN asserts the bundled web + service runtimes are present. So a clean clone publishes with just `pnpm install && cd packages/cli && npm publish` \u2014 dist/ is gitignored, so without the build the assert would refuse. Turbo-cached, so re-publishes are fast.",

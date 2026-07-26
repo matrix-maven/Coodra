@@ -1,6 +1,8 @@
 import { rm, stat } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
+import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
@@ -8,6 +10,7 @@ import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
 import { removeMcpJson } from '../lib/init/mcp-merge.js';
 import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
+import { SERVICES } from '../lib/services.js';
 import { pc } from '../ui/index.js';
 
 /**
@@ -22,24 +25,47 @@ import { pc } from '../ui/index.js';
  * Order of operations (best-effort each step; one failure doesn't
  * block the rest):
  *
+ *   0. Stop AND uninstall every Coodra daemon unit (mcp-server,
+ *      hooks-bridge, sync-daemon, web) via the platform daemon
+ *      manager (launchd / systemd / fallback). This runs FIRST so
+ *      (a) `coodra uninstall` actually tears the running system down —
+ *      pre-2026-07-18 it left the daemons alive, so the web daemon
+ *      kept holding port 3001 after "uninstall" — and (b) the SQLite
+ *      store is released before any `--remove-data` / `--purge`
+ *      deletion (deleting `data.db` out from under an open WAL handle
+ *      is a corruption risk).
  *   1. Drop `__coodra__`-matcher / URL-owned entries from
  *      `~/.claude/settings.json`.
- *   2. Drop the `coodra` server from `<cwd>/.mcp.json`.
- *   3. With `--purge`: remove `~/.coodra/` entirely.
- *   4. Always: print the `npm uninstall -g @coodra/cli`
- *      command.
+ *   2. Drop the `coodra` server from `<cwd>/.mcp.json` + reverse the
+ *      per-agent Codex / Cursor / Windsurf / CLAUDE.md writes.
+ *   3. With `--remove-data` (and NOT `--purge`): delete the SQLite
+ *      store — `data.db` + its `-wal` / `-shm` sidecars — while
+ *      preserving `config.json` and the packs. The narrow "forget my
+ *      local history but keep me configured" option.
+ *   4. With `--purge`: remove `~/.coodra/` entirely (superset of
+ *      `--remove-data`).
+ *   5. Always: print the `npm uninstall -g @coodra/cli` command.
  *
  * Idempotent: re-running on a clean install (no coodra entries
- * anywhere) is exit-0 with "nothing to remove" notes for each step.
+ * anywhere, no daemon units) is exit-0 with "nothing to remove" /
+ * "already stopped" notes for each step.
  *
- * NOT removed (default-safe): `~/.coodra/data.db`,
+ * NOT removed by default: `~/.coodra/data.db`,
  * `~/.coodra/config.json`, every `docs/feature-packs/<slug>/`,
  * every `docs/context-packs/`. The user can re-run `coodra init`
- * after `npm i -g` and pick up where they left off.
+ * after `npm i -g` and pick up where they left off. `--remove-data`
+ * drops the DB but keeps config + packs; `--purge` drops everything.
  */
 
 export interface UninstallOptions {
   readonly purge?: boolean;
+  /**
+   * Delete `~/.coodra/data.db` (+ `-wal` / `-shm`) while preserving
+   * config + packs. Narrower than `--purge` (which removes all of
+   * `~/.coodra/`). No effect when `--purge` is also set — purge is a
+   * superset.
+   */
+  readonly removeData?: boolean;
   readonly dryRun?: boolean;
   readonly json?: boolean;
   /** When set, omit the npm-uninstall print line (used by tests/scripting). */
@@ -54,6 +80,13 @@ export interface UninstallIO {
   readonly cwd?: string;
   readonly bridgePort?: number;
   readonly settingsPath?: string;
+  /**
+   * Daemon manager override. Tests inject a stub so the daemon-stop
+   * step stays hermetic (never touches the host's real launchd /
+   * systemd units). Production omits it — `selectDaemonManager` picks
+   * the platform manager.
+   */
+  readonly daemonManager?: DaemonManager;
 }
 
 export const DEFAULT_UNINSTALL_IO: UninstallIO = {
@@ -100,8 +133,17 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   // scripting) is honoured verbatim.
   const cwd = io.cwd ?? (await detectProjectRoot(process.cwd())).root;
   const bridgePort = io.bridgePort ?? 3101;
+  const removeData = options.removeData === true;
 
   const steps: UninstallStepResult[] = [];
+
+  // Step 0: stop + uninstall every daemon unit BEFORE touching config or
+  // data. This is what makes `coodra uninstall` actually tear the system
+  // down — pre-2026-07-18 it never called the daemon manager, so the web
+  // daemon kept holding port 3001 after "uninstall". Running it first also
+  // releases the SQLite store so a later `--remove-data` / `--purge` never
+  // deletes `data.db` out from under an open WAL handle.
+  await stopAndUninstallDaemons({ io, homePath, dryRun, steps });
 
   // Step 1: ~/.claude/settings.json
   // settingsPath precedence: explicit IO override (tests) > CLAUDE_SETTINGS_PATH
@@ -188,10 +230,49 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
 
+  // Step 3b: --remove-data (narrow SQLite removal). Only when NOT purging
+  // (purge already removed the whole home dir including data.db). Deletes
+  // the main DB plus its WAL + shared-memory sidecars, but keeps
+  // config.json and the on-disk packs so a subsequent `coodra start`
+  // re-creates a fresh store without re-running `coodra init`.
+  if (removeData && !purge) {
+    const dbFiles = ['data.db', 'data.db-wal', 'data.db-shm'].map((f) => join(homePath, f));
+    const removedNames: string[] = [];
+    let removeFailed: string | null = null;
+    for (const file of dbFiles) {
+      let existed = true;
+      try {
+        await stat(file);
+      } catch {
+        existed = false;
+      }
+      if (!existed) continue;
+      try {
+        if (!dryRun) await rm(file, { force: true });
+        removedNames.push(basename(file));
+      } catch (err) {
+        removeFailed = err instanceof Error ? err.message : String(err);
+      }
+    }
+    if (removeFailed !== null) {
+      steps.push({ step: 'remove-data', action: 'failed', notes: removeFailed });
+    } else if (removedNames.length === 0) {
+      steps.push({ step: 'remove-data', action: 'unchanged', notes: 'no SQLite store present' });
+    } else {
+      steps.push({
+        step: 'remove-data',
+        action: dryRun ? 'unchanged' : 'merged',
+        notes: `${dryRun ? 'dry-run: would remove' : 'removed'} ${removedNames.join(', ')} (config + packs preserved)`,
+      });
+    }
+  }
+
   const npmUninstallCommand = 'npm uninstall -g @coodra/cli';
   const preserved = purge
     ? []
-    : [`${homePath}/data.db`, `${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/'];
+    : removeData
+      ? [`${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/']
+      : [`${homePath}/data.db`, `${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/'];
 
   if (json) {
     const payload: UninstallJson = {
@@ -223,4 +304,58 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
   io.exit(EXIT_OK);
+}
+
+/**
+ * Stop AND uninstall every Coodra daemon unit (mcp-server, hooks-bridge,
+ * sync-daemon, web). Best-effort per unit — a stop/uninstall failure for
+ * one service is recorded and does not block the rest of uninstall.
+ *
+ * `manager.stop` + `manager.uninstall` are both idempotent (per the
+ * DaemonManager contract), so calling them on a service that was never
+ * installed / already stopped is a safe no-op. In `--dry-run` we skip the
+ * calls entirely and just record what would happen. Tests inject
+ * `io.daemonManager` so this never touches the host's real launchd /
+ * systemd; production resolves the platform manager via
+ * `selectDaemonManager`.
+ */
+async function stopAndUninstallDaemons(args: {
+  readonly io: UninstallIO;
+  readonly homePath: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  const { io, homePath, dryRun, steps } = args;
+  const serviceNames = SERVICES.map((s) => s.name);
+
+  if (dryRun) {
+    for (const name of serviceNames) {
+      steps.push({ step: `daemon:${name}`, action: 'unchanged', notes: 'dry-run: would stop + uninstall unit' });
+    }
+    return;
+  }
+
+  let manager: DaemonManager;
+  try {
+    manager = io.daemonManager ?? (await selectDaemonManager({ coodraHome: homePath }));
+  } catch (err) {
+    // Could not resolve a daemon manager — record once and skip the loop.
+    // The rest of uninstall (config reversal, data removal) still runs.
+    steps.push({
+      step: 'daemons',
+      action: 'failed',
+      notes: `could not select daemon manager: ${err instanceof Error ? err.message : String(err)}`,
+    });
+    return;
+  }
+
+  for (const name of serviceNames) {
+    try {
+      await manager.stop(name);
+      await manager.uninstall(name);
+      steps.push({ step: `daemon:${name}`, action: 'merged', notes: 'stopped + removed unit' });
+    } catch (err) {
+      steps.push({ step: `daemon:${name}`, action: 'failed', notes: err instanceof Error ? err.message : String(err) });
+    }
+  }
 }

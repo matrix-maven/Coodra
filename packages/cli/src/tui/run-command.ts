@@ -99,6 +99,19 @@ export async function runCommandInProcess(argv: readonly string[]): Promise<Comm
     packIO: captureIo,
     templateIO: captureIo,
     featureIO: captureIo,
+    // The 2026-07-24 QA sweep found these eight missing: their default IO
+    // calls the REAL `process.exit()`, so an in-process run of e.g.
+    // `coodra agents` terminated the whole TUI. Every command buildProgram
+    // accepts an IO for must be wired here — `tui.test.tsx` runs one of
+    // these groups end-to-end to keep the list honest.
+    metricsIO: captureIo,
+    agentsIO: captureIo,
+    agentIO: captureIo,
+    filesIO: captureIo,
+    graphifyIO: captureIo,
+    graphifyArtifactIO: captureIo,
+    jiraIO: captureIo,
+    wikiIO: captureIo,
   });
 
   applyCommanderOverrides(

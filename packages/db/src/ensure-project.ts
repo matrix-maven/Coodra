@@ -3,6 +3,7 @@ import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
+import { ensureDefaultPolicy } from './ensure-default-policy.js';
 import { scheduleDurableWrite } from './schedule-durable-write.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
 
@@ -100,6 +101,34 @@ export interface EnsureProjectResult {
 }
 
 const seedLogger = createLogger('db.ensure-project');
+
+/**
+ * A project row with no baseline policy is fail-open: the MCP
+ * `check_policy` evaluator returns `allow` for every tool call because
+ * no rule ever matches (see `ensure-default-policy`). Every path that
+ * BIRTHS a project row must therefore seed the `__default__` policy so
+ * enforcement is live from the first agent action — otherwise a
+ * solo-mode session-start (`get_run_id`) or a bridge cwd auto-create
+ * mints a project the policy engine silently waves through.
+ *
+ * Best-effort by design: a seed failure is logged loudly but does NOT
+ * fail project creation. The `projects` row is the more fundamental
+ * invariant (runs/events/decisions FK to it); a missed policy seed is
+ * recoverable — `coodra doctor --fix` backfills every policy-less
+ * project, and the next `ensureProject`/`init` for the slug re-attempts
+ * the (idempotent) seed. Failing the whole call would instead break the
+ * session that triggered the create.
+ */
+async function seedDefaultPolicyOnCreate(db: DbHandle, projectId: string): Promise<void> {
+  try {
+    await ensureDefaultPolicy(db, projectId);
+  } catch (err) {
+    seedLogger.warn(
+      { event: 'default_policy_seed_failed', projectId, err: err instanceof Error ? err.message : String(err) },
+      'project created but default policy seed failed — project is fail-open until repaired (run `coodra doctor --fix`)',
+    );
+  }
+}
 
 export async function ensureProject(db: DbHandle, args: EnsureProjectArgs): Promise<EnsureProjectResult> {
   const slug = args.slug;
@@ -259,6 +288,9 @@ export async function ensureProject(db: DbHandle, args: EnsureProjectArgs): Prom
         );
       }
     }
+    if (created) {
+      await seedDefaultPolicyOnCreate(db, settledId);
+    }
     return { id: settledId, created };
   }
 
@@ -344,5 +376,8 @@ export async function ensureProject(db: DbHandle, args: EnsureProjectArgs): Prom
     { event: 'project_seeded', slug, projectId: settledId, created, ...(cwd !== undefined ? { cwd } : {}) },
     'inserted projects row for cwd-resolved slug',
   );
+  if (created) {
+    await seedDefaultPolicyOnCreate(db, settledId);
+  }
   return { id: settledId, created };
 }

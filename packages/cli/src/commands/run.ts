@@ -54,7 +54,6 @@ export interface RunShowOptions {
 
 export interface RunCancelOptions {
   readonly json?: boolean;
-  readonly force?: boolean;
 }
 
 export interface RunIO {

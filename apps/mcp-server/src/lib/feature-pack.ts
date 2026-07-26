@@ -98,7 +98,7 @@ export interface FeaturePackGetReturn extends FeaturePackReturn {
 // Factory
 // ---------------------------------------------------------------------------
 
-export function defaultFeaturePacksRoot(): string {
+function defaultFeaturePacksRoot(): string {
   // Defaults assume the compiled process starts from the repo root
   // (the CLI, the mcp-server's own dist, tests with explicit
   // fixtures). Tests pass an explicit `featurePacksRoot` so they do

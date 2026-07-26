@@ -2,13 +2,13 @@ import type { DbHandle } from '@coodra/db';
 
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
-import { createGetFeatureToolRegistration } from './get-feature/manifest.js';
-import { createGetFeatureFileToolRegistration } from './get-feature-file/manifest.js';
 import { getFeaturePackToolRegistration } from './get-feature-pack/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
+import { createGetSkillToolRegistration } from './get-skill/manifest.js';
+import { createGetSkillFileToolRegistration } from './get-skill-file/manifest.js';
 import { createLinkRunToIssueToolRegistration } from './link-run-to-issue/manifest.js';
 import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
-import { createListFeaturesToolRegistration } from './list-features/manifest.js';
+import { createListSkillsToolRegistration } from './list-skills/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
 import { createPrepareJiraCommentToolRegistration } from './prepare-jira-comment/manifest.js';
 import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
@@ -65,14 +65,21 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // docs/feature-packs/05-agent-driven-nl-assembly/spec.md §5.1, §5.2.
   registry.register(createListContextPacksToolRegistration({ db: deps.db }));
   registry.register(createReadContextPackToolRegistration({ db: deps.db }));
-  // Skill-style features (2026-05-08): the three retrieval tools that
-  // back the docs/features/<slug>/ knowledge-units layer. See
-  // packages/shared/src/features/types.ts for the format spec, and
-  // apps/hooks-bridge/src/lib/features-index-loader.ts for the
-  // SessionStart injection that surfaces the index list to agents.
-  registry.register(createListFeaturesToolRegistration({ db: deps.db }));
-  registry.register(createGetFeatureToolRegistration({ db: deps.db }));
-  registry.register(createGetFeatureFileToolRegistration({ db: deps.db }));
+  // Skills (2026-05-08; renamed from "Features" 2026-07): the three
+  // retrieval tools that back the docs/skills/<slug>/ knowledge-units layer
+  // (legacy docs/features/ is still read — see @coodra/shared skillsRoot).
+  // See packages/shared/src/features/types.ts for the format spec, and
+  // apps/hooks-bridge/src/lib/features-index-loader.ts for the SessionStart
+  // injection that surfaces the index list to agents. The former tool names
+  // (list_features / get_feature / get_feature_file) are registered as hidden
+  // aliases below so no agent config breaks on upgrade — they resolve to the
+  // same handlers but do NOT appear in tools/list (count stays 20).
+  registry.register(createListSkillsToolRegistration({ db: deps.db }));
+  registry.register(createGetSkillToolRegistration({ db: deps.db }));
+  registry.register(createGetSkillFileToolRegistration({ db: deps.db }));
+  registry.registerAlias('list_features', 'list_skills');
+  registry.registerAlias('get_feature', 'get_skill');
+  registry.registerAlias('get_feature_file', 'get_skill_file');
   // Module 06 (Run Diff, 2026-05-09): surfaces run_diffs rows written
   // by the hooks-bridge SessionEnd runner. Server-side computation is
   // pure-deterministic (git diff, no LLM); the agent reads the

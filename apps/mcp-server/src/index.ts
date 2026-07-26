@@ -43,8 +43,8 @@ const SERVER_VERSION = '0.0.0' as const;
  *   - Full `ContextDeps` bag wired from `src/lib/*` factories, even
  *     though only `policy` is consumed at call time in S7a. The
  *     remaining lib clients (db, auth, featurePack, contextPack,
- *     runRecorder) exist as stubs that throw
- *     `NotImplementedError` — their bodies fill in across S7b/c.
+ *     runRecorder) existed as throwing stubs — their bodies filled
+ *     in across S7b/c.
  *     Wiring them now locks the boot-order contract so S7b/c are
  *     function-body changes, not file additions.
  *

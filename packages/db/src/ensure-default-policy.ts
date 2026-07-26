@@ -161,7 +161,7 @@ const BASH_ASK_RULE: DefaultRuleSpec = {
     'Bash invocations require user confirmation — destructive commands (rm -rf, git push --force) are easy to slip through, and shell redirects (echo X > .env) bypass the file-tool deny rules above',
 };
 
-export const DEFAULT_RULES: readonly DefaultRuleSpec[] = [...TOOL_BLOCKS.flatMap(buildToolBlockRules), BASH_ASK_RULE];
+const DEFAULT_RULES: readonly DefaultRuleSpec[] = [...TOOL_BLOCKS.flatMap(buildToolBlockRules), BASH_ASK_RULE];
 
 export interface EnsureDefaultPolicyResult {
   readonly policyId: string;

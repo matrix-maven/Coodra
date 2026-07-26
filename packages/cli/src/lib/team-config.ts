@@ -160,21 +160,6 @@ export function demoteToSoloConfig(opts: ResolveTeamConfigOptions = {}): void {
   writeTeamConfig(SOLO_CONFIG, opts);
 }
 
-/**
- * Merge a partial pull-state update into the existing team block. No-op
- * in solo mode (no team block to update). Used by the sync daemon's
- * pull-tick to record `lastPulledAt` per table after each successful tick.
- */
-export function updateLastPulledAt(table: string, ts: number, opts: ResolveTeamConfigOptions = {}): void {
-  const cfg = readTeamConfig(opts);
-  if (cfg.mode !== 'team' || cfg.team === undefined) return;
-  const next: TeamBlock = {
-    ...cfg.team,
-    lastPulledAt: { ...(cfg.team.lastPulledAt ?? {}), [table]: ts },
-  };
-  writeTeamConfig({ mode: 'team', team: next }, opts);
-}
-
 // ---------------------------------------------------------------------------
 // `~/.coodra/.env` writer / reader (Phase G+H, 2026-05-09).
 // ---------------------------------------------------------------------------

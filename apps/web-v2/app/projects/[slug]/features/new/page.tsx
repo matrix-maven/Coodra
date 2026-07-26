@@ -27,17 +27,17 @@ export default async function NewFeaturePage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / features / new`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / skills / new`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · NEW FEATURE</div>
+            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · NEW SKILL</div>
             <h1 className="head__title">
-              Define a <em>feature</em>.
+              Define a <em>skill</em>.
             </h1>
             <p className="head__lede">
               Pick a slug, write a one-sentence trigger description, and (optionally) drop in supporting files. The
-              agent reads the trigger to decide whether to load this feature; the body + files are loaded on demand.
+              agent reads the trigger to decide whether to load this skill; the body + files are loaded on demand.
             </p>
           </div>
           <div>
@@ -48,7 +48,7 @@ export default async function NewFeaturePage({
             </div>
             <div className="head__actions">
               <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                ← back to features
+                ← back to skills
               </Link>
             </div>
           </div>
@@ -79,7 +79,7 @@ export default async function NewFeaturePage({
               name="slug"
               required
               placeholder="payments-flow"
-              hint="Lowercase letters, digits, hyphens or underscores. Becomes the directory name under docs/features/."
+              hint="Lowercase letters, digits, hyphens or underscores. Becomes the directory name under docs/skills/."
             />
 
             <Field
@@ -138,8 +138,8 @@ export default async function NewFeaturePage({
                 style={textareaStyle}
               />
               <p style={hintStyle}>
-                Free-form markdown. Loaded by <code style={mono}>coodra__get_feature</code> on demand. Leave blank to
-                use the scaffold.
+                Free-form markdown. Loaded by <code style={mono}>coodra__get_skill</code> on demand. Leave blank to use
+                the scaffold.
               </p>
             </div>
 
@@ -157,7 +157,7 @@ export default async function NewFeaturePage({
               />
               <p style={hintStyle}>
                 Multi-select. Cap: 256 KB per file. Allowed extensions match the MCP{' '}
-                <code style={mono}>get_feature_file</code> tool exactly.
+                <code style={mono}>get_skill_file</code> tool exactly.
               </p>
             </div>
 
@@ -172,12 +172,12 @@ export default async function NewFeaturePage({
               }}
             >
               <input type="checkbox" name="force" />
-              Force overwrite if a feature with this slug already exists
+              Force overwrite if a skill with this slug already exists
             </label>
 
             <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
               <button type="submit" className="btn btn--accent">
-                Create feature
+                Create skill
               </button>
               <Link href={`/projects/${encodeURIComponent(project.slug)}/features`} className="btn btn--ghost">
                 Cancel

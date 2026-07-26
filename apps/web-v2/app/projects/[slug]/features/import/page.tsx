@@ -27,20 +27,20 @@ export default async function ImportFeaturesPage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / features / import`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / skills / import`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · IMPORT FEATURES</div>
+            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · IMPORT SKILLS</div>
             <h1 className="head__title">
               Promote existing <em>docs</em>.
             </h1>
             <p className="head__lede">
               We scanned <code style={mono}>docs/</code>, <code style={mono}>specs/</code>,{' '}
               <code style={mono}>architecture/</code>, <code style={mono}>arch/</code>, and{' '}
-              <code style={mono}>design/</code> for markdown files that look like good feature candidates. Pick the ones
-              you want, refine the slug + description for each, and we&apos;ll create matching features under{' '}
-              <code style={mono}>docs/features/</code>. Originals are kept on disk — promotion is additive.
+              <code style={mono}>design/</code> for markdown files that look like good skill candidates. Pick the ones
+              you want, refine the slug + description for each, and we&apos;ll create matching skills under{' '}
+              <code style={mono}>docs/skills/</code>. Originals are kept on disk — promotion is additive.
             </p>
           </div>
           <div>
@@ -61,7 +61,7 @@ export default async function ImportFeaturesPage({
             </div>
             <div className="head__actions">
               <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                ← back to features
+                ← back to skills
               </Link>
               <Link className="btn" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
                 Create blank

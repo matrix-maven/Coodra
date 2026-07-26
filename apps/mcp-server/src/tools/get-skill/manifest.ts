@@ -13,20 +13,20 @@ const getFeatureIdempotencyKey: IdempotencyKeyBuilder<GetFeatureInput> = (input,
   };
 };
 
-export function createGetFeatureToolRegistration(
+export function createGetSkillToolRegistration(
   deps: GetFeatureHandlerDeps,
 ): ToolRegistration<typeof getFeatureInputSchema, typeof getFeatureOutputSchema> {
   return {
-    name: 'get_feature',
-    title: 'Coodra: get_feature',
+    name: 'get_skill',
+    title: 'Coodra: get_skill',
     description:
-      "Call when the user's prompt matches a skill's trigger description from `list_features` — never blindly " +
-      'pre-load. Features are pull-based SKILLS (single markdown + frontmatter + optional supporting files), ' +
+      "Call when the user's prompt matches a skill's trigger description from `list_skills` — never blindly " +
+      'pre-load. Skills are pull-based recipes (single markdown + frontmatter + optional supporting files), ' +
       'distinct from Feature Packs which are MODULE blueprints (push, via `get_feature_pack`). Returns { ok: true, ' +
-      'slug, frontmatter, body, files: [{path, bytes, modifiedAt}] } where `body` is the full feature.md content ' +
-      '(markdown, expect 1-30 KB). Supporting file CONTENTS are NOT inlined — call `get_feature_file(slug, path)` ' +
+      'slug, frontmatter, body, files: [{path, bytes, modifiedAt}] } where `body` is the full skill markdown ' +
+      '(expect 1-30 KB). Supporting file CONTENTS are NOT inlined — call `get_skill_file(slug, path)` ' +
       'per file. Soft-failures: project_not_found / project_cwd_unknown / feature_not_found, each with howToFix. ' +
-      'Re-call when switching to a different skill mid-session.',
+      'Re-call when switching to a different skill mid-session. (Former name `get_feature` still works as an alias.)',
     inputSchema: getFeatureInputSchema,
     outputSchema: getFeatureOutputSchema,
     idempotencyKey: getFeatureIdempotencyKey,

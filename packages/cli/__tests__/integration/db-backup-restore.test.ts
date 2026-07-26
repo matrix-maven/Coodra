@@ -9,6 +9,30 @@ import { type DbBackupIO, runDbBackupCommand } from '../../src/commands/db-backu
 import { type DbRestoreIO, runDbRestoreCommand } from '../../src/commands/db-restore.js';
 import { EXIT_BACKUP_RESTORE_PRECONDITION, EXIT_OK, EXIT_USER_RECOVERABLE } from '../../src/exit-codes.js';
 import { resolveCoodraDataDb } from '../../src/lib/coodra-home.js';
+import type { DaemonManager } from '../../src/lib/daemon/index.js';
+
+/**
+ * Hermetic daemon-manager stub for the restore preflight. `running` maps a
+ * unit name → whether the platform manager reports it as running. Restore
+ * tests MUST inject one — otherwise the preflight resolves the real
+ * launchd/systemd manager, which on a dev machine reports Coodra's own
+ * units as running and makes every restore test refuse.
+ */
+function makeStubDaemonManager(running: Record<string, boolean> = {}): DaemonManager {
+  return {
+    kind: 'launchd',
+    isAvailable: async () => true,
+    install: async () => {},
+    uninstall: async () => {},
+    start: async () => {},
+    stop: async () => {},
+    status: async (u: string) => ({
+      name: u,
+      state: running[u] === true ? ('running' as const) : ('stopped' as const),
+    }),
+    list: async () => [],
+  };
+}
 
 interface Capture {
   stdout: string[];
@@ -28,7 +52,9 @@ function backupIo(home: string, cap: Capture): DbBackupIO {
   };
 }
 
-function restoreIo(home: string, cap: Capture): DbRestoreIO {
+// `daemonManager` omitted → an all-stopped stub so the preflight never
+// queries the host's real launchd/systemd units.
+function restoreIo(home: string, cap: Capture, daemonManager?: DaemonManager): DbRestoreIO {
   return {
     writeStdout: (c) => cap.stdout.push(c),
     writeStderr: (c) => cap.stderr.push(c),
@@ -37,6 +63,7 @@ function restoreIo(home: string, cap: Capture): DbRestoreIO {
       throw new Error(`__exit__:${code}`);
     },
     coodraHome: home,
+    daemonManager: daemonManager ?? makeStubDaemonManager(),
   };
 }
 
@@ -171,6 +198,47 @@ describe('coodra db backup + db restore integration', () => {
     const payload = JSON.parse(cap.stdout.join('')) as { ok: boolean; daemonsRunning?: { unit: string }[] };
     expect(payload.ok).toBe(false);
     expect(payload.daemonsRunning?.[0]?.unit).toBe('mcp-server');
+  });
+
+  it('Fixture 4b — THE GAP: restore refuses if the web daemon is running (no PID file, manager-reported)', async () => {
+    // 2026-07-18: pre-hardening the preflight was PID-file-only and omitted
+    // `web` entirely, so a running web dashboard (which reads the same DB)
+    // sailed past the guard → restore-while-open corruption. The web unit is
+    // launchd-managed and writes no PID file, so ONLY the daemon-manager
+    // signal catches it.
+    const bcap: Capture = { stdout: [], stderr: [], exitCode: null };
+    await expectExit(() => runDbBackupCommand({ json: true }, backupIo(homePath, bcap)));
+    const { destination } = JSON.parse(bcap.stdout.join('')) as { destination: string };
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runDbRestoreCommand(destination, { json: true }, restoreIo(homePath, cap, makeStubDaemonManager({ web: true }))),
+    );
+    expect(code).toBe(EXIT_USER_RECOVERABLE);
+    const payload = JSON.parse(cap.stdout.join('')) as { ok: boolean; daemonsRunning?: { unit: string }[] };
+    expect(payload.ok).toBe(false);
+    expect(payload.daemonsRunning?.map((d) => d.unit)).toContain('web');
+  });
+
+  it('Fixture 4c — restore refuses a launchd-managed mcp-server with no PID file (manager signal)', async () => {
+    // Proves the manager signal catches daemons that write no PID file — the
+    // exact case the old PID-only check missed for launchd/systemd installs.
+    const bcap: Capture = { stdout: [], stderr: [], exitCode: null };
+    await expectExit(() => runDbBackupCommand({ json: true }, backupIo(homePath, bcap)));
+    const { destination } = JSON.parse(bcap.stdout.join('')) as { destination: string };
+
+    // No PID file written — only the manager reports it running.
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runDbRestoreCommand(
+        destination,
+        { json: true },
+        restoreIo(homePath, cap, makeStubDaemonManager({ 'mcp-server': true })),
+      ),
+    );
+    expect(code).toBe(EXIT_USER_RECOVERABLE);
+    const payload = JSON.parse(cap.stdout.join('')) as { ok: boolean; daemonsRunning?: { unit: string }[] };
+    expect(payload.daemonsRunning?.map((d) => d.unit)).toContain('mcp-server');
   });
 
   it('Fixture 5 — restore rejects a non-SQLite source via the magic-bytes check', async () => {

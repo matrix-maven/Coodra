@@ -156,14 +156,14 @@ Coodra's whole bet is that **context is cheaper than re-discovery**. Authoring a
 
 ---
 
-## The 15 MCP tools
+## The 20 MCP tools
 
 Grouped by intent. Every tool ships a five-part description so the agent's planner knows exactly when to call it (and when not to).
 
 | Group | Tools |
 |---|---|
 | **Identity** | `get_run_id` · `ping` |
-| **Architectural context** | `get_feature_pack` · `list_features` · `get_feature` · `get_feature_file` |
+| **Architectural context** | `get_feature_pack` · `list_skills` · `get_skill` · `get_skill_file` |
 | **Cross-session memory** | `save_context_pack` · `list_context_packs` · `read_context_pack` · `search_packs_nl` |
 | **Decisions** | `record_decision` · `query_decisions` |
 | **Policy + runs** | `check_policy` · `query_run_history` · `query_run_diff` |
@@ -178,7 +178,7 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 
 ```
 @coodra/cli@beta            single npm install — everything bundled
-├── mcp-server              TS · 15 MCP tools · stdio + HTTP transport
+├── mcp-server              TS · 20 MCP tools · stdio + HTTP transport
 ├── hooks-bridge            TS · Hono on 127.0.0.1:3101 · 5 hook events
 ├── sync-daemon             TS · outbox push + cloud→local puller (team only)
 ├── web-v2                  Next.js 15 admin UI on :3001 (audit log, policies, packs)
@@ -269,7 +269,7 @@ credentials.
 
 **`@coodra/cli@0.2.0-beta.3`** — public beta.
 
-Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Feature Packs + on-demand Features).
+Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Feature Packs + on-demand Skills).
 
 In progress: `web-v2` admin UI polish, knowledge-layer cloud-sync conflict edge cases, multi-org isolation tightening (Phase G+1).
 

@@ -22,7 +22,9 @@ export const listFeaturesInputSchema = z
       .string()
       .min(1, 'projectSlug is required')
       .max(128, 'projectSlug must be ≤ 128 chars')
-      .describe('Project slug (matches `projects.slug` and the on-disk `docs/features/` directory).'),
+      .describe(
+        'Project slug (matches `projects.slug` and the on-disk `docs/skills/` — or legacy `docs/features/` — directory).',
+      ),
   })
   .strict()
   .describe('Input for coodra__list_features.');
@@ -47,7 +49,10 @@ const successBranch = z
   .object({
     ok: z.literal(true),
     projectSlug: z.string().min(1),
-    featuresRoot: z.string().min(1).describe('Absolute path to <projectCwd>/docs/features/.'),
+    featuresRoot: z
+      .string()
+      .min(1)
+      .describe('Absolute path to the resolved skills dir (<projectCwd>/docs/skills/ or legacy docs/features/).'),
     features: z
       .array(featureEntrySchema)
       .describe(

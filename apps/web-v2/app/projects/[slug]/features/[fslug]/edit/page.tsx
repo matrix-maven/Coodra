@@ -33,11 +33,11 @@ export default async function EditFeaturePage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / features / ${row.slug} / edit`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / skills / ${row.slug} / edit`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/01 · PROJECT · FEATURE · EDIT</div>
+            <div className="head__num">/01 · PROJECT · SKILL · EDIT</div>
             <h1 className="head__title">
               Edit <em>{row.slug}</em>
             </h1>
@@ -135,7 +135,7 @@ export default async function EditFeaturePage({
               </label>
               <textarea id="edit-feature-body" name="body" rows={20} defaultValue={row.body} style={textareaStyle} />
               <p style={hintStyle}>
-                Free-form markdown. Loaded by <code style={mono}>coodra__get_feature</code>. The frontmatter is emitted
+                Free-form markdown. Loaded by <code style={mono}>coodra__get_skill</code>. The frontmatter is emitted
                 deterministically by the server action — your edits round-trip without diff noise.
               </p>
             </div>
@@ -184,7 +184,7 @@ export default async function EditFeaturePage({
         >
           <div className="card__head" style={{ marginBottom: 12 }}>
             <h2 className="card__title" style={{ color: 'var(--warn)' }}>
-              Remove <em>feature</em>
+              Remove <em>skill</em>
             </h2>
             <span className="card__role">irreversible · deletes the directory</span>
           </div>
@@ -202,7 +202,7 @@ export default async function EditFeaturePage({
               style={textInputStyle}
             />
             <button type="submit" className="btn btn--sm" style={{ borderColor: 'var(--warn)', color: 'var(--warn)' }}>
-              Remove feature
+              Remove skill
             </button>
           </form>
         </div>

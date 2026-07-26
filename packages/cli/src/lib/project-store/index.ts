@@ -1,0 +1,26 @@
+export {
+  type EnsureProjectConfigResult,
+  ensureProjectConfig,
+  LEGACY_CONFIG_REL,
+  legacyConfigPath,
+  PROJECT_CONFIG_REL,
+  type ProjectConfig,
+  projectConfigPath,
+  readProjectConfig,
+  type WriteProjectConfigOptions,
+  writeProjectConfig,
+} from './config.js';
+export {
+  type CleanupPolicy,
+  classifyGeneratedPath,
+  MANIFEST_REL,
+  type Manifest,
+  type ManifestEntry,
+  type ManifestEntryInput,
+  type ManifestScope,
+  manifestPath,
+  pruneManifestEntries,
+  type RecordManifestOptions,
+  readManifest,
+  recordManifestEntries,
+} from './manifest.js';

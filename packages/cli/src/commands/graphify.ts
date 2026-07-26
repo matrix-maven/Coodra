@@ -3,6 +3,15 @@ import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
+import {
+  detectGraphifyLayout,
+  type GraphifyPaths,
+  LEGACY_PATHS,
+  MANAGED_PATHS,
+  resolveGraphifyPaths,
+  scanGraphifyArtifacts,
+  writeGraphifyRecord,
+} from '../lib/graphify/artifacts.js';
 import { type InstallCommandRunner, offerGraphifyInstall } from '../lib/init/graphify-install.js';
 import {
   type GraphifyPythonResolution,
@@ -10,17 +19,12 @@ import {
   resolveGraphifyPython,
   type VerifyResult,
 } from '../lib/init/graphify-python.js';
-import {
-  DEFAULT_GRAPHIFY_GRAPH_PATH,
-  graphifyConfigPath,
-  readGraphifyPresence,
-  unwireGraphify,
-  wireGraphify,
-} from '../lib/init/graphify-wire.js';
+import { graphifyConfigPath, readGraphifyPresence, unwireGraphify, wireGraphify } from '../lib/init/graphify-wire.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
+import { recordArtifactsInManifest, renderScan } from './graphify-artifacts.js';
 
 /**
  * `coodra graphify {enable,disable,status}` — wires Graphify's own
@@ -253,9 +257,19 @@ export async function runGraphifyEnableCommand(
   const cwd = options.cwd ?? process.cwd();
   const userHome = options.userHome ?? homedir();
   const env = options.env ?? process.env;
-  const graphPath = options.graph ?? DEFAULT_GRAPHIFY_GRAPH_PATH;
   const dryRun = options.dryRun === true;
   const json = options.json === true;
+  // Phase 3: resolve WHERE Graphify's output lives before wiring, so the MCP
+  // entry points at the right graph.json. An explicit --graph always wins.
+  const layout = await resolveEnableLayout({
+    cwd,
+    ...(options.graph !== undefined ? { explicitGraph: options.graph } : {}),
+    json,
+    dryRun,
+    ...(options.readPrompt !== undefined ? { readPrompt: options.readPrompt } : {}),
+    write: io.writeStdout,
+  });
+  const graphPath = layout.graphJson;
 
   // Resolve the interpreter BEFORE wiring. When `--python` is omitted we
   // probe + verify candidate interpreters so the written entry points at
@@ -333,6 +347,20 @@ export async function runGraphifyEnableCommand(
   // Does the resolved graph artifact already exist? (Relative paths
   // resolve against the repo root the agent spawns the server from.)
   const graphExists = existsSync(isAbsolute(graphPath) ? graphPath : join(cwd, graphPath));
+
+  // Persist the layout choice so `build` / `open` / `clean` / `status` all agree
+  // on where the artifacts live, and record any existing artifacts in the
+  // generated-file manifest.
+  if (!hadError) {
+    try {
+      await writeGraphifyRecord(cwd, layout, { dryRun });
+      if (!dryRun) await recordArtifactsInManifest(cwd, layout, graphExists, 'coodra graphify enable');
+    } catch (err) {
+      io.writeStderr(
+        `${pc.yellow('⚠')} Could not record the Graphify layout: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
 
   if (json) {
     io.writeStdout(
@@ -473,6 +501,60 @@ function renderStatusRow(s: GraphifyIdeStatus): string {
  * MCP entry is present in each agent config (Claude Code / Cursor /
  * Windsurf / Codex). Touches no disk state.
  */
+/**
+ * Decide WHERE this project's Graphify output lives, for `enable`.
+ *
+ * Precedence:
+ *   1. explicit `--graph <path>` — the user pinned it; honoured verbatim and
+ *      treated as unmanaged (Coodra won't set GRAPHIFY_OUT for a custom path).
+ *   2. a recorded choice in `.coodra/graphify.json` — reuse it (no re-asking).
+ *   3. an existing legacy `graphify-out/graph.json` — ASK: keep it (default) or
+ *      migrate to the Coodra-managed `.coodra/graphify/out`. Non-interactive
+ *      runs KEEP the legacy layout: `graphify-out/` is meant to be committed to
+ *      git, so silently relocating it under the (gitignored) `.coodra/` would
+ *      change how the graph is shared with the team.
+ *   4. nothing on disk yet — default to the Coodra-managed layout so new
+ *      projects get a clean repo root.
+ */
+async function resolveEnableLayout(args: {
+  readonly cwd: string;
+  readonly explicitGraph?: string;
+  readonly json: boolean;
+  readonly dryRun: boolean;
+  readonly readPrompt?: (prompt: string) => Promise<string>;
+  readonly write: (chunk: string) => void;
+}): Promise<GraphifyPaths> {
+  if (args.explicitGraph !== undefined && args.explicitGraph.length > 0) {
+    const dir = args.explicitGraph.replace(/[\\/]graph\.json$/, '');
+    return {
+      outputDir: dir.length > 0 ? dir : LEGACY_PATHS.outputDir,
+      graphJson: args.explicitGraph,
+      graphHtml: `${dir}/graph.html`,
+      report: `${dir}/GRAPH_REPORT.md`,
+      managedByCoodra: false,
+    };
+  }
+
+  const detection = await detectGraphifyLayout(args.cwd);
+  if (detection.recorded !== null) return await resolveGraphifyPaths(args.cwd);
+  if (detection.managedPresent) return MANAGED_PATHS;
+  if (!detection.legacyPresent) return MANAGED_PATHS;
+
+  // Legacy output exists and nothing is recorded — ask before relocating.
+  const interactive = args.readPrompt !== undefined || (process.stdin.isTTY === true && !args.json);
+  if (!interactive) return LEGACY_PATHS;
+
+  const readPrompt = args.readPrompt ?? terminalReadPrompt;
+  args.write(
+    `\n  ${pc.yellow('◌')} Existing Graphify output found at ${pc.bold(LEGACY_PATHS.outputDir)}.\n` +
+      `    ${pc.gray('Graphify intends this directory to be committed to git; .coodra/ is usually gitignored.')}\n`,
+  );
+  const answer = (await readPrompt(`  Migrate to Coodra-managed ${MANAGED_PATHS.outputDir}? [y/N]: `))
+    .trim()
+    .toLowerCase();
+  return answer === 'y' || answer === 'yes' ? MANAGED_PATHS : LEGACY_PATHS;
+}
+
 export async function runGraphifyStatusCommand(
   options: GraphifyStatusOptions = {},
   io: GraphifyIO = DEFAULT_GRAPHIFY_IO,
@@ -491,8 +573,12 @@ export async function runGraphifyStatusCommand(
     });
   }
 
+  // Phase 3: the artifact half — where the graph lives and what's in it.
+  const artifactPaths = await resolveGraphifyPaths(cwd);
+  const scan = await scanGraphifyArtifacts(cwd, artifactPaths);
+
   if (options.json === true) {
-    io.writeStdout(`${JSON.stringify({ server: 'graphify', ides: statuses }, null, 2)}\n`);
+    io.writeStdout(`${JSON.stringify({ server: 'graphify', ides: statuses, artifacts: scan }, null, 2)}\n`);
     return io.exit(EXIT_OK);
   }
 
@@ -500,6 +586,11 @@ export async function runGraphifyStatusCommand(
   for (const s of statuses) {
     io.writeStdout(`${renderStatusRow(s)}\n`);
   }
+  io.writeStdout('\n');
+  io.writeStdout(
+    `  ${pc.bold('Graph artifacts')} ${pc.gray(`— ${artifactPaths.outputDir}${artifactPaths.managedByCoodra ? ' (Coodra-managed)' : ' (Graphify default)'}`)}\n`,
+  );
+  renderScan(io, scan);
   io.writeStdout('\n');
   const anyWired = statuses.some((s) => s.wired);
   io.writeStdout(

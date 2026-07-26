@@ -46,9 +46,12 @@ const EXPECTED_TOOLS = [
   'query_decisions',
   'list_context_packs',
   'read_context_pack',
-  'list_features',
-  'get_feature',
-  'get_feature_file',
+  // Phase 5 (2026-07) — Features→Skills rename. tools/list advertises the
+  // skill names; list_features / get_feature / get_feature_file remain callable
+  // as hidden registry aliases (not listed), so the count is unchanged.
+  'list_skills',
+  'get_skill',
+  'get_skill_file',
   'query_run_diff',
   // Module 09 J2 (2026-05-31, ADR-016 — Jira = Direct). Replaces the retired
   // seed_feature_packs_from_graph (ADR-015): that entry was stale here because

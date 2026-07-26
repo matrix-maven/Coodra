@@ -1,4 +1,5 @@
-import { listProjects } from '@coodra/db';
+import { stat } from 'node:fs/promises';
+import { ensureDefaultPolicy, listProjects } from '@coodra/db';
 import { buildCheckContext } from '../doctor/context.js';
 import { formatHuman, formatJson } from '../doctor/output.js';
 import { ALL_CHECKS, ESSENTIAL_CHECKS } from '../doctor/registry.js';
@@ -6,6 +7,7 @@ import { exitCodeForReport, runChecks } from '../doctor/run.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { scanProjectEnvForStaleMode, stripStaleModeFromProjectEnv } from '../lib/project-env-scan.js';
+import { ensureProjectConfig, legacyConfigPath, projectConfigPath } from '../lib/project-store/index.js';
 import { checkGlyph, hintLine, paint, style } from '../ui/index.js';
 
 export interface DoctorOptions {
@@ -38,6 +40,43 @@ interface FixReport {
     readonly removedLines: readonly string[];
   }>;
   readonly skippedMissing: ReadonlyArray<string>;
+  readonly policy: PolicyBackfillReport;
+  readonly configMigration: ConfigMigrationReport;
+}
+
+/**
+ * Migration report for the project-local `.coodra/config.json` heal
+ * (Phase 2). Projects wired before the new identity file existed carry only
+ * the legacy `.coodra.json`; `doctor --fix` creates `.coodra/config.json`
+ * beside it. Only projects that already have a legacy `.coodra.json` on disk
+ * (i.e. real wired project dirs) are touched.
+ */
+interface ConfigMigrationReport {
+  readonly migrated: ReadonlyArray<{ readonly slug: string; readonly cwd: string }>;
+  readonly failed: ReadonlyArray<{ readonly slug: string; readonly cwd: string; readonly error: string }>;
+}
+
+/**
+ * Backfill report for the default-policy heal (2026-07-18). A project
+ * row with no `__default__` policy is fail-open — the MCP `check_policy`
+ * evaluator returns `allow` for every tool because no rule matches. This
+ * pass seeds/repairs the baseline policy for EVERY registered project so
+ * `coodra doctor --fix` heals machines whose projects were minted by an
+ * older `get_run_id`/bridge auto-create (which did not seed a policy).
+ * `ensureDefaultPolicy` is idempotent + additive, so re-running is safe.
+ */
+interface PolicyBackfillReport {
+  readonly scanned: number;
+  /** Projects that had no `__default__` policy — a fresh one was inserted. */
+  readonly seeded: ReadonlyArray<{ readonly slug: string; readonly projectId: string }>;
+  /** Projects that had `__default__` but were missing baseline rules — rules added. */
+  readonly repaired: ReadonlyArray<{
+    readonly slug: string;
+    readonly projectId: string;
+    readonly rulesInserted: number;
+  }>;
+  /** Projects whose seed threw (logged, non-fatal). */
+  readonly failed: ReadonlyArray<{ readonly slug: string; readonly projectId: string; readonly error: string }>;
 }
 
 export interface DoctorIO {
@@ -131,7 +170,13 @@ async function runFixPass(): Promise<FixReport> {
     handle = await openLocalDb(dataDb);
   } catch {
     // Data DB missing / unreadable — nothing to scan. Treat as clean.
-    return { scanned: 0, stripped: [], skippedMissing: [] };
+    return {
+      scanned: 0,
+      stripped: [],
+      skippedMissing: [],
+      policy: emptyPolicyBackfill(),
+      configMigration: { migrated: [], failed: [] },
+    };
   }
   try {
     const projects = await listProjects(handle);
@@ -160,41 +205,152 @@ async function runFixPass(): Promise<FixReport> {
         skippedMissing.push(scan.envPath);
       }
     }
-    return { scanned, stripped, skippedMissing };
+    const policy = await backfillDefaultPolicies(handle, projects);
+    const configMigration = await migrateProjectConfigs(projects);
+    return { scanned, stripped, skippedMissing, policy, configMigration };
   } finally {
     handle.close();
   }
+}
+
+/**
+ * Create `.coodra/config.json` for every registered project that still has
+ * only the legacy `.coodra.json`. Idempotent — projects already carrying the
+ * new file (or without a legacy file on disk, i.e. not a wired project dir)
+ * are skipped. Best-effort per project.
+ */
+async function migrateProjectConfigs(
+  projects: Awaited<ReturnType<typeof listProjects>>,
+): Promise<ConfigMigrationReport> {
+  const migrated: Array<{ slug: string; cwd: string }> = [];
+  const failed: Array<{ slug: string; cwd: string; error: string }> = [];
+  for (const p of projects) {
+    if (p.cwd === null) continue;
+    if (await pathExists(projectConfigPath(p.cwd))) continue; // already migrated
+    if (!(await pathExists(legacyConfigPath(p.cwd)))) continue; // not a wired project dir
+    try {
+      await ensureProjectConfig({ root: p.cwd, projectSlug: p.slug, force: false, dryRun: false });
+      migrated.push({ slug: p.slug, cwd: p.cwd });
+    } catch (err) {
+      failed.push({ slug: p.slug, cwd: p.cwd, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return { migrated, failed };
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function emptyPolicyBackfill(): PolicyBackfillReport {
+  return { scanned: 0, seeded: [], repaired: [], failed: [] };
+}
+
+/**
+ * Seed/repair the `__default__` policy for every registered project.
+ * This is the productized heal for the fail-open gap: projects minted by
+ * an older `get_run_id`/bridge auto-create carry no policy, so the
+ * evaluator waved through every tool call. Unlike the env-strip pass
+ * above, this covers projects with a null `cwd` too (policy is keyed on
+ * projectId, not the filesystem). Best-effort per project — one seed
+ * failure is recorded and the loop continues.
+ */
+export async function backfillDefaultPolicies(
+  handle: Awaited<ReturnType<typeof openLocalDb>>,
+  projects: Awaited<ReturnType<typeof listProjects>>,
+): Promise<PolicyBackfillReport> {
+  const seeded: Array<{ slug: string; projectId: string }> = [];
+  const repaired: Array<{ slug: string; projectId: string; rulesInserted: number }> = [];
+  const failed: Array<{ slug: string; projectId: string; error: string }> = [];
+  for (const p of projects) {
+    // The `__global__` sentinel is infrastructure, not an agent-facing
+    // project — it never runs agents, so it needs no enforcement policy.
+    if (p.slug === '__global__') continue;
+    try {
+      const result = await ensureDefaultPolicy(handle, p.id);
+      if (result.created) {
+        seeded.push({ slug: p.slug, projectId: p.id });
+      } else if (result.rulesInserted > 0) {
+        repaired.push({ slug: p.slug, projectId: p.id, rulesInserted: result.rulesInserted });
+      }
+    } catch (err) {
+      failed.push({ slug: p.slug, projectId: p.id, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+  return { scanned: projects.length, seeded, repaired, failed };
 }
 
 function formatFixReportHuman(fix: FixReport): string {
   const lines: string[] = [];
   lines.push('');
   lines.push(style.bold(paint.ink('--fix pass')));
+
+  // Section 1: stale COODRA_MODE strip (env drift).
   if (fix.scanned === 0) {
     lines.push(`  ${paint.inkFar('No registered projects with a recorded cwd — nothing to scan.')}`);
-    lines.push('');
-    return `${lines.join('\n')}\n`;
-  }
-  if (fix.stripped.length === 0) {
+  } else if (fix.stripped.length === 0) {
     lines.push(`  ${checkGlyph('ok')} Scanned ${fix.scanned} project(s). No stale COODRA_MODE lines found.`);
-    lines.push('');
-    return `${lines.join('\n')}\n`;
-  }
-  lines.push(
-    `  ${paint.blue('✎')} Scanned ${fix.scanned} project(s); stripped stale COODRA_MODE from ${fix.stripped.length}:`,
-  );
-  for (const s of fix.stripped) {
-    lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(s.envPath)}`);
-    for (const removed of s.removedLines) {
-      lines.push(`      ${paint.inkFar('removed:')} ${paint.inkFar(removed)}`);
+  } else {
+    lines.push(
+      `  ${paint.blue('✎')} Scanned ${fix.scanned} project(s); stripped stale COODRA_MODE from ${fix.stripped.length}:`,
+    );
+    for (const s of fix.stripped) {
+      lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(s.envPath)}`);
+      for (const removed of s.removedLines) {
+        lines.push(`      ${paint.inkFar('removed:')} ${paint.inkFar(removed)}`);
+      }
+    }
+    if (fix.skippedMissing.length > 0) {
+      lines.push(
+        `  ${checkGlyph('warn')} ${fix.skippedMissing.length} file(s) reported drift but could not be rewritten:`,
+      );
+      for (const path of fix.skippedMissing) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(path)}`);
     }
   }
-  if (fix.skippedMissing.length > 0) {
-    lines.push(
-      `  ${checkGlyph('warn')} ${fix.skippedMissing.length} file(s) reported drift but could not be rewritten:`,
-    );
-    for (const path of fix.skippedMissing) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(path)}`);
+
+  // Section 2: default-policy backfill (fail-open heal, 2026-07-18).
+  const pol = fix.policy;
+  const healed = pol.seeded.length + pol.repaired.length;
+  if (pol.scanned === 0) {
+    // no-op — no projects to seed; env section already covered the empty case
+  } else if (healed === 0 && pol.failed.length === 0) {
+    lines.push(`  ${checkGlyph('ok')} Default policy present on all ${pol.scanned} project(s) — enforcement is live.`);
+  } else {
+    if (pol.seeded.length > 0) {
+      lines.push(
+        `  ${paint.blue('✎')} Seeded a default policy on ${pol.seeded.length} fail-open project(s) (were unguarded):`,
+      );
+      for (const s of pol.seeded) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(s.slug)}`);
+    }
+    if (pol.repaired.length > 0) {
+      lines.push(`  ${paint.blue('✎')} Repaired missing baseline rules on ${pol.repaired.length} project(s):`);
+      for (const r of pol.repaired) {
+        lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(r.slug)} ${paint.inkFar(`(+${r.rulesInserted} rules)`)}`);
+      }
+    }
+    if (pol.failed.length > 0) {
+      lines.push(`  ${checkGlyph('warn')} ${pol.failed.length} project(s) could not be seeded:`);
+      for (const f of pol.failed)
+        lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(f.slug)} ${paint.inkFar(f.error)}`);
+    }
   }
+
+  // Section 3: project-local .coodra/config.json migration (Phase 2).
+  const cm = fix.configMigration;
+  if (cm.migrated.length > 0) {
+    lines.push(`  ${paint.blue('✎')} Created .coodra/config.json for ${cm.migrated.length} legacy project(s):`);
+    for (const m of cm.migrated) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(m.slug)}`);
+  }
+  if (cm.failed.length > 0) {
+    lines.push(`  ${checkGlyph('warn')} ${cm.failed.length} project(s) could not be migrated:`);
+    for (const f of cm.failed) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(f.slug)} ${paint.inkFar(f.error)}`);
+  }
+
   lines.push('');
   return `${lines.join('\n')}\n`;
 }

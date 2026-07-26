@@ -1,6 +1,6 @@
 import { type DbHandle, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, eq, lt, sql } from 'drizzle-orm';
+import { and, eq, gte, lt, notExists, sql } from 'drizzle-orm';
 
 /**
  * `apps/hooks-bridge/src/lib/stale-runs-sweeper.ts` — periodic sweep
@@ -18,10 +18,14 @@ import { and, eq, lt, sql } from 'drizzle-orm';
  * Behaviour:
  *   - Every `intervalMs` (default 15 min) the sweeper UPDATEs every
  *     run with `status='in_progress' AND started_at < (now - thresholdSec)`
- *     to `status='cancelled', ended_at=now()`.
- *   - Threshold defaults to 30 min — long enough that an active long
- *     session won't be falsely killed, short enough that a forgotten
- *     run is purged within the hour.
+ *     AND **no run_event newer than the cutoff** to
+ *     `status='cancelled', ended_at=now()`.
+ *   - Threshold defaults to 30 min. The recent-activity guard is
+ *     load-bearing: the original started_at-only predicate cancelled a
+ *     LIVE 40-minute QA session that had written an mcp_call event one
+ *     minute earlier (2026-07-24). A long session keeps producing
+ *     run_events (hook posts + instrumented MCP calls), so "no events
+ *     since the cutoff" is the honest definition of stuck.
  *   - Logs a structured row when any rows are cancelled.
  *
  * Failure mode: if the DB throws, the error is logged + swallowed.
@@ -64,11 +68,26 @@ export function startStaleRunsSweeper(opts: StaleRunsSweeperOptions): StaleRunsS
     }
     try {
       const cutoff = Math.floor(Date.now() / 1000) - thresholdSec;
+      const cutoffDate = new Date(cutoff * 1000);
       const t = sqliteSchema.runs;
+      const re = sqliteSchema.runEvents;
       const result = await opts.db.db
         .update(t)
         .set({ status: 'cancelled', endedAt: sql`(unixepoch())` })
-        .where(and(eq(t.status, 'in_progress'), lt(t.startedAt, new Date(cutoff * 1000))));
+        .where(
+          and(
+            eq(t.status, 'in_progress'),
+            lt(t.startedAt, cutoffDate),
+            // Spare runs that are still ACTIVE: any run_event since the
+            // cutoff proves the session is alive regardless of its age.
+            notExists(
+              opts.db.db
+                .select({ one: sql`1` })
+                .from(re)
+                .where(and(eq(re.runId, t.id), gte(re.createdAt, cutoffDate))),
+            ),
+          ),
+        );
       const cancelled = (result as { changes?: number } | undefined)?.changes ?? 0;
       if (cancelled > 0) {
         sweeperLogger.info(

@@ -1,3 +1,5 @@
+import { relative } from 'node:path';
+
 import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
@@ -42,27 +44,31 @@ export default async function ProjectFeaturesPage({
   const stableCount = snap.features.filter((f) => f.maturity === 'stable').length;
   const draftCount = snap.features.filter((f) => f.maturity === 'draft').length;
   const warningCount = snap.slugsWithWarnings.length;
+  // Project-relative display path for the skills root (`docs/skills/` on fresh
+  // projects, `docs/features/` on legacy ones) so copy never lies about the
+  // directory that actually exists on disk.
+  const featuresRootRel = relative(projectCwd, snap.featuresRoot) || snap.featuresRoot;
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / features`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / skills`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · FEATURES</div>
+            <div className="head__num">/01 · PROJECT · {project.slug.toUpperCase()} · SKILLS</div>
             <h1 className="head__title">
-              Features as <em>skills</em>.
+              Skills the agent <em>pulls</em>.
             </h1>
             <p className="head__lede">
-              Each feature is a self-contained knowledge unit — a description that tells the agent{' '}
-              <em>when to use it</em>, plus a body and any supporting files. The agent reads the index on every
-              SessionStart, then loads a feature body on demand via <code style={mono}>coodra__get_feature</code>.
+              Each skill is a self-contained knowledge unit — a description that tells the agent <em>when to use it</em>
+              , plus a body and any supporting files. The agent reads the index on every SessionStart, then loads a
+              skill body on demand via <code style={mono}>coodra__get_skill</code>.
             </p>
           </div>
           <div>
             <div className="head__meta">
               <strong>
-                {snap.features.length} feature{snap.features.length === 1 ? '' : 's'}
+                {snap.features.length} skill{snap.features.length === 1 ? '' : 's'}
               </strong>
               <br />
               {stableCount} stable · {draftCount} draft
@@ -82,12 +88,12 @@ export default async function ProjectFeaturesPage({
               <Link
                 className="btn btn--ghost"
                 href={`/projects/${encodeURIComponent(project.slug)}/features/import`}
-                title="Scan docs/, specs/, architecture/ for existing markdown files to promote to features"
+                title="Scan docs/, specs/, architecture/ for existing markdown files to promote to skills"
               >
                 Import existing docs
               </Link>
               <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
-                + Add feature
+                + Add skill
               </Link>
             </div>
           </div>
@@ -95,12 +101,12 @@ export default async function ProjectFeaturesPage({
 
         {sp.created !== undefined ? (
           <Banner tone="ok">
-            Feature <code style={mono}>{sp.created}</code> created. Bridge picks it up on next SessionStart.
+            Skill <code style={mono}>{sp.created}</code> created. Bridge picks it up on next SessionStart.
           </Banner>
         ) : null}
         {sp.removed !== undefined ? (
           <Banner tone="ok">
-            Feature <code style={mono}>{sp.removed}</code> removed and INDEX regenerated.
+            Skill <code style={mono}>{sp.removed}</code> removed and INDEX regenerated.
           </Banner>
         ) : null}
         {sp.reindexed !== undefined ? (
@@ -113,13 +119,13 @@ export default async function ProjectFeaturesPage({
         ) : null}
         {sp.imported !== undefined && sp.imported.length > 0 ? (
           <Banner tone="ok">
-            Imported {sp.imported.split(',').length} feature{sp.imported.split(',').length === 1 ? '' : 's'}:{' '}
+            Imported {sp.imported.split(',').length} skill{sp.imported.split(',').length === 1 ? '' : 's'}:{' '}
             <code style={mono}>{sp.imported.replace(/,/g, ', ')}</code>. Original markdown files preserved on disk.
           </Banner>
         ) : null}
         {sp.failed !== undefined && sp.failed.length > 0 ? (
           <Banner tone="warn">
-            {sp.failed.split(',').length} feature{sp.failed.split(',').length === 1 ? '' : 's'} failed to import (
+            {sp.failed.split(',').length} skill{sp.failed.split(',').length === 1 ? '' : 's'} failed to import (
             <code style={mono}>{sp.failed.replace(/,/g, ', ')}</code>). {sp.errorMessage ?? ''}
           </Banner>
         ) : null}
@@ -136,41 +142,41 @@ export default async function ProjectFeaturesPage({
 
         {warningCount > 0 ? (
           <Banner tone="warn">
-            {warningCount} feature{warningCount === 1 ? ' has' : 's have'} validation warnings — open the affected
-            feature{warningCount === 1 ? '' : 's'} below to see the lint output. Common causes: short or generic
-            description, missing imperative trigger, no concrete signal.
+            {warningCount} skill{warningCount === 1 ? ' has' : 's have'} validation warnings — open the affected skill
+            {warningCount === 1 ? '' : 's'} below to see the lint output. Common causes: short or generic description,
+            missing imperative trigger, no concrete signal.
           </Banner>
         ) : null}
 
         {!snap.rootExists ? (
           <div className="card" style={{ padding: 32, textAlign: 'center' }}>
             <h2 style={{ fontFamily: 'var(--serif)', fontSize: 28, marginBottom: 12 }}>
-              No <em>features</em> yet.
+              No <em>skills</em> yet.
             </h2>
             <p style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-dim)', marginBottom: 24 }}>
-              Define a feature for each meaningful concern in your project — auth, billing, the import pipeline,
-              whatever. Drop in any markdown / code samples / specs that help an agent understand it. We index the
-              triggers; the agent picks what to load.
+              Define a skill for each meaningful concern in your project — auth, billing, the import pipeline, whatever.
+              Drop in any markdown / code samples / specs that help an agent understand it. We index the triggers; the
+              agent picks what to load.
             </p>
             <Link
               className="btn btn--accent"
               href={`/projects/${encodeURIComponent(project.slug)}/features/new`}
               style={{ fontSize: 14, padding: '14px 22px' }}
             >
-              + Define your first feature
+              + Define your first skill
             </Link>
           </div>
         ) : snap.features.length === 0 ? (
           <div className="card" style={{ padding: 32, textAlign: 'center' }}>
             <h2 style={{ fontFamily: 'var(--serif)', fontSize: 24, marginBottom: 12 }}>
-              <code style={mono}>docs/features/</code> exists but is empty.
+              <code style={mono}>{featuresRootRel}/</code> exists but is empty.
             </h2>
             <p style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--ink-dim)', marginBottom: 24 }}>
-              Run <code style={mono}>coodra feature add &lt;slug&gt;</code> from the project root, or click below to add
+              Run <code style={mono}>coodra skill add &lt;slug&gt;</code> from the project root, or click below to add
               one via the web wizard.
             </p>
             <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
-              + Add feature
+              + Add skill
             </Link>
           </div>
         ) : (

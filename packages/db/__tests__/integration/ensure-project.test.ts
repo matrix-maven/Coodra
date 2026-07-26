@@ -53,6 +53,35 @@ describe('@coodra/db::ensureProject', () => {
     expect(rows[0]?.name).toBe('fresh-slug');
   });
 
+  it('seeds the __default__ policy + baseline rules on create (no fail-open project rows)', async () => {
+    if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
+    // Regression for the 2026-07-18 fail-open defect: a bridge cwd
+    // auto-create (resolveAndEnsure → ensureProject) used to mint a
+    // policy-less project the evaluator waved through. ensureProject now
+    // seeds `__default__` on create so every born project is governed.
+    const result = await ensureProject(handle, { slug: 'guarded-fresh-slug' });
+    expect(result.created).toBe(true);
+
+    const policies = await handle.db
+      .select({ id: sqliteSchema.policies.id, name: sqliteSchema.policies.name })
+      .from(sqliteSchema.policies)
+      .where(eq(sqliteSchema.policies.projectId, result.id));
+    expect(policies).toHaveLength(1);
+    expect(policies[0]?.name).toBe('__default__');
+
+    const rules = await handle.db
+      .select({
+        tool: sqliteSchema.policyRules.matchToolName,
+        glob: sqliteSchema.policyRules.matchPathGlob,
+        decision: sqliteSchema.policyRules.decision,
+      })
+      .from(sqliteSchema.policyRules)
+      .where(eq(sqliteSchema.policyRules.policyId, policies[0]?.id as string));
+    expect(rules).toHaveLength(25);
+    const envDeny = rules.find((r) => r.tool === 'Write' && r.glob === '.env');
+    expect(envDeny?.decision).toBe('deny');
+  });
+
   it('is idempotent and returns created:false the second time with the same id', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const first = await ensureProject(handle, { slug: 'idempotent-slug' });

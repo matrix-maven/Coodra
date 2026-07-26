@@ -154,9 +154,8 @@ function vecLoadIsRequired(): boolean {
  * Attempt to load the `sqlite-vec` loadable extension on the given raw
  * `better-sqlite3` handle. On failure: throw when the process is in a
  * must-not-silently-degrade environment, otherwise WARN and continue.
- * Exported so integration tests can cover both branches directly.
  */
-export function loadSqliteVecOrFail(raw: BetterSqliteDatabase): void {
+function loadSqliteVecOrFail(raw: BetterSqliteDatabase): void {
   let loadablePath = '<unknown>';
   try {
     try {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,10 +9,27 @@ import {
   createDb,
   type DbHandle,
   ensureDefaultPolicy,
-  ensureProject,
   migrateSqlite,
+  SOLO_ORG_ID,
   sqliteSchema,
 } from '../../src/index.js';
+
+/**
+ * These tests exercise `ensureDefaultPolicy` in ISOLATION, so their
+ * fixture must be a bare `projects` row with NO policy attached. We
+ * deliberately insert the row directly rather than via `ensureProject`
+ * — as of 2026-07-18 `ensureProject` seeds `__default__` on create (the
+ * fail-open fix), which would pre-satisfy the very thing these tests
+ * assert `ensureDefaultPolicy` does.
+ */
+async function insertBareProject(args: { slug: string; orgId?: string }): Promise<{ id: string }> {
+  if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
+  const id = randomUUID();
+  await handle.db
+    .insert(sqliteSchema.projects)
+    .values({ id, slug: args.slug, orgId: args.orgId ?? SOLO_ORG_ID, name: args.slug });
+  return { id };
+}
 
 /**
  * Locks the Phase 3 Fix D + Phase 4 Fix F (both 2026-05-02) seed contract:
@@ -50,7 +68,7 @@ afterAll(() => {
 describe('@coodra/db::ensureDefaultPolicy', () => {
   it('inserts a default Policy row + Phase-4-Fix-F baseline rule set on first call (4 tools × 6 globs + Bash = 25 rules)', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const project = await ensureProject(handle, { slug: 'fresh-policy-project' });
+    const project = await insertBareProject({ slug: 'fresh-policy-project' });
 
     const result = await ensureDefaultPolicy(handle, project.id);
     expect(result.created).toBe(true);
@@ -93,7 +111,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
 
   it('Phase 4 Fix F: existing pre-Fix-F install with 9 narrow rules is repaired additively (16 missing rules added)', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const project = await ensureProject(handle, { slug: 'pre-fix-f-install' });
+    const project = await insertBareProject({ slug: 'pre-fix-f-install' });
 
     // Hand-seed the pre-Fix-F shape: __default__ policy + the 9 Phase-3
     // rules at their original priorities. Mimics what existing user
@@ -163,7 +181,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
 
   it('Phase 4 Fix F: user-customized rule (changed reason text on a Phase-3 rule) survives a repair', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const project = await ensureProject(handle, { slug: 'customized-policy-install' });
+    const project = await insertBareProject({ slug: 'customized-policy-install' });
 
     // User has a __default__ policy with a hand-edited reason on the
     // priority-10 .env-Write rule. The additive merge must NOT touch it.
@@ -200,7 +218,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
 
   it('is idempotent: a second call returns created:false and inserts no rules', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const project = await ensureProject(handle, { slug: 'idempotent-policy-project' });
+    const project = await insertBareProject({ slug: 'idempotent-policy-project' });
 
     const first = await ensureDefaultPolicy(handle, project.id);
     expect(first.created).toBe(true);
@@ -221,7 +239,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
 
   it('Phase 4 Fix F priority ordering: .env-Write at priority 10 fires first; Bash sits at priority 70 between Edit and MultiEdit blocks', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
-    const project = await ensureProject(handle, { slug: 'priority-policy-project' });
+    const project = await insertBareProject({ slug: 'priority-policy-project' });
     const result = await ensureDefaultPolicy(handle, project.id);
 
     const rules = await handle.db
@@ -269,7 +287,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
  */
 describe('Slice 7 — policy_rules UNIQUE constraint enforces', () => {
   it('a second raw INSERT with the same key tuple aborts with a constraint violation', async () => {
-    const project = await ensureProject(handle, { slug: 'slice7-uk-test', orgId: 'org_dev_local' });
+    const project = await insertBareProject({ slug: 'slice7-uk-test', orgId: 'org_dev_local' });
     const result = await ensureDefaultPolicy(handle, project.id);
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite handle for raw INSERT');
 

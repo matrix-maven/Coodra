@@ -54,7 +54,6 @@ export interface PackRegenerateOptions {
   readonly cwd?: string;
   readonly mode?: string;
   readonly dryRun?: boolean;
-  readonly force?: boolean;
   readonly json?: boolean;
 }
 

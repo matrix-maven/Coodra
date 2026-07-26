@@ -9,7 +9,6 @@ import {
   readTeamConfig,
   readTeamHomeEnv,
   type TeamBlock,
-  updateLastPulledAt,
   upgradeToTeamConfig,
   writeTeamConfig,
   writeTeamHomeEnv,
@@ -22,7 +21,6 @@ import {
  *   1. readTeamConfig returns SOLO_CONFIG on missing file / corrupt JSON / mode!=team / partial team block.
  *   2. writeTeamConfig is atomic — partial-write does not leave a half-formed file visible.
  *   3. upgradeToTeamConfig + demoteToSoloConfig round-trip correctly.
- *   4. updateLastPulledAt merges per-table timestamps without clobbering siblings.
  */
 
 let homeDir: string;
@@ -132,29 +130,6 @@ describe('upgradeToTeamConfig + demoteToSoloConfig', () => {
     upgradeToTeamConfig(makeTeamBlock({ clerkUserId: 'user_alice' }), { homeOverride: homeDir });
     upgradeToTeamConfig(makeTeamBlock({ clerkUserId: 'user_bob' }), { homeOverride: homeDir });
     expect(readTeamConfig({ homeOverride: homeDir }).team?.clerkUserId).toBe('user_bob');
-  });
-});
-
-describe('updateLastPulledAt', () => {
-  it('no-ops in solo mode (no team block to update)', () => {
-    updateLastPulledAt('decisions', 12345, { homeOverride: homeDir });
-    expect(readTeamConfig({ homeOverride: homeDir }).mode).toBe('solo');
-  });
-
-  it('merges new timestamps without clobbering siblings', () => {
-    upgradeToTeamConfig(makeTeamBlock(), { homeOverride: homeDir });
-    updateLastPulledAt('decisions', 1000, { homeOverride: homeDir });
-    updateLastPulledAt('context_packs', 2000, { homeOverride: homeDir });
-    const cfg = readTeamConfig({ homeOverride: homeDir });
-    expect(cfg.team?.lastPulledAt?.decisions).toBe(1000);
-    expect(cfg.team?.lastPulledAt?.context_packs).toBe(2000);
-  });
-
-  it('overwrites the same table when called twice', () => {
-    upgradeToTeamConfig(makeTeamBlock(), { homeOverride: homeDir });
-    updateLastPulledAt('decisions', 1000, { homeOverride: homeDir });
-    updateLastPulledAt('decisions', 2000, { homeOverride: homeDir });
-    expect(readTeamConfig({ homeOverride: homeDir }).team?.lastPulledAt?.decisions).toBe(2000);
   });
 });
 

@@ -223,19 +223,6 @@ export function buildCoodraEntryForEvent(eventName: ClaudeHookEvent, spec: Claud
 }
 
 /**
- * Backwards-compat alias. The Phase 3 surface used this to build a
- * single entry shape for all events; Fix F replaces it with the
- * per-event factory above. Kept for any external import that might
- * reference it.
- *
- * @deprecated Use `buildCoodraEntryForEvent` so the matcher matches
- *             the per-event Claude Code spec.
- */
-export function buildCoodraEntry(spec: ClaudeHttpHookSpec): ClaudeHookEntry {
-  return { matcher: TOOL_EVENT_MATCHER, hooks: [spec] };
-}
-
-/**
  * URL-based ownership detection (Phase 4 Fix F). An entry is
  * "Coodra-owned" iff any of its hooks has a URL pointing at the
  * configured bridge endpoint. Replaces the pre-Fix-F matcher-sentinel

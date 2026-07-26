@@ -80,9 +80,6 @@ importers:
       '@hono/node-server':
         specifier: 2.0.0
         version: 2.0.0(hono@4.12.15)
-      '@hono/zod-validator':
-        specifier: ^0.7.6
-        version: 0.7.6(hono@4.12.15)(zod@4.4.3)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.10.0)(postgres@3.4.9)
@@ -1194,12 +1191,6 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
-
-  '@hono/zod-validator@0.7.6':
-    resolution: {integrity: sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==}
-    peerDependencies:
-      hono: '>=3.9.0'
-      zod: ^3.25.0 || ^4.0.0
 
   '@iconify/types@2.0.0':
     resolution: {integrity: sha512-+wluvCrRhXrhyOmRDJ3q8mux9JkKy5SJ/v8ol2tu4FVjyYvtEzkc/3pK15ET6RKg4b4w4BmTk1+gsCUhf21Ykg==}
@@ -4729,11 +4720,6 @@ snapshots:
   '@hono/node-server@2.0.0(hono@4.12.15)':
     dependencies:
       hono: 4.12.15
-
-  '@hono/zod-validator@0.7.6(hono@4.12.15)(zod@4.4.3)':
-    dependencies:
-      hono: 4.12.15
-      zod: 4.4.3
 
   '@iconify/types@2.0.0': {}
 

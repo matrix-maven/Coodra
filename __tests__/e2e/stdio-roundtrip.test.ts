@@ -97,13 +97,13 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
     expect(names).toEqual(
       [
         'check_policy',
-        'get_feature',
-        'get_feature_file',
+        'get_skill',
+        'get_skill_file',
         'get_feature_pack',
         'get_run_id',
         'link_run_to_issue',
         'list_context_packs',
-        'list_features',
+        'list_skills',
         'ping',
         'prepare_jira_comment',
         'query_decisions',

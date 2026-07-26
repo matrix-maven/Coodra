@@ -1,6 +1,6 @@
 import { type DbHandle, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, gte, ne, notExists, sql } from 'drizzle-orm';
 
 /**
  * `apps/hooks-bridge/src/lib/abandon-stale-runs.ts` — Phase 4 Fix J
@@ -22,6 +22,14 @@ import { and, eq, ne, sql } from 'drizzle-orm';
  * own row is excluded by `session_id != ?` so the bridge's outbox
  * insert (which may be racing) is never clobbered.
  *
+ * Recent-activity guard (2026-07-24 QA sweep): the original predicate
+ * had NO age or activity check, so opening a second terminal on the
+ * same project would insta-abandon the FIRST terminal's live run.
+ * A run with any run_event inside the activity window (same 30-min
+ * default as the periodic sweeper) is spared — a genuinely orphaned
+ * run stops producing events, and the periodic sweeper still reaps
+ * it once the window passes.
+ *
  * Failure mode: errors are logged at WARN and swallowed. Stale
  * orphans are noise, not load-bearing data — the SessionStart
  * response is more important than this cleanup completing. The
@@ -40,6 +48,12 @@ export interface AbandonStaleInProgressRunsInput {
   readonly projectId: string;
   /** session_id of the run that just opened — exclude it from the sweep. */
   readonly excludeSessionId: string;
+  /**
+   * Activity window in seconds — a run with any run_event newer than
+   * `now - activityWindowSec` is considered LIVE and never abandoned.
+   * Default 1800 (30 min), matching the periodic stale-runs sweeper.
+   */
+  readonly activityWindowSec?: number;
 }
 
 export interface AbandonStaleInProgressRunsResult {
@@ -57,6 +71,9 @@ export async function abandonStaleInProgressRuns(
     return { abandoned: 0 };
   }
   const runs = sqliteSchema.runs;
+  const runEvents = sqliteSchema.runEvents;
+  const activityWindowSec = input.activityWindowSec ?? 1800;
+  const activityCutoff = new Date((Math.floor(Date.now() / 1000) - activityWindowSec) * 1000);
   // Use raw `unixepoch()` for ended_at so the value lines up with the
   // schema's default-timestamp column type (the runs table stores
   // `started_at` / `ended_at` as `integer mode:'timestamp'`, which
@@ -69,6 +86,14 @@ export async function abandonStaleInProgressRuns(
         eq(runs.projectId, input.projectId),
         eq(runs.status, 'in_progress'),
         ne(runs.sessionId, input.excludeSessionId),
+        // Spare LIVE concurrent sessions: recent run_events prove the run
+        // is still producing work (see header — 2026-07-24 QA guard).
+        notExists(
+          input.db.db
+            .select({ one: sql`1` })
+            .from(runEvents)
+            .where(and(eq(runEvents.runId, runs.id), gte(runEvents.createdAt, activityCutoff))),
+        ),
       ),
     );
   // better-sqlite3 returns `{ changes, lastInsertRowid }` on .run() — drizzle

@@ -27,7 +27,8 @@
       "!pnpm-lock.yaml",
       "!packages/db/migrations.lock.json",
       "!.claude",
-      "!context_memory"
+      "!context_memory",
+      "!graphify-out"
     ]
   },
   "formatter": {

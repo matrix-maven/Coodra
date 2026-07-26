@@ -186,6 +186,17 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
     return io.exit(EXIT_SERVICE_STARTUP_FAILED);
   }
   io.writeStdout(`${pc.green('All Coodra services running.')}\n`);
+  // Next-step pointer (2026-07-24 QA): success used to end with bare ports —
+  // the failure path already pointed at `coodra doctor`, but success left the
+  // user without the dashboard URL or a follow-up command.
+  const webService = resolved.find((s) => s.descriptor.name === 'web');
+  const dashboard =
+    webService !== undefined && webService.port !== null && !skip('web')
+      ? `Dashboard: http://127.0.0.1:${webService.port} · `
+      : '';
+  io.writeStdout(
+    `${pc.gray(`  ${dashboard}\`coodra status\` for service state · \`coodra init\` to wire a project.`)}\n`,
+  );
 
   // W4 (2026-05-13) — optional Cloudflare quick-tunnel. Runs only when
   // `--tunnel` is set, AFTER every daemon is healthy. Failures here are

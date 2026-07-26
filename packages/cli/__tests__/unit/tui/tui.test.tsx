@@ -48,6 +48,30 @@ describe('command catalog', () => {
     expect(ALL_CATALOG_COMMANDS.length).toBe(CATALOG_COMMAND_COUNT);
   });
 
+  it('recognises EVERY top-level program command — a CATEGORY_OF omission must fail here', () => {
+    // 2026-07-24 QA: six command groups (metrics, agent, files, graphify,
+    // jira, wiki) were missing from CATEGORY_OF. The catalog still listed
+    // them (via the ?? 'lifecycle' fallback) but `isKnownCommand` returned
+    // false, so the Terminal view REJECTED commands the catalog itself
+    // offered. This asserts the map covers the real program surface.
+    const program = buildProgram();
+    for (const top of program.commands) {
+      if (top.name() === 'help') continue;
+      expect(isKnownCommand([top.name()]), `top-level command '${top.name()}' missing from CATEGORY_OF`).toBe(true);
+    }
+  });
+
+  it('runs a formerly-unwired command group in-process without killing the process', async () => {
+    // Companion to the CATEGORY_OF fix: these groups' IO also was not wired
+    // in run-command.ts, so their default `process.exit()` would have
+    // terminated the TUI. `files status --json` exercises one of the eight
+    // newly-wired groups end-to-end (read-only).
+    const result = await runCommandInProcess(['files', 'status', '--json']);
+    expect(result.crashed).toBe(false);
+    const parsed = JSON.parse(result.stdout) as { ok: unknown };
+    expect(parsed).toHaveProperty('ok');
+  });
+
   it('groups into ordered /NN categories with no empty group', () => {
     expect(COMMAND_CATALOG.length).toBeGreaterThan(0);
     expect(COMMAND_CATALOG.every((c) => c.commands.length > 0)).toBe(true);
@@ -63,11 +87,18 @@ describe('command catalog', () => {
     expect(interactive).toContain('db-restore');
     expect(interactive).toContain('team-init');
     expect(interactive).toContain('org-switch');
+    // prompt-gated on stdin.isTTY (true under Ink raw mode) — must be
+    // flagged interactive or the TUI would fight Ink for stdin and hang.
+    expect(interactive).toContain('files-clean');
+    expect(interactive).toContain('graphify-enable');
+    expect(interactive).toContain('jira-enable');
     // a normal mutating command is NOT interactive — the TUI runs it in-process.
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'pause')?.interactive).toBe(false);
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'doctor')?.interactive).toBe(false);
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'uninstall')?.interactive).toBe(false);
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'db-migrate')?.interactive).toBe(false);
+    expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'files-status')?.interactive).toBe(false);
+    expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'graphify-build')?.interactive).toBe(false);
   });
 
   it('parses + resolves typed input, and recognises interactive / known commands', () => {

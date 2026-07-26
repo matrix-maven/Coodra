@@ -130,12 +130,3 @@ export type HooksBridgeEnv = z.infer<typeof hooksBridgeEnvSchema> & BaseEnv;
  * Typed env singleton. Parsed exactly once, at first import.
  */
 export const env: HooksBridgeEnv = parseEnv(hooksBridgeEnvSchema) as HooksBridgeEnv;
-
-/**
- * Exposed for unit tests only — they reload the module under different
- * fixtures and need access to the raw schema.
- */
-export const __internal = {
-  schema: hooksBridgeEnvSchema,
-  SOLO_BYPASS_CLERK_SENTINEL,
-};

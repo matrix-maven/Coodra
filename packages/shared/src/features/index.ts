@@ -29,4 +29,12 @@ export type {
   FeatureRow,
   ParsedFeatureMd,
 } from './types.js';
-export { featuresRoot, readFeatureRow, walkFeatures } from './walk.js';
+export {
+  featuresRoot,
+  LEGACY_FEATURES_DIR_NAME,
+  readFeatureRow,
+  SKILLS_DIR_NAME,
+  skillsDirCandidates,
+  skillsRoot,
+  walkFeatures,
+} from './walk.js';

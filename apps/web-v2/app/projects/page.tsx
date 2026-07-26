@@ -4,11 +4,13 @@ import { Topbar } from '@/components/Topbar';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import { fmtRelative } from '@/lib/format';
 import { fetchPickerSnapshot } from '@/lib/queries/picker';
+import { countProjectsHiddenByOrgScope } from '@/lib/queries/projects';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProjectsHubPage() {
   const snap = await fetchPickerSnapshot();
+  const orgScope = await countProjectsHiddenByOrgScope();
   const totalActive = snap.projects.reduce((acc, p) => acc + p.activeRuns, 0);
   const totalDenials = snap.projects.reduce((acc, p) => acc + p.denials24h, 0);
   const totalSwitches = snap.projects.reduce((acc, p) => acc + p.activeKillSwitches, 0);
@@ -179,6 +181,19 @@ export default async function ProjectsHubPage() {
             })}
           </div>
         )}
+        {orgScope.hidden > 0 ? (
+          // QA sweep 2026-07-24: org-scope filtering (deliberate) used to hide
+          // other-org projects SILENTLY — a solo machine whose repo had been
+          // flipped to a team org saw it registered in `coodra status` but
+          // absent from every web listing. Say so instead.
+          <p style={{ marginTop: 20, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-mute)' }}>
+            {orgScope.hidden} project{orgScope.hidden === 1 ? '' : 's'} in this machine&rsquo;s database belong
+            {orgScope.hidden === 1 ? 's' : ''} to a different org/mode and {orgScope.hidden === 1 ? 'is' : 'are'} not
+            shown — the web lists only the active org&rsquo;s projects. Check{' '}
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra org status</span> or switch mode
+            to see them.
+          </p>
+        ) : null}
       </section>
     </>
   );

@@ -1,6 +1,16 @@
 import { type Dirent, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import {
+  absOf,
+  type GraphCommunitySummary,
+  type GraphHubNode,
+  type GraphifyPaths,
+  resolveGraphifyPaths,
+  summarizeGraph,
+} from '../graphify/artifacts.js';
+import type { KnowledgeGrounding } from './knowledge.js';
+
 /**
  * `lib/wiki/grounding.ts` — Module 10 Deep Wiki grounding bundle.
  *
@@ -51,12 +61,27 @@ const MAX_FILES = 1500;
 const MAX_DEPTH = 7;
 const README_MAX_CHARS = 6_000;
 
+/** How much of `GRAPH_REPORT.md` to inline. It is prose; a few KB orients. */
+const GRAPH_REPORT_MAX_CHARS = 8_000;
+
 export interface GraphifySummary {
   readonly nodeCount: number | null;
   readonly edgeCount: number | null;
   readonly communityCount: number | null;
   /** True when graph.json existed but its shape wasn't recognised. */
   readonly unrecognised: boolean;
+  /** Where the graph was found, project-relative — `.coodra/graphify/out` or `graphify-out`. */
+  readonly outputDir: string;
+  /**
+   * Largest Leiden communities with member samples — the raw material for
+   * "communities → candidate wiki sections" (ADR-017). Empty when the graph
+   * carries no community assignments.
+   */
+  readonly communities: ReadonlyArray<GraphCommunitySummary>;
+  /** Highest-degree nodes — candidate high-importance pages. */
+  readonly hubs: ReadonlyArray<GraphHubNode>;
+  /** Bounded `GRAPH_REPORT.md` excerpt (god nodes, cycles, surprising edges). */
+  readonly report: string | null;
 }
 
 export interface ManifestSummary {
@@ -79,8 +104,14 @@ export interface GroundingResult {
   readonly readme: string | null;
   /** package.json / pyproject.toml / Cargo.toml / go.mod names found. */
   readonly manifests: ReadonlyArray<ManifestSummary>;
-  /** Graphify graph summary when `graphify-out/graph.json` exists. */
+  /** Graphify graph summary when the project's resolved `graph.json` exists. */
   readonly graphify: GraphifySummary | null;
+  /**
+   * Prior recorded work — decisions and context packs from Coodra's own store.
+   * Null when the DB wasn't reachable or the project isn't registered; the
+   * grounding degrades to code-only rather than failing the whole command.
+   */
+  readonly knowledge: KnowledgeGrounding | null;
 }
 
 function walk(root: string): { files: string[]; truncated: boolean } {
@@ -170,41 +201,102 @@ function readManifests(cwd: string, files: ReadonlyArray<string>): ManifestSumma
   return out;
 }
 
-function readGraphify(cwd: string): GraphifySummary | null {
-  const p = join(cwd, 'graphify-out', 'graph.json');
+/**
+ * Read the project's Graphify graph, if any.
+ *
+ * Two bugs lived here before Phase 4 and both silently degraded the grounding
+ * rather than failing loudly:
+ *
+ *   1. the path was hardcoded to `graphify-out/graph.json`, so any project
+ *      using the Coodra-managed layout (`.coodra/graphify/out/`, which is what
+ *      `coodra graphify build` sets up) looked to the wiki like it had no graph
+ *      at all. Resolution now goes through the SAME `resolveGraphifyPaths` the
+ *      CLI and the web `/graphify` page use, so all three agree.
+ *   2. the edge count read `json.edges`. NetworkX node-link names that array
+ *      `links`, so the count was always null on a real Graphify graph. The
+ *      shared `summarizeGraph` accepts either key.
+ *
+ * The summary is now more than three numbers: the largest communities (with
+ * member labels and files) and the highest-degree nodes go into the grounding
+ * document itself. Previously the grounding said "query Graphify's MCP for the
+ * structure" — true, but an instruction the structure pass frequently skipped,
+ * leaving the plan ungrounded. Handing over the material directly is what makes
+ * "communities → sections, hubs → important pages" actually happen.
+ */
+function readGraphify(cwd: string, paths: GraphifyPaths): GraphifySummary | null {
+  const graphJsonAbs = absOf(cwd, paths.graphJson);
+  if (!existsSync(graphJsonAbs)) return null;
+
+  const report = readGraphReport(cwd, paths);
+  const base = { outputDir: paths.outputDir, report };
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(graphJsonAbs, 'utf8'));
+  } catch {
+    return {
+      ...base,
+      nodeCount: null,
+      edgeCount: null,
+      communityCount: null,
+      unrecognised: true,
+      communities: [],
+      hubs: [],
+    };
+  }
+
+  const summary = summarizeGraph(parsed, { maxCommunities: 15, maxHubs: 15 });
+  if (summary === null) {
+    return {
+      ...base,
+      nodeCount: null,
+      edgeCount: null,
+      communityCount: null,
+      unrecognised: true,
+      communities: [],
+      hubs: [],
+    };
+  }
+  return {
+    ...base,
+    nodeCount: summary.counts.nodes,
+    edgeCount: summary.counts.links,
+    communityCount: summary.counts.communities,
+    unrecognised: false,
+    communities: summary.communities,
+    hubs: summary.hubs,
+  };
+}
+
+function readGraphReport(cwd: string, paths: GraphifyPaths): string | null {
+  const p = absOf(cwd, paths.report);
   if (!existsSync(p)) return null;
   try {
-    const json = JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>;
-    const nodes = Array.isArray(json.nodes) ? json.nodes : null;
-    const edges = Array.isArray(json.edges) ? json.edges : null;
-    // Community count: prefer an explicit `communities` array, else count
-    // distinct `community` ids across nodes.
-    let communityCount: number | null = null;
-    if (Array.isArray(json.communities)) {
-      communityCount = json.communities.length;
-    } else if (nodes) {
-      const ids = new Set<unknown>();
-      for (const n of nodes) {
-        if (n && typeof n === 'object' && 'community' in n) ids.add((n as Record<string, unknown>).community);
-      }
-      communityCount = ids.size > 0 ? ids.size : null;
-    }
-    const unrecognised = nodes === null && edges === null && communityCount === null;
-    return {
-      nodeCount: nodes ? nodes.length : null,
-      edgeCount: edges ? edges.length : null,
-      communityCount,
-      unrecognised,
-    };
+    const raw = readFileSync(p, 'utf8');
+    return raw.length > GRAPH_REPORT_MAX_CHARS
+      ? `${raw.slice(0, GRAPH_REPORT_MAX_CHARS)}\n\n…(GRAPH_REPORT.md truncated — read the full file at ${paths.report})`
+      : raw;
   } catch {
-    return { nodeCount: null, edgeCount: null, communityCount: null, unrecognised: true };
+    return null;
   }
 }
 
-/** Assemble the grounding snapshot for a project root. Pure I/O read; never throws. */
-export function assembleGrounding(args: { readonly cwd: string; readonly projectSlug: string }): GroundingResult {
+/**
+ * Assemble the grounding snapshot for a project root. Read-only; never throws.
+ *
+ * `knowledge` is passed IN rather than fetched here: this module is pure
+ * filesystem, and the caller owns the DB handle lifecycle (see
+ * `lib/wiki/knowledge.ts`). Pass null when the store is unavailable — the
+ * grounding is still useful, just code-only.
+ */
+export async function assembleGrounding(args: {
+  readonly cwd: string;
+  readonly projectSlug: string;
+  readonly knowledge?: KnowledgeGrounding | null;
+}): Promise<GroundingResult> {
   const { cwd, projectSlug } = args;
   const { files, truncated } = walk(cwd);
+  const graphifyPaths = await resolveGraphifyPaths(cwd);
 
   const counts = new Map<string, number>();
   for (const f of files) {
@@ -224,7 +316,8 @@ export function assembleGrounding(args: { readonly cwd: string; readonly project
     files,
     readme: readReadme(cwd),
     manifests: readManifests(cwd, files),
-    graphify: readGraphify(cwd),
+    graphify: readGraphify(cwd, graphifyPaths),
+    knowledge: args.knowledge ?? null,
   };
 }
 
@@ -249,20 +342,93 @@ export function renderGroundingMarkdown(g: GroundingResult): string {
   lines.push('');
 
   if (g.graphify) {
+    const gf = g.graphify;
     lines.push('## Graphify graph (structural map)');
-    if (g.graphify.unrecognised) {
+    if (gf.unrecognised) {
       lines.push(
-        '- `graphify-out/graph.json` present (shape not recognised). Query it live via the `graphify` MCP tools.',
+        `- \`${gf.outputDir}/graph.json\` present (shape not recognised). Query it live via the \`graphify\` MCP tools.`,
       );
     } else {
       lines.push(
-        `- nodes: ${g.graphify.nodeCount ?? '?'}, edges: ${g.graphify.edgeCount ?? '?'}, communities: ${g.graphify.communityCount ?? '?'}.`,
+        `- **${gf.nodeCount ?? '?'} nodes · ${gf.edgeCount ?? '?'} edges · ${gf.communityCount ?? '?'} communities** (\`${gf.outputDir}/graph.json\`).`,
       );
+      lines.push('');
+
+      if (gf.communities.length > 0) {
+        lines.push(
+          `### Largest communities → candidate sections (${gf.communities.length} of ${gf.communityCount ?? '?'} shown)`,
+        );
+        lines.push('');
+        lines.push(
+          'Each Leiden community is a cluster of code that references itself densely. Treat these as **candidate wiki sections / pages** — but map them onto real modules, do NOT mint one page per community (ADR-015: 1-community-1-artefact produced noise, most communities are a single config file).',
+        );
+        lines.push('');
+        for (const c of gf.communities) {
+          const files = c.files.length > 0 ? ` — files: ${c.files.map((f) => `\`${f}\``).join(', ')}` : '';
+          lines.push(`- **Community ${c.id}** (${c.size} nodes): ${c.sampleLabels.join(' · ')}${files}`);
+        }
+        lines.push('');
+      }
+
+      if (gf.hubs.length > 0) {
+        lines.push('### God nodes → candidate high-importance pages');
+        lines.push('');
+        lines.push(
+          'The most-connected nodes are the core abstractions; whatever explains them deserves an `importance: "high"` page, and changing them has the widest blast radius.',
+        );
+        lines.push('');
+        for (const h of gf.hubs) {
+          lines.push(`- \`${h.label}\` — ${h.degree} edges${h.sourceFile !== null ? ` (\`${h.sourceFile}\`)` : ''}`);
+        }
+        lines.push('');
+      }
+
       lines.push(
-        '- Query it live via Graphify’s MCP tools (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`) — communities are candidate wiki sections; high-degree nodes are candidate high-importance pages.',
+        'Query the graph live via Graphify’s MCP tools (`query_graph`, `get_node`, `get_neighbors`, `shortest_path`) when you need neighbours or a dependency path that isn’t summarised here.',
       );
+      lines.push('');
     }
+
+    if (gf.report !== null) {
+      lines.push('### GRAPH_REPORT.md (Graphify’s own analysis)');
+      lines.push('');
+      lines.push(gf.report.trimEnd());
+      lines.push('');
+    }
+  }
+
+  if (g.knowledge !== null && (g.knowledge.decisions.length > 0 || g.knowledge.contextPacks.length > 0)) {
+    lines.push('## Prior recorded work (Coodra’s own store)');
     lines.push('');
+    lines.push(
+      'Decisions and Context Packs this project already recorded. **Use them.** The wiki should explain the architecture that was actually decided — with the recorded rationale — instead of re-deriving an explanation from the code alone and contradicting it. When a decision is load-bearing, say so on the relevant page and cite the reason given here.',
+    );
+    lines.push('');
+
+    if (g.knowledge.decisions.length > 0) {
+      lines.push(`### Decisions (${g.knowledge.decisions.length} most recent of ${g.knowledge.decisionCount})`);
+      lines.push('');
+      for (const d of g.knowledge.decisions) {
+        lines.push(`- **${d.description}**`);
+        if (d.rationale !== null && d.rationale.length > 0) lines.push(`  - why: ${d.rationale}`);
+        if (d.alternatives.length > 0) lines.push(`  - alternatives considered: ${d.alternatives.join('; ')}`);
+      }
+      lines.push('');
+    }
+
+    if (g.knowledge.contextPacks.length > 0) {
+      lines.push(`### Context packs (${g.knowledge.contextPacks.length} most recent of ${g.knowledge.packCount})`);
+      lines.push('');
+      lines.push(
+        'Session recaps of completed work. Read the full body of any that matter with `coodra__read_context_pack({ packId })`, or search with `coodra__search_packs_nl`.',
+      );
+      lines.push('');
+      for (const p of g.knowledge.contextPacks) {
+        lines.push(`- \`${p.id}\` — **${p.title}**`);
+        if (p.excerpt.length > 0) lines.push(`  - ${p.excerpt}`);
+      }
+      lines.push('');
+    }
   }
 
   lines.push('## Directory rollup');

@@ -115,21 +115,3 @@ describe('runStatusCommand — integration', () => {
     expect(parsed.services.map((s: { name: string }) => s.name).sort()).toEqual(['hooks-bridge', 'mcp-server', 'web']);
   });
 });
-
-describe('team login / logout — stubs (S8)', () => {
-  it('team login exits 2 with the deferred-body message', async () => {
-    const { io, captured } = makeIO();
-    const { runTeamLoginCommand } = await import('../../src/commands/team.js');
-    await expect(runTeamLoginCommand({ token: 'tok' }, io)).rejects.toThrow('__exit__:2');
-    expect(captured.exit).toBe(2);
-    expect(captured.stderr.join('')).toMatch(/team mode not yet generally available/);
-  });
-
-  it('team logout exits 2 with the deferred-body message', async () => {
-    const { io, captured } = makeIO();
-    const { runTeamLogoutCommand } = await import('../../src/commands/team.js');
-    await expect(runTeamLogoutCommand(io)).rejects.toThrow('__exit__:2');
-    expect(captured.exit).toBe(2);
-    expect(captured.stderr.join('')).toMatch(/team mode not yet generally available/);
-  });
-});

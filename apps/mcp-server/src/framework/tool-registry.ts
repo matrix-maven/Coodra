@@ -143,6 +143,14 @@ export interface ToolRegistryOptions {
  */
 export class ToolRegistry {
   private readonly tools = new Map<string, RegisteredTool>();
+  /**
+   * Alias name → canonical tool name. An alias is callable via `handleCall`
+   * but is deliberately NOT in `list()`, so `tools/list` advertises only the
+   * canonical name while old callers using the former name keep working.
+   * Used for the 2026-07 Features→Skills rename (`list_features` →
+   * `list_skills`, etc.) so no agent config breaks on upgrade.
+   */
+  private readonly aliases = new Map<string, string>();
   private readonly deps: ContextDeps;
   private readonly clock: () => Date;
   private readonly mintRequestId: () => string;
@@ -192,6 +200,32 @@ export class ToolRegistry {
   }
 
   /**
+   * Register a backward-compat alias: calling `alias` routes to the handler
+   * registered under `canonical`. The alias does not appear in `list()` and
+   * does not count toward `size()` — it is a hidden synonym for old callers.
+   * Throws if the canonical tool isn't registered yet (register it first) or
+   * if the alias collides with a real tool name.
+   */
+  public registerAlias(alias: string, canonical: string): void {
+    if (typeof alias !== 'string' || !TOOL_NAME_RE.test(alias)) {
+      throw new TypeError(`alias '${alias}' does not match the tool-name shape ${TOOL_NAME_RE}`);
+    }
+    if (!this.tools.has(canonical)) {
+      throw new TypeError(`cannot alias '${alias}' → '${canonical}': '${canonical}' is not registered`);
+    }
+    if (this.tools.has(alias)) {
+      throw new TypeError(`alias '${alias}' collides with a registered tool of the same name`);
+    }
+    this.aliases.set(alias, canonical);
+    registryLogger.info({ event: 'tool_alias_registered', alias, canonical }, `aliased '${alias}' → '${canonical}'`);
+  }
+
+  /** Resolve a possibly-aliased name to its canonical tool name. */
+  private resolveName(name: string): string {
+    return this.aliases.get(name) ?? name;
+  }
+
+  /**
    * Returns the `tools/list` response, sorted alphabetically by name
    * for stable serialization. Does NOT include the output schema —
    * the MCP spec only exposes input shape to clients.
@@ -211,7 +245,7 @@ export class ToolRegistry {
   }
 
   public has(name: string): boolean {
-    return this.tools.has(name);
+    return this.tools.has(name) || this.aliases.has(name);
   }
 
   /** Count of registered tools. Useful for assertions in tests. */
@@ -229,12 +263,16 @@ export class ToolRegistry {
    * envelope ourselves so clients see precise, actionable messages.
    */
   public async handleCall(
-    name: string,
+    rawName: string,
     rawInput: unknown,
     sessionId: string,
     options: { readonly requestId?: string; readonly agentType?: string } = {},
   ): Promise<ToolResult> {
     const { requestId, agentType = 'unknown' } = options;
+    // Resolve a back-compat alias (e.g. `list_features` → `list_skills`) to its
+    // canonical tool. Everything downstream — policy, idempotency, logging —
+    // then keys off the canonical name; the alias is a transparent synonym.
+    const name = this.resolveName(rawName);
     const tool = this.tools.get(name);
     if (!tool) {
       return {

@@ -56,6 +56,31 @@ export async function listProjects(): Promise<ProjectListRow[]> {
   return rows.filter((row) => !SENTINEL_PROJECT_SLUGS.has(row.slug) && row.orgId === actorOrgId);
 }
 
+/**
+ * How many real projects the org-scope filter is HIDING from the current
+ * actor, plus which org they belong to when it's a single one.
+ *
+ * QA sweep 2026-07-24: a solo-mode machine whose current project had been
+ * flipped to a team org (`projects.org_id = org_…`) showed that project on
+ * `coodra status` (registered ✓) while every web listing silently omitted
+ * it — the user's own repo just vanished with no explanation. The scoping
+ * is deliberate (see listProjects); the silence was the bug. Listing pages
+ * call this to render a one-line "N project(s) hidden" note instead.
+ */
+export async function countProjectsHiddenByOrgScope(): Promise<{
+  readonly hidden: number;
+  readonly orgIds: readonly string[];
+}> {
+  const handle = createWebDb();
+  const rows = await listProjectsDb(handle);
+  const actor = await tryGetActor();
+  const actorOrgId = actor?.orgId ?? null;
+  const hiddenRows = rows.filter(
+    (row) => !SENTINEL_PROJECT_SLUGS.has(row.slug) && (actorOrgId === null || row.orgId !== actorOrgId),
+  );
+  return { hidden: hiddenRows.length, orgIds: [...new Set(hiddenRows.map((r) => r.orgId))] };
+}
+
 export async function getProject(identifier: string): Promise<ProjectDetailRow | null> {
   const handle = createWebDb();
   return getProjectByIdentifierDb(handle, identifier);

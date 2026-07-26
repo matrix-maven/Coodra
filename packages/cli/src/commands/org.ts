@@ -1,5 +1,5 @@
 import { readVerifiedToken } from '@coodra/shared/auth';
-import { EXIT_OK, EXIT_USER_ACTION_REQUIRED } from '../exit-codes.js';
+import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { pc } from '../ui/index.js';
 
@@ -98,22 +98,16 @@ export interface OrgSwitchOptions {
 }
 
 export async function runOrgSwitchCommand(options: OrgSwitchOptions = {}, io: OrgIO = DEFAULT_ORG_IO): Promise<never> {
-  if (options.targetOrgSlug === undefined || options.targetOrgSlug.trim().length === 0) {
-    io.writeStderr(
-      `${pc.red('coodra org switch')}: missing <orgSlug> argument.\n` +
-        `\n` +
-        `  Usage: coodra org switch <orgSlug>\n` +
-        `\n` +
-        `  The slug is the org's short identifier in Clerk (e.g. "acme").\n` +
-        `  When the browser opens, you'll see your org switcher — pick the matching org and sign in.\n` +
-        `  For v1, the slug is informational; org selection happens in the Clerk UI.\n`,
-    );
-    return io.exit(EXIT_USER_ACTION_REQUIRED);
-  }
-
+  // The slug is purely informational — org selection happens in Clerk's
+  // browser switcher. Requiring an argument that had no effect was QA-sweep
+  // friction (2026-07-24); with no slug we just open the picker.
+  const target = options.targetOrgSlug?.trim();
   io.writeStdout(
-    `${pc.cyan(`coodra org switch — switching to org "${options.targetOrgSlug}"`)}\n` +
-      pc.gray("  Opening browser. Pick the target org in Clerk's switcher when prompted.\n"),
+    `${pc.cyan(
+      target !== undefined && target.length > 0
+        ? `coodra org switch — switching to org "${target}"`
+        : 'coodra org switch — opening the org picker',
+    )}\n` + pc.gray("  Opening browser. Pick the target org in Clerk's switcher when prompted.\n"),
   );
 
   // Delegate to login. The browser-handoff flow will mint a new JWT

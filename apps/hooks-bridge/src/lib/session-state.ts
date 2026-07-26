@@ -65,18 +65,3 @@ export function clearSessionState(runId: string): void {
   if (typeof runId !== 'string' || runId.length === 0) return;
   state.delete(runId);
 }
-
-/**
- * Test-only: clear all state. Production code should not call this —
- * `clearSessionState(runId)` is the per-run path.
- */
-export function _clearAllSessionStateForTests(): void {
-  state.clear();
-}
-
-/**
- * Test-only: read current counter state.
- */
-export function _getSessionStateForTests(runId: string): SessionState | undefined {
-  return state.get(runId);
-}

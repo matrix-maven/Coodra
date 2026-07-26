@@ -56,18 +56,19 @@ describe('wiki grounding', () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('walks the tree (ignoring node_modules), reads README + manifest', () => {
-    const g = assembleGrounding({ cwd: dir, projectSlug: 'demo' });
+  it('walks the tree (ignoring node_modules), reads README + manifest', async () => {
+    const g = await assembleGrounding({ cwd: dir, projectSlug: 'demo' });
     expect(g.files).toContain('src/index.ts');
     expect(g.files).toContain('README.md');
     expect(g.files.some((f) => f.startsWith('node_modules/'))).toBe(false);
     expect(g.readme).toContain('A demo project');
     expect(g.manifests.find((m) => m.path === 'package.json')?.name).toBe('@demo/root');
     expect(g.graphify).toBeNull();
+    expect(g.knowledge).toBeNull();
   });
 
-  it('renders a markdown grounding doc with the key sections', () => {
-    const md = renderGroundingMarkdown(assembleGrounding({ cwd: dir, projectSlug: 'demo' }));
+  it('renders a markdown grounding doc with the key sections', async () => {
+    const md = renderGroundingMarkdown(await assembleGrounding({ cwd: dir, projectSlug: 'demo' }));
     expect(md).toContain('# Deep Wiki grounding — demo');
     expect(md).toContain('## Directory rollup');
     expect(md).toContain('## Files');
@@ -78,7 +79,7 @@ describe('wiki grounding', () => {
   // the first alphabetical subtree, silently starving later top-level dirs.
   // The walk is now breadth-first with a 1500-file cap so every top-level
   // area appears in the sample even when one subtree alone exceeds the cap.
-  it('breadth-first walk with the 1500-file cap samples every top-level dir', () => {
+  it('breadth-first walk with the 1500-file cap samples every top-level dir', async () => {
     mkdirSync(join(dir, 'aaa', 'nested'), { recursive: true });
     for (let i = 0; i < 1600; i++) {
       writeFileSync(join(dir, 'aaa', 'nested', `f${String(i).padStart(4, '0')}.ts`), '', 'utf8');
@@ -87,7 +88,7 @@ describe('wiki grounding', () => {
     for (let i = 0; i < 5; i++) {
       writeFileSync(join(dir, 'zzz', `z${i}.ts`), '', 'utf8');
     }
-    const g = assembleGrounding({ cwd: dir, projectSlug: 'demo' });
+    const g = await assembleGrounding({ cwd: dir, projectSlug: 'demo' });
     expect(g.truncated).toBe(true);
     expect(g.fileCount).toBe(1500);
     expect(g.files).toHaveLength(1500);
@@ -108,6 +109,7 @@ describe('wiki grounding', () => {
       readme: null,
       manifests: [],
       graphify: null,
+      knowledge: null,
     };
     const md = renderGroundingMarkdown(truncated);
     expect(md).toContain('## Files (1500+, sample capped)');
@@ -131,29 +133,76 @@ describe('wiki grounding', () => {
       readme: null,
       manifests: [],
       graphify: null,
+      knowledge: null,
     });
     expect(md).toContain('- `d29/`');
     expect(md).not.toContain('- `d30/`');
     expect(md).toContain('…and 4 more top-level entries');
   });
 
-  it('summarises a graphify graph when present', () => {
+  // Phase 4: the grounding resolves the graph via the SAME precedence the CLI
+  // and web use — an existing `graphify-out/` (legacy layout) is honoured — and
+  // reads the `links` edge key (was `edges`, which is always absent on a real
+  // NetworkX node-link graph), and surfaces communities + god nodes.
+  it('summarises a graphify graph (legacy graphify-out/ layout) with communities + hubs', async () => {
     mkdirSync(join(dir, 'graphify-out'), { recursive: true });
     writeFileSync(
       join(dir, 'graphify-out', 'graph.json'),
       JSON.stringify({
         nodes: [
-          { id: 'a', community: 0 },
-          { id: 'b', community: 1 },
+          { id: 'a', label: 'a.py', community: 0, source_file: 'a.py' },
+          { id: 'b', label: 'main()', community: 0, source_file: 'a.py' },
+          { id: 'c', label: 'helper()', community: 1, source_file: 'b.py' },
         ],
-        edges: [{ s: 'a', t: 'b' }],
+        links: [
+          { source: 'a', target: 'b' },
+          { source: 'b', target: 'c' },
+        ],
       }),
       'utf8',
     );
-    const g = assembleGrounding({ cwd: dir, projectSlug: 'demo' });
-    expect(g.graphify?.nodeCount).toBe(2);
-    expect(g.graphify?.edgeCount).toBe(1);
+    writeFileSync(join(dir, 'graphify-out', 'GRAPH_REPORT.md'), '# Graph Report\n\n## God Nodes\n- `main()`', 'utf8');
+    const g = await assembleGrounding({ cwd: dir, projectSlug: 'demo' });
+    expect(g.graphify?.nodeCount).toBe(3);
+    expect(g.graphify?.edgeCount).toBe(2); // reads `links`, not `edges`
     expect(g.graphify?.communityCount).toBe(2);
+    expect(g.graphify?.outputDir).toBe('graphify-out');
+    // main() has degree 2 → top hub.
+    expect(g.graphify?.hubs[0]?.label).toBe('main()');
+    expect(g.graphify?.communities.map((c) => c.id)).toEqual(['0', '1']);
+    expect(g.graphify?.report).toContain('God Nodes');
+
+    const md = renderGroundingMarkdown(g);
+    expect(md).toContain('## Graphify graph (structural map)');
+    expect(md).toContain('candidate sections');
+    expect(md).toContain('God nodes → candidate high-importance pages');
+    expect(md).toContain('GRAPH_REPORT.md');
+  });
+
+  it('renders the prior-recorded-work section from a knowledge grounding', () => {
+    const md = renderGroundingMarkdown({
+      projectSlug: 'demo',
+      cwd: '/repo',
+      fileCount: 1,
+      truncated: false,
+      dirRollup: [{ dir: 'src', files: 1 }],
+      files: ['src/a.ts'],
+      readme: null,
+      manifests: [],
+      graphify: null,
+      knowledge: {
+        projectId: 'proj_1',
+        decisionCount: 3,
+        decisions: [{ description: 'Use Drizzle over Prisma', rationale: 'native pgvector', alternatives: ['Prisma'] }],
+        packCount: 2,
+        contextPacks: [{ id: 'cp_1', title: 'Module 09 closeout', excerpt: 'wired graphify + jira' }],
+      },
+    });
+    expect(md).toContain('## Prior recorded work');
+    expect(md).toContain('Use Drizzle over Prisma');
+    expect(md).toContain('why: native pgvector');
+    expect(md).toContain('alternatives considered: Prisma');
+    expect(md).toContain('`cp_1` — **Module 09 closeout**');
   });
 });
 
@@ -286,7 +335,9 @@ describe('coodra wiki generate', () => {
     expect(existsSync(join(dir, '.coodra', 'wiki-grounding.md'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki-job.json'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki-job.md'))).toBe(true);
-    const feature = readFileSync(join(dir, 'docs', 'features', 'deep-wiki-author', 'feature.md'), 'utf8');
+    // Phase 5: the scaffold now lands under docs/skills/ (greenfield resolves
+    // there via skillsRoot); a legacy docs/features/ project would keep it there.
+    const feature = readFileSync(join(dir, 'docs', 'skills', 'deep-wiki-author', 'feature.md'), 'utf8');
     expect(feature).toContain('deep-wiki-author');
     const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki-job.json'), 'utf8')) as {
       slug: string;

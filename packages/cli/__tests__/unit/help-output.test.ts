@@ -32,8 +32,13 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   reuse, governance, modeled net value) for this
                                   machine.
         agents [options]          Show per-agent wiring status (Claude Code, Cursor,
-                                  Windsurf, Codex). Read-only — use \`coodra init\` to
-                                  wire and \`coodra uninstall\` to strip.
+                                  Windsurf, Codex). Read-only, same report as \`coodra
+                                  agent status\` — use \`coodra agent add|remove\` to
+                                  change wiring.
+        agent                     Wire, re-wire, or strip a single coding agent
+                                  (claude | cursor | codex | windsurf | devin).
+        files                     Inspect or clean the files Coodra generated in this
+                                  project (.coodra/manifest.json).
         graphify                  Wire Graphify's codebase-graph MCP server (a
                                   structural-query tool) into your agent config
                                   (Claude Code / Cursor / Windsurf / Codex). Option C
@@ -55,7 +60,7 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   team.
         org                       Multi-org user commands. Status + switch the active
                                   Clerk org bound to this laptop.
-        logout [options]          Log out of team mode. Deletes clerk-token.json,
+        logout                    Log out of team mode. Deletes clerk-token.json,
                                   demotes config to solo, strips team env keys.
         invite [options] <email>  Mint a team invite from the CLI. Prints a single
                                   shareable /install/<token> URL.
@@ -82,13 +87,16 @@ describe('coodra --help (snapshot-locked surface)', () => {
         template                  Manage feature-pack templates (bundled +
                                   user-installed).
         pack                      Manage docs/feature-packs/<slug>/ directories.
-        feature                   Manage docs/features/<slug>/ — skill-style knowledge
+        skill|feature             Manage docs/skills/<slug>/ — skill-style knowledge
                                   units the agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
-        uninstall [options]       Reverse \`coodra init\`: remove \`__coodra__\` matchers
-                                  from ~/.claude/settings.json + \`coodra\` server from
-                                  .mcp.json. Default-safe (preserves data + config +
-                                  feature/context packs); --purge removes ~/.coodra/.
+        uninstall [options]       Reverse \`coodra init\`: stop + remove the daemon
+                                  units (mcp-server, hooks-bridge, sync-daemon, web),
+                                  strip Coodra entries from ~/.claude/settings.json +
+                                  .mcp.json + per-agent files. Default-safe (preserves
+                                  data + config + feature/context packs);
+                                  --remove-data drops the SQLite store; --purge
+                                  removes ~/.coodra/.
         upgrade [options]         Check for a newer @coodra/cli on npm. Does NOT
                                   self-update — prints the install command. After
                                   install, re-run to apply migrations + restart

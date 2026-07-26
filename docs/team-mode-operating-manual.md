@@ -129,9 +129,9 @@ feature is a directory under `<repo>/docs/features/<slug>/` containing:
 
 The pattern is **directly modeled on Anthropic skills**. Agents read a cheap
 INDEX (slug + name + description, ~ a few hundred bytes per feature) at
-SessionStart, then call `coodra__get_feature(slug)` to load one
+SessionStart, then call `coodra__get_skill(slug)` to load one
 feature's full body when a relevant prompt arrives. They call
-`coodra__get_feature_file(slug, path)` for supporting files on demand.
+`coodra__get_skill_file(slug, path)` for supporting files on demand.
 The agent never has to read every byte the team has written; it loads what
 it needs, when it needs it.
 
@@ -169,7 +169,7 @@ tags: [payments, billing, stripe]
 ```
 
 The agent sees the description-only INDEX at session start. The bridge
-fetches the full body via `get_feature` only when the agent's planner
+fetches the full body via `get_skill` only when the agent's planner
 decides this feature is relevant. That keeps cold-start cheap and lets a
 team grow to hundreds of features without bloat.
 
@@ -200,8 +200,8 @@ the new feature even though their cloud-backed metadata says it exists.
 
 **The fix (next slice):** persist `feature.md` + supporting files into a
 `feature_files` table or a Supabase Storage bucket scoped to the org. The
-puller pulls files lazily on first access via the `get_feature` /
-`get_feature_file` MCP tools. No more git-pull dependency. Not yet shipped.
+puller pulls files lazily on first access via the `get_skill` /
+`get_skill_file` MCP tools. No more git-pull dependency. Not yet shipped.
 
 ### What `init` writes today (and the legacy 3-file scaffold)
 
@@ -410,7 +410,7 @@ end-to-end-encrypted channels, rotate when anyone leaves the team.
 |---|---|---|
 | Open the IDE | (no coodra UI) | Same as admin — Claude Code in your repo, bridge fires SessionStart |
 | Agent reads context | Automatic | Bridge injects feature INDEX + recent decisions (last 7 days, this project) into agent's first turn |
-| Agent loads a feature on demand | Automatic | When agent's planner decides, it calls `coodra__get_feature(slug)`; bridge returns feature.md body |
+| Agent loads a feature on demand | Automatic | When agent's planner decides, it calls `coodra__get_skill(slug)`; bridge returns feature.md body |
 | Make architectural choices | Agent calls `record_decision` | Stamped with **your** Clerk user_id. Visible to teammates within ~10s |
 | End of session | Agent calls `save_context_pack` | A narrative recap. Visible on `/context-packs` with your "Authored by" badge |
 | Pause your own session | **Web `/kill-switches`** | Toggle for your project + agent_type. Bridge refuses PreToolUse until you resume |
@@ -469,7 +469,7 @@ This is the master cheat-sheet. Search this section when stuck on
 | Edit / save | `/packs/[slug]` (edit form) | edit files + `coodra feature index` |
 | Pull team's features to your machine | (today: `git pull`) | (today: `git pull`) |
 | Agent's lazy load | (auto on session start: INDEX) | — |
-| Agent's full load | (auto on demand: `get_feature` MCP tool) | — |
+| Agent's full load | (auto on demand: `get_skill` MCP tool) | — |
 
 ### Decisions
 | Action | Web | CLI |
@@ -558,7 +558,7 @@ MONDAY
 09:20  Admin opens Claude Code → first agent session            (IDE)
 09:21  Bridge fires SessionStart → injects feature INDEX        (auto)
 09:22  Agent's planner decides "stripe-payments" is relevant
-       → MCP get_feature(stripe-payments)                       (auto)
+       → MCP get_skill(stripe-payments)                         (auto)
 09:30  Agent records 4 decisions over 30 minutes                MCP record_decision
 09:50  Agent saves context pack "stripe webhook handler done"    MCP save_context_pack
        Cloud now has: 1 project, 1 run, 4 decisions, 1 context pack
@@ -596,7 +596,7 @@ TUESDAY
 09:41  Bridge fires SessionStart → injects feature INDEX with
        both stripe-payments AND auth-clerk-oauth                (auto)
 09:42  Member's agent decides auth-clerk-oauth is relevant for
-       this prompt → MCP get_feature(auth-clerk-oauth)          (auto)
+       this prompt → MCP get_skill(auth-clerk-oauth)            (auto)
        Member's agent now has admin's spec at turn zero, even
        though admin and member never spoke about it directly today
        — that's the team-mode unlock.
@@ -640,7 +640,7 @@ your local SQLite is doing all the cross-machine jobs simultaneously
 - ⚠ **Web-v2 RBAC enforcement on server actions.** Role machinery exists in `packages/shared/src/auth/roles.ts`. Web actions don't yet call `requireRole(actor, 'admin')` before edits. Viewers signed into the web could currently invoke an action that should be denied. MCP tool handlers DO enforce; web doesn't. Fix: ~30 lines spread across `apps/web-v2/lib/actions/*.ts`.
 - ⚠ **Member-list is "observed locally" only.** `/settings/team` lists every user_id we've seen write a row. Doesn't list Clerk-org members who haven't yet authored anything. Fix: add `clerkClient.organizations.getOrganizationMembershipList` call, union with locally-observed.
 - ⚠ **Display names.** Members show as `user_2nKj…XYZ` instead of "Alice Smith". Fix: same Clerk-SDK call as above caches the user→name map; `<ActorBadge>` already accepts `displayName`.
-- ⚠ **Feature content distribution.** Today metadata syncs (slug, checksum) but `feature.md` content travels via git. Members forget to `git pull`, miss new features. Fix: `feature_files` table or Supabase Storage bucket scoped per-org; `get_feature` reads from cloud when local is stale.
+- ⚠ **Feature content distribution.** Today metadata syncs (slug, checksum) but `feature.md` content travels via git. Members forget to `git pull`, miss new features. Fix: `feature_files` table or Supabase Storage bucket scoped per-org; `get_skill` reads from cloud when local is stale.
 - ⚠ **Clerk web sign-in not wired in v2.** Original `apps/web` had `/auth/sign-in`, `/auth/sign-up`, `clerkMiddleware`. v2 has none. Without this, team-mode web is "view-only as the env-configured user". Fix: port the three files + add ClerkProvider in `app/layout.tsx`.
 - ⚠ **Invite security as described in §5.** Today: shared org-wide secret, no expiry, no revocation, plaintext sharing. Fix: per-teammate JWTs + Supabase RLS as designed in §5.
 
@@ -660,7 +660,7 @@ your local SQLite is doing all the cross-machine jobs simultaneously
 That's the "demo-ready → ship-ready for a real second teammate" delta.
 
 ### A 1-week pass would deliver
-6. Feature content cloud storage (Supabase Storage bucket; `get_feature` reads cloud when local stale; `pack save` server action uploads).
+6. Feature content cloud storage (Supabase Storage bucket; `get_skill` reads cloud when local stale; `pack save` server action uploads).
 7. Per-teammate invite tokens + Supabase RLS as designed in §5.
 8. Migration view in the web for solo→team conversion progress.
 

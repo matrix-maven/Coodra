@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/db';
 import { createLogger, type Logger } from '@coodra/shared';
-import { featuresRoot, renderFeatureMd } from '@coodra/shared/features';
+import { renderFeatureMd, skillsRoot } from '@coodra/shared/features';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -314,18 +314,6 @@ export interface TeamRowsPullSummary {
   /** Module 10 — Deep Wiki page rows pulled this tick. */
   readonly wikiPages: number;
 }
-
-const ZERO_SUMMARY: TeamRowsPullSummary = Object.freeze({
-  projects: 0,
-  decisions: 0,
-  contextPacks: 0,
-  runEvents: 0,
-  runs: 0,
-  features: 0,
-  featurePacks: 0,
-  wikis: 0,
-  wikiPages: 0,
-});
 
 export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHandle {
   if (deps.localDb.kind !== 'sqlite') {
@@ -729,7 +717,7 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
           // CLI/bridge interaction), the next tick will retry.
           continue;
         }
-        const featureDir = join(featuresRoot(projectRow.cwd), row.slug);
+        const featureDir = join(skillsRoot(projectRow.cwd), row.slug);
         const featureMdPath = join(featureDir, 'feature.md');
         // Render the markdown from the stored frontmatter (YAML or
         // JSON-encoded) + body. We accept either shape so the CLI can
@@ -1147,5 +1135,3 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
     tickOnce,
   };
 }
-
-export const ZERO_PULL_SUMMARY = ZERO_SUMMARY;

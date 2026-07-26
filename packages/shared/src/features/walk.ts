@@ -36,13 +36,56 @@ const MAX_FILE_DEPTH = 4;
 const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', '.next', '.turbo']);
 
 /**
- * Resolve `<projectRoot>/docs/features/`. Returns the path even if the
- * directory doesn't exist — the caller checks `existsSync`. Centralised
- * so the CLI, the bridge, the web app, and the MCP server all agree on
- * one location.
+ * The current directory name for skill-style knowledge units, and the
+ * legacy name they used before the 2026-07 Features→Skills rename.
+ */
+export const SKILLS_DIR_NAME = 'skills' as const;
+export const LEGACY_FEATURES_DIR_NAME = 'features' as const;
+
+/**
+ * Resolve the effective on-disk home for this project's skills. Returns
+ * the path even if the directory doesn't exist — the caller checks
+ * `existsSync`. Centralised so the CLI, the bridge, the web app, the
+ * sync-daemon, and the MCP server all agree on one location.
+ *
+ * Precedence (mirrors the Graphify managed/legacy layout — NEVER relocate
+ * a project's files silently):
+ *   1. `docs/skills/` exists → use it (the post-rename home);
+ *   2. else `docs/features/` exists → use it (legacy project — keep writing
+ *      there until the user runs `coodra skill migrate`);
+ *   3. else (greenfield) → `docs/skills/` (the new default).
+ *
+ * This is a pure path resolution — it does not create anything. The one
+ * writer that mkdir's is `generateFeaturesIndex`, which uses whatever this
+ * returns, so a fresh project lands on `docs/skills/` and a legacy one stays
+ * on `docs/features/`.
+ */
+export function skillsRoot(projectCwd: string): string {
+  const skills = join(projectCwd, 'docs', SKILLS_DIR_NAME);
+  if (existsSync(skills)) return skills;
+  const legacy = join(projectCwd, 'docs', LEGACY_FEATURES_DIR_NAME);
+  if (existsSync(legacy)) return legacy;
+  return skills;
+}
+
+/**
+ * The two candidate directories (skills = new, legacy = pre-rename), for
+ * `coodra skill migrate` and diagnostics. Neither is guaranteed to exist.
+ */
+export function skillsDirCandidates(projectCwd: string): { readonly skills: string; readonly legacy: string } {
+  return {
+    skills: join(projectCwd, 'docs', SKILLS_DIR_NAME),
+    legacy: join(projectCwd, 'docs', LEGACY_FEATURES_DIR_NAME),
+  };
+}
+
+/**
+ * @deprecated Coodra "Features" were renamed to "Skills" (2026-07). Use
+ * `skillsRoot`. Kept so external importers don't break; resolves the SAME
+ * effective path (skills → legacy features → greenfield skills).
  */
 export function featuresRoot(projectCwd: string): string {
-  return join(projectCwd, 'docs', 'features');
+  return skillsRoot(projectCwd);
 }
 
 /**
@@ -52,7 +95,7 @@ export function featuresRoot(projectCwd: string): string {
  * "incomplete features" via a separate diagnostics path).
  */
 export function walkFeatures(projectCwd: string): FeatureRow[] {
-  const root = featuresRoot(projectCwd);
+  const root = skillsRoot(projectCwd);
   if (!existsSync(root)) return [];
 
   const rows: FeatureRow[] = [];

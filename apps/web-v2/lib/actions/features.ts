@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } 
 import { extname, join } from 'node:path';
 
 import {
-  featuresRoot as featuresRootShared,
+  skillsRoot as featuresRootShared,
   generateFeaturesIndex,
   parseFeatureMd,
   renderFeatureMd,

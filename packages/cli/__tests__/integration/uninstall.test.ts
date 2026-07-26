@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { runUninstallCommand, type UninstallIO } from '../../src/commands/uninstall.js';
 import { EXIT_OK } from '../../src/exit-codes.js';
+import type { DaemonManager } from '../../src/lib/daemon/index.js';
 import { mergeCursorMcpConfig } from '../../src/lib/init/cursor-merge.js';
 
 interface Capture {
@@ -14,9 +15,45 @@ interface Capture {
   exitCode: number | null;
 }
 
+/**
+ * Hermetic daemon-manager stub. Records every stop/uninstall so tests can
+ * assert the tear-down happened, WITHOUT ever shelling `launchctl` /
+ * `systemctl` against the host's real Coodra units. Every uninstall test
+ * MUST inject one of these (via makeIo) — otherwise `selectDaemonManager`
+ * would resolve the real platform manager and stop the developer's actual
+ * daemons during the test run.
+ */
+type StubDaemonManager = DaemonManager & { readonly calls: Array<{ op: string; unit: string }> };
+
+function makeStubDaemonManager(): StubDaemonManager {
+  const calls: Array<{ op: string; unit: string }> = [];
+  return {
+    kind: 'fallback',
+    calls,
+    isAvailable: async () => true,
+    install: async () => {},
+    uninstall: async (u: string) => {
+      calls.push({ op: 'uninstall', unit: u });
+    },
+    start: async () => {},
+    stop: async (u: string) => {
+      calls.push({ op: 'stop', unit: u });
+    },
+    status: async (u: string) => ({ name: u, state: 'stopped' as const }),
+    list: async () => [],
+  };
+}
+
 // `cwd` omitted → the command falls back to detectProjectRoot(process.cwd())
-// (the field-bug regression path exercised in Fixture 7).
-function makeIo(args: { homePath: string; cwd?: string; settingsPath: string; cap: Capture }): UninstallIO {
+// (the field-bug regression path exercised in Fixture 7). `daemonManager`
+// omitted → a fresh benign stub so the test never touches host daemons.
+function makeIo(args: {
+  homePath: string;
+  cwd?: string;
+  settingsPath: string;
+  cap: Capture;
+  daemonManager?: DaemonManager;
+}): UninstallIO {
   return {
     writeStdout: (c) => args.cap.stdout.push(c),
     writeStderr: (c) => args.cap.stderr.push(c),
@@ -28,6 +65,7 @@ function makeIo(args: { homePath: string; cwd?: string; settingsPath: string; ca
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     bridgePort: 3101,
     settingsPath: args.settingsPath,
+    daemonManager: args.daemonManager ?? makeStubDaemonManager(),
   };
 }
 
@@ -182,8 +220,15 @@ describe('coodra uninstall integration', () => {
       steps: Array<{ step: string; action: string }>;
     };
     expect(payload.ok).toBe(true);
-    // Every step should be unchanged on the second run.
+    // Every file-reversal step should be unchanged on the second run. The
+    // daemon steps always issue stop+uninstall (idempotent, best-effort) so
+    // they report 'merged' each run — that's correct: uninstall is a
+    // tear-down, and issuing an idempotent stop twice is harmless.
     for (const s of payload.steps) {
+      if (s.step.startsWith('daemon:')) {
+        expect(s.action).toBe('merged');
+        continue;
+      }
       expect(s.action).toBe('unchanged');
     }
   });
@@ -269,5 +314,76 @@ describe('coodra uninstall integration', () => {
       .filter((l) => l.length > 0);
     expect(lines[0]).toContain('coodra uninstall');
     expect(lines[1]).toBe(`  project root: ${projectCwd}`);
+  });
+
+  it('Fixture 9 — THE PORT-3001 BUG: stops AND uninstalls every daemon unit, web included', async () => {
+    // 2026-07-18: `coodra uninstall` never called the daemon manager, so the
+    // web daemon kept holding port 3001 after "uninstall". It must now stop +
+    // uninstall all four units (mcp-server, hooks-bridge, sync-daemon, web).
+    const stub = makeStubDaemonManager();
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand(
+        { json: true },
+        makeIo({ homePath, cwd: projectCwd, settingsPath, cap, daemonManager: stub }),
+      ),
+    );
+    expect(code).toBe(EXIT_OK);
+
+    // Every service was BOTH stopped and uninstalled.
+    for (const unit of ['mcp-server', 'hooks-bridge', 'sync-daemon', 'web'] as const) {
+      expect(stub.calls).toContainEqual({ op: 'stop', unit });
+      expect(stub.calls).toContainEqual({ op: 'uninstall', unit });
+    }
+    // The web unit is present — the exact regression (port 3001 survivor).
+    const payload = JSON.parse(cap.stdout.join('')) as { steps: Array<{ step: string; action: string }> };
+    expect(payload.steps.find((s) => s.step === 'daemon:web')?.action).toBe('merged');
+  });
+
+  it('Fixture 10 — --remove-data deletes data.db (+wal/shm) but keeps config.json', async () => {
+    // Lay down the WAL + SHM sidecars so removal covers all three files.
+    writeFileSync(join(homePath, 'data.db-wal'), 'wal');
+    writeFileSync(join(homePath, 'data.db-shm'), 'shm');
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ json: true, removeData: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+
+    // SQLite store gone…
+    expect(existsSync(join(homePath, 'data.db'))).toBe(false);
+    expect(existsSync(join(homePath, 'data.db-wal'))).toBe(false);
+    expect(existsSync(join(homePath, 'data.db-shm'))).toBe(false);
+    // …but config + the home dir itself survive (narrower than --purge).
+    expect(existsSync(join(homePath, 'config.json'))).toBe(true);
+    expect(existsSync(homePath)).toBe(true);
+
+    const payload = JSON.parse(cap.stdout.join('')) as {
+      preserved: string[];
+      steps: Array<{ step: string; action: string }>;
+    };
+    expect(payload.steps.find((s) => s.step === 'remove-data')?.action).toBe('merged');
+    expect(payload.preserved).toContain(`${homePath}/config.json`);
+    expect(payload.preserved).not.toContain(`${homePath}/data.db`);
+  });
+
+  it('Fixture 11 — --dry-run stops nothing and deletes no data', async () => {
+    const stub = makeStubDaemonManager();
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand(
+        { json: true, dryRun: true, removeData: true },
+        makeIo({ homePath, cwd: projectCwd, settingsPath, cap, daemonManager: stub }),
+      ),
+    );
+    expect(code).toBe(EXIT_OK);
+    // Dry-run must not touch the daemon manager…
+    expect(stub.calls).toHaveLength(0);
+    // …nor delete the SQLite store.
+    expect(existsSync(join(homePath, 'data.db'))).toBe(true);
+    const payload = JSON.parse(cap.stdout.join('')) as { steps: Array<{ step: string; action: string }> };
+    expect(payload.steps.find((s) => s.step === 'daemon:web')?.action).toBe('unchanged');
+    expect(payload.steps.find((s) => s.step === 'remove-data')?.action).toBe('unchanged');
   });
 });

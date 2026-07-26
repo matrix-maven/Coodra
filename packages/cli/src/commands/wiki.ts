@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 
 import { lookupProjectBySlug, sqliteSchema } from '@coodra/db';
-import { generateFeaturesIndex, renderFeatureMd } from '@coodra/shared/features';
+import { generateFeaturesIndex, renderFeatureMd, skillsRoot } from '@coodra/shared/features';
 import { WIKI_ID_RE, WIKI_JOB_RELPATH, type WikiMode, wikiModeSchema } from '@coodra/shared/wiki';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -11,6 +11,7 @@ import { openBrowser } from '../lib/browser-handoff.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { assembleGrounding, renderGroundingMarkdown } from '../lib/wiki/grounding.js';
+import { assembleKnowledgeGrounding, type KnowledgeGrounding } from '../lib/wiki/knowledge.js';
 import {
   buildWikiJob,
   deepWikiFeatureFrontmatter,
@@ -82,6 +83,26 @@ function toWikiSlug(input: string): string {
     .slice(0, 128);
 }
 
+/**
+ * Read the project's recorded decisions + context packs for the grounding.
+ * Best-effort: any failure (store missing, project unregistered, read error)
+ * returns null so `wiki generate` still produces a code-only grounding rather
+ * than aborting. The knowledge layer is an enrichment, never a gate.
+ */
+async function readKnowledgeGrounding(projectSlug: string): Promise<KnowledgeGrounding | null> {
+  const dataDb = resolveCoodraDataDb(resolveCoodraHome());
+  if (!existsSync(dataDb)) return null;
+  let handle: Awaited<ReturnType<typeof openLocalDb>> | null = null;
+  try {
+    handle = await openLocalDb(dataDb);
+    return await assembleKnowledgeGrounding(handle, projectSlug);
+  } catch {
+    return null;
+  } finally {
+    handle?.close();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // generate
 // ---------------------------------------------------------------------------
@@ -121,8 +142,12 @@ export async function runWikiGenerateCommand(
     return io.exit(EXIT_USER_RECOVERABLE);
   }
 
-  // 1. Grounding snapshot.
-  const grounding = assembleGrounding({ cwd, projectSlug });
+  // 1. Grounding snapshot. The code-only part is pure filesystem; the
+  //    knowledge part (prior decisions + context packs) needs the local store,
+  //    so open it here and degrade to null if it isn't reachable — a wiki
+  //    generated before the first `coodra init` is legitimate.
+  const knowledge = await readKnowledgeGrounding(projectSlug);
+  const grounding = await assembleGrounding({ cwd, projectSlug, knowledge });
   const groundingPath = join(cwd, WIKI_GROUNDING_RELPATH);
   mkdirSync(dirname(groundingPath), { recursive: true });
   writeFileSync(groundingPath, renderGroundingMarkdown(grounding), 'utf8');
@@ -139,9 +164,13 @@ export async function runWikiGenerateCommand(
     'utf8',
   );
 
-  // 3. Scaffold the `deep-wiki-author` Feature (pulled on trigger). Idempotent
-  //    unless --force: a feature.md the user has edited is preserved.
-  const featureDir = join(cwd, 'docs', 'features', 'deep-wiki-author');
+  // 3. Scaffold the `deep-wiki-author` skill (pulled on trigger). Idempotent
+  //    unless --force: a feature.md the user has edited is preserved. MUST use
+  //    the resolved skills dir (docs/skills/, or legacy docs/features/) so the
+  //    scaffold and the index that `generateFeaturesIndex` writes land in the
+  //    SAME directory — a hardcoded docs/features/ here would split them on a
+  //    greenfield project that resolves to docs/skills/.
+  const featureDir = join(skillsRoot(cwd), 'deep-wiki-author');
   const featurePath = join(featureDir, 'feature.md');
   let featureWritten = false;
   if (!existsSync(featurePath) || options.force === true) {
@@ -202,10 +231,11 @@ export async function runWikiGenerateCommand(
   io.writeStdout(
     `  ${pc.green('✓')} Recipe      ${pc.gray(`${WIKI_JOB_MD_RELPATH} (slug "${slug}", mode "${mode}")`)}\n`,
   );
+  const featureRel = relative(cwd, featurePath).split(sep).join('/');
   io.writeStdout(
     featureWritten
-      ? `  ${pc.green('✓')} Feature     ${pc.gray('docs/features/deep-wiki-author/feature.md — pulled when you ask the agent to build the wiki')}\n`
-      : `  ${pc.yellow('◌')} Feature     ${pc.gray('docs/features/deep-wiki-author/feature.md already exists (use --force to refresh)')}\n`,
+      ? `  ${pc.green('✓')} Skill       ${pc.gray(`${featureRel} — pulled when you ask the agent to build the wiki`)}\n`
+      : `  ${pc.yellow('◌')} Skill       ${pc.gray(`${featureRel} already exists (use --force to refresh)`)}\n`,
   );
   io.writeStdout('\n');
   io.writeStdout(`  ${pc.bold('Next:')} open your coding agent in this project and paste this prompt:\n`);

@@ -25,21 +25,23 @@ const listFeaturesIdempotencyKey: IdempotencyKeyBuilder<ListFeaturesInput> = (in
   };
 };
 
-export function createListFeaturesToolRegistration(
+export function createListSkillsToolRegistration(
   deps: ListFeaturesHandlerDeps,
 ): ToolRegistration<typeof listFeaturesInputSchema, typeof listFeaturesOutputSchema> {
   return {
-    name: 'list_features',
-    title: 'Coodra: list_features',
+    name: 'list_skills',
+    title: 'Coodra: list_skills',
     description:
-      'Call when you need to discover available SKILLS for this project — atomic, reusable recipes the agent fetches ' +
-      "on demand when a user prompt matches a feature's trigger description (the Anthropic Skills pattern). " +
-      'Distinct from `get_feature_pack`: Feature Packs are MODULE blueprints (push, loaded at SessionStart). ' +
-      'Features are SKILLS (pull, loaded on trigger match). Returns { ok: true, features: [{slug, description, ' +
-      'whenNotToUse, maturity, fileCount, ...}] } sorted by slug, OR soft-failure with project_not_found / ' +
-      'project_cwd_unknown / features_dir_missing. Read each description, then call `get_feature(slug)` only for ' +
-      'features whose triggers match the current task — never load every feature blindly. Re-run when the user ' +
-      "mentions a topic you don't recognise.",
+      // §24.3 hard cap: ≤ 800 chars (manifest-e2e locks it — a QA-sweep run
+      // caught the previous wording at 857).
+      'Call when you need to discover available SKILLS for this project — atomic, reusable recipes fetched on ' +
+      "demand when a user prompt matches a skill's trigger description (the Anthropic Skills pattern). Distinct " +
+      'from `get_feature_pack`: Feature Packs are MODULE blueprints pushed at SessionStart; skills are pull-based. ' +
+      'Returns { ok: true, features: [{slug, description, whenNotToUse, maturity, fileCount, ...}] } sorted by ' +
+      'slug (the `features` key is kept for back-compat), OR soft-failure with project_not_found / ' +
+      'project_cwd_unknown / features_dir_missing. Call `get_skill(slug)` only for skills whose triggers match ' +
+      'the task — never load every skill blindly. Re-run on unrecognised topics. (Former name `list_features` ' +
+      'still works as an alias.)',
     inputSchema: listFeaturesInputSchema,
     outputSchema: listFeaturesOutputSchema,
     idempotencyKey: listFeaturesIdempotencyKey,

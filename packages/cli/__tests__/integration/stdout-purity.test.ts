@@ -49,6 +49,17 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
         // Strip parent inherits that could route logs differently.
         ...process.env,
         COODRA_HOME: join(home, '.coodra'),
+        // 2026-07-22: `...process.env` inherits the REAL $HOME, and a real
+        // `init` wires host-global agent configs off it — `~/.claude/
+        // settings.json` (5 hook entries) and `~/.codeium/windsurf/
+        // mcp_config.json`. This suite was therefore rewriting the
+        // DEVELOPER'S actual Claude Code config on every run (silently
+        // re-enabling Coodra's PreToolUse hooks after a `coodra agent remove
+        // claude`). Pin both the home dir and the explicit settings-path
+        // override so the spawned init can only touch the tmpdir.
+        HOME: home,
+        USERPROFILE: home,
+        CLAUDE_SETTINGS_PATH: join(home, '.claude', 'settings.json'),
         // Explicitly DO NOT set COODRA_LOG_DESTINATION — the shim's
         // job is to default it to stderr without an explicit override.
         COODRA_LOG_DESTINATION: undefined,
@@ -81,6 +92,10 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
       env: {
         ...process.env,
         COODRA_HOME: join(home, '.coodra-empty'),
+        // Same host-isolation guard as the init spawn above.
+        HOME: home,
+        USERPROFILE: home,
+        CLAUDE_SETTINGS_PATH: join(home, '.claude', 'settings.json'),
         COODRA_LOG_DESTINATION: undefined,
       },
       reject: false,
@@ -100,6 +115,11 @@ describe('CLI stdout purity — no pino JSON leakage', () => {
       env: {
         ...process.env,
         COODRA_HOME: join(home, '.coodra-override'),
+        // Same host-isolation guard (this one is --dry-run, but keep it
+        // uniform so a future edit dropping --dry-run can't leak).
+        HOME: home,
+        USERPROFILE: home,
+        CLAUDE_SETTINGS_PATH: join(home, '.claude', 'settings.json'),
         COODRA_LOG_DESTINATION: 'stdout',
       },
       reject: false,

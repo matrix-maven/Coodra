@@ -180,9 +180,14 @@ export function timelineRow(
   const statusWidth = opts.statusWidth ?? 11;
   const pad = ' '.repeat(indent);
   const node = axisNode(entry.verdict); // `·──●`, 4 visible columns, pre-painted
-  const when = paint.inkDim(entry.when.padEnd(whenWidth));
-  const id = paint.ink(entry.id.padEnd(idWidth));
-  const status = VERDICT_PAINT[entry.verdict](entry.status.padEnd(statusWidth));
+  // `padEnd` guarantees NOTHING when the text overflows its column — a
+  // 108-char run key used to run straight into the status word
+  // (`…48ccin_progress`, 2026-07-24 QA). Overflowing fields keep a 2-space
+  // separator instead of relying on the pad.
+  const cell = (text: string, width: number): string => (text.length >= width ? `${text}  ` : text.padEnd(width));
+  const when = paint.inkDim(cell(entry.when, whenWidth));
+  const id = paint.ink(cell(entry.id, idWidth));
+  const status = VERDICT_PAINT[entry.verdict](cell(entry.status, statusWidth));
   const meta = entry.meta !== undefined ? paint.inkFar(entry.meta) : '';
   return `${pad}${node}  ${when}${id}${status}${meta}`;
 }

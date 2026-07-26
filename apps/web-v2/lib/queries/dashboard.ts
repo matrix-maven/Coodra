@@ -20,6 +20,15 @@ export interface DashboardSnapshot {
   readonly mode: 'solo' | 'team';
   readonly fetchedAt: string;
   /**
+   * The Coodra CLI version serving this dashboard. The web daemon is
+   * launched by `coodra start`, which injects `COODRA_CLI_VERSION` into
+   * the unit env (see `packages/cli/src/lib/services.ts`). Read here at
+   * request time (server-side) rather than inlined in the page so a plain
+   * `next start` — where the var is absent — degrades to `null` instead of
+   * baking a stale literal (the old hardcoded `v 0.4.1`).
+   */
+  readonly cliVersion: string | null;
+  /**
    * Module 05 §6.E — agent narrative coverage over the last 7 days.
    * `agentCount / totalCount` of completed runs that have a Context
    * Pack with `source = 'agent'` (i.e., the agent called
@@ -125,6 +134,7 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
     latestRuns,
     mode,
     fetchedAt: new Date().toISOString(),
+    cliVersion: process.env.COODRA_CLI_VERSION ?? null,
     narrativeCoverage7d,
     decisionCapture30d,
   };

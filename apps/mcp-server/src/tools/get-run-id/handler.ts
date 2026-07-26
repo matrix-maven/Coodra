@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { type DbHandle, ensureDefaultPolicy, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger, generateRunKey } from '@coodra/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -137,6 +137,27 @@ async function autoCreateProject(deps: GetRunIdHandlerDeps, projectSlug: string)
     handlerLogger.info(
       { event: 'get_run_id_project_auto_created', projectSlug, projectId, orgId: row.orgId },
       'solo-mode auto-created projects row for unknown slug',
+    );
+  }
+  // A fresh project row with no policy is fail-open: `check_policy`
+  // waves through every tool because no rule matches. Seed the
+  // `__default__` policy so a solo session-start (this path) governs
+  // agent actions from the first Write. This bypasses `ensureProject`
+  // (which seeds it too) because get_run_id owns its own project insert
+  // above; `ensureDefaultPolicy` is idempotent, so re-seeding the raced
+  // winner is a no-op. Best-effort — a seed failure must not break
+  // session start; `coodra doctor --fix` backfills a missed seed.
+  try {
+    await ensureDefaultPolicy(deps.db, resolved.projectId);
+  } catch (err) {
+    handlerLogger.warn(
+      {
+        event: 'get_run_id_default_policy_seed_failed',
+        projectSlug,
+        projectId: resolved.projectId,
+        err: err instanceof Error ? err.message : String(err),
+      },
+      'auto-created project but default policy seed failed — project is fail-open until repaired (run `coodra doctor --fix`)',
     );
   }
   return resolved.projectId;

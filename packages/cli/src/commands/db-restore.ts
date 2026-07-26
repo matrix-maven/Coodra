@@ -2,7 +2,9 @@ import { copyFile, rename, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { EXIT_BACKUP_RESTORE_PRECONDITION, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
+import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { readPidStatus } from '../lib/pid-status.js';
+import { SERVICES } from '../lib/services.js';
 import { isSqliteFile } from '../lib/sqlite-magic.js';
 import { pc } from '../ui/index.js';
 
@@ -15,22 +17,23 @@ import { pc } from '../ui/index.js';
  *     on POSIX filesystems and as-atomic-as-possible on Windows).
  *   - Auto-backup of current DB to `<current>.pre-restore-<ISO>` before
  *     swap. `--no-auto-backup` skips it (warns aloud first via stderr).
- *   - Refuses if any of the three daemons (mcp-server, hooks-bridge,
- *     sync-daemon) are alive. No `--with-daemons-running` escape
- *     hatch — daemons + atomic replace = silent corruption.
+ *   - Refuses if ANY daemon that opens the SQLite store is alive —
+ *     mcp-server, hooks-bridge, sync-daemon, AND web (the web app reads
+ *     the same DB). No `--with-daemons-running` escape hatch — daemons +
+ *     atomic replace = silent corruption. Liveness is checked via TWO
+ *     signals so no strategy is missed (2026-07-18 hardening): the PID
+ *     file (fallback-managed / foreground daemons) AND the platform
+ *     daemon manager's `status()` (launchd / systemd units, which do NOT
+ *     write PID files). Pre-hardening the check was PID-file-only and
+ *     omitted `web`, so a launchd-managed mcp-server or a running web
+ *     dashboard sailed past the guard.
  *   - Validates the source via SQLite magic-bytes header BEFORE swap.
  *
- * `--force` skips the interactive confirmation prompt (currently we
- * never prompt — destructive operations exit cleanly with confirmation
- * built into the flag), reserved for future TTY-aware prompting.
  */
-
-const TRACKED_DAEMON_UNITS = ['mcp-server', 'hooks-bridge', 'sync-daemon'] as const;
 
 export interface DbRestoreOptions {
   readonly source?: string;
   readonly noAutoBackup?: boolean;
-  readonly force?: boolean;
   readonly json?: boolean;
 }
 
@@ -39,6 +42,14 @@ export interface DbRestoreIO {
   readonly writeStderr: (chunk: string) => void;
   readonly exit: (code: number) => never;
   readonly coodraHome?: string;
+  /**
+   * Daemon manager override. Tests inject a stub so the launchd/systemd
+   * liveness probe stays hermetic (never shells `launchctl` / `systemctl`
+   * against the host's real units — which on a dev machine ARE running,
+   * and would make every restore test refuse). Production omits it —
+   * `selectDaemonManager` picks the platform manager.
+   */
+  readonly daemonManager?: DaemonManager;
 }
 
 export const DEFAULT_DB_RESTORE_IO: DbRestoreIO = {
@@ -73,11 +84,47 @@ export async function runDbRestoreCommand(
   const target = resolveCoodraDataDb(homePath);
   const resolvedSource = resolve(source);
 
-  // Refuse if any daemon is alive.
+  // Refuse if any daemon that opens the SQLite store is alive. Check every
+  // SERVICES unit (web included) via two independent signals so no
+  // process-management strategy is missed: the PID file (foreground /
+  // fallback-managed) AND the platform daemon manager's status() (launchd /
+  // systemd units, which write no PID file). Resolving the manager is
+  // best-effort — if it can't be selected, the PID signal still guards.
+  let manager: DaemonManager | null = io.daemonManager ?? null;
+  if (manager === null) {
+    try {
+      manager = await selectDaemonManager({ coodraHome: homePath });
+    } catch {
+      manager = null;
+    }
+  }
+
   const aliveUnits: { unit: string; pid: number }[] = [];
-  for (const unit of TRACKED_DAEMON_UNITS) {
-    const status = await readPidStatus(homePath, unit);
-    if (status.state === 'alive') aliveUnits.push({ unit, pid: status.pid });
+  for (const svc of SERVICES) {
+    const unit = svc.name;
+    let alive = false;
+    let pid = 0;
+    // Signal 1: PID file.
+    const pidStatus = await readPidStatus(homePath, unit);
+    if (pidStatus.state === 'alive') {
+      alive = true;
+      pid = pidStatus.pid;
+    }
+    // Signal 2: platform daemon manager (launchd / systemd). A 'running'
+    // verdict is authoritative; 'unknown' (probe failed) falls back to the
+    // PID signal rather than false-refusing.
+    if (manager !== null) {
+      try {
+        const s = await manager.status(unit);
+        if (s.state === 'running') {
+          alive = true;
+          if (pid === 0 && typeof s.pid === 'number') pid = s.pid;
+        }
+      } catch {
+        // manager status failed for this unit — rely on the PID signal.
+      }
+    }
+    if (alive) aliveUnits.push({ unit, pid });
   }
   if (aliveUnits.length > 0) {
     return surfaceErrorJson(io, json, EXIT_USER_RECOVERABLE, {

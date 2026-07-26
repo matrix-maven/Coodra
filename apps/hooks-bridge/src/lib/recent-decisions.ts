@@ -146,10 +146,9 @@ export async function loadRecentDecisionsForSession(opts: LoadRecentDecisionsOpt
 }
 
 /**
- * Render the markdown block. Pure function over decision rows; exported
- * for unit tests without DB.
+ * Render the markdown block. Pure function over decision rows.
  */
-export function formatRecentDecisionsBlock(args: {
+function formatRecentDecisionsBlock(args: {
   readonly projectSlug: string;
   readonly decisions: ReadonlyArray<DecisionRow>;
   readonly limit: number;

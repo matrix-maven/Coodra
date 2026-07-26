@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { readVerifiedToken, writeToken } from '@coodra/shared/auth';
+import { writeToken } from '@coodra/shared/auth';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { BrowserHandoffError, openBrowser, startLoopbackListener } from '../lib/browser-handoff.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
@@ -258,34 +258,4 @@ export async function runLoginCommand(options: LoginOptions = {}, io: LoginIO = 
   );
 
   return io.exit(EXIT_OK);
-}
-
-/**
- * Re-export for `team login` backward-compat (the existing TeamLoginOptions
- * surface). Maps to `runLoginCommand`. Subcommands `--token` / `--server`
- * options are ignored (Phase G removes those — the flow no longer takes
- * a token as input; it captures one via browser).
- */
-export async function runLoginCommandAsTeamLogin(
-  _legacy: Record<string, unknown> = {},
-  io: LoginIO = DEFAULT_LOGIN_IO,
-): Promise<never> {
-  return runLoginCommand({}, io);
-}
-
-/**
- * Best-effort "are we already logged in?" check, used by `status` and
- * the `00-full-flow.sh` functional test. Returns the verified claims
- * or null. Never throws.
- */
-export async function getActiveLogin(
-  home?: string,
-): Promise<{ userId: string; orgId: string; role: string; email: string | null } | null> {
-  try {
-    const claims = await readVerifiedToken({ ...(home !== undefined ? { homeOverride: home } : {}) });
-    if (claims === null) return null;
-    return { userId: claims.userId, orgId: claims.orgId, role: claims.role, email: claims.email };
-  } catch {
-    return null;
-  }
 }

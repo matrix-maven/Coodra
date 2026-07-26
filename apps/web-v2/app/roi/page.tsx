@@ -27,6 +27,29 @@ export default async function RoiPage() {
   const methodology = buildMethodology(snap.modeledInputs, DEFAULT_ROI_CONSTANTS, band.base);
   const dm = resolveDeploymentMode();
 
+  // Fresh install — no runs recorded yet, so every section below would render
+  // $0 / — noise. Show the header plus a single empty state instead.
+  if (snap.adoption.totalRuns === 0) {
+    return (
+      <>
+        <Topbar crumb="ROI" crumbPrefix={snap.mode === 'team' ? 'coodra · team' : 'coodra · solo'} />
+        <section className="screen">
+          <Header snap={snap} base={band.base} />
+          <div className="empty">
+            <strong>
+              No runs <em>yet</em>.
+            </strong>
+            ROI metrics appear after the first recorded agent session. Wire an agent with{' '}
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span> (or{' '}
+            <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra agent add</span>) from a project
+            root, then let a session run — adoption, governance, knowledge and efficiency figures land here as the run
+            is recorded.
+          </div>
+        </section>
+      </>
+    );
+  }
+
   return (
     <>
       <Topbar crumb="ROI" crumbPrefix={snap.mode === 'team' ? 'coodra · team' : 'coodra · solo'} />

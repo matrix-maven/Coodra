@@ -82,7 +82,7 @@ export const claudeHookRegistrationCheck: Check = {
         return {
           status: 'yellow',
           detail: `${settingsPath} not found — Claude Code is not configured to call the Coodra bridge.`,
-          remediation: 'Run `coodra init` to write the hook registration.',
+          remediation: 'Run `coodra agent add claude` (or `coodra init`) to write the hook registration.',
         };
       }
       return {
@@ -98,7 +98,7 @@ export const claudeHookRegistrationCheck: Check = {
       return {
         status: 'yellow',
         detail: `${settingsPath} invalid JSON or shape: ${(err as Error).message}`,
-        remediation: 'Re-run `coodra init` to rewrite the hook registration.',
+        remediation: 'Run `coodra agent repair claude` (or re-run `coodra init`) to rewrite the hook registration.',
       };
     }
 
@@ -143,21 +143,22 @@ export const claudeHookRegistrationCheck: Check = {
         status: 'yellow',
         detail: `pre-Fix-F legacy matcher (\`__coodra__\`) present on: ${legacySentinels.join(', ')}. Claude Code's hook matcher is a regex over tool names; the literal sentinel never matches any real tool, so PreToolUse / PostToolUse hooks are functionally inert.`,
         remediation:
-          'Re-run `coodra init` to migrate the entry to the post-Fix-F per-event matcher (`Write|Edit|MultiEdit|NotebookEdit|Bash`).',
+          'Run `coodra agent repair claude` (or re-run `coodra init`) to migrate the entry to the post-Fix-F per-event matcher (`Write|Edit|MultiEdit|NotebookEdit|Bash`).',
       };
     }
     if (missing.length > 0) {
       return {
         status: 'yellow',
         detail: `missing hook registrations: ${missing.join(', ')}. Claude Code will not POST these events to the bridge.`,
-        remediation: 'Re-run `coodra init` to add the missing hook entries.',
+        remediation: 'Run `coodra agent add claude` (or re-run `coodra init`) to add the missing hook entries.',
       };
     }
     if (driftedMatchers.length > 0) {
       return {
         status: 'yellow',
         detail: `unexpected matcher shape: ${driftedMatchers.join(', ')}.`,
-        remediation: 'Re-run `coodra init` to rewrite the hook entries with the canonical matcher set.',
+        remediation:
+          'Run `coodra agent repair claude` (or re-run `coodra init`) to rewrite the hook entries with the canonical matcher set.',
       };
     }
     return {

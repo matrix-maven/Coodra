@@ -133,7 +133,7 @@ wired **Rovo** MCP and are not counted in Coodra's manifest.
 - Decisions: `context_memory/decisions-log.md` (2026-05-21 lock, 2026-05-23
   ADR-015, 2026-05-31 ADR-016). Live plan: `Coodra/jira-integration-plan.md`.
 - Architecture: `system-architecture.md` §17 (Graphify), §22 (Jira — Direct,
-  rewritten at J0), §24 (manifest — 17 tools).
+  rewritten at J0), §24 (manifest — 17 as of Module 09; 20 after Module 10).
 - ADRs: `essentialsforclaude/11-adrs.md` ADR-010 + ADR-015 (Graphify); **ADR-016**
   (Jira = Direct).
 - Reference: `External api and library reference.md → Atlassian Remote MCP (Rovo)`.

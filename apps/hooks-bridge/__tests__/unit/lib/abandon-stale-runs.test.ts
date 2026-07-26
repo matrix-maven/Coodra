@@ -38,6 +38,16 @@ function seedRun(handle: ReturnType<typeof createDb>, row: SeedRunInput): void {
     .run(row.id, row.projectId, row.sessionId, 'claude_code', 'solo', row.status, 1000, row.endedAtSec ?? null);
 }
 
+function seedRunEvent(handle: ReturnType<typeof createDb>, runId: string, createdAtSec: number): void {
+  if (handle.kind !== 'sqlite') throw new Error('expected sqlite handle');
+  handle.raw
+    .prepare(
+      `INSERT INTO run_events (id, run_id, phase, tool_name, tool_use_id, tool_input, created_at)
+       VALUES (?, ?, 'post', 'Bash', ?, '{}', ?)`,
+    )
+    .run(`ev_${runId}_${createdAtSec}`, runId, `use_${runId}_${createdAtSec}`, createdAtSec);
+}
+
 describe('abandonStaleInProgressRuns — Slice 8', () => {
   it('flips prior in_progress runs to abandoned + sets ended_at', async () => {
     const db = createDb({ kind: 'local', sqlite: { path: ':memory:' } });
@@ -75,6 +85,34 @@ describe('abandonStaleInProgressRuns — Slice 8', () => {
     // The new session's run is preserved.
     expect(byId.get('run_new')?.status).toBe('in_progress');
     expect(byId.get('run_new')?.endedAt).toBeNull();
+  });
+
+  it('SPARES a concurrent live run — recent run_events prove the session is active (2026-07-24 QA guard)', async () => {
+    // Two terminals on the same project: opening the second used to
+    // insta-abandon the first terminal's LIVE run (no age/activity check).
+    const db = createDb({ kind: 'local', sqlite: { path: ':memory:' } });
+    if (db.kind !== 'sqlite') throw new Error('expected sqlite');
+    migrateSqlite(db.db);
+    const projectId = '00000000-0000-0000-0000-000000000009';
+    db.raw
+      .prepare('INSERT INTO projects (id, slug, org_id, name) VALUES (?, ?, ?, ?)')
+      .run(projectId, 'p9', '__solo__', 'p9');
+    const nowSec = Math.floor(Date.now() / 1000);
+    seedRun(db, { id: 'run_live', projectId, sessionId: 'sess_live', status: 'in_progress' });
+    seedRunEvent(db, 'run_live', nowSec - 60); // event 1 minute ago — alive
+    seedRun(db, { id: 'run_orphan', projectId, sessionId: 'sess_orphan', status: 'in_progress' });
+    seedRunEvent(db, 'run_orphan', nowSec - 7200); // last event 2h ago — dead
+
+    const result = await abandonStaleInProgressRuns({ db, projectId, excludeSessionId: 'sess_new' });
+    expect(result.abandoned).toBe(1);
+
+    const rows = (await db.db
+      .select({ id: sqliteSchema.runs.id, status: sqliteSchema.runs.status })
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.projectId, projectId))) as Array<{ id: string; status: string }>;
+    const byId = new Map(rows.map((r) => [r.id, r.status]));
+    expect(byId.get('run_live')).toBe('in_progress');
+    expect(byId.get('run_orphan')).toBe('abandoned');
   });
 
   it('leaves other projects untouched', async () => {

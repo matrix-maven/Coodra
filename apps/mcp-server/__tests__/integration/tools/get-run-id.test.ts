@@ -129,6 +129,40 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
       .where(eq(sqliteSchema.projects.slug, 'same-slug'));
     expect(projects).toHaveLength(1);
   });
+
+  it('seeds the __default__ policy + baseline rules on auto-create (closes the fail-open gap)', async () => {
+    // Regression for the 2026-07-18 fail-open defect: a solo auto-create
+    // used to mint a projects row with NO policy, so the MCP evaluator
+    // waved through every tool (doctor check 29 red). get_run_id now
+    // seeds `__default__` so enforcement is live from the first Write.
+    const registry = buildRegistry(h.handle, 'solo');
+    await registry.handleCall('get_run_id', { projectSlug: 'guarded-project' }, 'sess_p', {
+      agentType: 'claude_code',
+    });
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'guarded-project'));
+    const projectId = projects[0]?.id;
+    expect(projectId).toBeTypeOf('string');
+
+    const policies = await h.handle.db
+      .select()
+      .from(sqliteSchema.policies)
+      .where(eq(sqliteSchema.policies.projectId, projectId as string));
+    expect(policies).toHaveLength(1);
+    expect(policies[0]?.name).toBe('__default__');
+
+    const rules = await h.handle.db
+      .select()
+      .from(sqliteSchema.policyRules)
+      .where(eq(sqliteSchema.policyRules.policyId, policies[0]?.id as string));
+    // 24 deny rules (Write/Edit/MultiEdit/NotebookEdit × 6 dangerous globs) + 1 Bash ask.
+    expect(rules).toHaveLength(25);
+    // Spot-check the exact rule doctor check 29 probes: Write→.env must deny.
+    const envDeny = rules.find((r) => r.matchToolName === 'Write' && r.matchPathGlob === '.env');
+    expect(envDeny?.decision).toBe('deny');
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -43,6 +43,3 @@ export async function runDoctorReport(options: RunDoctorReportOptions = {}): Pro
   const checks = essential ? ESSENTIAL_CHECKS : ALL_CHECKS;
   return runChecks(checks, ctx);
 }
-
-export const ESSENTIAL_CHECK_COUNT = ESSENTIAL_CHECKS.length;
-export const ALL_CHECK_COUNT = ALL_CHECKS.length;

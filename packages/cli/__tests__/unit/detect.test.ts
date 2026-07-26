@@ -2,13 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  detectExistingMCPConfig,
-  detectIDE,
-  detectLanguages,
-  detectProjectRoot,
-  resolveIdeSelection,
-} from '../../src/lib/detect.js';
+import { detectIDE, detectLanguages, detectProjectRoot, resolveIdeSelection } from '../../src/lib/detect.js';
 
 describe('detectProjectRoot', () => {
   let scratch: string;
@@ -205,40 +199,5 @@ describe('resolveIdeSelection — --ide flag semantics', () => {
     const result = resolveIdeSelection({ flag: 'claude,claude,cursor', detected: [] });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.ides).toEqual(['claude', 'cursor']);
-  });
-});
-
-describe('detectExistingMCPConfig', () => {
-  let scratch: string;
-
-  beforeEach(async () => {
-    scratch = await mkdtemp(join(tmpdir(), 'coodra-detect-mcp-'));
-  });
-
-  it('returns null when .mcp.json is absent', async () => {
-    expect(await detectExistingMCPConfig(scratch)).toBeNull();
-  });
-
-  it('returns the parsed config when .mcp.json exists and is valid', async () => {
-    const config = {
-      mcpServers: {
-        coodra: { command: '/usr/local/bin/coodra-mcp-server' },
-        other: { command: 'npx', args: ['some-server'] },
-      },
-    };
-    await writeFile(join(scratch, '.mcp.json'), JSON.stringify(config));
-    const parsed = await detectExistingMCPConfig(scratch);
-    expect(parsed?.mcpServers?.coodra?.command).toBe('/usr/local/bin/coodra-mcp-server');
-    expect(parsed?.mcpServers?.other?.args).toEqual(['some-server']);
-  });
-
-  it('throws when .mcp.json is invalid JSON', async () => {
-    await writeFile(join(scratch, '.mcp.json'), '{ invalid');
-    await expect(detectExistingMCPConfig(scratch)).rejects.toThrow();
-  });
-
-  it('throws when .mcp.json schema is wrong', async () => {
-    await writeFile(join(scratch, '.mcp.json'), JSON.stringify({ mcpServers: { x: {} } }));
-    await expect(detectExistingMCPConfig(scratch)).rejects.toThrow();
   });
 });

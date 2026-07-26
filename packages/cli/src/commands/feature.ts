@@ -1,14 +1,15 @@
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import {
   FEATURE_SLUG_RE,
-  featuresRoot,
   generateFeaturesIndex,
   parseFeatureMd,
   readFeatureRow,
   renderFeatureMd,
+  skillsDirCandidates,
+  skillsRoot,
   walkFeatures,
 } from '@coodra/shared/features';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
@@ -17,7 +18,7 @@ import { readTeamConfig } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
- * `coodra feature {add|list|show|edit|index|remove}` — admin surface
+ * `coodra skill {add|list|show|edit|index|remove}` — admin surface
  * for the skill-style features layer.
  *
  * Each subcommand does exactly one thing. They all share the same IO
@@ -115,7 +116,7 @@ function resolveProject(rawCwd: string | undefined, io: FeatureIO): ResolvedProj
   }
   if (!FEATURE_SLUG_RE.test(projectSlug)) {
     io.writeStderr(
-      `${pc.red('coodra feature')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Add "projectSlug" to ${sidecarPath} or run from a project root.\n`,
+      `${pc.red('coodra skill')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Add "projectSlug" to ${sidecarPath} or run from a project root.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -153,7 +154,7 @@ function sanitizeFeatureSlug(raw: string): string {
  * was a well-formed sentence that accidentally passed every quality
  * heuristic, hiding the fact that the user hadn't filled it in.
  */
-const PLACEHOLDER_DESCRIPTION = 'TODO: describe when this feature applies.';
+const PLACEHOLDER_DESCRIPTION = 'TODO: describe when this skill applies.';
 
 export async function runFeatureAddCommand(
   rawSlug: string,
@@ -163,17 +164,17 @@ export async function runFeatureAddCommand(
   const { cwd, projectSlug } = resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   if (!FEATURE_SLUG_RE.test(slug)) {
-    io.writeStderr(`${pc.red('coodra feature add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`);
+    io.writeStderr(`${pc.red('coodra skill add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
-  const root = featuresRoot(cwd);
+  const root = skillsRoot(cwd);
   const dir = join(root, slug);
   const featureMdPath = join(dir, 'feature.md');
   const force = options.force === true;
 
   if (existsSync(featureMdPath) && !force) {
     io.writeStderr(
-      `${pc.red('coodra feature add')}: feature "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`coodra feature edit ${slug}\` to modify it in your editor.\n`,
+      `${pc.red('coodra skill add')}: skill "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`coodra skill edit ${slug}\` to modify it in your editor.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -233,14 +234,14 @@ export async function runFeatureAddCommand(
       )}\n`,
     );
   } else {
-    io.writeStdout(`${pc.green('✓')} Created feature "${slug}" at ${featureMdPath}\n`);
+    io.writeStdout(`${pc.green('✓')} Created skill "${slug}" at ${featureMdPath}\n`);
     if (description === PLACEHOLDER_DESCRIPTION) {
       io.writeStdout(
-        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`coodra feature index\` (or just save via the web UI) to refresh.\n`,
+        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`coodra skill index\` (or just save via the web UI) to refresh.\n`,
       );
     }
     io.writeStdout(
-      `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} feature${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
+      `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
     );
     if (dbResult.ok) {
       if (dbResult.enqueued) {
@@ -284,12 +285,12 @@ function scaffoldBody(slug: string): string {
   return [
     `# ${slug}`,
     '',
-    '> The body of this feature is what the agent loads on demand via',
-    '> `coodra__get_feature({slug:"' + slug + '"})`. Keep the most',
+    '> The body of this skill is what the agent loads on demand via',
+    '> `coodra__get_skill({slug:"' + slug + '"})`. Keep the most',
     '> load-bearing context here; deeper detail goes in supporting files',
     '> alongside this `feature.md`.',
     '',
-    '## What this feature is',
+    '## What this skill is',
     '',
     'TODO',
     '',
@@ -320,7 +321,7 @@ export async function runFeatureListCommand(
   if (options.json === true) {
     const payload = {
       projectSlug,
-      featuresRoot: featuresRoot(cwd),
+      featuresRoot: skillsRoot(cwd),
       features: rows.map((r) => ({
         slug: r.slug,
         name: r.frontmatter.name,
@@ -339,14 +340,14 @@ export async function runFeatureListCommand(
     return io.exit(EXIT_OK);
   }
 
-  io.writeStdout(`${commandTitle('Features', projectSlug, { width: terminalWidth() })}\n`);
+  io.writeStdout(`${commandTitle('Skills', projectSlug, { width: terminalWidth() })}\n`);
   if (rows.length === 0) {
-    io.writeStdout(`No features yet. Run \`coodra feature add <name>\` to create one.\n`);
-    io.writeStdout(`(Looked in ${featuresRoot(cwd)})\n`);
+    io.writeStdout(`No skills yet. Run \`coodra skill add <name>\` to create one.\n`);
+    io.writeStdout(`(Looked in ${skillsRoot(cwd)})\n`);
     return io.exit(EXIT_OK);
   }
-  io.writeStdout(`${rows.length} feature${rows.length === 1 ? '' : 's'} for ${pc.bold(projectSlug)}\n`);
-  io.writeStdout(`(Indexed root: ${featuresRoot(cwd)})\n\n`);
+  io.writeStdout(`${rows.length} skill${rows.length === 1 ? '' : 's'} for ${pc.bold(projectSlug)}\n`);
+  io.writeStdout(`(Indexed root: ${skillsRoot(cwd)})\n\n`);
   for (const row of rows) {
     const maturity = row.frontmatter.maturity ?? 'draft';
     const maturityTag = maturity === 'stable' ? '' : pc.dim(` [${maturity}]`);
@@ -374,14 +375,14 @@ export async function runFeatureShowCommand(
 ): Promise<never> {
   const { cwd } = resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const dir = join(featuresRoot(cwd), slug);
+  const dir = join(skillsRoot(cwd), slug);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-    io.writeStderr(`${pc.red('coodra feature show')}: no feature at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra skill show')}: no skill at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const row = readFeatureRow(slug, dir);
   if (row === null) {
-    io.writeStderr(`${pc.red('coodra feature show')}: ${dir} has no feature.md\n`);
+    io.writeStderr(`${pc.red('coodra skill show')}: ${dir} has no feature.md\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.json === true) {
@@ -426,10 +427,10 @@ export async function runFeatureEditCommand(
 ): Promise<never> {
   const { cwd, projectSlug } = resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const featureMdPath = join(featuresRoot(cwd), slug, 'feature.md');
+  const featureMdPath = join(skillsRoot(cwd), slug, 'feature.md');
   if (!existsSync(featureMdPath)) {
     io.writeStderr(
-      `${pc.red('coodra feature edit')}: no feature.md at ${featureMdPath}. Create it with \`coodra feature add ${slug}\` first.\n`,
+      `${pc.red('coodra skill edit')}: no feature.md at ${featureMdPath}. Create it with \`coodra skill add ${slug}\` first.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -446,7 +447,7 @@ export async function runFeatureEditCommand(
   if (parsed.errors.length > 0) {
     io.writeStderr(`${pc.yellow('⚠')} feature.md has parse errors after edit:\n`);
     for (const e of parsed.errors) io.writeStderr(`  - ${e}\n`);
-    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`coodra feature index\`.\n`);
+    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`coodra skill index\`.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
@@ -483,7 +484,7 @@ export async function runFeatureEditCommand(
   }
 
   io.writeStdout(
-    `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} feature${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
+    `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
   );
   return io.exit(EXIT_OK);
 }
@@ -515,16 +516,16 @@ export async function runFeatureIndexCommand(
   }
   if (result.changed) {
     io.writeStdout(
-      `${pc.green('✓')} Index regenerated — ${result.index.features.length} feature${result.index.features.length === 1 ? '' : 's'} indexed at ${result.indexJsonPath}\n`,
+      `${pc.green('✓')} Index regenerated — ${result.index.features.length} skill${result.index.features.length === 1 ? '' : 's'} indexed at ${result.indexJsonPath}\n`,
     );
   } else {
     io.writeStdout(
-      `${pc.gray('=')} Index unchanged — already up to date (${result.index.features.length} feature${result.index.features.length === 1 ? '' : 's'})\n`,
+      `${pc.gray('=')} Index unchanged — already up to date (${result.index.features.length} skill${result.index.features.length === 1 ? '' : 's'})\n`,
     );
   }
   if (result.slugsWithWarnings.length > 0) {
     io.writeStdout(
-      `${pc.yellow('⚠')} ${result.slugsWithWarnings.length} feature${result.slugsWithWarnings.length === 1 ? ' has' : 's have'} warnings: ${result.slugsWithWarnings.join(', ')}\n`,
+      `${pc.yellow('⚠')} ${result.slugsWithWarnings.length} skill${result.slugsWithWarnings.length === 1 ? ' has' : 's have'} warnings: ${result.slugsWithWarnings.join(', ')}\n`,
     );
   }
   return io.exit(EXIT_OK);
@@ -541,14 +542,14 @@ export async function runFeatureRemoveCommand(
 ): Promise<never> {
   const { cwd, projectSlug } = resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const dir = join(featuresRoot(cwd), slug);
+  const dir = join(skillsRoot(cwd), slug);
   if (!existsSync(dir)) {
-    io.writeStderr(`${pc.red('coodra feature remove')}: no feature at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra skill remove')}: no skill at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.force !== true) {
     io.writeStderr(
-      `${pc.red('coodra feature remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
+      `${pc.red('coodra skill remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -562,7 +563,7 @@ export async function runFeatureRemoveCommand(
   const dbResult = deleteFeatureFromDb({ projectSlug, slug });
 
   io.writeStdout(
-    `${pc.green('✓')} Removed feature "${slug}" (${dir}). Index regenerated (${indexResult.index.features.length} feature${indexResult.index.features.length === 1 ? '' : 's'} total).\n`,
+    `${pc.green('✓')} Removed skill "${slug}" (${dir}). Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total).\n`,
   );
   if (dbResult.ok) {
     if (dbResult.deleted) {
@@ -572,6 +573,108 @@ export async function runFeatureRemoveCommand(
     io.writeStdout(`${pc.yellow('⚠')} Local DB delete skipped: ${dbResult.howToFix}\n`);
   }
   return io.exit(EXIT_OK);
+}
+
+// ---------------------------------------------------------------------------
+// skill migrate — move a legacy docs/features/ tree to docs/skills/
+// ---------------------------------------------------------------------------
+
+/**
+ * `coodra skill migrate` — relocate a pre-rename `docs/features/` directory to
+ * `docs/skills/` (the post-2026-07 home) and regenerate the index.
+ *
+ * Behaviour, mirroring the "never relocate silently" principle used for the
+ * Graphify layout:
+ *   - neither dir exists → nothing to do (report `already_migrated: true` with a
+ *     "nothing to migrate" note — a greenfield project is already on skills);
+ *   - only `docs/skills/` exists → already migrated, no-op;
+ *   - only `docs/features/` exists → rename the whole directory (fast, atomic);
+ *   - BOTH exist → per-slug move (skips INDEX.* which regenerate). A slug that
+ *     exists in both refuses without `--force`; with `--force` the legacy copy
+ *     overwrites. After moving, an emptied `docs/features/` is removed.
+ *
+ * The DB mirror is location-independent (keyed by projectSlug+slug), so nothing
+ * needs to change there — only the on-disk home moves.
+ */
+export async function runFeatureMigrateCommand(
+  options: FeatureRemoveOptions = {},
+  io: FeatureIO = DEFAULT_FEATURE_IO,
+): Promise<never> {
+  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const json = options.json === true;
+  const { skills, legacy } = skillsDirCandidates(cwd);
+  const force = options.force === true;
+
+  const emit = (payload: Record<string, unknown>, human: () => void): never => {
+    if (json) io.writeStdout(`${JSON.stringify({ ok: true, command: 'skill migrate', ...payload }, null, 2)}\n`);
+    else human();
+    return io.exit(EXIT_OK);
+  };
+
+  if (!existsSync(legacy)) {
+    return emit({ migrated: false, reason: existsSync(skills) ? 'already_on_skills' : 'nothing_to_migrate' }, () => {
+      io.writeStdout(
+        existsSync(skills)
+          ? `${pc.green('✓')} Already on ${pc.gray('docs/skills/')} — nothing to migrate.\n`
+          : `${pc.gray('·')} No ${pc.gray('docs/features/')} or ${pc.gray('docs/skills/')} in this project — nothing to migrate.\n`,
+      );
+    });
+  }
+
+  const moved: string[] = [];
+  const collisions: string[] = [];
+
+  if (!existsSync(skills)) {
+    // Simple case: no destination yet — rename the whole tree in one move.
+    renameSync(legacy, skills);
+    for (const entry of safeReaddir(skills)) {
+      if (entry !== 'INDEX.md' && entry !== 'INDEX.json' && FEATURE_SLUG_RE.test(entry)) moved.push(entry);
+    }
+  } else {
+    // Merge case: move slug directories one at a time.
+    for (const entry of safeReaddir(legacy)) {
+      if (entry === 'INDEX.md' || entry === 'INDEX.json' || entry.startsWith('.')) continue;
+      if (!FEATURE_SLUG_RE.test(entry)) continue;
+      const from = join(legacy, entry);
+      if (!statSync(from).isDirectory()) continue;
+      const to = join(skills, entry);
+      if (existsSync(to)) {
+        if (!force) {
+          collisions.push(entry);
+          continue;
+        }
+        rmSync(to, { recursive: true, force: true });
+      }
+      renameSync(from, to);
+      moved.push(entry);
+    }
+    if (collisions.length > 0 && !force) {
+      io.writeStderr(
+        `${pc.red('coodra skill migrate')}: ${collisions.length} slug${collisions.length === 1 ? '' : 's'} exist in BOTH docs/features/ and docs/skills/ (${collisions.join(', ')}). Re-run with --force to overwrite the docs/skills/ copies, or resolve them by hand.\n`,
+      );
+      return io.exit(EXIT_USER_RECOVERABLE);
+    }
+    // Remove the legacy dir if it's now empty of slug directories.
+    const leftover = safeReaddir(legacy).filter((e) => e !== 'INDEX.md' && e !== 'INDEX.json' && !e.startsWith('.'));
+    if (leftover.length === 0) rmSync(legacy, { recursive: true, force: true });
+  }
+
+  const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
+
+  return emit({ migrated: true, movedSlugs: moved, skillsRoot: skills }, () => {
+    io.writeStdout(
+      `${pc.green('✓')} Migrated ${moved.length} skill${moved.length === 1 ? '' : 's'} to ${pc.gray('docs/skills/')}. Index regenerated (${indexResult.index.features.length} total).\n`,
+    );
+    if (moved.length > 0) io.writeStdout(`${pc.gray('·')} ${moved.join(', ')}\n`);
+  });
+}
+
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------

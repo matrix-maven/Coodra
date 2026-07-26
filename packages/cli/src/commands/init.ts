@@ -13,6 +13,7 @@ import {
 import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { type AgentContext, getAdapter } from '../lib/agents/index.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import {
   detectIDE,
@@ -23,10 +24,7 @@ import {
   IDE_ORDER,
   resolveIdeSelection,
 } from '../lib/detect.js';
-import { defaultClaudeSettingsPath, mergeClaudeSettings } from '../lib/init/claude-settings-merge.js';
-import { CODEX_PROJECT_CONFIG_NOTE, mergeCodexConfig } from '../lib/init/codex-merge.js';
-import { writeCoodraJson } from '../lib/init/coodra-json.js';
-import { mergeCursorMcpConfig } from '../lib/init/cursor-merge.js';
+import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
 import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
 import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
 import { type OfferGraphifyInstallOptions, offerGraphifyInstall } from '../lib/init/graphify-install.js';
@@ -36,13 +34,17 @@ import {
   resolveGraphifyPython,
 } from '../lib/init/graphify-python.js';
 import { DEFAULT_GRAPHIFY_GRAPH_PATH, wireGraphify } from '../lib/init/graphify-wire.js';
-import { mergeInstructionFile } from '../lib/init/instruction-files.js';
 import { findForeignAtlassianServer, wireJira } from '../lib/init/jira-wire.js';
 import { buildCoodraMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
 import type { WriteOutcome } from '../lib/init/types.js';
-import { mergeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
+import {
+  classifyGeneratedPath,
+  manifestPath,
+  recordManifestEntries,
+  writeProjectConfig,
+} from '../lib/project-store/index.js';
 import { bundledMigrationsDir, resolveRuntimeBinary } from '../lib/runtime-paths.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { upsertEnvKey } from '../lib/team-init/finalize-config.js';
@@ -615,7 +617,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   const outcomes: WriteOutcome[] = [];
 
   // Write/merge .coodra.json
-  outcomes.push(await writeCoodraJson({ cwd: root, projectSlug, force, dryRun }));
+  // Phase 2: write the project-local `.coodra/config.json` identity (and keep
+  // the legacy `.coodra.json` current for the bridge / doctor readers).
+  outcomes.push(...(await writeProjectConfig({ root, projectSlug, mode: machineCfg.mode, force, dryRun })));
 
   // Write/merge .mcp.json with the canonical coodra entry. Pin
   // COODRA_HOME so the Claude-Code-spawned MCP server reads/writes
@@ -668,47 +672,47 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // Every writer is idempotent + reversed by `coodra uninstall`. The
   // `--ide` flag overrides detection — see resolveIdeSelection.
 
-  if (ides.includes('claude')) {
+  // Per-agent wiring is driven by the AgentAdapter registry (lib/agents) —
+  // the SINGLE definition of each agent's surfaces, shared with the standalone
+  // `coodra agent add/repair/remove/status`. The context mirrors exactly what
+  // the old inline branches computed (bridge port, secret, mcp entry
+  // ingredients, claude settings path). `.mcp.json` is NOT wired here — it is
+  // the project-level registration written unconditionally above. The fixed
+  // order (claude → cursor → codex → windsurf) preserves the outcomes-list
+  // order the init tests lock.
+  const agentContext: AgentContext = {
+    cwd: root,
+    userHome,
+    projectSlug,
+    bridgePort: Number(baselineEnv.HOOKS_BRIDGE_PORT),
+    localHookSecret,
+    mcpEntryOptions: {
+      mcpServerBin,
+      clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
+      migrationsDir,
+      coodraHome,
+      mode: machineCfg.mode,
+      ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
+        ? { databaseUrl: machineDatabaseUrl }
+        : {}),
+      localHookSecret,
+    },
+    settingsPath: defaultClaudeSettingsPath(userHome),
+    force,
+    dryRun,
+  };
+  for (const id of ['claude', 'cursor', 'codex', 'windsurf'] as const) {
+    if (!ides.includes(id)) continue;
+    const adapter = getAdapter(id);
     try {
-      const claudeMerge = await mergeClaudeSettings({
-        settingsPath: defaultClaudeSettingsPath(userHome),
-        bridgePort: Number(baselineEnv.HOOKS_BRIDGE_PORT),
-        // Phase F.6+ — inline the literal secret so Claude Code's hook
-        // sends the correct X-Local-Hook-Secret header regardless of
-        // shell env state. See ClaudeSettingsMergeOptions docblock.
-        localHookSecret: localHookSecret,
-        force,
-        dryRun,
-      });
-      outcomes.push(claudeMerge.outcome);
-      outcomes.push(await mergeInstructionFile({ cwd: root, filename: 'CLAUDE.md', projectSlug, dryRun }));
+      outcomes.push(...(await adapter.wire(agentContext)));
+      if (adapter.postWireNote !== undefined) {
+        io.writeStdout(`  ${pc.gray('→')} ${pc.gray(adapter.postWireNote)}\n`);
+      }
     } catch (err) {
-      io.writeStderr(`${pc.yellow('⚠')} Could not wire Claude integration: ${(err as Error).message}\n`);
-    }
-  }
-  if (ides.includes('cursor')) {
-    try {
-      outcomes.push(await mergeCursorMcpConfig({ cwd: root, entry: mcpEntryFor('cursor'), force, dryRun }));
-      outcomes.push(await mergeInstructionFile({ cwd: root, filename: '.cursorrules', projectSlug, dryRun }));
-    } catch (err) {
-      io.writeStderr(`${pc.yellow('⚠')} Could not wire Cursor integration: ${(err as Error).message}\n`);
-    }
-  }
-  if (ides.includes('codex')) {
-    try {
-      outcomes.push(await mergeCodexConfig({ cwd: root, entry: mcpEntryFor('codex'), force, dryRun }));
-      outcomes.push(await mergeInstructionFile({ cwd: root, filename: 'AGENTS.md', projectSlug, dryRun }));
-      io.writeStdout(`  ${pc.gray('→')} ${pc.gray(CODEX_PROJECT_CONFIG_NOTE)}\n`);
-    } catch (err) {
-      io.writeStderr(`${pc.yellow('⚠')} Could not wire Codex integration: ${(err as Error).message}\n`);
-    }
-  }
-  if (ides.includes('windsurf')) {
-    try {
-      outcomes.push(await mergeWindsurfMcpConfig({ entry: mcpEntryFor('windsurf'), force, dryRun, userHome }));
-      outcomes.push(await mergeInstructionFile({ cwd: root, filename: '.windsurfrules', projectSlug, dryRun }));
-    } catch (err) {
-      io.writeStderr(`${pc.yellow('⚠')} Could not wire Windsurf integration: ${(err as Error).message}\n`);
+      io.writeStderr(
+        `${pc.yellow('⚠')} Could not wire ${adapter.displayName} integration: ${(err as Error).message}\n`,
+      );
     }
   }
 
@@ -980,6 +984,22 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(
       `${pc.gray('·')} Jira not wired. Run \`coodra jira enable\` any time to add Atlassian's Jira (Rovo) MCP server.\n`,
     );
+  }
+
+  // Phase 2: record every generated file into `.coodra/manifest.json` so
+  // `coodra files status/clean` can show + clean up Coodra's footprint. The
+  // classifier assigns owner/kind/cleanup per file; the manifest itself is
+  // recorded too. Skipped writes (dry-run) don't persist a manifest.
+  try {
+    const generatedPaths = [...new Set([...outcomes.map((o) => o.path), manifestPath(root)])];
+    await recordManifestEntries({
+      root,
+      projectSlug,
+      entries: generatedPaths.map((p) => classifyGeneratedPath(p, root, 'coodra init')),
+      dryRun,
+    });
+  } catch (err) {
+    io.writeStderr(`${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${(err as Error).message}\n`);
   }
 
   io.writeStdout('\n');

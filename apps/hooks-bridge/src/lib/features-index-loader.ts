@@ -1,11 +1,6 @@
 import { statSync } from 'node:fs';
 import { createLogger } from '@coodra/shared';
-import {
-  type FeatureIndex,
-  type FeatureIndexEntry,
-  featuresRoot,
-  generateFeaturesIndex,
-} from '@coodra/shared/features';
+import { type FeatureIndex, type FeatureIndexEntry, generateFeaturesIndex, skillsRoot } from '@coodra/shared/features';
 
 /**
  * `apps/hooks-bridge/src/lib/features-index-loader` — reads
@@ -99,7 +94,7 @@ export interface LoadedFeaturesIndex {
 export async function loadFeaturesIndexForSession(
   options: LoadFeaturesIndexOptions,
 ): Promise<LoadedFeaturesIndex | null> {
-  const root = featuresRoot(options.cwd);
+  const root = skillsRoot(options.cwd);
 
   // Step 1 — does the directory exist at all? If not, this project
   // simply hasn't adopted features yet. Quietly return null.

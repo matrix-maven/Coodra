@@ -53,7 +53,7 @@ docker compose down -v           # removes named volumes too
 packages/
   shared/                 # @coodra/shared — logger, errors, zod env, idempotency
   db/                     # @coodra/db     — Drizzle schemas (sqlite + postgres), createDb
-  # (Module 02+ adds: mcp-server, hooks-bridge, ai-core, sync-daemon, ui, cli)
+  # (mcp-server, hooks-bridge, sync-daemon, web-v2, cli, policy)
 
 docs/
   DEVELOPMENT.md          # this file
@@ -132,7 +132,7 @@ CLERK_PUBLISHABLE_KEY=pk_test_xxx \
 pnpm --filter @coodra/mcp-server dev
 ```
 
-The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 9 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
+The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 20 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
 
 ### Iterating on Module 03 (Hooks Bridge)
 
@@ -193,7 +193,7 @@ Closes verification finding F11 (`docs/verification/2026-04-27-module-01-02-03-v
 
 `apps/mcp-server` and `apps/hooks-bridge` are SQLite-only by design (`system-architecture.md §1`). Their `lib/db.ts` files unconditionally call `createDb({ kind: 'local' })` — there is no env knob, no flag, no boot path that yields a Postgres handle. The Module 02 stop-gap `COODRA_DB_OVERRIDE_MODE` was removed in M03 S4.
 
-If you need to exercise the cloud-write path, it lives in `@coodra/db::createDb({ kind: 'cloud', postgres: { databaseUrl } })` and is tested in `packages/db/__tests__/integration/cloud-mode-write.test.ts`. Future modules (Sync Daemon, Module 05 NL Assembly's embeddings-ingest worker) will ship services that boot against Postgres directly — but those services don't exist yet, and the local mcp-server/hooks-bridge binaries never will.
+If you need to exercise the cloud-write path, it lives in `@coodra/db::createDb({ kind: 'cloud', postgres: { databaseUrl } })` and is tested in `packages/db/__tests__/integration/cloud-mode-write.test.ts`. The Sync Daemon boots against Postgres directly (superseded — no separate NL Assembly service ships, per ADR-013's records-not-services reshape); the local mcp-server/hooks-bridge binaries never will.
 
 ### Context Pack file conventions (F13)
 

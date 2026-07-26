@@ -1,0 +1,408 @@
+import { homedir } from 'node:os';
+import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import {
+  ACCEPTED_AGENT_TOKENS,
+  type AgentAdapter,
+  type AgentStatus,
+  ensureProjectMcpJson,
+  listAdapters,
+  resolveAgentInput,
+  resolveAgentWiringContext,
+} from '../lib/agents/index.js';
+import { detectProjectRoot } from '../lib/detect.js';
+import type { WriteOutcome } from '../lib/init/types.js';
+import {
+  classifyGeneratedPath,
+  ensureProjectConfig,
+  manifestPath,
+  recordManifestEntries,
+} from '../lib/project-store/index.js';
+import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalWidth } from '../ui/index.js';
+
+/**
+ * `coodra agent add|status|remove|repair` — the per-agent wiring surface,
+ * driven by the AgentAdapter registry (lib/agents). Where `coodra init` wires
+ * every detected agent in one onboarding pass, this command targets a single
+ * agent (or `all` / `detected`) so a user who installs an IDE later — or whose
+ * config drifted (e.g. hooks got stripped) — can re-wire just that one without
+ * re-running the whole init.
+ *
+ *   add    <agent>  — wire the Coodra bundle (project .mcp.json + the agent's
+ *                     MCP config + instruction contract). Idempotent.
+ *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
+ *   remove <agent>  — strip ONLY this agent's Coodra-owned entries. The
+ *                     project .mcp.json is left for `coodra uninstall`.
+ *   status          — read-only per-agent wiring report (same data `coodra
+ *                     agents` shows).
+ *
+ * `<agent>` accepts claude | cursor | codex | windsurf | devin (alias for
+ * windsurf) | all | detected.
+ */
+
+export interface AgentCommandOptions {
+  readonly force?: boolean;
+  readonly dryRun?: boolean;
+  readonly json?: boolean;
+  // Test / advanced overrides (mirror init/graphify conventions).
+  readonly cwd?: string;
+  readonly userHome?: string;
+  readonly coodraHome?: string;
+  readonly env?: NodeJS.ProcessEnv;
+  readonly settingsPath?: string;
+}
+
+export interface AgentIO {
+  readonly writeStdout: (chunk: string) => void;
+  readonly writeStderr: (chunk: string) => void;
+  readonly exit: (code: number) => never;
+}
+
+export const DEFAULT_AGENT_IO: AgentIO = {
+  writeStdout: (chunk) => {
+    process.stdout.write(chunk);
+  },
+  writeStderr: (chunk) => {
+    process.stderr.write(chunk);
+  },
+  exit: (code) => {
+    process.exit(code);
+  },
+};
+
+interface AgentActionResult {
+  readonly id: string;
+  readonly label: string;
+  readonly outcomes: WriteOutcome[];
+  readonly note?: string;
+  readonly error?: string;
+}
+
+function glyphForAction(action: string): string {
+  if (action === 'failed') return pc.red('✗');
+  if (action === 'unchanged') return pc.gray('—');
+  return pc.green('•');
+}
+
+/** Resolve the positional `<agent>` to a set of adapters + display labels. */
+async function resolveTargets(
+  agentArg: string,
+  userHome: string,
+): Promise<{ ok: true; adapters: AgentAdapter[]; labelById: Map<string, string> } | { ok: false; error: string }> {
+  const token = agentArg.trim().toLowerCase();
+  const labelById = new Map<string, string>();
+
+  if (token === 'all') {
+    const adapters = [...listAdapters()];
+    for (const a of adapters) labelById.set(a.id, a.displayName);
+    return { ok: true, adapters, labelById };
+  }
+  if (token === 'detected') {
+    const adapters: AgentAdapter[] = [];
+    for (const a of listAdapters()) {
+      const d = await a.detect(userHome);
+      if (d.installed) {
+        adapters.push(a);
+        labelById.set(a.id, a.displayName);
+      }
+    }
+    if (adapters.length === 0) {
+      return {
+        ok: false,
+        error: 'No agents detected on this machine. Name one explicitly, e.g. `coodra agent add claude`.',
+      };
+    }
+    return { ok: true, adapters, labelById };
+  }
+
+  const resolved = resolveAgentInput(token);
+  if (resolved === null) {
+    return {
+      ok: false,
+      error: `Unknown agent '${agentArg}'. Expected one of: ${ACCEPTED_AGENT_TOKENS.join(', ')}, all, detected.`,
+    };
+  }
+  labelById.set(resolved.id, resolved.label);
+  return { ok: true, adapters: [resolved.adapter], labelById };
+}
+
+// ---------------------------------------------------------------------------
+// add / repair (repair = add with force)
+// ---------------------------------------------------------------------------
+
+async function runWire(
+  agentArg: string,
+  options: AgentCommandOptions,
+  io: AgentIO,
+  mode: 'add' | 'repair',
+): Promise<never> {
+  const json = options.json === true;
+  const dryRun = options.dryRun === true;
+  const force = options.force === true || mode === 'repair';
+  const userHome = options.userHome ?? homedir();
+
+  const targets = await resolveTargets(agentArg, userHome);
+  if (!targets.ok) {
+    if (json) io.writeStdout(`${JSON.stringify({ ok: false, error: targets.error }, null, 2)}\n`);
+    else io.writeStderr(`${pc.red(`coodra agent ${mode}`)}: ${targets.error}\n`);
+    return io.exit(EXIT_USER_RECOVERABLE);
+  }
+
+  // Build the wiring context (mcp-server binary, secret, ports, mode). Throws
+  // with a structured message when the runtime bundle can't be resolved.
+  let resolved: Awaited<ReturnType<typeof resolveAgentWiringContext>>;
+  try {
+    resolved = await resolveAgentWiringContext({
+      ...(options.cwd !== undefined ? { cwd: options.cwd } : {}),
+      ...(options.userHome !== undefined ? { userHome: options.userHome } : {}),
+      ...(options.coodraHome !== undefined ? { coodraHome: options.coodraHome } : {}),
+      ...(options.env !== undefined ? { env: options.env } : {}),
+      ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+      force,
+      dryRun,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (json) io.writeStdout(`${JSON.stringify({ ok: false, error: msg }, null, 2)}\n`);
+    else io.writeStderr(`${pc.red(`coodra agent ${mode}`)}: ${msg}\n`);
+    return io.exit(EXIT_ENVIRONMENT_PROBLEM);
+  }
+
+  // Ensure the project-level .mcp.json (not a per-agent surface).
+  const mcpJson = await ensureProjectMcpJson(resolved.context);
+
+  const results: AgentActionResult[] = [];
+  for (const adapter of targets.adapters) {
+    const label = targets.labelById.get(adapter.id) ?? adapter.displayName;
+    try {
+      const outcomes = [...(await adapter.wire(resolved.context))];
+      results.push({
+        id: adapter.id,
+        label,
+        outcomes,
+        ...(adapter.postWireNote !== undefined ? { note: adapter.postWireNote } : {}),
+      });
+    } catch (err) {
+      results.push({ id: adapter.id, label, outcomes: [], error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // Phase 2: ensure `.coodra/config.json` + record the generated files into the
+  // manifest so `coodra files status/clean` sees this agent's footprint.
+  // Best-effort — the wiring already landed; a manifest hiccup must not fail it.
+  try {
+    const cfg = await ensureProjectConfig({
+      root: resolved.projectRoot,
+      projectSlug: resolved.projectSlug,
+      mode: resolved.mode,
+      force,
+      dryRun,
+    });
+    const createdBy = `coodra agent ${mode} ${agentArg}`;
+    const paths = [
+      ...new Set([
+        ...cfg.outcomes.map((o) => o.path),
+        mcpJson.path,
+        ...results.flatMap((r) => r.outcomes.map((o) => o.path)),
+        manifestPath(resolved.projectRoot),
+      ]),
+    ];
+    await recordManifestEntries({
+      root: resolved.projectRoot,
+      projectSlug: resolved.projectSlug,
+      entries: paths.map((p) => classifyGeneratedPath(p, resolved.projectRoot, createdBy)),
+      dryRun,
+    });
+  } catch (err) {
+    io.writeStderr(
+      `${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+  }
+
+  if (json) {
+    io.writeStdout(
+      `${JSON.stringify(
+        {
+          ok: true,
+          command: mode,
+          projectRoot: resolved.projectRoot,
+          mode: resolved.mode,
+          dryRun,
+          mcpJson,
+          agents: results,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return io.exit(EXIT_OK);
+  }
+
+  io.writeStdout(`${commandTitle('Agent', `${mode} · Coodra wiring`, { width: terminalWidth(), indent: 0 })}\n`);
+  io.writeStdout(`  ${pc.gray(`project root: ${resolved.projectRoot}`)}${dryRun ? pc.gray('  (dry-run)') : ''}\n`);
+  io.writeStdout(
+    `  ${glyphForAction(mcpJson.action)} .mcp.json: ${mcpJson.action} ${pc.gray(`(${mcpJson.notes ?? ''})`)}\n`,
+  );
+  let slot = 1;
+  for (const r of results) {
+    io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), r.label)}\n`);
+    slot += 1;
+    if (r.error !== undefined) {
+      io.writeStdout(`  ${pc.red('✗')} ${pc.red(`could not wire: ${r.error}`)}\n`);
+      continue;
+    }
+    for (const o of r.outcomes) {
+      io.writeStdout(`  ${glyphForAction(o.action)} ${o.path}: ${o.action} ${pc.gray(`(${o.notes ?? ''})`)}\n`);
+    }
+    if (r.note !== undefined) io.writeStdout(`  ${pc.gray(`→ ${r.note}`)}\n`);
+  }
+  io.writeStdout(
+    `\n${hintLine(
+      mode === 'add'
+        ? 'Restart the agent to pick up the new MCP server + hooks. `coodra agent status` shows current wiring.'
+        : 'Re-wired to the current baseline. Restart the agent to apply.',
+    )}\n`,
+  );
+  return io.exit(EXIT_OK);
+}
+
+export function runAgentAddCommand(
+  agentArg: string,
+  options: AgentCommandOptions = {},
+  io: AgentIO = DEFAULT_AGENT_IO,
+) {
+  return runWire(agentArg, options, io, 'add');
+}
+
+export function runAgentRepairCommand(
+  agentArg: string,
+  options: AgentCommandOptions = {},
+  io: AgentIO = DEFAULT_AGENT_IO,
+) {
+  return runWire(agentArg, options, io, 'repair');
+}
+
+// ---------------------------------------------------------------------------
+// remove
+// ---------------------------------------------------------------------------
+
+export async function runAgentRemoveCommand(
+  agentArg: string,
+  options: AgentCommandOptions = {},
+  io: AgentIO = DEFAULT_AGENT_IO,
+): Promise<never> {
+  const json = options.json === true;
+  const dryRun = options.dryRun === true;
+  const userHome = options.userHome ?? homedir();
+  const cwd = options.cwd ?? (await detectProjectRoot(process.cwd(), { homeDir: userHome })).root;
+  const bridgePort = portFromEnv(options.env ?? process.env, 'HOOKS_BRIDGE_PORT', 3101);
+
+  const targets = await resolveTargets(agentArg, userHome);
+  if (!targets.ok) {
+    if (json) io.writeStdout(`${JSON.stringify({ ok: false, error: targets.error }, null, 2)}\n`);
+    else io.writeStderr(`${pc.red('coodra agent remove')}: ${targets.error}\n`);
+    return io.exit(EXIT_USER_RECOVERABLE);
+  }
+
+  const removeCtx = {
+    cwd,
+    userHome,
+    bridgePort,
+    dryRun,
+    ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+  };
+
+  const results: AgentActionResult[] = [];
+  for (const adapter of targets.adapters) {
+    const label = targets.labelById.get(adapter.id) ?? adapter.displayName;
+    try {
+      const outcomes = [...(await adapter.remove(removeCtx))];
+      results.push({ id: adapter.id, label, outcomes });
+    } catch (err) {
+      results.push({ id: adapter.id, label, outcomes: [], error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  if (json) {
+    io.writeStdout(
+      `${JSON.stringify({ ok: true, command: 'remove', projectRoot: cwd, dryRun, agents: results }, null, 2)}\n`,
+    );
+    return io.exit(EXIT_OK);
+  }
+
+  io.writeStdout(`${commandTitle('Agent', 'remove · strip Coodra wiring', { width: terminalWidth(), indent: 0 })}\n`);
+  io.writeStdout(`  ${pc.gray(`project root: ${cwd}`)}${dryRun ? pc.gray('  (dry-run)') : ''}\n`);
+  let slot = 1;
+  for (const r of results) {
+    io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), r.label)}\n`);
+    slot += 1;
+    if (r.error !== undefined) {
+      io.writeStdout(`  ${pc.red('✗')} ${pc.red(`could not remove: ${r.error}`)}\n`);
+      continue;
+    }
+    for (const o of r.outcomes) {
+      io.writeStdout(`  ${glyphForAction(o.action)} ${o.path}: ${o.action} ${pc.gray(`(${o.notes ?? ''})`)}\n`);
+    }
+  }
+  io.writeStdout(
+    `\n${hintLine('The project `.mcp.json` is preserved — run `coodra uninstall` to remove all Coodra project files.')}\n`,
+  );
+  return io.exit(EXIT_OK);
+}
+
+// ---------------------------------------------------------------------------
+// status
+// ---------------------------------------------------------------------------
+
+export async function runAgentStatusCommand(
+  options: AgentCommandOptions = {},
+  io: AgentIO = DEFAULT_AGENT_IO,
+): Promise<never> {
+  const json = options.json === true;
+  const userHome = options.userHome ?? homedir();
+  const cwd = options.cwd ?? (await detectProjectRoot(process.cwd(), { homeDir: userHome })).root;
+  const pathCtx = {
+    cwd,
+    userHome,
+    ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+  };
+
+  const statuses: AgentStatus[] = [];
+  for (const adapter of listAdapters()) {
+    statuses.push(await adapter.status(pathCtx));
+  }
+
+  if (json) {
+    io.writeStdout(`${JSON.stringify({ ok: true, projectRoot: cwd, agents: statuses }, null, 2)}\n`);
+    return io.exit(EXIT_OK);
+  }
+
+  io.writeStdout(`${commandTitle('Agent', 'wiring status', { width: terminalWidth(), indent: 0 })}\n`);
+  let slot = 1;
+  for (const s of statuses) {
+    const adapter = listAdapters().find((a) => a.id === s.id);
+    const heading = adapter?.aka !== undefined ? `${s.displayName} (${adapter.aka})` : s.displayName;
+    io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), heading)}\n`);
+    slot += 1;
+    const detGlyph = s.detection.installed ? pc.green('✓') : pc.gray('✗');
+    io.writeStdout(
+      `  ${detGlyph} ${s.detection.detectionPath}  ${pc.gray(s.detection.installed ? '(detected)' : '(not installed)')}\n`,
+    );
+    const rows: KvRow[] = s.files.map((f) => ({
+      glyph: f.state === 'wired' ? pc.green('✓') : f.state === 'partial' ? pc.yellow('◌') : pc.gray('✗'),
+      key: f.label,
+      value: `${f.state}${f.notes !== undefined ? ` — ${f.notes}` : ''}`,
+    }));
+    io.writeStdout(`${kvBlock(rows, { keyWidth: 42, indent: 2 })}\n`);
+  }
+  io.writeStdout(
+    `\n${hintLine('`coodra agent add <agent>` to wire · `coodra agent repair <agent>` to re-baseline drift.')}\n`,
+  );
+  return io.exit(EXIT_OK);
+}
+
+function portFromEnv(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 && n < 65536 ? n : fallback;
+}

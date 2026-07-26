@@ -1,4 +1,12 @@
 import { Command } from 'commander';
+import {
+  type AgentCommandOptions,
+  type AgentIO,
+  runAgentAddCommand,
+  runAgentRemoveCommand,
+  runAgentRepairCommand,
+  runAgentStatusCommand,
+} from './commands/agent.js';
 import { type AgentsIO, type AgentsOptions, runAgentsCommand } from './commands/agents.js';
 import { type CloudMigrateIO, type CloudMigrateOptions, runCloudMigrateCommand } from './commands/cloud-migrate.js';
 import { type DbBackupIO, type DbBackupOptions, runDbBackupCommand } from './commands/db-backup.js';
@@ -15,9 +23,16 @@ import {
   runFeatureEditCommand,
   runFeatureIndexCommand,
   runFeatureListCommand,
+  runFeatureMigrateCommand,
   runFeatureRemoveCommand,
   runFeatureShowCommand,
 } from './commands/feature.js';
+import {
+  type FilesCommandOptions,
+  type FilesIO,
+  runFilesCleanCommand,
+  runFilesStatusCommand,
+} from './commands/files.js';
 import {
   type GraphifyDisableOptions,
   type GraphifyEnableOptions,
@@ -27,6 +42,13 @@ import {
   runGraphifyEnableCommand,
   runGraphifyStatusCommand,
 } from './commands/graphify.js';
+import {
+  type GraphifyArtifactIO,
+  type GraphifyArtifactOptions,
+  runGraphifyBuildCommand,
+  runGraphifyCleanCommand,
+  runGraphifyOpenCommand,
+} from './commands/graphify-artifacts.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type InviteIO, type InviteOptions, runInviteCommand } from './commands/invite.js';
 import {
@@ -159,6 +181,18 @@ interface BuildProgramOptions {
   readonly runMetrics?: (options: MetricsOptions, io?: MetricsIO) => Promise<unknown>;
   readonly agentsIO?: AgentsIO;
   readonly runAgents?: (options: AgentsOptions, io?: AgentsIO) => Promise<unknown>;
+  readonly agentIO?: AgentIO;
+  readonly runAgentAdd?: (agent: string, options: AgentCommandOptions, io?: AgentIO) => Promise<unknown>;
+  readonly runAgentRemove?: (agent: string, options: AgentCommandOptions, io?: AgentIO) => Promise<unknown>;
+  readonly runAgentRepair?: (agent: string, options: AgentCommandOptions, io?: AgentIO) => Promise<unknown>;
+  readonly runAgentStatus?: (options: AgentCommandOptions, io?: AgentIO) => Promise<unknown>;
+  readonly filesIO?: FilesIO;
+  readonly runFilesStatus?: (options: FilesCommandOptions, io?: FilesIO) => Promise<unknown>;
+  readonly runFilesClean?: (options: FilesCommandOptions, io?: FilesIO) => Promise<unknown>;
+  readonly graphifyArtifactIO?: GraphifyArtifactIO;
+  readonly runGraphifyBuild?: (options: GraphifyArtifactOptions, io?: GraphifyArtifactIO) => Promise<unknown>;
+  readonly runGraphifyOpen?: (options: GraphifyArtifactOptions, io?: GraphifyArtifactIO) => Promise<unknown>;
+  readonly runGraphifyClean?: (options: GraphifyArtifactOptions, io?: GraphifyArtifactIO) => Promise<unknown>;
   readonly graphifyIO?: GraphifyIO;
   readonly runGraphifyEnable?: (options: GraphifyEnableOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly runGraphifyDisable?: (options: GraphifyDisableOptions, io?: GraphifyIO) => Promise<unknown>;
@@ -261,6 +295,7 @@ interface BuildProgramOptions {
   readonly runFeatureEdit?: (slug: string, options: FeatureBaseOptions, io?: FeatureIO) => Promise<unknown>;
   readonly runFeatureIndex?: (options: FeatureBaseOptions, io?: FeatureIO) => Promise<unknown>;
   readonly runFeatureRemove?: (slug: string, options: FeatureRemoveOptions, io?: FeatureIO) => Promise<unknown>;
+  readonly runFeatureMigrate?: (options: FeatureRemoveOptions, io?: FeatureIO) => Promise<unknown>;
 }
 
 /**
@@ -383,11 +418,85 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('agents')
     .description(
-      'Show per-agent wiring status (Claude Code, Cursor, Windsurf, Codex). Read-only — use `coodra init` to wire and `coodra uninstall` to strip.',
+      'Show per-agent wiring status (Claude Code, Cursor, Windsurf, Codex). Read-only, same report as `coodra agent status` — use `coodra agent add|remove` to change wiring.',
     )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentsOptions) => {
       await agentsRunner(opts, options.agentsIO);
+    });
+
+  // Phase 1 — `coodra agent {add,status,remove,repair} <agent>` drives the
+  // AgentAdapter registry (lib/agents). Single-agent counterpart to `coodra
+  // init`: wire/re-wire/strip one agent (claude | cursor | codex | windsurf |
+  // devin | all | detected) without re-running the whole onboarding.
+  const agentAddRunner = options.runAgentAdd ?? runAgentAddCommand;
+  const agentRemoveRunner = options.runAgentRemove ?? runAgentRemoveCommand;
+  const agentRepairRunner = options.runAgentRepair ?? runAgentRepairCommand;
+  const agentStatusRunner = options.runAgentStatus ?? runAgentStatusCommand;
+  const agent = program
+    .command('agent')
+    .description('Wire, re-wire, or strip a single coding agent (claude | cursor | codex | windsurf | devin).');
+  agent
+    .command('add <agent>')
+    .description(
+      "Wire the Coodra bundle for one agent: project .mcp.json + the agent's MCP config + instruction contract. Accepts claude|cursor|codex|windsurf|devin|all|detected. Idempotent.",
+    )
+    .option('--force', 'Overwrite existing Coodra entries with the current baseline.')
+    .option('--dry-run', 'Print what would change without touching disk.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (agentArg: string, opts: AgentCommandOptions) => {
+      await agentAddRunner(agentArg, opts, options.agentIO);
+    });
+  agent
+    .command('repair <agent>')
+    .description('Force re-wire one agent to the current Coodra baseline — heals drift (e.g. hooks stripped).')
+    .option('--dry-run', 'Print what would change without touching disk.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (agentArg: string, opts: AgentCommandOptions) => {
+      await agentRepairRunner(agentArg, opts, options.agentIO);
+    });
+  agent
+    .command('remove <agent>')
+    .description("Strip only this agent's Coodra-owned entries. Leaves the project .mcp.json for `coodra uninstall`.")
+    .option('--dry-run', 'Print what would change without touching disk.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (agentArg: string, opts: AgentCommandOptions) => {
+      await agentRemoveRunner(agentArg, opts, options.agentIO);
+    });
+  agent
+    .command('status')
+    .description('Per-agent Coodra wiring report (claude, cursor, windsurf/devin, codex). Read-only.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: AgentCommandOptions) => {
+      await agentStatusRunner(opts, options.agentIO);
+    });
+
+  // Phase 2 — `coodra files {status,clean}` reads/acts on the generated-file
+  // manifest (.coodra/manifest.json). status shows every generated file with
+  // owner + cleanup policy; clean removes safe files (safe-by-default: ask
+  // files need --force, preserve/global files are never touched).
+  const filesStatusRunner = options.runFilesStatus ?? runFilesStatusCommand;
+  const filesCleanRunner = options.runFilesClean ?? runFilesCleanCommand;
+  const files = program
+    .command('files')
+    .description('Inspect or clean the files Coodra generated in this project (.coodra/manifest.json).');
+  files
+    .command('status')
+    .description('List every generated file with its owner, kind, cleanup policy, and on-disk presence. Read-only.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: FilesCommandOptions) => {
+      await filesStatusRunner(opts, options.filesIO);
+    });
+  files
+    .command('clean')
+    .description(
+      'Remove safe generated files. Agent configs (cleanup=ask) need --force; preserve + global files are never removed.',
+    )
+    .option('--force', 'Also remove cleanup=ask files (agent configs — may contain user content).')
+    .option('--dry-run', 'Print what would be removed without deleting.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: FilesCommandOptions) => {
+      await filesCleanRunner(opts, options.filesIO);
     });
 
   // Module 09 Track 9B (ADR-010, Option C) — `coodra graphify
@@ -414,7 +523,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--python <path>',
       'Python interpreter for `-m graphify.serve`. Omit to auto-detect a verified graphifyy[mcp] interpreter (active venv → ./.venv → the `graphify` install → uv tool → python3); pass a path to pin one explicitly.',
     )
-    .option('--graph <path>', 'Path to the Graphify graph JSON (default: graphify-out/graph.json).')
+    .option(
+      '--graph <path>',
+      'Pin the Graphify graph JSON path. Omit to use the resolved layout: an existing graphify-out/ is kept, otherwise Coodra-managed .coodra/graphify/out/graph.json.',
+    )
     .option('--force', 'Overwrite an existing drifted `graphify` entry with the baseline.')
     .option(
       '--install',
@@ -437,10 +549,56 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .action(async (opts: GraphifyDisableOptions) => {
       await graphifyDisableRunner(opts, options.graphifyIO);
     });
+  // Phase 3 — the artifact half: build / open / clean the graph output.
+  const graphifyBuildRunner = options.runGraphifyBuild ?? runGraphifyBuildCommand;
+  const graphifyOpenRunner = options.runGraphifyOpen ?? runGraphifyOpenCommand;
+  const graphifyCleanRunner = options.runGraphifyClean ?? runGraphifyCleanCommand;
+  graphify
+    .command('build')
+    .description(
+      "Run Graphify to (re)build the codebase graph into this project's resolved output dir. Thin wrapper around your installed `graphify` — the richer path is `/graphify .` inside your agent (semantic extraction via the host LLM).",
+    )
+    .option(
+      '--no-llm',
+      "Structural-only build needing NO API key — runs Graphify's `update` (re-extract code files, no LLM).",
+    )
+    .option(
+      '--backend <name>',
+      'Forward --backend (gemini|kimi|claude|openai|deepseek|ollama). `ollama` is local + key-free.',
+    )
+    .option('--no-viz', "Skip the aggregated graph.html fallback for graphs above Graphify's 5000-node viz limit (CI).")
+    .option(
+      '--bin <path>',
+      'Path to the `graphify` executable (default: venv sibling of the resolved python, else PATH).',
+    )
+    .option('--dry-run', 'Print the command that would run without executing it.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyArtifactOptions) => {
+      await graphifyBuildRunner(opts, options.graphifyArtifactIO);
+    });
+  graphify
+    .command('open')
+    .description('Open the generated graph.html in your default browser.')
+    .option('--dry-run', 'Print the path that would be opened.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyArtifactOptions) => {
+      await graphifyOpenRunner(opts, options.graphifyArtifactIO);
+    });
+  graphify
+    .command('clean')
+    .description(
+      "Remove the generated graph artifacts (graph.json / graph.html / GRAPH_REPORT.md). Graphify's own git-committed `graphify-out/` requires --force.",
+    )
+    .option('--force', 'Also clean a non-Coodra-managed (git-committed) graphify-out/ directory.')
+    .option('--dry-run', 'Print what would be removed without deleting.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: GraphifyArtifactOptions) => {
+      await graphifyCleanRunner(opts, options.graphifyArtifactIO);
+    });
   graphify
     .command('status')
     .description(
-      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Cursor / Windsurf / Codex). Read-only.',
+      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Cursor / Windsurf / Codex), plus the graph artifacts (path, size, node/link/community counts). Read-only.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyStatusOptions) => {
@@ -466,14 +624,14 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('generate')
     .description(
       'Write the codebase grounding snapshot + authoring recipe (.coodra/wiki-job.md) and scaffold the ' +
-        'deep-wiki-author Feature, then tell your agent to build the wiki. Re-using the slug re-plans the wiki.',
+        'deep-wiki-author Skill, then tell your agent to build the wiki. Re-using the slug re-plans the wiki.',
     )
     .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
     .option(
       '--mode <mode>',
       'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
     )
-    .option('--force', 'Overwrite the deep-wiki-author Feature recipe if it already exists.')
+    .option('--force', 'Overwrite the deep-wiki-author Skill recipe if it already exists.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: WikiGenerateOptions) => {
       await wikiGenerateRunner(opts, options.wikiIO);
@@ -595,15 +753,18 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
   orgCmd
     .command('switch')
-    .argument('<orgSlug>', 'Slug of the target org. v1: informational; org picker opens in the browser.')
+    // Optional since the 2026-07-24 QA sweep: the browser org picker is the
+    // real selection mechanism, so forcing users to type a slug that was
+    // only ever echoed back was friction for nothing.
+    .argument('[orgSlug]', 'Slug of the target org. Informational; the org picker opens in the browser.')
     .description('Switch the active org by re-running the browser login flow.')
     .option('--no-open', 'Print the sign-in URL instead of opening a browser.')
     .option('--timeout-ms <ms>', 'Override the browser-handoff timeout (default 300000).', (v) =>
       Number.parseInt(v, 10),
     )
-    .action(async (orgSlug: string, opts: { open?: boolean; timeoutMs?: number }) => {
+    .action(async (orgSlug: string | undefined, opts: { open?: boolean; timeoutMs?: number }) => {
       const merged: OrgSwitchOptions = {
-        targetOrgSlug: orgSlug,
+        ...(orgSlug !== undefined && orgSlug.length > 0 ? { targetOrgSlug: orgSlug } : {}),
         ...(opts.open === false ? { noOpen: true } : {}),
         ...(opts.timeoutMs !== undefined && Number.isInteger(opts.timeoutMs) ? { timeoutMs: opts.timeoutMs } : {}),
       };
@@ -615,12 +776,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('logout')
     .description('Log out of team mode. Deletes clerk-token.json, demotes config to solo, strips team env keys.')
-    .option('--force', 'Currently a no-op flag (logout is already idempotent).')
-    .action(async (opts: { force?: boolean }) => {
-      const merged: LogoutOptions = {
-        ...(opts.force === true ? { force: true } : {}),
-      };
-      await logoutRunnerPhaseG(merged, options.logoutIO);
+    .action(async () => {
+      await logoutRunnerPhaseG({}, options.logoutIO);
     });
 
   // Phase H.5 — top-level `coodra invite <email>`. Mints a team
@@ -720,7 +877,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       'Restore ~/.coodra/data.db from <source> (a SQLite file). Atomic replace + auto-backup of current DB. Refuses if any daemon is alive — no override.',
     )
     .option('--no-auto-backup', 'Skip the safety snapshot of the current DB before replacing it.')
-    .option('--force', 'Skip the interactive confirmation prompt (reserved for future TTY-aware prompting).')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (source: string, opts: DbRestoreOptions) => {
       await dbRestoreRunner(source, opts, options.dbRestoreIO);
@@ -927,7 +1083,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       'auto (default) | minimal — auto repopulates from project shape; minimal leaves placeholders.',
     )
     .option('--dry-run', 'Print which files would change without writing.')
-    .option('--force', 'Reserved for future use (currently has no effect).')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: PackRegenerateOptions) => {
       await packRegenerateRunner(slug, opts, options.packIO);
@@ -944,24 +1099,26 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await packDeleteRunner(slug, opts, options.packIO);
     });
 
-  // 2026-05-08 — features admin (skill-style knowledge units under
-  // docs/features/<slug>/). The mutating subcommands always re-index
-  // on success; consumers (bridge, MCP, web) read INDEX.json so users
-  // never have to remember to run `feature index` after a normal
-  // add/remove/edit.
-  const feature = program
-    .command('feature')
-    .description('Manage docs/features/<slug>/ — skill-style knowledge units the agent loads on demand.');
+  // 2026-05-08 — skills admin (skill-style knowledge units under
+  // docs/skills/<slug>/, legacy docs/features/ still read). The mutating
+  // subcommands always re-index on success; consumers (bridge, MCP, web) read
+  // INDEX.json so users never have to remember to run `skill index` after a
+  // normal add/remove/edit. Renamed from `coodra feature` 2026-07 to align
+  // with Anthropic's "Skills"; `coodra feature` stays as an alias.
+  const skill = program
+    .command('skill')
+    .alias('feature')
+    .description('Manage docs/skills/<slug>/ — skill-style knowledge units the agent loads on demand.');
 
   const featureAddRunner = options.runFeatureAdd ?? runFeatureAddCommand;
-  feature
+  skill
     .command('add <slug>')
     .description(
-      'Scaffold a new feature at docs/features/<slug>/feature.md with frontmatter + body template. Auto-runs `feature index` on success.',
+      'Scaffold a new skill at docs/skills/<slug>/feature.md with frontmatter + body template. Auto-runs `skill index` on success.',
     )
     .option(
       '--description <text>',
-      'Trigger description for the new feature (the "Use this when..." sentence the agent reads).',
+      'Trigger description for the new skill (the "Use this when..." sentence the agent reads).',
     )
     .option('--maturity <level>', 'Initial maturity tag: draft (default) | beta | stable | deprecated.')
     .option('--force', 'Overwrite an existing feature.md.')
@@ -972,9 +1129,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   const featureListRunner = options.runFeatureList ?? runFeatureListCommand;
-  feature
+  skill
     .command('list')
-    .description('List every feature under docs/features/, with description + file count + warnings.')
+    .description('List every skill under docs/skills/, with description + file count + warnings.')
     .option('--cwd <dir>', 'Override the project root.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: FeatureBaseOptions) => {
@@ -982,9 +1139,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   const featureShowRunner = options.runFeatureShow ?? runFeatureShowCommand;
-  feature
+  skill
     .command('show <slug>')
-    .description('Print one feature — frontmatter, body, supporting file tree, validation warnings.')
+    .description('Print one skill — frontmatter, body, supporting file tree, validation warnings.')
     .option('--cwd <dir>', 'Override the project root.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: FeatureBaseOptions) => {
@@ -992,7 +1149,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   const featureEditRunner = options.runFeatureEdit ?? runFeatureEditCommand;
-  feature
+  skill
     .command('edit <slug>')
     .description('Open feature.md in $VISUAL / $EDITOR. Re-validates + regenerates the index after the editor exits.')
     .option('--cwd <dir>', 'Override the project root.')
@@ -1001,7 +1158,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   const featureIndexRunner = options.runFeatureIndex ?? runFeatureIndexCommand;
-  feature
+  skill
     .command('index')
     .description(
       'Regenerate INDEX.md + INDEX.json from disk. Idempotent; safe to run repeatedly. Use after editing files outside the CLI / web (git pull, sibling tools, hand edits).',
@@ -1013,13 +1170,26 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   const featureRemoveRunner = options.runFeatureRemove ?? runFeatureRemoveCommand;
-  feature
+  skill
     .command('remove <slug>')
-    .description('Delete docs/features/<slug>/ from disk. Auto-regenerates the index. Refuses without --force.')
+    .description('Delete docs/skills/<slug>/ from disk. Auto-regenerates the index. Refuses without --force.')
     .option('--force', 'Confirm the destructive delete (required).')
     .option('--cwd <dir>', 'Override the project root.')
     .action(async (slug: string, opts: FeatureRemoveOptions) => {
       await featureRemoveRunner(slug, opts, options.featureIO);
+    });
+
+  const featureMigrateRunner = options.runFeatureMigrate ?? runFeatureMigrateCommand;
+  skill
+    .command('migrate')
+    .description(
+      'Move a legacy docs/features/ directory to docs/skills/ (the post-rename home) and regenerate the index. No-op when already on docs/skills/ or when neither exists.',
+    )
+    .option('--cwd <dir>', 'Override the project root.')
+    .option('--force', 'Merge into an existing docs/skills/ (per-slug; refuses on a slug collision without this).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: FeatureRemoveOptions) => {
+      await featureMigrateRunner(opts, options.featureIO);
     });
 
   // Module 08b S11 — run admin (list, show, cancel).
@@ -1049,7 +1219,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       'Mark a run as cancelled (status=cancelled, ended_at=now). Informational only — bridge keeps recording any post-cancel events. Refuses on already-terminal runs.',
     )
-    .option('--force', 'Reserved for future use; currently has no effect.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (runId: string, opts: RunCancelOptions) => {
       await runCancelRunner(runId, opts, options.runIO);
@@ -1060,8 +1229,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('uninstall')
     .description(
-      'Reverse `coodra init`: remove `__coodra__` matchers from ~/.claude/settings.json + `coodra` server from .mcp.json. Default-safe (preserves data + config + feature/context packs); --purge removes ~/.coodra/.',
+      'Reverse `coodra init`: stop + remove the daemon units (mcp-server, hooks-bridge, sync-daemon, web), strip Coodra entries from ~/.claude/settings.json + .mcp.json + per-agent files. Default-safe (preserves data + config + feature/context packs); --remove-data drops the SQLite store; --purge removes ~/.coodra/.',
     )
+    .option('--remove-data', 'Delete ~/.coodra/data.db (+ -wal/-shm) but keep config + packs.')
     .option('--purge', 'Remove ~/.coodra/ as well (data + config + logs + pids).')
     .option('--dry-run', 'Print what would change without touching disk.')
     .option('--json', 'Emit a structured JSON report.')

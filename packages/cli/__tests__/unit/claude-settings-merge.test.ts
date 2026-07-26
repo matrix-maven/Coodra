@@ -122,6 +122,46 @@ describe('mergeClaudeSettings — write contract', () => {
     expect(second.outcome.action).toBe('unchanged');
   });
 
+  it('post-uninstall re-wire: re-populates all 5 events from an empty `hooks: {}` block and preserves sibling settings', async () => {
+    // Regression for the state observed on the maintainer machine
+    // (2026-07-18): `coodra uninstall` had stripped every Coodra hook
+    // entry, leaving `"hooks": {}` behind (removeClaudeSettings omits an
+    // event key once its array empties). Doctor check 28 then reports
+    // "missing hook registrations". Re-running `coodra init` MUST re-wire
+    // all five events from that empty-block state — not just from a
+    // missing-file or missing-hooks-key state — WITHOUT clobbering the
+    // user's other Claude Code settings.
+    const settingsPath = join(home, 'settings.json');
+    await writeFile(
+      settingsPath,
+      `${JSON.stringify(
+        {
+          hooks: {},
+          theme: 'dark',
+          effortLevel: 'xhigh',
+          skipAutoPermissionPrompt: true,
+        },
+        null,
+        2,
+      )}\n`,
+      'utf8',
+    );
+
+    const result = await mergeClaudeSettings({ settingsPath, bridgePort: 3101, force: false, dryRun: false });
+    expect(result.outcome.action).toBe('merged');
+
+    const body = JSON.parse(await readFile(settingsPath, 'utf8'));
+    // All five events re-registered.
+    for (const eventName of ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const) {
+      expect(body.hooks[eventName], `${eventName} must be re-wired`).toHaveLength(1);
+      expect(body.hooks[eventName][0].hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
+    }
+    // Sibling settings survive untouched.
+    expect(body.theme).toBe('dark');
+    expect(body.effortLevel).toBe('xhigh');
+    expect(body.skipAutoPermissionPrompt).toBe(true);
+  });
+
   it('Phase 4 Fix F: preserves user-authored hook entries identified by NOT having the bridge URL', async () => {
     const settingsPath = join(home, 'settings.json');
     const userOwned = {

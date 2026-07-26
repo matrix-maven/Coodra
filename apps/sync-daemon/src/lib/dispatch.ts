@@ -1,5 +1,5 @@
 import type { OutboxDispatchHandler, OutboxDispatchOutcome, OutboxJob, SyncLookup } from '@coodra/cli/lib/outbox';
-import { type DbHandle, type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { type PostgresHandle, postgresSchema, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { createLogger, type Logger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 
@@ -959,17 +959,4 @@ async function syncWikiPages({ localDb, cloudDb, lookup, log, jobId }: SyncOneAr
     'wiki_pages row synced',
   );
   return true;
-}
-
-/**
- * Hint: callers pass a `SqliteHandle` and `PostgresHandle` directly.
- * If you have a generic `DbHandle` and want a runtime check, use this
- * narrowing helper.
- */
-export function assertSqliteHandle(handle: DbHandle): asserts handle is SqliteHandle {
-  if (handle.kind !== 'sqlite') throw new TypeError(`expected SqliteHandle, got kind='${handle.kind}'`);
-}
-
-export function assertPostgresHandle(handle: DbHandle): asserts handle is PostgresHandle {
-  if (handle.kind !== 'postgres') throw new TypeError(`expected PostgresHandle, got kind='${handle.kind}'`);
 }

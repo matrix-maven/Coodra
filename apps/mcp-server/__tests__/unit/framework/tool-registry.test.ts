@@ -147,6 +147,46 @@ describe('ToolRegistry — register-time enforcement (negative cases)', () => {
   });
 });
 
+describe('ToolRegistry — back-compat aliases (Features→Skills rename, Phase 5)', () => {
+  it('an alias routes handleCall to the canonical handler', async () => {
+    const registry = freshRegistry();
+    registry.register(makeValidReg({ name: 'list_skills' }));
+    registry.registerAlias('list_features', 'list_skills');
+    const result = await registry.handleCall('list_features', { a: 'hi' }, 'sess_alias');
+    expect(result.isError).toBeUndefined();
+    // Canonical handler ran (echo:hi) even though we called the old name.
+    expect(result.content[0]?.text).toContain('echo:hi');
+  });
+
+  it('an alias is NOT advertised in list() — tools/list shows only the canonical name', () => {
+    const registry = freshRegistry();
+    registry.register(makeValidReg({ name: 'get_skill' }));
+    registry.registerAlias('get_feature', 'get_skill');
+    const names = registry.list().map((t) => t.name);
+    expect(names).toContain('get_skill');
+    expect(names).not.toContain('get_feature');
+    // size() counts real tools only — the alias does not inflate the count.
+    expect(registry.size()).toBe(1);
+  });
+
+  it('has() is true for both the canonical name and its alias', () => {
+    const registry = freshRegistry();
+    registry.register(makeValidReg({ name: 'get_skill_file' }));
+    registry.registerAlias('get_feature_file', 'get_skill_file');
+    expect(registry.has('get_skill_file')).toBe(true);
+    expect(registry.has('get_feature_file')).toBe(true);
+    expect(registry.has('nope')).toBe(false);
+  });
+
+  it('refuses an alias to an unregistered canonical, a colliding alias, and a malformed alias name', () => {
+    const registry = freshRegistry();
+    registry.register(makeValidReg({ name: 'list_skills' }));
+    expect(() => registry.registerAlias('list_features', 'does_not_exist')).toThrow(/is not registered/);
+    expect(() => registry.registerAlias('list_skills', 'list_skills')).toThrow(/collides/);
+    expect(() => registry.registerAlias('Bad-Alias', 'list_skills')).toThrow(/tool-name shape/);
+  });
+});
+
 describe('ToolRegistry — happy path', () => {
   it('A. a valid registration appears in list(), sorted by name', () => {
     const registry = freshRegistry();

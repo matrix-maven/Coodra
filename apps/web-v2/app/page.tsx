@@ -100,7 +100,8 @@ export default async function DashboardPage({
               <br />
               {snap.activeRuns} active
               <br />
-              {snap.mode} · v 0.4.1
+              {snap.mode}
+              {snap.cliVersion !== null ? ` · v ${snap.cliVersion}` : ''}
             </div>
             <div className="head__actions">
               {snap.activeRuns > 0 ? (

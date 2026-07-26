@@ -173,8 +173,9 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
-              { href: '/features', label: 'Features', icon: <IconLedger /> },
+              { href: '/features', label: 'Skills', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
+              { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },
             ],
           },
@@ -208,8 +209,9 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
-              { href: '/features', label: 'Features', icon: <IconLedger /> },
+              { href: '/features', label: 'Skills', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
+              { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },
             ],
           },
@@ -538,6 +540,19 @@ function IconGrid() {
       <rect x="13" y="3" width="8" height="8" />
       <rect x="3" y="13" width="8" height="8" />
       <rect x="13" y="13" width="8" height="8" />
+    </svg>
+  );
+}
+/** Three connected nodes — the codebase-graph surface (/graphify). */
+function IconGraph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <circle cx="6" cy="7" r="2.6" />
+      <circle cx="18" cy="6" r="2.2" />
+      <circle cx="13" cy="18" r="2.6" />
+      <line x1="8.4" y1="8" x2="11.2" y2="15.6" />
+      <line x1="8.2" y1="6.6" x2="15.8" y2="6.1" />
+      <line x1="17.2" y1="8.1" x2="14.2" y2="15.6" />
     </svg>
   );
 }

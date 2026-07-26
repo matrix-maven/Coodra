@@ -51,7 +51,7 @@ Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](do
 - **One logical change per PR.** Bundle related cleanups, but don't ride a refactor on top of an unrelated bug fix.
 - **Squash merge to main.** History stays linear.
 
-Example: `feat(mcp-server): add list_features tool with description-quality hint`.
+Example: `feat(mcp-server): add list_skills tool with description-quality hint`.
 
 ---
 

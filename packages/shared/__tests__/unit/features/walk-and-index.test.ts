@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { generateFeaturesIndex, renderIndexMd } from '../../../src/features/index-gen.js';
 import { renderFeatureMd } from '../../../src/features/parse.js';
-import { featuresRoot, readFeatureRow, walkFeatures } from '../../../src/features/walk.js';
+import { featuresRoot, readFeatureRow, skillsRoot, walkFeatures } from '../../../src/features/walk.js';
 
 /**
  * Phase A unit tests — filesystem walker + INDEX generator.
@@ -150,13 +150,53 @@ describe('readFeatureRow', () => {
   });
 });
 
+// Phase 5 (Features→Skills rename): the directory resolver picks docs/skills/
+// (post-rename home) or a legacy docs/features/, never relocating silently.
+describe('skillsRoot — docs/skills vs legacy docs/features resolution', () => {
+  it('greenfield (neither dir exists) → docs/skills/', () => {
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
+  });
+
+  it('only docs/skills/ exists → docs/skills/', () => {
+    mkdirSync(join(projectCwd, 'docs', 'skills'), { recursive: true });
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
+  });
+
+  it('only legacy docs/features/ exists → keep reading docs/features/ (no silent relocate)', () => {
+    mkdirSync(join(projectCwd, 'docs', 'features'), { recursive: true });
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'features'));
+  });
+
+  it('both exist → docs/skills/ wins (post-migration state)', () => {
+    mkdirSync(join(projectCwd, 'docs', 'skills'), { recursive: true });
+    mkdirSync(join(projectCwd, 'docs', 'features'), { recursive: true });
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
+  });
+
+  it('walkFeatures reads a skill authored under the legacy docs/features/ dir', () => {
+    // Author directly under legacy features/ (simulates a pre-rename project).
+    const dir = join(projectCwd, 'docs', 'features', 'legacy-skill');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'feature.md'),
+      renderFeatureMd({
+        frontmatter: { name: 'legacy-skill', description: 'Use this when working on the legacy `foo` path.' },
+        body: 'body\n',
+      }),
+      'utf8',
+    );
+    const rows = walkFeatures(projectCwd);
+    expect(rows.map((r) => r.slug)).toEqual(['legacy-skill']);
+  });
+});
+
 describe('generateFeaturesIndex', () => {
-  it('creates docs/features/ if missing and writes an empty-state INDEX', () => {
+  it('creates docs/skills/ if missing and writes an empty-state INDEX', () => {
     const result = generateFeaturesIndex({ projectCwd, projectSlug: 'widget-shop' });
     expect(result.changed).toBe(true);
     expect(result.index.features).toEqual([]);
     const md = readFileSync(result.indexMdPath, 'utf8');
-    expect(md).toContain('no features yet');
+    expect(md).toContain('no skills yet');
     expect(md).toContain('widget-shop');
     const json = JSON.parse(readFileSync(result.indexJsonPath, 'utf8'));
     expect(json.version).toBe(1);
@@ -254,7 +294,7 @@ describe('renderIndexMd', () => {
       indexerSourceMtime: 0,
       features: [],
     });
-    expect(md).toContain('no features yet');
+    expect(md).toContain('no skills yet');
     expect(md).toContain('shop');
   });
 
@@ -280,6 +320,6 @@ describe('renderIndexMd', () => {
         },
       ],
     });
-    expect(md).toContain('coodra__get_feature({slug:"auth"})');
+    expect(md).toContain('coodra__get_skill({slug:"auth"})');
   });
 });

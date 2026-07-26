@@ -22,7 +22,7 @@ const envSchema = z.object({
 
 export type SyncDaemonEnv = z.infer<typeof envSchema>;
 
-export function loadSyncDaemonEnv(raw: NodeJS.ProcessEnv = process.env): SyncDaemonEnv {
+function loadSyncDaemonEnv(raw: NodeJS.ProcessEnv = process.env): SyncDaemonEnv {
   const parsed = envSchema.safeParse(raw);
   if (!parsed.success) {
     const issues = parsed.error.issues

@@ -69,7 +69,7 @@ export function ImportWizard({
     if (!SLUG_RE.test(row.slug))
       errs.push(`${candidate.relPath}: slug must be lowercase letters, digits, hyphens, underscores`);
     if (existingSlugs.includes(row.slug))
-      errs.push(`${candidate.relPath}: slug "${row.slug}" already exists under docs/features/`);
+      errs.push(`${candidate.relPath}: slug "${row.slug}" already exists under docs/skills/`);
     if (row.description.trim().length < 1) errs.push(`${candidate.relPath}: description is required`);
     if (row.description.length > 2000) errs.push(`${candidate.relPath}: description ≤ 2000 chars`);
     return errs;
@@ -213,7 +213,7 @@ export function ImportWizard({
                       }}
                     />
                     {slugCollides ? (
-                      <p style={hintErrStyle}>collides with existing feature</p>
+                      <p style={hintErrStyle}>collides with existing skill</p>
                     ) : !SLUG_RE.test(row.slug) ? (
                       <p style={hintErrStyle}>invalid slug</p>
                     ) : null}

@@ -98,7 +98,56 @@ describe('runGraphifyEnableCommand', () => {
     expect(c.exitCode()).toBe(0);
     const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
     expect(parsed.mcpServers.graphify.command).toBe('python3');
+    expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', '.coodra/graphify/out/graph.json']);
+  });
+
+  it('Phase 3: KEEPS the legacy graphify-out/ layout non-interactively (never silently relocates a git-committed dir)', async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(join(cwd, 'graphify-out'), { recursive: true });
+    await writeFile(join(cwd, 'graphify-out', 'graph.json'), JSON.stringify({ nodes: [], links: [] }));
+
+    const c = makeIO();
+    await expect(enable({ ide: 'claude', cwd, userHome: home, json: true }, c.io)).rejects.toThrow();
+    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
     expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
+    const record = JSON.parse(await readFile(join(cwd, '.coodra', 'graphify.json'), 'utf8'));
+    expect(record.managedByCoodra).toBe(false);
+    expect(record.outputDir).toBe('graphify-out');
+  });
+
+  it('Phase 3: migrates to the Coodra-managed layout when the user answers yes', async () => {
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    await mkdir(join(cwd, 'graphify-out'), { recursive: true });
+    await writeFile(join(cwd, 'graphify-out', 'graph.json'), JSON.stringify({ nodes: [], links: [] }));
+
+    // Answer 'y' ONLY to the migrate question. `install: false` keeps the
+    // separate graphifyy install offer out of the way — without both guards a
+    // blanket 'y' also triggers a real venv install, which made this flaky.
+    const asked: string[] = [];
+    const readPrompt = async (q: string): Promise<string> => {
+      asked.push(q);
+      return /Migrate to Coodra-managed/.test(q) ? 'y' : 'n';
+    };
+
+    const c = makeIO();
+    await expect(enable({ ide: 'claude', cwd, userHome: home, install: false, readPrompt }, c.io)).rejects.toThrow();
+    expect(asked.some((q) => /Migrate to Coodra-managed/.test(q))).toBe(true);
+    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
+    expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', '.coodra/graphify/out/graph.json']);
+    const record = JSON.parse(await readFile(join(cwd, '.coodra', 'graphify.json'), 'utf8'));
+    expect(record.managedByCoodra).toBe(true);
+  });
+
+  it('Phase 3: records the resolved layout in .coodra/graphify.json for a greenfield project', async () => {
+    const c = makeIO();
+    await expect(enable({ ide: 'claude', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const record = JSON.parse(await readFile(join(cwd, '.coodra', 'graphify.json'), 'utf8'));
+    expect(record).toMatchObject({
+      version: 1,
+      outputDir: '.coodra/graphify/out',
+      graphJson: '.coodra/graphify/out/graph.json',
+      managedByCoodra: true,
+    });
   });
 
   it('--python overrides the interpreter on the written entry', async () => {
@@ -120,7 +169,7 @@ describe('runGraphifyEnableCommand', () => {
     await expect(enable({ ide: 'windsurf', cwd, userHome: home }, c.io)).rejects.toThrow();
     const wsPath = join(home, '.codeium', 'windsurf', 'mcp_config.json');
     const parsed = JSON.parse(await readFile(wsPath, 'utf8'));
-    expect(parsed.mcpServers.graphify.args[2]).toBe(join(cwd, 'graphify-out', 'graph.json'));
+    expect(parsed.mcpServers.graphify.args[2]).toBe(join(cwd, '.coodra', 'graphify', 'out', 'graph.json'));
   });
 
   it('writes a real [mcp_servers.graphify] table into Codex config.toml for --ide codex', async () => {
@@ -131,7 +180,7 @@ describe('runGraphifyEnableCommand', () => {
       mcp_servers: { graphify: { command: string; args: string[] } };
     };
     expect(parsed.mcp_servers.graphify.command).toBe('python3');
-    expect(parsed.mcp_servers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
+    expect(parsed.mcp_servers.graphify.args).toEqual(['-m', 'graphify.serve', '.coodra/graphify/out/graph.json']);
   });
 
   it('preserves the `coodra` entry and any sibling MCP servers', async () => {

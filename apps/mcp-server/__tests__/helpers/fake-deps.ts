@@ -19,8 +19,7 @@ import { createPolicyClientFromCheck } from '../../src/lib/policy.js';
  * The registry now takes a `ContextDeps` bag rather than a narrow
  * `PolicyCheck`. Rather than spread a dozen null-objects across every
  * test file, this helper builds a sane fake bag, lets callers
- * override any slot they care about, and lets the rest no-op through
- * `NotImplementedError` throws identical to the production stubs.
+ * override any slot they care about, and lets the rest no-op.
  *
  * Usage:
  *

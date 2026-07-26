@@ -57,6 +57,11 @@ data/
 
 # --- Coodra local runtime ---
 .coodra/
+# Graphify's incremental-extraction state. Graphify 0.8.27 writes it to its
+# DEFAULT graphify-out/ dir even when GRAPHIFY_OUT points elsewhere — this
+# repo's graph lives under the managed .coodra/graphify/out/ layout, so the
+# stray manifest is a machine-local cache, not a committed artifact.
+/graphify-out/manifest.json
 # F13 closure (verification 2026-04-27): save_context_pack now defaults
 # to ~/.coodra/packs/ (out of repo). Defensive entry below catches
 # any agent that overrides COODRA_CONTEXT_PACKS_ROOT to point at
