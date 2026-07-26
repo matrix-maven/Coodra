@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coodra 0.2.0-beta.28 — What Changed</title>
+<style>
+    
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    font-family: -apple-system, "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+    font-size: 9.6pt; line-height: 1.5; color: #1c2024; margin: 0;
+  }
+  h1, h2, h3 { margin: 0; font-weight: 600; }
+
+  /* ---------- cover ---------- */
+  .cover { page-break-after: always; padding-top: 34mm; }
+  .eyebrow { font-size: 8.5pt; letter-spacing: .16em; text-transform: uppercase; color: #6b7280; margin-bottom: 10mm; }
+  .cover h1 { font-size: 30pt; line-height: 1.12; letter-spacing: -.02em; margin-bottom: 6mm; }
+  .cover h1 em { font-style: normal; color: #2563a8; }
+  .cover .lede { font-size: 11.5pt; line-height: 1.55; color: #3c4450; max-width: 132mm; margin-bottom: 12mm; }
+  .meta { border-top: 1.4pt solid #1c2024; padding-top: 5mm; display: table; width: 100%; }
+  .meta-row { display: table-row; }
+  .meta-k, .meta-v { display: table-cell; padding: 1.6mm 0; vertical-align: top; }
+  .meta-k { font-size: 8pt; letter-spacing: .1em; text-transform: uppercase; color: #6b7280; width: 40mm; }
+  .meta-v { font-size: 9.6pt; color: #1c2024; }
+  .mono { font-family: "SF Mono", ui-monospace, "Menlo", Consolas, monospace; font-size: 8.8pt; }
+
+  .callout {
+    margin-top: 12mm; padding: 5mm 6mm; background: #f4f7fa;
+    border-left: 2.6pt solid #2563a8; font-size: 9.4pt; color: #2c3440;
+  }
+  .callout strong { color: #1c2024; }
+
+  /* ---------- sections ---------- */
+  .section { page-break-before: always; }
+  .section-head { border-bottom: 1.4pt solid #1c2024; padding-bottom: 3mm; margin-bottom: 6mm; }
+  .section-num { font-size: 8pt; letter-spacing: .14em; text-transform: uppercase; color: #6b7280; margin-bottom: 1.6mm; }
+  .section-head h2 { font-size: 17pt; letter-spacing: -.01em; }
+  .section-lede { font-size: 9.6pt; color: #4a5260; margin: -3mm 0 6mm; max-width: 158mm; }
+
+  h3.item { font-size: 10.6pt; margin: 6mm 0 2.5mm; color: #1c2024; }
+  h3.item:first-of-type { margin-top: 0; }
+
+  /* ---------- before/after table ---------- */
+  table.ba { width: 100%; border-collapse: collapse; margin-bottom: 4mm; page-break-inside: avoid; }
+  table.ba th {
+    font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; text-align: left;
+    padding: 2mm 3.5mm; font-weight: 600; width: 50%;
+  }
+  table.ba th.before { color: #8a4b4b; background: #faf1f1; border-bottom: 1.2pt solid #d9b8b8; }
+  table.ba th.after  { color: #2f6b4f; background: #f0f7f3; border-bottom: 1.2pt solid #b3d5c3; }
+  table.ba td { font-size: 9.3pt; line-height: 1.48; padding: 3mm 3.5mm; vertical-align: top; border-bottom: .5pt solid #e6e9ed; }
+  table.ba td.before { background: #fdfafa; color: #45403f; }
+  table.ba td.after  { background: #fbfdfc; color: #1c2024; }
+  table.ba td .mono { font-size: 8.4pt; background: #eef1f4; padding: .3mm 1.1mm; border-radius: 1.6pt; }
+  table.ba td.before .mono { background: #f3eaea; }
+  table.ba td.after .mono { background: #e9f2ec; }
+
+  /* ---------- at a glance ---------- */
+  table.glance { width: 100%; border-collapse: collapse; }
+  table.glance th {
+    font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; text-align: left;
+    padding: 2.4mm 3mm; color: #6b7280; border-bottom: 1.2pt solid #1c2024; font-weight: 600;
+  }
+  table.glance td { font-size: 9.2pt; padding: 3mm 3mm; vertical-align: top; border-bottom: .5pt solid #e6e9ed; line-height: 1.45; }
+  table.glance td.phase { width: 26mm; font-weight: 600; color: #2563a8; }
+  table.glance td.what { width: 46mm; font-weight: 600; }
+  .impact { font-size: 8pt; letter-spacing: .08em; text-transform: uppercase; padding: .6mm 2mm; border-radius: 2pt; white-space: nowrap; }
+  .impact.fix { background: #faf1f1; color: #8a4b4b; }
+  .impact.new { background: #f0f7f3; color: #2f6b4f; }
+  .impact.chg { background: #f1f4f9; color: #3a5a86; }
+
+  ul.plain { margin: 0 0 4mm; padding-left: 5mm; }
+  ul.plain li { margin-bottom: 1.8mm; font-size: 9.4pt; line-height: 1.48; }
+
+  .note { font-size: 8.8pt; color: #6b7280; font-style: italic; margin-top: 1mm; margin-bottom: 5mm; }
+
+  /* ---------- verification ---------- */
+  .stat-grid { display: table; width: 100%; border-collapse: separate; border-spacing: 3mm 0; margin: 2mm 0 6mm; }
+  .stat-row { display: table-row; }
+  .stat { display: table-cell; width: 25%; background: #f4f7fa; padding: 4mm; text-align: center; }
+  .stat-n { font-size: 19pt; font-weight: 600; color: #2563a8; line-height: 1.1; }
+  .stat-l { font-size: 7.6pt; letter-spacing: .1em; text-transform: uppercase; color: #6b7280; margin-top: 1.5mm; }
+
+  table.open { width: 100%; border-collapse: collapse; }
+  table.open th { font-size: 7.6pt; letter-spacing: .12em; text-transform: uppercase; text-align: left; padding: 2.4mm 3mm; color: #6b7280; border-bottom: 1.2pt solid #1c2024; font-weight: 600; }
+  table.open td { font-size: 9.2pt; padding: 3mm; vertical-align: top; border-bottom: .5pt solid #e6e9ed; line-height: 1.45; }
+  table.open td.who { width: 30mm; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="cover">
+  <div class="eyebrow">Coodra · Release Summary</div>
+  <h1>What changed in<br>version <em>0.2.0-beta.28</em></h1>
+  <p class="lede">
+    Six phases of planned improvements, plus a full-product quality sweep. This document states,
+    for each change, <strong>what the product did before</strong> and <strong>what it does now</strong> — nothing else.
+  </p>
+
+  <div class="meta">
+    <div class="meta-row"><div class="meta-k">Version</div><div class="meta-v"><span class="mono">0.2.0-beta.28</span> &nbsp;(previous: <span class="mono">0.2.0-beta.27</span>)</div></div>
+    <div class="meta-row"><div class="meta-k">Date</div><div class="meta-v">24 July 2026</div></div>
+    <div class="meta-row"><div class="meta-k">Scope</div><div class="meta-v">Phases 0–5 of the enhancement roadmap + whole-product QA sweep</div></div>
+    <div class="meta-row"><div class="meta-k">Breaking changes</div><div class="meta-v"><strong>None.</strong> Two things were renamed; every old name still works.</div></div>
+    <div class="meta-row"><div class="meta-k">Verification</div><div class="meta-v">1,963 automated tests passing · every phase validated on a real machine before the next began</div></div>
+  </div>
+
+  <div class="callout">
+    <strong>The one-sentence version.</strong> Coodra gained four new command groups and a codebase-graph
+    section in the dashboard; three protections that looked like they were working turned out not to be, and
+    were fixed; and the product's own documentation was corrected where it had drifted away from the code.
+  </div>
+</div>
+
+<!-- ============ AT A GLANCE ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Overview</div>
+    <h2>At a glance</h2>
+  </div>
+  <p class="section-lede">One line per change. Each is expanded in the pages that follow.</p>
+
+  <table class="glance">
+    <thead><tr><th>Phase</th><th>Area</th><th>Before → Now</th><th>Type</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="phase">Phase 0</td>
+        <td class="what">Policy enforcement</td>
+        <td>Most projects had no safety policy, so agents could edit protected files unchecked → every project is protected from the moment it is created.</td>
+        <td><span class="impact fix">Fix</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 0</td>
+        <td class="what">Uninstall &amp; restore</td>
+        <td>Uninstall left background services running; database restore could run over a live database → both now account for every service.</td>
+        <td><span class="impact fix">Fix</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 1</td>
+        <td class="what">Agent setup</td>
+        <td>Connecting a coding agent meant re-running full setup and accepting what it auto-detected → add, check, repair, or remove one agent at a time.</td>
+        <td><span class="impact new">New</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 2</td>
+        <td class="what">Generated files</td>
+        <td>Coodra wrote files into a repository with no record of them; cleanup was manual guesswork → a tracked ledger and a safe cleanup command.</td>
+        <td><span class="impact new">New</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 3</td>
+        <td class="what">Codebase graph</td>
+        <td>No way to build or view a graph from Coodra, and on any real-sized repository no interactive graph was ever produced → build, view, and browse it in the dashboard.</td>
+        <td><span class="impact new">New</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 4</td>
+        <td class="what">Deep Wiki</td>
+        <td>Wiki generation only knew the file names → it now also knows the codebase structure and every decision previously recorded.</td>
+        <td><span class="impact chg">Improved</span></td>
+      </tr>
+      <tr>
+        <td class="phase">Phase 5</td>
+        <td class="what">Naming</td>
+        <td>Two different things were both called “Features” → the on-demand ones are now “Skills”. Old names still work.</td>
+        <td><span class="impact chg">Renamed</span></td>
+      </tr>
+      <tr>
+        <td class="phase">QA sweep</td>
+        <td class="what">Live sessions</td>
+        <td>A working session longer than 30 minutes was cancelled as “stuck”, and a second terminal killed the first one's session → activity is now what decides.</td>
+        <td><span class="impact fix">Fix</span></td>
+      </tr>
+      <tr>
+        <td class="phase">QA sweep</td>
+        <td class="what">Reachability</td>
+        <td>The command menu listed six command groups that then refused to run → everything listed now runs.</td>
+        <td><span class="impact fix">Fix</span></td>
+      </tr>
+      <tr>
+        <td class="phase">QA sweep</td>
+        <td class="what">Documentation</td>
+        <td>Instructions told AI agents to call tools that no longer existed under those names → 41 corrections across the docs.</td>
+        <td><span class="impact fix">Fix</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ PHASE 0 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 0</div>
+    <h2>Reliability defects</h2>
+  </div>
+  <p class="section-lede">
+    Four problems found by testing the shipped product on a real machine rather than reading the code.
+    The first is the most serious thing in this release.
+  </p>
+
+  <h3 class="item">Safety policies were not being applied to most projects</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Coodra's headline protection — blocking an AI agent from editing sensitive files such as <span class="mono">.env</span> — depended on a default policy being present for the project. On the validation machine, only <strong>4 of 55</strong> projects had one. For the other 51, the agent was allowed to write to those files. The feature was advertised, the audit trail looked normal, and nothing was actually being enforced.</td>
+      <td class="after">A default policy is now created at <strong>both</strong> points where a project can come into existence, so a project cannot exist without one. A repair command backfills projects created before this fix. On the validation machine: <strong>51 unprotected projects → 0</strong>, and the built-in health check for enforcement went from failing to passing.</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">Uninstall left services running</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Uninstalling removed Coodra's files but left its four background services running — including the dashboard, which kept holding its network port. There was also no way to remove the collected data.</td>
+      <td class="after">Uninstall stops and removes all four services before deleting anything, and a new option removes the local database as well (configuration and saved knowledge are kept).</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">Database restore could overwrite a live database</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Restore refused to run while services were active, but it only detected services it had started itself. Services started by the operating system's service manager — the normal case — were invisible to the check, so a restore could proceed over a database still in use.</td>
+      <td class="after">The pre-flight check inspects every service through both mechanisms, so a restore is refused whenever anything is actually running.</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">The dashboard displayed a wrong version number</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">A fixed value was written into the page, so the dashboard reported a version the software had not been for some time.</td>
+      <td class="after">The dashboard reports the version actually installed.</td>
+    </tr></tbody>
+  </table>
+</div>
+
+<!-- ============ PHASE 1 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 1</div>
+    <h2>Connecting coding agents</h2>
+  </div>
+  <p class="section-lede">Coodra works by connecting to the AI coding tools a developer already uses. Managing those connections was previously all-or-nothing.</p>
+
+  <h3 class="item">Agents can now be managed one at a time</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        The only way to connect an agent was to re-run the full setup, which auto-detected whatever was installed and configured all of it. There was no way to:
+        <ul class="plain">
+          <li>add an agent you installed later,</li>
+          <li>repair one whose configuration had drifted,</li>
+          <li>remove one agent without disturbing the others,</li>
+          <li>or see which agents were correctly wired.</li>
+        </ul>
+      </td>
+      <td class="after">
+        Four new commands — <span class="mono">add</span>, <span class="mono">status</span>, <span class="mono">repair</span>, <span class="mono">remove</span> — each accepting a single agent, all detected agents, or all supported ones:
+        <ul class="plain">
+          <li><strong>Claude Code</strong>, <strong>Cursor</strong>, <strong>Codex</strong>, <strong>Windsurf</strong>, and <strong>Devin</strong>.</li>
+          <li><span class="mono">status</span> reports each configuration file as present, missing, or drifted.</li>
+          <li><span class="mono">repair</span> rewrites a drifted configuration back to correct.</li>
+        </ul>
+        Initial setup now runs through the same mechanism, so the two can no longer disagree with each other.
+      </td>
+    </tr></tbody>
+  </table>
+  <p class="note">Devin is recognised under its other product names as well, so a user need not know which one Coodra records internally.</p>
+</div>
+
+<!-- ============ PHASE 2 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 2</div>
+    <h2>Files Coodra writes into your repository</h2>
+  </div>
+  <p class="section-lede">Coodra generates configuration and data files inside a project. Previously it kept no record of which ones were its own.</p>
+
+  <h3 class="item">Generated files are now tracked, and cleanup is safe</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        Files were written across the repository with no inventory. To clean up, a user had to know which files Coodra had created and delete them by hand — with no way to tell a disposable generated file from one containing their own edits. In practice, files were left behind.
+      </td>
+      <td class="after">
+        A project-local <span class="mono">.coodra/</span> folder holds the project's identity and a <strong>ledger of every file Coodra generated</strong>, recording who owns it and whether it is safe to delete.
+        <ul class="plain">
+          <li><strong>Status</strong> lists every tracked file and its category.</li>
+          <li><strong>Clean</strong> is safe by default: it removes only files known to be disposable. Files that may contain your own edits require explicit confirmation, and shared machine-level configuration is never touched.</li>
+        </ul>
+      </td>
+    </tr></tbody>
+  </table>
+  <p class="note">The previous identity file is still written alongside the new one, so nothing that reads the old location breaks.</p>
+</div>
+
+<!-- ============ PHASE 3 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 3</div>
+    <h2>Codebase graph</h2>
+  </div>
+  <p class="section-lede">
+    Coodra can use a knowledge graph of a repository — its files, symbols, and the calls between them — so an agent
+    can answer “what does this change affect?”. The graph is produced by an external tool; Coodra manages and displays it.
+  </p>
+
+  <h3 class="item">Building and viewing a graph is now part of Coodra</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Coodra could connect an agent to the graph tool, but not manage the result. There was no command to build a graph, no fixed location for the output, no way to open it, and nothing in the dashboard.</td>
+      <td class="after">Three commands — <span class="mono">build</span>, <span class="mono">open</span>, <span class="mono">clean</span> — with output stored in a managed location that every part of Coodra agrees on. A new <strong>Codebase graph</strong> section in the dashboard lists each project's graph status, renders the structural report, and embeds the interactive graph.</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">No interactive graph was ever produced for a real repository</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">The underlying tool skips its interactive visualisation above 5,000 nodes and does not report having done so. Any codebase of consequence exceeds that, so the visual graph silently never existed — found while building this product's own graph of <strong>13,982</strong> nodes.</td>
+      <td class="after">When the graph is too large for the standard visualisation, Coodra automatically produces a <strong>grouped overview</strong> instead — clusters of related code rather than individual files — so a graph is always viewable. This can be switched off for automated builds where nobody opens it.</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">An existing graph is never moved without asking</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Not applicable — Coodra did not manage graph locations.</td>
+      <td class="after">If a project already keeps its graph in the tool's default location — which teams commit to version control — Coodra leaves it there. Migration to the managed location only happens when the user agrees to it.</td>
+    </tr></tbody>
+  </table>
+</div>
+
+<!-- ============ PHASE 4 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 4</div>
+    <h2>Deep Wiki</h2>
+  </div>
+  <p class="section-lede">Deep Wiki is an explanation of a codebase — sections, pages, and diagrams — written by the user's own AI agent. Coodra supplies the background material the agent works from.</p>
+
+  <h3 class="item">The wiki is now written with knowledge of structure and history</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        The agent was given a listing of files and little else. It had to infer the architecture from names alone, and had no access to decisions the team had already recorded — so a new wiki could describe the codebase in terms that contradicted earlier choices.
+      </td>
+      <td class="after">
+        The background material now includes:
+        <ul class="plain">
+          <li>the <strong>largest clusters of related code</strong>, as candidate wiki sections;</li>
+          <li>the <strong>most connected files</strong>, as candidates for the most important pages;</li>
+          <li>a summary of the codebase's structural report;</li>
+          <li>the project's <strong>previously recorded decisions and session summaries</strong>.</li>
+        </ul>
+        On this product's own repository that supplied 769 code clusters, 18 recorded decisions, and 9 session summaries.
+      </td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">Two silent gaps in that background material</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">The wiki looked for graph data in one fixed location and missed it entirely for projects using the managed location. It also read the wrong field when counting connections, so that figure was always blank. Neither failure produced a warning — the wiki was simply written with less information than was available.</td>
+      <td class="after">Both corrected. The graph is found wherever the project keeps it, and the connection count is real.</td>
+    </tr></tbody>
+  </table>
+</div>
+
+<!-- ============ PHASE 5 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Phase 5</div>
+    <h2>Renaming “Features” to “Skills”</h2>
+  </div>
+  <p class="section-lede">A naming problem that made the product harder to explain than it needed to be.</p>
+
+  <h3 class="item">Two different concepts no longer share a name</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        Coodra has two kinds of knowledge, and both were called some form of “Feature”:
+        <ul class="plain">
+          <li><strong>Feature Packs</strong> — architectural blueprints for a whole module, given to the agent at the start of every session.</li>
+          <li><strong>Features</strong> — small, self-contained instructions the agent fetches only when the conversation calls for them.</li>
+        </ul>
+        The second is the industry-standard “Skills” pattern, but the shared name invited confusion in every conversation and every document.
+      </td>
+      <td class="after">
+        The second kind is now called <strong>Skills</strong> throughout — the command group, the dashboard, and the tools the agent calls. <strong>Feature Packs keep their name</strong>, since that name was never the problem.
+        <ul class="plain">
+          <li>New command group: <span class="mono">coodra skill</span> (add, list, show, edit, index, remove, migrate).</li>
+          <li>A migration command moves an existing project's files to the new folder.</li>
+        </ul>
+      </td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">Nothing that used the old names broke</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">— </td>
+      <td class="after">
+        Every previous name still works:
+        <ul class="plain">
+          <li>The old command remains as an alias.</li>
+          <li>The three renamed agent tools still answer to their old names, while presenting only the new ones — so the advertised tool count is unchanged at <strong>20</strong> and existing agent configurations keep working.</li>
+          <li>Dashboard links keep their existing addresses, with the new ones redirecting.</li>
+          <li>Projects using the old folder are read from it; nothing is moved unless the user runs the migration.</li>
+        </ul>
+      </td>
+    </tr></tbody>
+  </table>
+</div>
+
+<!-- ============ QA SWEEP 1 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Quality sweep · 1 of 3</div>
+    <h2>Problems found by using the product</h2>
+  </div>
+  <p class="section-lede">
+    After the six phases, the whole product was exercised end to end — every command, every dashboard page,
+    and a fresh graph of its own codebase. These were found by use, not by reading code.
+  </p>
+
+  <h3 class="item">Sessions still in progress were being cancelled</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        Coodra tidies away sessions that ended without closing properly. It decided a session was abandoned <strong>purely by its age</strong>, so any session running longer than 30 minutes was cancelled while the developer was still working. A second problem was worse: opening a second terminal on the same project <strong>immediately</strong> cancelled the first terminal's session, with no age check at all.
+        <br><br>
+        This was found first-hand — the quality sweep's own working session was cancelled underneath it.
+      </td>
+      <td class="after">
+        A session is now judged by <strong>activity, not age</strong>: as long as it is still recording work, it is left alone, however long it has been running. A genuinely abandoned session stops recording and is still tidied away as before.
+      </td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">The command menu listed commands it then refused to run</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">In the interactive terminal interface, six of the newer command groups appeared in the menu but produced “not a command” when selected. A related defect meant that fixing only the menu would have caused those commands to shut down the whole interface when run.</td>
+      <td class="after">All listed commands run. An automated check now compares the menu against the real command set, so a command can no longer be added without appearing correctly.</td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">A project could disappear from the dashboard without explanation</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">The dashboard deliberately shows only the projects belonging to the current organisation — correct behaviour, which prevents one team's work appearing in another's view. But when a project fell outside that scope it simply vanished, while the command line still reported it as registered. The user was given no way to understand the discrepancy.</td>
+      <td class="after">The filtering is unchanged; the silence is not. Listings now state how many projects are hidden and why, and point at the command that shows the current organisation.</td>
+    </tr></tbody>
+  </table>
+
+</div>
+
+<!-- ============ QA SWEEP 2 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Quality sweep · 2 of 3</div>
+    <h2>Smaller usability corrections</h2>
+  </div>
+  <p class="section-lede">Individually minor, and each one a place where the product made a user work harder than necessary or told them something untrue.</p>
+
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="before"><strong>A warning that was not real.</strong> The status command reported a “pending blocker” that was in fact the explanatory header of an otherwise empty notes file.</td>
+        <td class="after">A blocker is reported only when a real, unresolved entry exists.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>An unreadable list.</strong> In the list of recorded sessions, long identifiers overran their column and collided with the status beside them.</td>
+        <td class="after">Columns hold their alignment however long the identifier.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>A broken instruction inside generated files.</strong> Every newly created skill contained a reference to a tool that does not exist under that name — so an agent following it would fail.</td>
+        <td class="after">The generated file names the correct tool.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>Four options that did nothing.</strong> Options documented as “reserved”, which a script could pass and reasonably expect to have an effect.</td>
+        <td class="after">Removed. An option that does nothing is worse than no option.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>A required value that was ignored.</strong> Switching organisation demanded an argument that was only repeated back to the user.</td>
+        <td class="after">The argument is optional; the choice is made in the browser, where it always was.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>A dead end after success.</strong> Starting the services printed port numbers and stopped, leaving a first-time user without the dashboard address.</td>
+        <td class="after">Prints the dashboard address and the next command to run.</td>
+      </tr>
+      <tr>
+        <td class="before"><strong>An empty dashboard with no explanation.</strong> A new user with no recorded sessions saw a value dashboard reading <span class="mono">$0.00</span> beside a column of dashes.</td>
+        <td class="after">Explains that figures appear once the first agent session has been recorded.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============ QA SWEEP 3 ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Quality sweep · 3 of 3</div>
+    <h2>Documentation and internal clean-up</h2>
+  </div>
+
+  <h3 class="item">The product's instructions to AI agents had drifted from the product</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">
+        Coodra's own instruction documents are read by AI agents at the start of every session, so an error in them misdirects real work. The rename and an earlier expansion of the tool set had been applied to the software but not to those documents. The instruction file simultaneously
+        <strong>told agents to call tools by names the product no longer advertises</strong> and stated that any tool not advertised does not exist — a direct contradiction. Tool counts were variously given as 9, 15, 17, and 26; the true figure is 20.
+      </td>
+      <td class="after">
+        <strong>41 corrections</strong> across the agent instructions, the architecture specification, the README, the developer guide, and the public documentation page. Every tool name, count, and file path now matches the software. The example configuration file was also corrected: settings that nothing reads were removed, and two that are genuinely required were documented for the first time.
+      </td>
+    </tr></tbody>
+  </table>
+
+  <h3 class="item">Unused code removed</h3>
+  <table class="ba">
+    <thead><tr><th class="before">Before</th><th class="after">Now</th></tr></thead>
+    <tbody><tr>
+      <td class="before">Superseded helpers, an abandoned error type, two unused dashboard queries, and an unused third-party dependency remained in the codebase — each a thing a future reader would have to understand before concluding it did not matter.</td>
+      <td class="after"><strong>22 items removed</strong>, each verified unused across the whole codebase first. One database table was deliberately <em>kept</em>: its migration has already been applied to live databases, so removing it is a separate, deliberate decision rather than clean-up.</td>
+    </tr></tbody>
+  </table>
+</div>
+
+<!-- ============ VERIFICATION ============ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">Assurance</div>
+    <h2>How this was verified</h2>
+  </div>
+  <p class="section-lede">Each phase was completed, tested, and validated on a real machine before the next one started — no phase was left partially done.</p>
+
+  <div class="stat-grid"><div class="stat-row">
+    <div class="stat"><div class="stat-n">1,522</div><div class="stat-l">Unit tests</div></div>
+    <div class="stat"><div class="stat-n">398</div><div class="stat-l">Integration tests</div></div>
+    <div class="stat"><div class="stat-n">43</div><div class="stat-l">End-to-end tests</div></div>
+    <div class="stat"><div class="stat-n">0</div><div class="stat-l">Failures</div></div>
+  </div></div>
+
+  <h3 class="item">What each layer proves</h3>
+  <ul class="plain">
+    <li><strong>Unit tests</strong> — individual pieces behave correctly in isolation, including a test for every defect described in this document, so none can silently return.</li>
+    <li><strong>Integration tests</strong> — the pieces work together against real databases rather than stand-ins.</li>
+    <li><strong>End-to-end tests</strong> — a complete agent session runs through the whole product. This layer caught a defect the phase testing missed: a tool description had grown past its documented size limit.</li>
+    <li><strong>Live validation</strong> — every command was run and every dashboard page opened on a real machine, with a fresh graph built from this product's own codebase (13,982 nodes). The most serious defect in the quality sweep was found this way and not by any test.</li>
+  </ul>
+
+  <h3 class="item">Release package</h3>
+  <ul class="plain">
+    <li>Installation package built and verified: <strong>25.7 MB</strong>, containing all five internal services and the dashboard.</li>
+    <li>Automated pre-release checks confirm the dashboard is bundled and current — a safeguard added after a previous release shipped a stale copy.</li>
+  </ul>
+
+  <h3 class="item">Remaining actions</h3>
+  <table class="open">
+    <thead><tr><th>Owner</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td class="who">Publisher</td><td>Sign in to the package registry and publish. The package is built and verified; publishing requires credentials that are not available to an automated process.</td></tr>
+      <tr><td class="who">Each machine</td><td>Restart the background service after upgrading, so the corrected session handling takes effect. Machines already running keep the previous behaviour until they do.</td></tr>
+      <tr><td class="who">Backlog</td><td>Two optional improvements identified during the sweep and deliberately not bundled into it: a health check for a configuration mismatch found on the validation machine, and shorter session identifiers.</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
