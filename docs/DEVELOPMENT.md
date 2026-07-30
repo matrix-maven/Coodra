@@ -10,9 +10,10 @@ standing-context docs at the repo root (`system-architecture.md`,
 
 ## Prerequisites
 
-- **Node.js** exactly at the version pinned in `.nvmrc` (22.x). Use
-  `nvm use` or `fnm use` — the CI workflow reads the same file.
-- **pnpm 10+** (`corepack enable && corepack prepare pnpm@latest`).
+- **Node.js** 22.16 or newer. `.nvmrc` is the CI baseline, not an upper
+  compatibility cap; use `nvm use` or `fnm use` when you want to match CI.
+- **pnpm** 10.33 or newer (`corepack enable && corepack prepare pnpm@latest`).
+- **npm** 10 or newer for published-package/global install smoke tests.
 - **Docker + Docker Compose** for the Postgres + Redis services in
   team mode and for integration tests.
 - **git** ≥ 2.40. Make sure your commits sign cleanly if the project
@@ -132,7 +133,7 @@ CLERK_PUBLISHABLE_KEY=pk_test_xxx \
 pnpm --filter @coodra/mcp-server dev
 ```
 
-The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 20 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
+The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 21 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
 
 ### Iterating on Module 03 (Hooks Bridge)
 
@@ -177,11 +178,15 @@ pnpm --filter @coodra/cli dev doctor
 
 The `cli` script in `packages/cli/package.json` runs `node dist/index.js`. We use a script (not `pnpm exec coodra`) because pnpm does not auto-link a workspace package's *own* `bin` into `node_modules/.bin/` — `bin` is a contract for downstream installers (`npm i -g`, the published-tarball path), not a self-link in workspace dev. The script keeps the invocation workspace-aware (no hard-coded path; `pnpm --filter <pkg>` runs in the package's cwd) without depending on a symlink that isn't created. The `dev <cmd>` script runs via `tsx` against `src/index.ts` so file edits land without a rebuild — useful when iterating on a single command. Use the built form for end-to-end tests and snapshot assertions.
 
-`coodra init` writes to `~/.coodra/` (or `$XDG_CONFIG_HOME/coodra/` on Linux when set, per Decision 2) and to the cwd's `<repo>/.{coodra.json,mcp.json,env}`. When iterating, run `init --dry-run` first to print what it would write without touching disk. Re-running `init` against an already-initialised project is non-destructive by default (Decision 3 — idempotent merge); use `--force` only when you want to overwrite user edits with the baseline.
+`coodra install` writes machine runtime state to `~/.coodra/` (or `$XDG_CONFIG_HOME/coodra/` on Linux when set, per Decision 2). `coodra init` writes only project identity/ownership state and the project-local layout at `<repo>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}`. It does not create or modify the project's application `.env`, and it no longer writes a root `.coodra.json`, `.mcp.json`, `.codex/config.toml`, or per-agent instruction files. Agent-facing native plugins are machine-level and installed/repaired through `coodra install` or `coodra agent add <agent>`. When iterating, run `init --dry-run` first to print what it would write without touching disk. Re-running `init` against an already-initialised project is non-destructive by default (Decision 3 — idempotent merge); use `--force` only when you want to overwrite Coodra-owned baselines.
 
 When testing daemon lifecycle (`start` / `stop`), prefer a tmp project root and a non-default `~/.coodra/` location to avoid colliding with your own real install:
 
 ```bash
+HOME=/tmp/coodra-dev-home \
+XDG_CONFIG_HOME=/tmp/coodra-dev-xdg \
+pnpm --filter @coodra/cli cli install
+
 HOME=/tmp/coodra-dev-home \
 XDG_CONFIG_HOME=/tmp/coodra-dev-xdg \
 pnpm --filter @coodra/cli cli init --project-slug devtest
@@ -228,10 +233,10 @@ pnpm --filter @coodra/cli build        # produces dist/ + dist/runtime/{mcp-serv
 pnpm --filter @coodra/cli smoke:core   # init → start → /healthz → status → stop, against a temp COODRA_HOME
 ```
 
-It asserts `coodra init` writes `.mcp.json` (with a `node`-spawned MCP entry —
-PATH-resolved on Windows) + the Claude Code hook settings, then that
-`coodra start` brings up the mcp-server + hooks-bridge daemons and both pass
-`/healthz`. The smoke sets `COODRA_REQUIRE_VEC=1`, so the mcp-server boots only
+It asserts `coodra install` prepares the machine runtime, `coodra init` registers
+the project-local `.coodra/` layout, and `coodra start` brings up the mcp-server
++ hooks-bridge daemons and both pass `/healthz`. The smoke sets
+`COODRA_REQUIRE_VEC=1`, so the mcp-server boots only
 if **both** native deps loaded (`better-sqlite3` prebuild + `sqlite-vec`'s
 platform `.dll`/`.so`/`.dylib`) — a `/healthz` 200 then proves the native load
 **and** that the SQLite DB migrated and the HTTP server bound. It uses ports

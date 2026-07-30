@@ -14,6 +14,7 @@ import {
 } from '@coodra/shared/features';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { deleteFeatureFromDb, upsertFeatureInDb } from '../lib/feature-db.js';
+import { readProjectConfig } from '../lib/project-store/index.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
@@ -95,28 +96,16 @@ export interface FeatureRemoveOptions extends FeatureBaseOptions {
 
 interface ResolvedProject {
   readonly cwd: string;
-  /** Slug from `<cwd>/.coodra.json` if present, else basename. */
+  /** Slug from `<cwd>/.coodra/config.json` if present, else basename. */
   readonly projectSlug: string;
 }
 
-function resolveProject(rawCwd: string | undefined, io: FeatureIO): ResolvedProject {
+async function resolveProject(rawCwd: string | undefined, io: FeatureIO): Promise<ResolvedProject> {
   const cwd = resolve(rawCwd ?? process.cwd());
-  const sidecarPath = join(cwd, '.coodra.json');
-  let projectSlug: string | undefined;
-  if (existsSync(sidecarPath)) {
-    try {
-      const json = JSON.parse(readFileSync(sidecarPath, 'utf8')) as { projectSlug?: unknown };
-      if (typeof json.projectSlug === 'string') projectSlug = json.projectSlug;
-    } catch {
-      // ignore — fall through to basename derivation
-    }
-  }
-  if (projectSlug === undefined || projectSlug.length === 0) {
-    projectSlug = basenameSlug(cwd);
-  }
+  const projectSlug = (await readProjectConfig(cwd))?.projectSlug ?? basenameSlug(cwd);
   if (!FEATURE_SLUG_RE.test(projectSlug)) {
     io.writeStderr(
-      `${pc.red('coodra skill')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Add "projectSlug" to ${sidecarPath} or run from a project root.\n`,
+      `${pc.red('coodra skill')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Run from a project root or run \`coodra init\` first.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -161,7 +150,7 @@ export async function runFeatureAddCommand(
   options: FeatureAddOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   if (!FEATURE_SLUG_RE.test(slug)) {
     io.writeStderr(`${pc.red('coodra skill add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`);
@@ -315,7 +304,7 @@ export async function runFeatureListCommand(
   options: FeatureBaseOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const rows = walkFeatures(cwd);
 
   if (options.json === true) {
@@ -373,7 +362,7 @@ export async function runFeatureShowCommand(
   options: FeatureBaseOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd } = resolveProject(options.cwd, io);
+  const { cwd } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   const dir = join(skillsRoot(cwd), slug);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
@@ -425,7 +414,7 @@ export async function runFeatureEditCommand(
   options: FeatureBaseOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   const featureMdPath = join(skillsRoot(cwd), slug, 'feature.md');
   if (!existsSync(featureMdPath)) {
@@ -497,7 +486,7 @@ export async function runFeatureIndexCommand(
   options: FeatureBaseOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const result = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
   if (options.json === true) {
     io.writeStdout(
@@ -540,7 +529,7 @@ export async function runFeatureRemoveCommand(
   options: FeatureRemoveOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   const dir = join(skillsRoot(cwd), slug);
   if (!existsSync(dir)) {
@@ -600,7 +589,7 @@ export async function runFeatureMigrateCommand(
   options: FeatureRemoveOptions = {},
   io: FeatureIO = DEFAULT_FEATURE_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd, io);
+  const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const json = options.json === true;
   const { skills, legacy } = skillsDirCandidates(cwd);
   const force = options.force === true;

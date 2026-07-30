@@ -92,9 +92,11 @@ describe('project-store manifest — classifyGeneratedPath', () => {
   it('classifies project files by kind + cleanup policy', () => {
     const cases: Array<[string, { owner: string; kind: string; cleanup: string; scope: string }]> = [
       ['.coodra/config.json', { owner: 'coodra', kind: 'project-config', cleanup: 'preserve', scope: 'project' }],
-      ['.coodra.json', { owner: 'coodra', kind: 'project-config-legacy', cleanup: 'preserve', scope: 'project' }],
       ['.mcp.json', { owner: 'coodra', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],
       ['.env', { owner: 'coodra', kind: 'env', cleanup: 'preserve', scope: 'project' }],
+      ['data.db', { owner: 'coodra', kind: 'sqlite-db', cleanup: 'preserve', scope: 'project' }],
+      ['logs', { owner: 'coodra', kind: 'logs-dir', cleanup: 'preserve', scope: 'project' }],
+      ['pids', { owner: 'coodra', kind: 'pids-dir', cleanup: 'preserve', scope: 'project' }],
       ['.cursor/mcp.json', { owner: 'agent:cursor', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],
       ['.cursorrules', { owner: 'agent:cursor', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
       ['.codex/config.toml', { owner: 'agent:codex', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],

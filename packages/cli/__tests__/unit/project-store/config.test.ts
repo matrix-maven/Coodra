@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   ensureProjectConfig,
-  legacyConfigPath,
   projectConfigPath,
   readProjectConfig,
   writeProjectConfig,
@@ -12,8 +11,8 @@ import {
 
 /**
  * Locks the project-local identity contract: `.coodra/config.json` is the new
- * home, `.coodra.json` is the legacy fallback + dual-write target, migration is
- * idempotent, and a user-edited slug is preserved without --force.
+ * home, no root `.coodra.json` is written, creation is idempotent, and a
+ * user-edited slug is preserved without --force.
  */
 
 let root: string;
@@ -27,7 +26,7 @@ afterEach(() => {
 });
 
 describe('project-store config', () => {
-  it('writeProjectConfig dual-writes .coodra/config.json (rich) + .coodra.json (legacy)', async () => {
+  it('writeProjectConfig writes only .coodra/config.json', async () => {
     const outcomes = await writeProjectConfig({
       root,
       projectSlug: 'demo',
@@ -36,7 +35,7 @@ describe('project-store config', () => {
       dryRun: false,
       now: CLOCK,
     });
-    expect(outcomes.map((o) => o.action)).toEqual(['wrote', 'wrote']);
+    expect(outcomes.map((o) => o.action)).toEqual(['wrote']);
 
     const fresh = JSON.parse(readFileSync(projectConfigPath(root), 'utf8'));
     expect(fresh).toMatchObject({
@@ -46,45 +45,36 @@ describe('project-store config', () => {
       createdAt: CLOCK(),
       updatedAt: CLOCK(),
     });
-    const legacy = JSON.parse(readFileSync(legacyConfigPath(root), 'utf8'));
-    expect(legacy).toEqual({ projectSlug: 'demo' });
+    expect(existsSync(join(root, '.coodra.json'))).toBe(false);
   });
 
-  it('readProjectConfig prefers .coodra/config.json over the legacy file', async () => {
+  it('readProjectConfig reads .coodra/config.json', async () => {
     mkdirSync(join(root, '.coodra'), { recursive: true });
     writeFileSync(projectConfigPath(root), JSON.stringify({ version: 1, projectSlug: 'fresh' }));
-    writeFileSync(legacyConfigPath(root), JSON.stringify({ projectSlug: 'legacy' }));
     const cfg = await readProjectConfig(root);
     expect(cfg?.projectSlug).toBe('fresh');
-  });
-
-  it('readProjectConfig falls back to legacy .coodra.json when the new file is absent', async () => {
-    writeFileSync(legacyConfigPath(root), JSON.stringify({ projectSlug: 'legacy-only' }));
-    const cfg = await readProjectConfig(root);
-    expect(cfg).toEqual({ version: 1, projectSlug: 'legacy-only' });
   });
 
   it('readProjectConfig returns null when neither file exists', async () => {
     expect(await readProjectConfig(root)).toBeNull();
   });
 
-  it('ensureProjectConfig migrates a legacy-only project (createdConfig=true), idempotent on re-run', async () => {
-    writeFileSync(legacyConfigPath(root), JSON.stringify({ projectSlug: 'to-migrate' }));
+  it('ensureProjectConfig creates the project config (createdConfig=true), idempotent on re-run', async () => {
     expect(existsSync(projectConfigPath(root))).toBe(false);
 
     const first = await ensureProjectConfig({
       root,
-      projectSlug: 'to-migrate',
+      projectSlug: 'demo',
       force: false,
       dryRun: false,
       now: CLOCK,
     });
     expect(first.createdConfig).toBe(true);
-    expect(JSON.parse(readFileSync(projectConfigPath(root), 'utf8')).projectSlug).toBe('to-migrate');
+    expect(JSON.parse(readFileSync(projectConfigPath(root), 'utf8')).projectSlug).toBe('demo');
 
     const second = await ensureProjectConfig({
       root,
-      projectSlug: 'to-migrate',
+      projectSlug: 'demo',
       force: false,
       dryRun: false,
       now: CLOCK,
@@ -136,6 +126,5 @@ describe('project-store config', () => {
   it('--dry-run writes nothing', async () => {
     await writeProjectConfig({ root, projectSlug: 'demo', force: false, dryRun: true, now: CLOCK });
     expect(existsSync(projectConfigPath(root))).toBe(false);
-    expect(existsSync(legacyConfigPath(root))).toBe(false);
   });
 });

@@ -2,9 +2,11 @@ import { createLogger } from '@coodra/shared';
 import type { AuthEnv } from '@coodra/shared/auth';
 import {
   adaptClaudeCode,
+  adaptCodex,
   adaptCursor,
   adaptWindsurf,
   ClaudeCodeHookPayloadSchema,
+  CodexHookPayloadSchema,
   CursorHookPayloadSchema,
   type HookEvent,
   WindsurfHookPayloadSchema,
@@ -156,6 +158,54 @@ function shapeClaudeCodeResponse(hookEventName: string, result: HookDispatchResu
   }
 }
 
+/**
+ * Codex command hooks use the same `hookSpecificOutput` contract for
+ * lifecycle context and tool decisions, but the field inside that object is
+ * `hookEventName` (camelCase). Keep this separate from the Claude shaper so
+ * future Codex-only events (PermissionRequest, compact hooks) can grow here
+ * without perturbing Claude Code.
+ */
+function shapeCodexResponse(hookEventName: string, result: HookDispatchResult): Record<string, unknown> {
+  const reason = result.permissionDecisionReason;
+  const additionalContext = result.additionalContext;
+  switch (hookEventName) {
+    case 'PreToolUse':
+      return {
+        hookSpecificOutput: {
+          hookEventName,
+          permissionDecision: result.permissionDecision,
+          ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+          ...(additionalContext !== undefined ? { additionalContext } : {}),
+        },
+      };
+    case 'SessionStart':
+    case 'UserPromptSubmit':
+      return {
+        ...(result.permissionDecision === 'deny' ? { decision: 'block', reason } : {}),
+        hookSpecificOutput: {
+          hookEventName,
+          ...(additionalContext !== undefined ? { additionalContext } : {}),
+        },
+      };
+    case 'PostToolUse': {
+      const body: Record<string, unknown> = {};
+      if (result.permissionDecision === 'deny') {
+        body.decision = 'block';
+        if (reason !== undefined) body.reason = reason;
+      }
+      if (additionalContext !== undefined) {
+        body.hookSpecificOutput = { hookEventName, additionalContext };
+      }
+      return body;
+    }
+    case 'Stop':
+    case 'SessionEnd':
+      return {};
+    default:
+      return {};
+  }
+}
+
 export function buildApp(deps: BuildAppDeps): AppHandle {
   const serverStartedAt = deps.serverStartedAt ?? new Date();
   const dispatch = deps.dispatch ?? allowAllDispatcher;
@@ -222,6 +272,40 @@ export function buildApp(deps: BuildAppDeps): AppHandle {
     // user-impacting — but it's fidelity hygiene to ship the right shape.
     const responseBody = shapeClaudeCodeResponse(parse.data.hook_event_name, result);
     return c.json(responseBody);
+  });
+
+  // ---------------------------------------------------------------------
+  // POST /v1/hooks/codex
+  // ---------------------------------------------------------------------
+  hono.post('/v1/hooks/codex', auth, async (c) => {
+    let raw: unknown;
+    try {
+      raw = await c.req.json();
+    } catch {
+      appLogger.warn({ event: 'invalid_hook_body', agent: 'codex' }, 'request body is not JSON; failing open');
+      return c.json(failOpen('invalid_hook_payload'));
+    }
+    const parse = CodexHookPayloadSchema.safeParse(raw);
+    if (!parse.success) {
+      appLogger.warn(
+        { event: 'invalid_hook_payload', agent: 'codex', issues: parse.error.issues },
+        'Codex payload failed Zod parse; failing open',
+      );
+      return c.json(failOpen('invalid_hook_payload'));
+    }
+    const event = adaptCodex(parse.data);
+    appLogger.info(
+      {
+        event: 'hook_ingress',
+        agent: event.agentType,
+        eventPhase: event.eventPhase,
+        sessionId: event.sessionId,
+        toolName: event.toolName,
+      },
+      'hook ingress',
+    );
+    const result = await dispatch(event);
+    return c.json(shapeCodexResponse(parse.data.hook_event_name, result));
   });
 
   // ---------------------------------------------------------------------

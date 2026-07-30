@@ -8,8 +8,8 @@
 // What it proves, from the built CLI tarball artifacts (no monorepo
 // assumptions beyond locating dist/):
 //   1. `coodra --version`         → the bin runs at all.
-//   2. `coodra init --ide claude` → writes `.mcp.json` + the Claude Code
-//                                    hook settings (the Claude Code wiring).
+//   2. `coodra install` + `coodra init` → writes machine runtime state and
+//      project-local `.coodra/` state, without agent config side effects.
 //   3. `coodra start --no-web --no-sync` → the bundled mcp-server +
 //      hooks-bridge daemons boot and pass their /healthz gate. This is THE
 //      decisive proof on Windows: it means better-sqlite3 + sqlite-vec
@@ -17,14 +17,14 @@
 //   4. /healthz probes on both ports return 200.
 //   5. `coodra status` reports them running; `coodra stop` tears down.
 //
-// The `web` dashboard is intentionally out of scope (Core = Claude Code):
-// it's skipped via --no-web here and auto-skipped on win32 by `coodra start`.
+// The `web` dashboard is intentionally out of scope; it's skipped via --no-web
+// here and auto-skipped on win32 by `coodra start`.
 //
 // Exit 0 = all assertions held. Non-zero = a step failed; daemon logs are
 // dumped before exit and the temp dirs are always cleaned up.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -138,18 +138,18 @@ async function main() {
   const version = runCli(['--version'], { capture: true }).trim();
   assert(version.length > 0, `coodra --version prints a version (${version})`);
 
-  // 2. init wires Claude Code (project .mcp.json + hook settings)
-  runCli(['init', '--project-slug', 'coodra-smoke', '--ide', 'claude', '--no-graphify', '--no-jira', '--mode', 'minimal', '--no-feature-pack']);
+  // 2. install prepares machine runtime; init registers only project-local .coodra state.
+  runCli(['install']);
+  assert(existsSync(join(coodraHome, 'manifest.json')), 'machine manifest written under COODRA_HOME');
+  runCli(['init', '--project-slug', 'coodra-smoke']);
+  assert(existsSync(join(projectDir, '.coodra', 'config.json')), 'project .coodra/config.json written');
+  assert(existsSync(join(projectDir, '.coodra', 'manifest.json')), 'project .coodra/manifest.json written');
+  assert(existsSync(join(projectDir, '.coodra', 'skill-packs')), 'project .coodra/skill-packs directory written');
+  assert(existsSync(join(projectDir, '.coodra', 'graphify')), 'project .coodra/graphify directory written');
+  assert(existsSync(join(projectDir, '.coodra', 'wiki')), 'project .coodra/wiki directory written');
   const mcpJsonPath = join(projectDir, '.mcp.json');
-  assert(existsSync(mcpJsonPath), '.mcp.json written into the project');
-  const mcpJson = JSON.parse(readFileSync(mcpJsonPath, 'utf8'));
-  assert(mcpJson?.mcpServers?.coodra?.command === 'node', '.mcp.json coodra entry spawns `node` (portable, PATH-resolved on Windows)');
-  assert(existsSync(claudeSettings), 'Claude Code hook settings written (CLAUDE_SETTINGS_PATH redirect)');
-  const settings = JSON.parse(readFileSync(claudeSettings, 'utf8'));
-  const sessionStart = settings?.hooks?.SessionStart?.[0]?.hooks?.[0]?.url ?? '';
-  // Port is the init default (3101); the smoke overrides the daemon port only
-  // to avoid collisions, so assert the endpoint path, not the port.
-  assert(sessionStart.includes('/v1/hooks/claude-code'), 'SessionStart hook points at the local bridge endpoint');
+  assert(!existsSync(mcpJsonPath), 'project .mcp.json is not written by init');
+  assert(!existsSync(claudeSettings), 'Claude Code hook settings are not written by init');
 
   // 3. start the core daemons (web skipped; sync is solo-skipped anyway)
   runCli(['start', '--no-web', '--no-sync']);

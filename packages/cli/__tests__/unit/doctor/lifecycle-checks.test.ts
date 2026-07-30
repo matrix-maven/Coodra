@@ -1,9 +1,15 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  claudePluginPaths,
+  installClaudePlugin,
+  type ClaudeCliRunner,
+} from '../../../src/lib/agents/claude-plugin.js';
+import type { AgentContext } from '../../../src/lib/agents/types.js';
 import { claudeHookRegistrationCheck } from '../../../src/doctor/checks/28-claude-hook-registration.js';
 import { staleRunsCheck } from '../../../src/doctor/checks/30-stale-runs.js';
 import { buildCheckContext } from '../../../src/doctor/context.js';
@@ -32,15 +38,59 @@ function ctxWithHome(home: string, overrides: Partial<Parameters<typeof buildChe
 
 describe('claudeHookRegistrationCheck (28)', () => {
   let homeDir: string;
-  let claudeDir: string;
-  let settingsPath: string;
+  let cwd: string;
+  let coodraHome: string;
   let originalHome: string | undefined;
 
+  /**
+   * A `ClaudeCliRunner` whose `detect()` always resolves `null` — same
+   * safety reasoning as `claude-plugin.test.ts`: never let a fixture-seeding
+   * call fall through to the real `defaultClaudeCliRunner`, which would
+   * shell out to a genuine system `claude` binary if one happens to be on
+   * the test runner's PATH. `claudeHookRegistrationCheck.run()` itself
+   * still uses the real (short-timeout) runner internally — that's a
+   * deliberate, read-only exception (see the check's own doc comment).
+   */
+  function noCliRunner(): ClaudeCliRunner {
+    return {
+      detect: async () => null,
+      installMarketplaceAndPlugin: async () => {
+        throw new Error('unexpected: claude CLI should not be invoked while seeding this fixture');
+      },
+      uninstallPlugin: async () => {
+        throw new Error('unexpected: claude CLI should not be invoked while seeding this fixture');
+      },
+      isInstalled: async () => {
+        throw new Error('unexpected: claude CLI should not be invoked while seeding this fixture');
+      },
+    };
+  }
+
+  function agentCtx(overrides: Partial<AgentContext> = {}): AgentContext {
+    return {
+      cwd,
+      userHome: homeDir,
+      projectSlug: 'demo',
+      bridgePort: 3101,
+      localHookSecret: 'local-secret',
+      mcpEntryOptions: {
+        mcpServerBin: '/tmp/coodra-mcp-server.js',
+        clerkSecretKey: 'sk_test',
+        migrationsDir: null,
+        coodraHome,
+        localHookSecret: 'local-secret',
+      },
+      force: false,
+      dryRun: false,
+      ...overrides,
+    };
+  }
+
   beforeEach(async () => {
-    homeDir = await mkdtemp(join(tmpdir(), 'doctor-28-'));
-    claudeDir = join(homeDir, '.claude');
-    settingsPath = join(claudeDir, 'settings.json');
-    await mkdir(claudeDir, { recursive: true });
+    homeDir = await mkdtemp(join(tmpdir(), 'doctor-28-home-'));
+    cwd = await mkdtemp(join(tmpdir(), 'doctor-28-cwd-'));
+    coodraHome = await mkdtemp(join(tmpdir(), 'doctor-28-coodra-'));
+    await mkdir(join(homeDir, '.claude'), { recursive: true });
     // Override homedir() lookup by patching the env's HOME — the check
     // calls `homedir()` from node:os which honours $HOME on macOS/Linux.
     originalHome = process.env.HOME;
@@ -54,161 +104,75 @@ describe('claudeHookRegistrationCheck (28)', () => {
     }
   });
 
-  it('GREEN when all 5 events are registered with correct shape', async () => {
-    const settings = {
-      hooks: {
-        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        PreToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        PostToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-      },
-    };
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+  it('GREEN when the native plugin is fully wired (enabled, marketplace, manifest, mcp, hooks, skills)', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('green');
   });
 
-  it('YELLOW when SessionEnd is missing (pre-Fix-G state)', async () => {
-    const settings = {
-      hooks: {
-        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        PreToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        PostToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-      },
-    };
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+  it('YELLOW when settings.json is missing entirely — nothing installed yet', async () => {
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/SessionEnd/);
-    expect(result.remediation).toMatch(/coodra init/);
+    expect(result.detail).toMatch(/enabled in settings\.json/);
+    expect(result.remediation).toMatch(/coodra agent add claude/);
   });
 
-  it('YELLOW when PreToolUse still has the legacy `__coodra__` matcher (pre-Fix-F drift)', async () => {
-    const settings = {
-      hooks: {
-        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        PreToolUse: [
-          { matcher: '__coodra__', hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] },
-        ],
-        PostToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-      },
-    };
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+  it('YELLOW when the plugin is disabled in settings.json (enabledPlugins flipped false)', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
+    const paths = claudePluginPaths(homeDir, coodraHome);
+    const settings = JSON.parse(await readFile(paths.settingsPath, 'utf8'));
+    settings.enabledPlugins['coodra@coodra'] = false;
+    await writeFile(paths.settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/__coodra__|legacy/);
+    expect(result.detail).toMatch(/enabled in settings\.json/);
   });
 
-  it('YELLOW when SessionStart wrongly has a matcher set (matcher only applies to tool events)', async () => {
-    const settings = {
-      hooks: {
-        SessionStart: [
-          {
-            matcher: 'Some',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        PreToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        PostToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-      },
-    };
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+  it('YELLOW when the marketplace registration is missing (known_marketplaces.json)', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
+    const paths = claudePluginPaths(homeDir, coodraHome);
+    await rm(paths.knownMarketplacesPath, { force: true });
+
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/SessionStart/);
+    expect(result.detail).toMatch(/marketplace registration/);
   });
 
-  it('YELLOW when settings.json is missing entirely', async () => {
-    // Don't write the file.
+  it('YELLOW when the cached hooks.json is missing — the native-plugin equivalent of the old missing-hook-events case', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
+    const paths = claudePluginPaths(homeDir, coodraHome);
+    await rm(paths.cacheHooksPath, { force: true });
+
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/not found/);
-    expect(result.remediation).toMatch(/coodra init/);
+    expect(result.detail).toMatch(/lifecycle hooks/);
+    expect(result.remediation).toMatch(/coodra agent (add|repair) claude/);
   });
 
-  it('YELLOW when bridge URL on hooks does not match the configured bridgePort', async () => {
-    const settings = {
-      hooks: {
-        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:9999/wrong' }] }],
-        PreToolUse: [{ matcher: 'Write', hooks: [{ type: 'http', url: 'http://127.0.0.1:9999/wrong' }] }],
-        PostToolUse: [{ matcher: 'Write', hooks: [{ type: 'http', url: 'http://127.0.0.1:9999/wrong' }] }],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:9999/wrong' }] }],
-        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:9999/wrong' }] }],
-      },
-    };
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+  it('YELLOW when the cached skills are missing', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
+    const paths = claudePluginPaths(homeDir, coodraHome);
+    await rm(join(paths.cacheSkillsRoot, 'coodra-context'), { recursive: true, force: true });
+
     const result = await claudeHookRegistrationCheck.run(ctxWithHome(homeDir));
     expect(result.status).toBe('yellow');
-    expect(result.detail).toMatch(/no-bridge-url|missing/);
+    expect(result.detail).toMatch(/bundled skills/);
   });
 
-  it('honours CLAUDE_SETTINGS_PATH — reads the override file, not ~/.claude (F2 parity with init/uninstall)', async () => {
-    const goodSettings = {
-      hooks: {
-        SessionStart: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        PreToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        PostToolUse: [
-          {
-            matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash',
-            hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }],
-          },
-        ],
-        Stop: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-        SessionEnd: [{ hooks: [{ type: 'http', url: 'http://127.0.0.1:3101/v1/hooks/claude-code' }] }],
-      },
-    };
-    // Write the valid settings ONLY to a bespoke override path. Leave the
-    // $HOME/.claude/settings.json absent — so if the check ignored the
-    // override (the pre-fix behaviour) it would report "not found".
+  it('honours CLAUDE_SETTINGS_PATH — reads the override file for enablement, not ~/.claude (F2 parity with init/uninstall)', async () => {
+    await installClaudePlugin(agentCtx(), noCliRunner());
+    const paths = claudePluginPaths(homeDir, coodraHome);
+    const settingsContent = await readFile(paths.settingsPath, 'utf8');
+
+    // Move enablement to a bespoke override path and remove the original —
+    // so if the check ignored CLAUDE_SETTINGS_PATH (the pre-fix behaviour)
+    // it would report "enabled in settings.json" as missing.
     const overridePath = join(homeDir, 'custom', 'settings.json');
     await mkdir(join(homeDir, 'custom'), { recursive: true });
-    await writeFile(overridePath, JSON.stringify(goodSettings, null, 2), 'utf8');
+    await writeFile(overridePath, settingsContent, 'utf8');
+    await rm(paths.settingsPath, { force: true });
+
     const result = await claudeHookRegistrationCheck.run(
       ctxWithHome(homeDir, { env: { CLAUDE_SETTINGS_PATH: overridePath } }),
     );

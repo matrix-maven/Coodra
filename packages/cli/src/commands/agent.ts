@@ -1,5 +1,8 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
+import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import {
   ACCEPTED_AGENT_TOKENS,
   type AgentAdapter,
@@ -11,6 +14,7 @@ import {
 } from '../lib/agents/index.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
+import { classifyMachineRuntimePath, recordMachineManifest } from '../lib/machine-store/manifest.js';
 import {
   classifyGeneratedPath,
   ensureProjectConfig,
@@ -27,8 +31,9 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  * config drifted (e.g. hooks got stripped) — can re-wire just that one without
  * re-running the whole init.
  *
- *   add    <agent>  — wire the Coodra bundle (project .mcp.json + the agent's
- *                     MCP config + instruction contract). Idempotent.
+ *   add    <agent>  — wire the Coodra bundle for one agent. Codex uses a
+ *                     global native plugin; older adapters still use their
+ *                     current MCP/instruction surfaces. Idempotent.
  *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
  *   remove <agent>  — strip ONLY this agent's Coodra-owned entries. The
  *                     project .mcp.json is left for `coodra uninstall`.
@@ -76,6 +81,8 @@ interface AgentActionResult {
   readonly note?: string;
   readonly error?: string;
 }
+
+const PROJECT_SCOPED_AGENT_IDS = new Set<AgentAdapter['id']>(['cursor', 'windsurf']);
 
 function glyphForAction(action: string): string {
   if (action === 'failed') return pc.red('✗');
@@ -167,8 +174,8 @@ async function runWire(
     return io.exit(EXIT_ENVIRONMENT_PROBLEM);
   }
 
-  // Ensure the project-level .mcp.json (not a per-agent surface).
-  const mcpJson = await ensureProjectMcpJson(resolved.context);
+  const needsProjectFiles = targets.adapters.some((adapter) => PROJECT_SCOPED_AGENT_IDS.has(adapter.id));
+  const mcpJson = needsProjectFiles ? await ensureProjectMcpJson(resolved.context) : null;
 
   const results: AgentActionResult[] = [];
   for (const adapter of targets.adapters) {
@@ -186,35 +193,100 @@ async function runWire(
     }
   }
 
-  // Phase 2: ensure `.coodra/config.json` + record the generated files into the
-  // manifest so `coodra files status/clean` sees this agent's footprint.
-  // Best-effort — the wiring already landed; a manifest hiccup must not fail it.
+  if (needsProjectFiles) {
+    // Phase 2: ensure `.coodra/config.json` + record repo-scoped generated
+    // files into the manifest so `coodra files status/clean` sees this
+    // agent's footprint. Native plugin adapters are global-only and use the
+    // machine manifest below instead.
+    try {
+      const cfg = await ensureProjectConfig({
+        root: resolved.projectRoot,
+        projectSlug: resolved.projectSlug,
+        mode: resolved.mode,
+        force,
+        dryRun,
+      });
+      const createdBy = `coodra agent ${mode} ${agentArg}`;
+      const paths = [
+        ...new Set([
+          ...cfg.outcomes.map((o) => o.path),
+          ...(mcpJson !== null ? [mcpJson.path] : []),
+          ...results
+            .filter((r) => PROJECT_SCOPED_AGENT_IDS.has(r.id as AgentAdapter['id']))
+            .flatMap((r) => r.outcomes.map((o) => o.path)),
+          manifestPath(resolved.projectRoot),
+        ]),
+      ];
+      await recordManifestEntries({
+        root: resolved.projectRoot,
+        projectSlug: resolved.projectSlug,
+        entries: paths.map((p) => classifyGeneratedPath(p, resolved.projectRoot, createdBy)),
+        dryRun,
+      });
+    } catch (err) {
+      io.writeStderr(
+        `${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    }
+  }
+
   try {
-    const cfg = await ensureProjectConfig({
-      root: resolved.projectRoot,
-      projectSlug: resolved.projectSlug,
-      mode: resolved.mode,
-      force,
-      dryRun,
-    });
     const createdBy = `coodra agent ${mode} ${agentArg}`;
-    const paths = [
-      ...new Set([
-        ...cfg.outcomes.map((o) => o.path),
-        mcpJson.path,
-        ...results.flatMap((r) => r.outcomes.map((o) => o.path)),
-        manifestPath(resolved.projectRoot),
-      ]),
-    ];
-    await recordManifestEntries({
-      root: resolved.projectRoot,
-      projectSlug: resolved.projectSlug,
-      entries: paths.map((p) => classifyGeneratedPath(p, resolved.projectRoot, createdBy)),
-      dryRun,
-    });
+    const machinePaths: string[] = [];
+    const installedAgents: Array<{ id: 'claude' | 'codex'; pluginPath: string; marketplacePath?: string }> = [];
+
+    if (results.some((r) => r.id === 'claude' && r.error === undefined)) {
+      const paths = claudePluginPaths(userHome, resolved.coodraHome);
+      machinePaths.push(
+        paths.settingsPath,
+        paths.knownMarketplacesPath,
+        paths.marketplaceRoot,
+        paths.marketplacePath,
+        paths.pluginRoot,
+        paths.manifestPath,
+        paths.mcpPath,
+        paths.hooksPath,
+        paths.skillsRoot,
+        paths.cachePluginRoot,
+        paths.cacheManifestPath,
+        paths.cacheMcpPath,
+        paths.cacheHooksPath,
+        paths.cacheSkillsRoot,
+        paths.readmePath,
+      );
+      installedAgents.push({ id: 'claude', pluginPath: paths.cachePluginRoot, marketplacePath: paths.marketplacePath });
+    }
+
+    if (results.some((r) => r.id === 'codex' && r.error === undefined)) {
+      const paths = codexPluginPaths(userHome);
+      machinePaths.push(
+        paths.marketplaceRoot,
+        paths.marketplacePath,
+        paths.pluginRoot,
+        paths.manifestPath,
+        paths.mcpPath,
+        paths.hooksPath,
+        paths.hookRunnerPath,
+        paths.skillsRoot,
+      );
+      installedAgents.push({
+        id: 'codex',
+        pluginPath: paths.pluginRoot,
+        marketplacePath: paths.marketplacePath,
+      });
+    }
+
+    if (machinePaths.length > 0 || installedAgents.length > 0) {
+      await recordMachineManifest({
+        home: resolved.coodraHome,
+        entries: machinePaths.map((path) => classifyMachineRuntimePath(resolved.coodraHome, path, createdBy)),
+        installedAgents,
+        dryRun,
+      });
+    }
   } catch (err) {
     io.writeStderr(
-      `${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${err instanceof Error ? err.message : String(err)}\n`,
+      `${pc.yellow('⚠')} Could not update ~/.coodra/manifest.json: ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
 
@@ -227,7 +299,7 @@ async function runWire(
           projectRoot: resolved.projectRoot,
           mode: resolved.mode,
           dryRun,
-          mcpJson,
+          ...(mcpJson !== null ? { mcpJson } : {}),
           agents: results,
         },
         null,
@@ -239,9 +311,11 @@ async function runWire(
 
   io.writeStdout(`${commandTitle('Agent', `${mode} · Coodra wiring`, { width: terminalWidth(), indent: 0 })}\n`);
   io.writeStdout(`  ${pc.gray(`project root: ${resolved.projectRoot}`)}${dryRun ? pc.gray('  (dry-run)') : ''}\n`);
-  io.writeStdout(
-    `  ${glyphForAction(mcpJson.action)} .mcp.json: ${mcpJson.action} ${pc.gray(`(${mcpJson.notes ?? ''})`)}\n`,
-  );
+  if (mcpJson !== null) {
+    io.writeStdout(
+      `  ${glyphForAction(mcpJson.action)} .mcp.json: ${mcpJson.action} ${pc.gray(`(${mcpJson.notes ?? ''})`)}\n`,
+    );
+  }
   let slot = 1;
   for (const r of results) {
     io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), r.label)}\n`);
@@ -258,7 +332,7 @@ async function runWire(
   io.writeStdout(
     `\n${hintLine(
       mode === 'add'
-        ? 'Restart the agent to pick up the new MCP server + hooks. `coodra agent status` shows current wiring.'
+        ? 'Restart the agent to pick up new plugin/MCP/hooks surfaces. `coodra agent status` shows current wiring.'
         : 'Re-wired to the current baseline. Restart the agent to apply.',
     )}\n`,
   );
@@ -293,6 +367,7 @@ export async function runAgentRemoveCommand(
   const json = options.json === true;
   const dryRun = options.dryRun === true;
   const userHome = options.userHome ?? homedir();
+  const coodraHome = options.coodraHome ?? join(userHome, '.coodra');
   const cwd = options.cwd ?? (await detectProjectRoot(process.cwd(), { homeDir: userHome })).root;
   const bridgePort = portFromEnv(options.env ?? process.env, 'HOOKS_BRIDGE_PORT', 3101);
 
@@ -306,6 +381,7 @@ export async function runAgentRemoveCommand(
   const removeCtx = {
     cwd,
     userHome,
+    coodraHome,
     bridgePort,
     dryRun,
     ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),

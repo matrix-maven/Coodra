@@ -74,7 +74,7 @@ trap 'rm -rf "$SOLO_HOME" "$SOLO_PROJ" 2>/dev/null || true' EXIT
 echo '{"name":"00-full-flow-test","version":"0.0.0","private":true}' > "$SOLO_PROJ/package.json"
 
 (cd "$SOLO_PROJ" && COODRA_HOME="$SOLO_HOME" COODRA_DISABLE_ENV_BOOTSTRAP=1 \
-  node "$CLI_BIN" init --no-graphify --project-slug 00-solo --no-feature-pack > /dev/null 2>&1) && \
+  node "$CLI_BIN" init --project-slug 00-solo > /dev/null 2>&1) && \
   assert_pass "1.1 — coodra init succeeded in fresh home" || \
   assert_fail "1.1 — coodra init failed"
 

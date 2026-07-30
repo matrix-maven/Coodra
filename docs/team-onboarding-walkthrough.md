@@ -136,9 +136,9 @@ Expected output:
 ✓ Seeded default policy with 25 baseline rules
 ✓ Resolved mcp-server runtime: bundled
 
-  + .coodra.json (wrote projectSlug='demo-app')
+  + .coodra/config.json (wrote projectSlug='demo-app')
   + .mcp.json (created baseline .mcp.json with coodra entry)
-  + .env (created baseline .env)
+  + ~/.coodra/.env (persisted Coodra runtime config)
   ! ~/.claude/settings.json (overwrote Coodra hook entries)
   + docs/feature-packs/demo-app/{meta.json,spec.md,implementation.md,techstack.md}
 
@@ -150,7 +150,7 @@ Coodra is ready (project 'demo-app').
 
 ### What `init` wrote
 
-- `.coodra.json` — pins the project slug.
+- `.coodra/config.json` — pins the project slug.
 - `.mcp.json` — Claude Code / Cursor / Windsurf use this to spawn the Coodra MCP server.
 - `.env` — Clerk sentinels + `LOCAL_HOOK_SECRET` + ports. **Note**: `COODRA_MODE` is intentionally NOT in this file (per Phase 4 H5) — your `~/.coodra/.env::COODRA_MODE=team` from `team setup` governs.
 - `~/.claude/settings.json` — wires Coodra hooks into Claude Code's hook events.

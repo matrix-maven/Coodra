@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -88,7 +88,8 @@ async function postEvent(body: Record<string, unknown>): Promise<Response> {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'real-envelope-test-'));
   const slug = `real-envelope-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
+  mkdirSync(join(cwd, '.coodra'), { recursive: true });
+  writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });

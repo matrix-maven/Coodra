@@ -1,6 +1,6 @@
 # @coodra/cli
 
-> **Status:** beta. Published to npm under the `beta` dist-tag — install with `npm i -g @coodra/cli@beta`. The command reference below is partial; run `coodra` (no args) for the full interactive catalog, or `coodra --help`.
+> **Status:** beta. Published to npm under the `beta` dist-tag — install with `npm i -g @coodra/cli@beta`. pnpm users should allow the native SQLite build: `pnpm add -g @coodra/cli@beta --allow-build=better-sqlite3`. The command reference below is partial; run `coodra` (no args) for the full interactive catalog, or `coodra --help`.
 
 The single-binary install / configure / run / diagnose surface for Coodra, the MCP server platform that gives AI coding agents (Claude Code, Cursor, Windsurf) Feature Packs, Context Packs, and policy enforcement.
 
@@ -10,15 +10,24 @@ The single-binary install / configure / run / diagnose surface for Coodra, the M
 # Global install (recommended for repeat use)
 npm i -g @coodra/cli
 
+# pnpm global install (pnpm 10 blocks native build scripts unless approved)
+pnpm add -g @coodra/cli --allow-build=better-sqlite3
+
 # One-shot use without installing
 npx @coodra/cli init
 ```
+
+Coodra supports Node.js `>=22.16.0`, npm `>=10.0.0`, and pnpm `>=10.33.0`.
+The CLI uses `better-sqlite3` for the local SQLite store, so pnpm installs must
+approve that native build script.
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
-| `coodra init [--project-slug] [--ide] [--no-graphify] [--dry-run] [--force]` | Set up Coodra in the current project: writes `~/.coodra/`, applies migrations + seeds the F7 sentinel project, merges `.mcp.json`, writes `.coodra.json`, writes `.env` with solo-mode sentinels, seeds a Feature Pack folder. Interactive runs ask per agent ("Wire Claude Code? / Cursor? / Windsurf? / Codex?" — detection sets the default); `--ide` overrides. Idempotent merge by default; `--force` overwrites baselines. |
+| `coodra install [--dry-run] [--json]` | Install or repair machine-level Coodra runtime state: creates `~/.coodra/`, `logs/`, `pids/`, `data.db`, runtime env keys in `~/.coodra/.env`, and the machine ledger `~/.coodra/manifest.json`. Native per-agent plugin installers live on the `coodra agent add <agent>` path. |
+| `coodra init [--project-slug] [--dry-run] [--force]` | Register the current project with Coodra: writes `<repo>/.coodra/config.json`, records `<repo>/.coodra/manifest.json`, and creates `<repo>/.coodra/{skill-packs,graphify,wiki}/`. It does not create or modify the project's application `.env`, `.mcp.json`, `.codex/config.toml`, or per-agent instruction files. Add agent plugins with `coodra agent add <agent>`. |
+| `coodra agent add codex [--dry-run] [--force]` | Install or repair the native global Coodra Codex plugin through the local personal plugin marketplace. The plugin bundles Coodra skills, a generated Coodra MCP entry, and plugin hooks without writing project `.mcp.json`, `.codex/config.toml`, or `AGENTS.md`. |
 | `coodra graphify enable [--ide] [--python] [--install\|--no-install] [--force]` | Wire Graphify's own codebase-graph MCP server next to `coodra` in each agent config. Auto-detects a verified `graphifyy[mcp]` interpreter; when none is found it offers to install into `./.venv` (asks before touching an existing venv; `--install` skips the prompt). `disable` / `status` siblings included. |
 | `coodra start [--no-mcp] [--no-hooks] [--foreground]` | Launch MCP Server + Hooks Bridge as background daemons via the platform's native manager (launchd / systemd) or detached fallback. Polls `/healthz` until ready. |
 | `coodra stop [--service <name>] [--uninstall]` | Stop running daemons. Idempotent. `--uninstall` also removes the daemon-manager unit. |
@@ -42,7 +51,7 @@ These codes are stable across versions — shell scripts can rely on them.
 
 ## Where files live
 
-`coodra init` resolves `~/.coodra/` per Decision 2 (signed off 2026-04-27):
+`coodra install` resolves `~/.coodra/` per Decision 2 (signed off 2026-04-27):
 
 | Platform | Path |
 |---|---|

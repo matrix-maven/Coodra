@@ -106,9 +106,9 @@ describe('auth chain on POST /v1/hooks/{agent}', () => {
     expect(res.status).toBe(401);
   });
 
-  it('all three agent routes share the same chain (windsurf, cursor, claude-code identical)', async () => {
+  it('all agent routes share the same chain (windsurf, cursor, codex, claude-code identical)', async () => {
     const { hono } = buildApp({ env: makeEnv({ CLERK_SECRET_KEY: 'sk_test_replace_me' }) });
-    for (const agent of ['claude-code', 'windsurf', 'cursor'] as const) {
+    for (const agent of ['claude-code', 'windsurf', 'cursor', 'codex'] as const) {
       const res = await hono.request(`/v1/hooks/${agent}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

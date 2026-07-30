@@ -1,4 +1,3 @@
-import { stat } from 'node:fs/promises';
 import { ensureDefaultPolicy, listProjects } from '@coodra/db';
 import { buildCheckContext } from '../doctor/context.js';
 import { formatHuman, formatJson } from '../doctor/output.js';
@@ -7,7 +6,6 @@ import { exitCodeForReport, runChecks } from '../doctor/run.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { scanProjectEnvForStaleMode, stripStaleModeFromProjectEnv } from '../lib/project-env-scan.js';
-import { ensureProjectConfig, legacyConfigPath, projectConfigPath } from '../lib/project-store/index.js';
 import { checkGlyph, hintLine, paint, style } from '../ui/index.js';
 
 export interface DoctorOptions {
@@ -27,7 +25,7 @@ export interface DoctorOptions {
    *
    * Idempotent — re-running on an already-clean machine reports
    * "no drift detected" and exits 0. Touches `<projectCwd>/.env`
-   * only; never modifies `~/.coodra/.env` or `<cwd>/.coodra.json`.
+   * only; never modifies `~/.coodra/.env` or `<cwd>/.coodra/config.json`.
    */
   readonly fix?: boolean;
 }
@@ -41,19 +39,6 @@ interface FixReport {
   }>;
   readonly skippedMissing: ReadonlyArray<string>;
   readonly policy: PolicyBackfillReport;
-  readonly configMigration: ConfigMigrationReport;
-}
-
-/**
- * Migration report for the project-local `.coodra/config.json` heal
- * (Phase 2). Projects wired before the new identity file existed carry only
- * the legacy `.coodra.json`; `doctor --fix` creates `.coodra/config.json`
- * beside it. Only projects that already have a legacy `.coodra.json` on disk
- * (i.e. real wired project dirs) are touched.
- */
-interface ConfigMigrationReport {
-  readonly migrated: ReadonlyArray<{ readonly slug: string; readonly cwd: string }>;
-  readonly failed: ReadonlyArray<{ readonly slug: string; readonly cwd: string; readonly error: string }>;
 }
 
 /**
@@ -175,7 +160,6 @@ async function runFixPass(): Promise<FixReport> {
       stripped: [],
       skippedMissing: [],
       policy: emptyPolicyBackfill(),
-      configMigration: { migrated: [], failed: [] },
     };
   }
   try {
@@ -206,44 +190,9 @@ async function runFixPass(): Promise<FixReport> {
       }
     }
     const policy = await backfillDefaultPolicies(handle, projects);
-    const configMigration = await migrateProjectConfigs(projects);
-    return { scanned, stripped, skippedMissing, policy, configMigration };
+    return { scanned, stripped, skippedMissing, policy };
   } finally {
     handle.close();
-  }
-}
-
-/**
- * Create `.coodra/config.json` for every registered project that still has
- * only the legacy `.coodra.json`. Idempotent — projects already carrying the
- * new file (or without a legacy file on disk, i.e. not a wired project dir)
- * are skipped. Best-effort per project.
- */
-async function migrateProjectConfigs(
-  projects: Awaited<ReturnType<typeof listProjects>>,
-): Promise<ConfigMigrationReport> {
-  const migrated: Array<{ slug: string; cwd: string }> = [];
-  const failed: Array<{ slug: string; cwd: string; error: string }> = [];
-  for (const p of projects) {
-    if (p.cwd === null) continue;
-    if (await pathExists(projectConfigPath(p.cwd))) continue; // already migrated
-    if (!(await pathExists(legacyConfigPath(p.cwd)))) continue; // not a wired project dir
-    try {
-      await ensureProjectConfig({ root: p.cwd, projectSlug: p.slug, force: false, dryRun: false });
-      migrated.push({ slug: p.slug, cwd: p.cwd });
-    } catch (err) {
-      failed.push({ slug: p.slug, cwd: p.cwd, error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-  return { migrated, failed };
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
   }
 }
 
@@ -338,17 +287,6 @@ function formatFixReportHuman(fix: FixReport): string {
       for (const f of pol.failed)
         lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(f.slug)} ${paint.inkFar(f.error)}`);
     }
-  }
-
-  // Section 3: project-local .coodra/config.json migration (Phase 2).
-  const cm = fix.configMigration;
-  if (cm.migrated.length > 0) {
-    lines.push(`  ${paint.blue('✎')} Created .coodra/config.json for ${cm.migrated.length} legacy project(s):`);
-    for (const m of cm.migrated) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(m.slug)}`);
-  }
-  if (cm.failed.length > 0) {
-    lines.push(`  ${checkGlyph('warn')} ${cm.failed.length} project(s) could not be migrated:`);
-    for (const f of cm.failed) lines.push(`    ${paint.inkFar('-')} ${paint.inkDim(f.slug)} ${paint.inkFar(f.error)}`);
   }
 
   lines.push('');

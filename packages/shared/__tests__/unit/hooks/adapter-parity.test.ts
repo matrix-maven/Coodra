@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { adaptClaudeCode } from '../../../src/hooks/adapters/claude-code.js';
+import { adaptCodex } from '../../../src/hooks/adapters/codex.js';
 import { adaptCursor } from '../../../src/hooks/adapters/cursor.js';
 import { adaptWindsurf } from '../../../src/hooks/adapters/windsurf.js';
 
@@ -59,12 +60,23 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       },
       { now: FROZEN },
     );
+    const codex = adaptCodex(
+      {
+        hook_event_name: 'PreToolUse',
+        session_id: 'codex-session-1',
+        tool_name: 'apply_patch',
+        tool_call_id: 'call-1',
+        tool_input: { file_path: 'src/auth.ts' },
+        cwd: '/home/dev/myapp',
+      },
+      { now: FROZEN },
+    );
 
     expect(ws).not.toBeNull();
     if (ws === null) return; // typescript narrow
-    for (const event of [cc, ws, cu]) {
+    for (const event of [cc, ws, cu, codex]) {
       expect(event.eventPhase).toBe('pre');
-      expect(event.toolName).toBe('Write');
+      expect(['Write', 'apply_patch']).toContain(event.toolName);
       expect(event.filePath).toBe('src/auth.ts');
       expect(event.rawAt).toBe('2026-04-25T12:00:00.000Z');
     }
@@ -80,9 +92,14 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       { conversation_id: 'conv', event_type: 'post_tool_use', tool_name: 'Bash' },
       { now: FROZEN },
     );
+    const codex = adaptCodex(
+      { hook_event_name: 'PostToolUse', session_id: 'codex', tool_name: 'Bash', tool_input: { command: 'ls' } },
+      { now: FROZEN },
+    );
     expect(cc.eventPhase).toBe('post');
     expect(ws?.eventPhase).toBe('post');
     expect(cu.eventPhase).toBe('post');
+    expect(codex.eventPhase).toBe('post');
   });
 
   it('SessionStart / SessionEnd → session_start / session_end uniformly (Phase 3 Fix A)', () => {
@@ -95,9 +112,13 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
     const ccEnd = adaptClaudeCode({ hook_event_name: 'SessionEnd', session_id: 'cc' }, { now: FROZEN });
     const cuStart = adaptCursor({ conversation_id: 'conv', event_type: 'session_start' }, { now: FROZEN });
     const cuEnd = adaptCursor({ conversation_id: 'conv', event_type: 'session_end' }, { now: FROZEN });
+    const codexStart = adaptCodex({ hook_event_name: 'SessionStart', session_id: 'codex' }, { now: FROZEN });
+    const codexEnd = adaptCodex({ hook_event_name: 'SessionEnd', session_id: 'codex' }, { now: FROZEN });
     expect(ccStart.eventPhase).toBe('session_start');
     expect(ccEnd.eventPhase).toBe('session_end');
     expect(cuStart.eventPhase).toBe('session_start');
     expect(cuEnd.eventPhase).toBe('session_end');
+    expect(codexStart.eventPhase).toBe('session_start');
+    expect(codexEnd.eventPhase).toBe('session_end');
   });
 });

@@ -39,7 +39,7 @@ describe('doctor — full registry against a controlled fixture', () => {
     // tmp dirs auto-cleaned by OS, but we don't need to leak DB handles
   });
 
-  it('greenfield (no data.db, no .coodra.json) — checks 3,4,5,12 land as red/yellow/skipped per spec', async () => {
+  it('greenfield (no data.db, no .coodra/config.json) — checks 3,4,5,12 land as red/yellow/skipped per spec', async () => {
     const ctx = buildCheckContext({
       coodraHomeOverride: home,
       cwd,
@@ -54,7 +54,7 @@ describe('doctor — full registry against a controlled fixture', () => {
     expect(get(3)?.status).toBe('red');
     expect(get(4)?.status).toBe('skipped');
     expect(get(5)?.status).toBe('skipped');
-    expect(get(12)?.status).toBe('yellow'); // .coodra.json missing → yellow w/ remediation
+    expect(get(12)?.status).toBe('yellow'); // .coodra/config.json missing → yellow w/ remediation
     expect(get(13)?.status).toBe('green'); // M03.1 closed; placeholder converted to green
     // 17/18 may be green (port free) or yellow (in use); both are acceptable in CI runners.
     expect(['green', 'yellow']).toContain(get(17)?.status);
@@ -91,7 +91,7 @@ describe('doctor — full registry against a controlled fixture', () => {
     expect(get(7)?.status).toBe('green');
     // Bridge runId logs check — no log files → skipped.
     expect(get(8)?.status).toBe('skipped');
-    // .coodra.json absent → yellow.
+    // .coodra/config.json absent → yellow.
     expect(get(12)?.status).toBe('yellow');
     expect(get(20)?.status).toBe('green'); // LOCAL_HOOK_SECRET via env
     // 21/22/23 — clean DB, no pending_jobs rows → all green.
@@ -100,7 +100,7 @@ describe('doctor — full registry against a controlled fixture', () => {
     expect(get(23)?.status).toBe('green');
   });
 
-  it('with .coodra.json pointing at a registered project — check 12 green', async () => {
+  it('with .coodra/config.json pointing at a registered project — check 12 green', async () => {
     const dataDb = join(home, 'data.db');
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     migrateSqlite(handle.db);
@@ -114,7 +114,8 @@ describe('doctor — full registry against a controlled fixture', () => {
       )
       .run(projectId, 'doctortest', 'org_test', 'doctortest');
     handle.close();
-    await writeFile(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'doctortest' }));
+    await mkdir(join(cwd, '.coodra'), { recursive: true });
+    await writeFile(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'doctortest' }));
 
     const ctx = buildCheckContext({
       coodraHomeOverride: home,

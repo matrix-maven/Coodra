@@ -8,21 +8,20 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 const here = dirname(fileURLToPath(import.meta.url));
 const cliRoot = resolve(here, '..', '..');
 const distBin = resolve(cliRoot, 'dist', 'index.js');
+const mcpBundle = resolve(cliRoot, 'dist', 'runtime', 'mcp-server', 'index.js');
 
 /**
  * Cold-install end-to-end smoke test.
  *
  * Verifies the user's Phase 2 DoD line (decision dec_83ba10c1, 2026-05-02):
  *
- *   1. A reviewer in a clean directory runs `node <bundled-cli> init`.
- *   2. After init, the four artifacts are on disk:
- *      - `<cwd>/.mcp.json` — points at the bundled mcp-server
- *      - `<cwd>/.env`     — solo-mode sentinels
- *      - `<HOME>/.claude/settings.json` — five hook entries (post-Fix-G)
- *      - `<COODRA_HOME>/data.db` — migrations applied
- *   3. The path in `.mcp.json` is `node <abs-path>` and the abs path
- *      is a real file (the bundled mcp-server).
- *   4. Spawning that mcp-server binary with stdio + a JSON-RPC
+ *   1. A reviewer in a clean directory runs `node <bundled-cli> install`,
+ *      then `node <bundled-cli> init`.
+ *   2. After the split setup, the machine runtime artifacts and project-local
+ *      `.coodra/` layout are on disk.
+ *   3. Project init does not write agent config surfaces (`.mcp.json`,
+ *      `~/.claude/settings.json`, `.codex/config.toml`, etc.).
+ *   4. Spawning the bundled mcp-server binary with stdio + a JSON-RPC
  *      `initialize` produces a valid response (handshake works).
  *
  * This is the test that catches "published install path is broken"
@@ -41,10 +40,9 @@ describe('cold install — bundled binary works end-to-end', () => {
         `dist/index.js missing at ${distBin}. Run \`pnpm --filter @coodra/cli build\` before integration tests.`,
       );
     }
-    const bundle = resolve(cliRoot, 'dist', 'runtime', 'mcp-server', 'index.js');
-    if (!existsSync(bundle)) {
+    if (!existsSync(mcpBundle)) {
       throw new Error(
-        `Bundle missing at ${bundle}. The CLI's build step bundles apps/{mcp-server,hooks-bridge}/dist into here.`,
+        `Bundle missing at ${mcpBundle}. The CLI's build step bundles apps/{mcp-server,hooks-bridge}/dist into here.`,
       );
     }
   });
@@ -52,8 +50,7 @@ describe('cold install — bundled binary works end-to-end', () => {
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), 'coodra-cold-install-cwd-'));
     home = await mkdtemp(join(tmpdir(), 'coodra-cold-install-home-'));
-    // Mock $HOME → claudeHome so init's settings.json writer doesn't
-    // touch the real ~/.claude on the dev machine.
+    // Mock $HOME so the smoke cannot touch real machine agent config homes.
     claudeHome = await mkdtemp(join(tmpdir(), 'coodra-cold-install-claude-home-'));
     await mkdir(join(claudeHome, '.claude'), { recursive: true });
     // Need a project-root marker so detectProjectRoot resolves to cwd.
@@ -64,7 +61,21 @@ describe('cold install — bundled binary works end-to-end', () => {
     /* tmp cleaned by OS */
   });
 
-  it('init writes .mcp.json + .env + .coodra.json + ~/.claude/settings.json + data.db, all consistent', async () => {
+  it('install + init write runtime state and project-local .coodra layout without agent config files', async () => {
+    const install = await execa('node', [distBin, 'install'], {
+      cwd,
+      env: {
+        ...process.env,
+        COODRA_HOME: home,
+        HOME: claudeHome,
+        // Strip parent inherits that could leak into the test.
+        COODRA_LOG_DESTINATION: undefined,
+      },
+      reject: false,
+      timeout: 30_000,
+    });
+    expect(install.exitCode, `install exited non-zero. stderr=${String(install.stderr)}`).toBe(0);
+
     const result = await execa('node', [distBin, 'init', '--project-slug', 'cold-install'], {
       cwd,
       env: {
@@ -84,71 +95,28 @@ describe('cold install — bundled binary works end-to-end', () => {
     expect((await stat(join(home, 'logs'))).isDirectory()).toBe(true);
     expect((await stat(join(home, 'pids'))).isDirectory()).toBe(true);
 
-    // 2) .coodra.json points at the slug.
-    const coodraJson = JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8'));
-    expect(coodraJson.projectSlug).toBe('cold-install');
+    // 2) .coodra/config.json points at the slug; root .coodra.json is not written.
+    const projectConfig = JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8'));
+    expect(projectConfig.projectSlug).toBe('cold-install');
+    await expect(stat(join(cwd, '.coodra.json'))).rejects.toThrow();
+    expect((await stat(join(cwd, '.coodra', 'skill-packs'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'wiki'))).isDirectory()).toBe(true);
+    await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
+    await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
 
-    // 3) .mcp.json shape: command=node, args[0] absolute and a real file.
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.coodra;
-    expect(entry.command).toBe('node');
-    expect(Array.isArray(entry.args)).toBe(true);
-    const binPath = entry.args[0] as string;
-    expect(binPath.startsWith('/')).toBe(true);
-    expect((await stat(binPath)).isFile()).toBe(true);
-    // env carries the migrations override + log destination.
-    expect(entry.env.COODRA_LOG_DESTINATION).toBe('stderr');
-    expect(typeof entry.env.COODRA_MIGRATIONS_DIR).toBe('string');
-
-    // 4) .env solo-mode sentinels. COODRA_MODE intentionally NOT
-    // in project .env per Phase 4 H5 — mode is per-machine and lives
-    // in ~/.coodra/.env (written by `team setup` / `team join`).
-    // The bridge / mcp-server boot path defaults to 'solo' when
-    // COODRA_MODE is absent, so the project .env doesn't need it.
-    const envBody = await readFile(join(cwd, '.env'), 'utf8');
+    // 4) Coodra runtime config lives in COODRA_HOME, not the user's
+    // project .env. The bridge / mcp-server boot path defaults to
+    // solo when COODRA_MODE is absent.
+    await expect(stat(join(cwd, '.env'))).rejects.toThrow();
+    const envBody = await readFile(join(home, '.env'), 'utf8');
     expect(envBody).not.toContain('COODRA_MODE=');
-    expect(envBody).toContain('CLERK_SECRET_KEY=sk_test_replace_me');
     expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
+    expect(envBody).toContain('MCP_SERVER_PORT=3100');
+    expect(envBody).toContain('HOOKS_BRIDGE_PORT=3101');
 
-    // 5) ~/.claude/settings.json got five hook entries (post-Fix-G).
-    const settingsPath = join(claudeHome, '.claude', 'settings.json');
-    const settings = JSON.parse(await readFile(settingsPath, 'utf8'));
-    expect(settings.hooks.SessionStart).toHaveLength(1);
-    expect(settings.hooks.PreToolUse).toHaveLength(1);
-    expect(settings.hooks.PostToolUse).toHaveLength(1);
-    expect(settings.hooks.Stop).toHaveLength(1);
-    // Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd registered
-    // so real Claude Code POSTs SessionEnd → bridge flips runs.status to
-    // completed AND auto-saves the Context Pack. Pre-Fix-G real sessions
-    // accumulated as `in_progress` indefinitely.
-    expect(settings.hooks.SessionEnd).toHaveLength(1);
-    const ours = settings.hooks.SessionStart[0];
-    // Phase 4 Fix F (2026-05-02): non-tool events omit `matcher` entirely.
-    // Pre-Fix-F asserted `'__coodra__'` here, but the literal sentinel
-    // never matched any tool. Fix F switched ownership detection to URL.
-    expect(ours.matcher).toBeUndefined();
-    expect(ours.hooks[0].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/hooks\/claude-code$/);
-    // Phase F.6+ (and the docblock on `ClaudeSettingsMergeOptions.
-    // localHookSecret`) inline the literal 64-hex secret here rather
-    // than the `$LOCAL_HOOK_SECRET` placeholder, so Claude Code's hook
-    // sends the right `X-Local-Hook-Secret` header without depending on
-    // its own shell-env propagation. The generator (init.ts) writes a
-    // fresh 32-byte hex string per project.
-    expect(ours.hooks[0].headers['X-Local-Hook-Secret']).toMatch(/^[0-9a-f]{64}$/);
-    // SessionEnd: same shape as SessionStart (no matcher, bridge URL).
-    const sessionEnd = settings.hooks.SessionEnd[0];
-    expect(sessionEnd.matcher).toBeUndefined();
-    expect(sessionEnd.hooks[0].url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1\/hooks\/claude-code$/);
-
-    // 6) Phase 3 Fix C (2026-05-02): Feature Pack seeded with all
-    // four files (meta.json + spec.md + implementation.md +
-    // techstack.md) so MCP `get_feature_pack`'s Promise.all-on-read
-    // does not throw ENOENT immediately after init.
-    const featurePackDir = join(cwd, 'docs', 'feature-packs', 'cold-install');
-    expect((await stat(join(featurePackDir, 'meta.json'))).isFile()).toBe(true);
-    expect((await stat(join(featurePackDir, 'spec.md'))).isFile()).toBe(true);
-    expect((await stat(join(featurePackDir, 'implementation.md'))).isFile()).toBe(true);
-    expect((await stat(join(featurePackDir, 'techstack.md'))).isFile()).toBe(true);
+    await expect(stat(join(claudeHome, '.claude', 'settings.json'))).rejects.toThrow();
+    await expect(stat(join(cwd, 'docs', 'feature-packs', 'cold-install'))).rejects.toThrow();
   }, 30_000);
 
   it('the bundled mcp-server binary spawns and answers JSON-RPC initialize', async () => {
@@ -159,10 +127,6 @@ describe('cold install — bundled binary works end-to-end', () => {
       reject: false,
       timeout: 30_000,
     });
-
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.coodra;
-    const binPath = entry.args[0] as string;
 
     // Spawn the bundled mcp-server with stdio + send `initialize` and `tools/list`.
     const initializeMsg = JSON.stringify({
@@ -179,10 +143,10 @@ describe('cold install — bundled binary works end-to-end', () => {
     const toolsListMsg = JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const stdin = `${initializeMsg}\n${initializedNotif}\n${toolsListMsg}\n`;
 
-    const child = await execa('node', [binPath, '--transport', 'stdio'], {
+    const child = await execa('node', [mcpBundle, '--transport', 'stdio'], {
       input: stdin,
       env: {
-        ...entry.env,
+        ...process.env,
         COODRA_HOME: home,
         COODRA_MODE: 'solo',
         CLERK_SECRET_KEY: 'sk_test_replace_me',
@@ -197,63 +161,5 @@ describe('cold install — bundled binary works end-to-end', () => {
     expect(out).toContain('"name":"get_feature_pack"');
     expect(out).toContain('"name":"check_policy"');
     expect(out).toContain('"name":"save_context_pack"');
-  }, 30_000);
-
-  it('Phase 3 Fix C: get_feature_pack roundtrip succeeds against the freshly seeded pack', async () => {
-    // Phase 2 verification (2026-04-28) found that pre-Fix-C init shipped
-    // only meta.json + spec.md, while apps/mcp-server/src/lib/feature-pack.ts
-    // reads all four files via Promise.all → ENOENT on missing. Every
-    // fresh install had `get_feature_pack` broken until the user
-    // hand-authored implementation.md + techstack.md. Fix C seeds all
-    // four; this test exercises the MCP roundtrip end-to-end.
-    await execa('node', [distBin, 'init', '--project-slug', 'cold-install-fpack'], {
-      cwd,
-      env: { ...process.env, COODRA_HOME: home, HOME: claudeHome, COODRA_LOG_DESTINATION: undefined },
-      reject: false,
-      timeout: 30_000,
-    });
-
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    const entry = mcpJson.mcpServers.coodra;
-    const binPath = entry.args[0] as string;
-
-    const initializeMsg = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'fpack-test', version: '1' } },
-    });
-    const initializedNotif = JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
-    const callMsg = JSON.stringify({
-      jsonrpc: '2.0',
-      id: 2,
-      method: 'tools/call',
-      params: {
-        name: 'get_feature_pack',
-        arguments: { projectSlug: 'cold-install-fpack' },
-      },
-    });
-    const stdin = `${initializeMsg}\n${initializedNotif}\n${callMsg}\n`;
-
-    const child = await execa('node', [binPath, '--transport', 'stdio'], {
-      input: stdin,
-      cwd,
-      env: {
-        ...entry.env,
-        COODRA_HOME: home,
-        COODRA_MODE: 'solo',
-        CLERK_SECRET_KEY: 'sk_test_replace_me',
-      },
-      timeout: 10_000,
-      reject: false,
-    });
-    const out = String(child.stdout);
-    expect(out).toContain('"id":2');
-    // The handler should NOT have thrown ENOENT — pre-Fix-C the
-    // Promise.all on the 4 file reads would reject before returning a
-    // tool result. Post-Fix-C the call returns successfully and the
-    // body includes the slug echo from meta.json.
-    expect(out).not.toContain('ENOENT');
-    expect(out).toContain('cold-install-fpack');
   }, 30_000);
 });

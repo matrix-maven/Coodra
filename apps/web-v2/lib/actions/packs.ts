@@ -3,7 +3,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runInit } from '@coodra/cli/lib/init';
 import { runPackDelete, runPackRegenerate } from '@coodra/cli/lib/pack';
 import { postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
@@ -41,11 +40,9 @@ import { getPack, listPacks, META_SCHEMA, packsRoot } from '@/lib/queries/packs'
  *                                     is_active = false (matches the
  *                                     real CLI behaviour).
  *
- *   installTemplateAction(formData) — typed-confirm "install <name>";
- *                                     wraps `runInit({mode:'default',
- *                                     template:<name>, force:true})`
- *                                     to overlay a template on the
- *                                     existing pack.
+ *   installTemplateAction(formData) — disabled until template installation
+ *                                     is rebuilt on a dedicated pack/template
+ *                                     path instead of `coodra init`.
  *
  * Form-side validation re-uses the CLI's slug regex. Failures
  * redirect with `?error=&errorMessage=` so the page can re-render the
@@ -204,28 +201,14 @@ export async function installTemplateAction(formData: FormData): Promise<void> {
       ),
     );
   }
-  // Template overlay = init with --force + the template selector. The
-  // pack's existing user-edited content (outside auto-marker sections)
-  // is preserved by the seedFeaturePack merge logic.
-  const result = await runInit({
-    cwd: parsed.data.cwd,
-    projectSlug: parsed.data.packSlug,
-    ide: 'claude',
-    noGraphify: true,
-    template: parsed.data.templateName,
-    mode: 'default',
-    force: true,
-  });
-  if (!result.ok) {
-    redirect(installErrorHref(returnTo, parsed.data.projectSlug, parsed.data.packSlug, result.error, result.howToFix));
-  }
-  if (returnTo !== null) {
-    const search = new URLSearchParams();
-    search.set('templateInstalled', parsed.data.templateName);
-    redirect(`${returnTo}?${search.toString()}`);
-  }
   redirect(
-    `${packDetailBase(parsed.data.projectSlug, parsed.data.packSlug)}?installed=${encodeURIComponent(parsed.data.templateName)}`,
+    installErrorHref(
+      returnTo,
+      parsed.data.projectSlug,
+      parsed.data.packSlug,
+      'template_install_unavailable',
+      'Template install is disabled while setup is refactored away from init-time feature-pack scaffolding.',
+    ),
   );
 }
 

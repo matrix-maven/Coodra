@@ -50,7 +50,7 @@ import type { Check } from './types.js';
  *   - 4  migrations at head     — schema invariant
  *   - 5  __global__ sentinel    — F7 invariant for unregistered cwds
  *   - 11 hooks-bridge /healthz  — bridge is the autonomy in-path
- *   - 12 project registered     — the cwd has a working .coodra.json
+ *   - 12 project registered     — the cwd has a working .coodra/config.json
  *   - 14 .mcp.json validity     — Claude Code can spawn the MCP server
  *   - 20 LOCAL_HOOK_SECRET set  — bridge auth contract
  *

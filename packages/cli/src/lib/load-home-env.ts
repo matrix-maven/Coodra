@@ -15,10 +15,8 @@ import { parse as parseDotenv } from 'dotenv';
  *                                 LOCAL_HOOK_SECRET, COODRA_TEAM_*) —
  *                                 these are PER-MACHINE concepts and
  *                                 the home value always wins for them.
- *   2. `<projectCwd>/.env`      — per-project overrides for everything
- *                                 ELSE (MCP_SERVER_PORT, HOOKS_BRIDGE_PORT,
- *                                 Clerk test sentinels, project-specific
- *                                 secrets).
+ *   2. `<projectCwd>/.env`      — user-managed per-project overrides for
+ *                                 everything ELSE.
  *   3. process.env              — applied by the caller; always wins
  *
  * Why home wins for the MACHINE_LEVEL_KEYS set: those keys describe the
@@ -30,12 +28,10 @@ import { parse as parseDotenv } from 'dotenv';
  * (2026-05-11): the old "project wins for everything" model was wrong
  * for these keys.
  *
- * Pre-fix history: only `<COODRA_HOME>/.env` was read, so the .env
- * `init` writes (`<cwd>/.env`) was decorative end-to-end. Solo mode
- * survived only because `COODRA_MODE` defaults to `'solo'` in
- * `baseEnvSchema`; team-mode setups silently fell back to solo. Doctor
- * check 20 (`LOCAL_HOOK_SECRET present`) was YELLOW because the
- * `LOCAL_HOOK_SECRET` `init` wrote never reached the daemon either.
+ * Pre-fix history: only `<COODRA_HOME>/.env` was read, so project `.env`
+ * overrides were decorative end-to-end. Solo mode survived only because
+ * `COODRA_MODE` defaults to `'solo'` in `baseEnvSchema`; team-mode setups
+ * silently fell back to solo.
  *
  * Either file may be absent or unreadable — that's a no-op (empty dict
  * for that layer); `coodra start` must not fail just because the
@@ -59,9 +55,9 @@ import { parse as parseDotenv } from 'dotenv';
  * Phase H.6 (2026-05-13) — added `CLERK_SECRET_KEY` and
  * `CLERK_PUBLISHABLE_KEY` to this set. Pre-fix, `coodra init` wrote
  * the solo-bypass sentinels (`sk_test_replace_me` / `pk_test_replace_me`)
- * into every project's `.env`. When `coodra feature add` later ran
- * from such a project, the sentinels overrode the real keys from
- * `~/.coodra/.env` → `verifyClerkJwtAndExtractClaims` threw the
+ * into every project's `.env`. When `coodra feature add` later ran from
+ * such a project, the sentinels overrode the real keys from `~/.coodra/.env`
+ * → `verifyClerkJwtAndExtractClaims` threw the
  * solo-bypass-sentinel error → `readVerifiedToken` returned null →
  * `feature-db.ts` fell back to the legacy (forgeable) `teamConfig.
  * team.clerkUserId`. That regressed the Phase G tamper-safety invariant.

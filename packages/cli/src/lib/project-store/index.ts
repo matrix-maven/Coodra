@@ -1,8 +1,6 @@
 export {
   type EnsureProjectConfigResult,
   ensureProjectConfig,
-  LEGACY_CONFIG_REL,
-  legacyConfigPath,
   PROJECT_CONFIG_REL,
   type ProjectConfig,
   projectConfigPath,
@@ -10,6 +8,7 @@ export {
   type WriteProjectConfigOptions,
   writeProjectConfig,
 } from './config.js';
+export { ensureProjectLayout, PROJECT_DIR_RELS } from './layout.js';
 export {
   type CleanupPolicy,
   classifyGeneratedPath,

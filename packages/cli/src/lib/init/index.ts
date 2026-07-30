@@ -38,10 +38,6 @@ class ExitSentinel extends Error {
 
 export interface RunInitInput {
   readonly projectSlug?: string;
-  readonly ide?: 'claude' | 'cursor' | 'windsurf' | 'all';
-  readonly noGraphify?: boolean;
-  readonly template?: string;
-  readonly mode?: 'minimal' | 'default' | 'auto';
   readonly cwd?: string;
   readonly home?: string;
   readonly userHome?: string;
@@ -94,11 +90,6 @@ export async function runInit(input: RunInitInput): Promise<RunInitResult> {
 
   const options: InitOptions = {
     ...(input.projectSlug !== undefined ? { projectSlug: input.projectSlug } : {}),
-    ...(input.ide !== undefined ? { ide: input.ide } : {}),
-    // CLI uses the inverted name `graphify` (boolean: true = run, false = skip).
-    ...(input.noGraphify !== undefined ? { graphify: !input.noGraphify } : {}),
-    ...(input.template !== undefined ? { template: input.template } : {}),
-    ...(input.mode !== undefined ? { mode: input.mode } : {}),
     ...(input.cwd !== undefined ? { cwd: input.cwd } : {}),
     ...(input.home !== undefined ? { home: input.home } : {}),
     ...(input.userHome !== undefined ? { userHome: input.userHome } : {}),

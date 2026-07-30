@@ -71,10 +71,10 @@ describe('agent registry — adapters', () => {
     expect(byId.windsurf?.detectionDir).toBe('.windsurf');
   });
 
-  it('windsurf advertises the Devin alias label; codex carries a post-wire note', () => {
+  it('windsurf advertises the Devin alias label; native plugin adapters carry post-wire notes', () => {
     expect(getAdapter('windsurf').aka).toBe('Devin');
-    expect(getAdapter('codex').postWireNote).toBeDefined();
-    expect(getAdapter('claude').postWireNote).toBeUndefined();
+    expect(getAdapter('codex').postWireNote).toContain('Coodra plugin');
+    expect(getAdapter('claude').postWireNote).toContain('coodra@coodra');
   });
 
   it('ACCEPTED_AGENT_TOKENS covers the canonical ids and the aliases', () => {

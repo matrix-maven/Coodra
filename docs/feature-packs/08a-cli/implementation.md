@@ -82,7 +82,7 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
   - **Check 6** — recent `policy_decisions` rows have the F14 4-segment idempotency key shape.
   - **Check 7** — recent `run_events` rows have `run_id NOT NULL` when their session has a `runs` row (F8). Severity bumped to RED in the same-merge post-S9 fix below.
   - **Check 8** — bridge `pre_tool_use_decision` log lines from the last 24h include `runId` (F15).
-  - **Check 12** — project registered for cwd (`.coodra.json` resolves) — F7 governance pre-condition.
+  - **Check 12** — project registered for cwd (`.coodra/config.json` resolves) — F7 governance pre-condition.
   - **Check 13** — Audit-write durability YELLOW until M03.1 lands; permanent-yellow severity is what flips to GREEN automatically when `313d6f0` arrives.
 - `packages/cli/src/doctor/registry.ts` — `ALL_CHECKS` registration. Output: numbered list with green ✓ / yellow ⚠ / red ✗ glyphs, one-line remediation per non-green. `--json` emits `{ checks, summary, version }`. Reds → exit 2; yellows-only → exit 1; all-green → exit 0.
 
@@ -112,12 +112,12 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 ## S5 — `coodra init` (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** First-time setup command per spec.md §11 Decision 3 (idempotent merge default; `--force` overrides to baseline). Wires S4 detection into a 13-step flow that lays down `~/.coodra/`, `.coodra.json`, `.mcp.json`, `.env`, `~/.claude/settings.json`, the seeded Feature Pack folder, and (unless `--dry-run`) calls `start` internally.
+**Scope:** First-time setup command per spec.md §11 Decision 3 (idempotent merge default; `--force` overrides to baseline). The current flow lays down `~/.coodra/`, `.coodra/config.json`, `.mcp.json`, Coodra-owned `~/.coodra/.env`, agent files, and the seeded Feature Pack folder.
 
 **What landed:**
 
 - `packages/cli/src/commands/init.ts` — full flow.
-- `packages/cli/src/lib/init/{coodra-json,mcp-merge,env-merge,claude-settings-merge,feature-pack-seed,types}.ts` — one writer per file; each returns a `WriteOutcome` of `'wrote' | 'merged' | 'unchanged' | 'forced'` so CI consumers can read progress from `--json` output.
+- `packages/cli/src/lib/init/{mcp-merge,claude-settings-merge,feature-pack-seed,types}.ts` plus the project-store writers — one writer per Coodra-owned file; each returns a `WriteOutcome` of `'wrote' | 'merged' | 'unchanged' | 'forced'` so CI consumers can read progress from `--json` output.
 - `packages/cli/src/lib/coodra-home.ts` + `runtime-paths.ts` — XDG-aware `~/.coodra/` resolver (Linux uses `$XDG_CONFIG_HOME` when set), bundled-mcp-server runtime path resolution.
 - `packages/cli/src/lib/open-local-db.ts` — opens `data.db` with the sqlite-vec extension loaded.
 - Auto-migrate via `@coodra/db::migrateSqlite`. Calls `ensureGlobalProject(handle)` for the F7 sentinel + `ensureProject(handle, { slug })` for the user's slug (the latter wired by the in-PR cleanup commit `fix(cli,db): seed projects row in init` inside the squashed merge — see §Post-S9 below).
@@ -127,9 +127,9 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 **Tests added:**
 
-- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.coodra.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run (`action: 'unchanged'`), `--force` re-run (`action: 'forced'`).
+- Unit tests against tmp project dirs covering: greenfield (no `.mcp.json`, no `.coodra/config.json`), existing `.mcp.json` with another MCP server (idempotent merge keeps the other entry), existing `docs/feature-packs/` with a different slug (conflict path), Graphify-absent path, `--dry-run`, idempotent re-run, and `--force` re-run.
 - `__tests__/integration/init.test.ts` — greenfield + idempotent + `--force` + `.mcp.json` preservation + `--dry-run` + secrets-leak invariant + `EXIT_USER_RECOVERABLE` on no-marker.
-- The `init`-writes-sentinels-only assertion: parses the written `.env` and fails if any of the disallowed keys (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `GITHUB_APP_*`, `ATLASSIAN_*`, `SUPABASE_*`, `UPSTASH_*`) appears with a non-empty value. Per spec §6 agent-human boundary.
+- The init secret-safety assertion checks Coodra-owned runtime env and fails if any of the disallowed keys (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `OPENAI_API_KEY`, `GITHUB_APP_*`, `ATLASSIAN_*`, `SUPABASE_*`, `UPSTASH_*`) appears with a non-empty value. Per spec §6 agent-human boundary.
 
 **Gate:** drive `init` against a tmpdir, then immediately drive `verify-phase5-closed-loop.ts` against the resulting bridge config — must succeed with one `runs` row (F8/F9/F14 invariants live).
 
@@ -171,7 +171,7 @@ The plan splits Module 08a into 10 slices (S0–S9). Each slice landed as one lo
 
 ## S8 — `coodra status` + `team login` / `team logout` stubs (landed 2026-04-27, squashed in `93736f6`)
 
-**Scope:** Unified state probe per `spec.md §4.6` merging project state (read `<cwd>/.coodra.json`, latest `runs` + recent decisions + non-empty `context_memory/blockers.md`) and service state (live HTTP `/healthz` probe; no daemon-manager `list()` reliance, that path is fragile per the M02 finding around stale subprocess state). `team login` / `team logout` ship as stubs that exit 2 with a deferred-body message per spec.md §11 Decision 1.
+**Scope:** Unified state probe per `spec.md §4.6` merging project state (read `<cwd>/.coodra/config.json`, latest `runs` + recent decisions + non-empty `context_memory/blockers.md`) and service state (live HTTP `/healthz` probe; no daemon-manager `list()` reliance, that path is fragile per the M02 finding around stale subprocess state). `team login` / `team logout` ship as stubs that exit 2 with a deferred-body message per spec.md §11 Decision 1.
 
 **What landed:**
 
@@ -240,7 +240,7 @@ The next seven commits extended the CLI surface as Module 03.1 / functest-cleanu
 
 ### Post-S9.3 — Layered .env loader (Finding A from 2026-04-28 functest) (landed 2026-04-28, commits `6d16b2c` + `6bc0cad` + `0c0768a`)
 
-**Scope:** Functest 2026-04-28 surfaced Finding A: `init` writes `.env` but `resolveServices` doesn't load it before spawning daemons; the spawned bridge sees empty `LOCAL_HOOK_SECRET`. Two-layer fix landed across three commits.
+**Scope:** Functest 2026-04-28 surfaced Finding A: historical `init` wrote project `.env` but `resolveServices` didn't load it before spawning daemons; the spawned bridge saw empty `LOCAL_HOOK_SECRET`. Two-layer fix landed across three commits. Current behavior after COOD-13: init persists Coodra runtime config in `~/.coodra/.env` and leaves the project's application `.env` untouched.
 
 **What landed in `packages/cli/`:**
 
@@ -287,7 +287,7 @@ Slices that touch DB / bridge config / auto-migrate paths must leave both manual
 | Slice | Touches | Harness must pass after slice |
 |---|---|---|
 | S3 (doctor) | reads DB, reads bridge logs | `verify-f5-live.ts` (no impact expected) |
-| S5 (init) | writes DB, writes `.coodra.json`, writes `.mcp.json`, writes `.env` | `verify-phase5-closed-loop.ts` against the just-init'd project |
+| S5 (init) | writes DB, writes `.coodra/config.json`, writes `.mcp.json`, writes Coodra runtime values to `~/.coodra/.env` | `verify-phase5-closed-loop.ts` against the just-init'd project |
 | S7 (start/stop) | starts/stops bridge + MCP | `verify-phase5-closed-loop.ts` end-to-end |
 | S8 (status) | reads bridge + MCP via /healthz | both harnesses |
 

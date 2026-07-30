@@ -1,7 +1,6 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { defaultClaudeSettingsPath, mergeClaudeSettings, removeClaudeSettings } from '../init/claude-settings-merge.js';
-import { CODEX_PROJECT_CONFIG_NOTE, mergeCodexConfig, removeCodexConfig } from '../init/codex-merge.js';
+import { removeCodexConfig } from '../init/codex-merge.js';
 import { mergeCursorMcpConfig, removeCursorMcpConfig } from '../init/cursor-merge.js';
 import { type InstructionFileName, mergeInstructionFile, removeInstructionBlock } from '../init/instruction-files.js';
 import { buildCoodraMcpEntry } from '../init/mcp-merge.js';
@@ -11,13 +10,9 @@ import {
   mergeWindsurfMcpConfig,
   removeWindsurfMcpConfig,
 } from '../init/windsurf-merge.js';
-import {
-  probeCodexConfig,
-  probeInstructionFile,
-  probeMcpJson,
-  probeSettingsJson,
-  toFileState,
-} from './status-probes.js';
+import { installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
+import { installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
+import { probeInstructionFile, probeMcpJson, toFileState } from './status-probes.js';
 import type {
   AgentAdapter,
   AgentContext,
@@ -65,8 +60,8 @@ async function instructionFileState(cwd: string, filename: InstructionFileName):
 }
 
 // ---------------------------------------------------------------------------
-// claude — ~/.claude/settings.json (hooks) + CLAUDE.md. (.mcp.json is
-// project-level, ensured by the command layer, not here.)
+// claude — global native Claude Code plugin via a Coodra-owned local marketplace.
+// Source lives under ~/.coodra; Claude owns registry/cache under ~/.claude.
 // ---------------------------------------------------------------------------
 
 const claudeAdapter: AgentAdapter = {
@@ -74,41 +69,49 @@ const claudeAdapter: AgentAdapter = {
   displayName: 'Claude Code',
   agentType: 'claude_code',
   detectionDir: '.claude',
+  postWireNote: 'Restart Claude Code or run /reload-plugins, then confirm Coodra appears as coodra@coodra in /plugin.',
   detect: (userHome) => detectDir(userHome, '.claude'),
   async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const settingsPath = ctx.settingsPath ?? defaultClaudeSettingsPath(ctx.userHome);
+    const probe = await probeClaudePlugin(ctx);
     const files: AgentFileState[] = [
       {
-        label: '~/.claude/settings.json',
-        path: settingsPath,
-        state: toFileState(await probeSettingsJson(settingsPath)),
+        label: 'Claude user plugin enablement',
+        path: probe.paths.settingsPath,
+        state: probe.enabled ? 'wired' : 'missing',
       },
-      await instructionFileState(ctx.cwd, 'CLAUDE.md'),
+      {
+        label: 'Claude local marketplace',
+        path: probe.paths.marketplacePath,
+        state: probe.marketplace ? 'wired' : 'missing',
+      },
+      {
+        label: 'Claude plugin manifest',
+        path: probe.paths.cacheManifestPath,
+        state: probe.manifest ? 'wired' : 'missing',
+      },
+      {
+        label: 'Claude plugin MCP',
+        path: probe.paths.cacheMcpPath,
+        state: probe.mcp ? 'wired' : 'missing',
+      },
+      {
+        label: 'Claude plugin hooks',
+        path: probe.paths.cacheHooksPath,
+        state: probe.hooks ? 'wired' : 'missing',
+      },
+      {
+        label: 'Claude plugin skills',
+        path: probe.paths.cacheSkillsRoot,
+        state: probe.skills ? 'wired' : 'missing',
+      },
     ];
     return buildStatus(this, await this.detect(ctx.userHome), files);
   },
   async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    const settingsPath = ctx.settingsPath ?? defaultClaudeSettingsPath(ctx.userHome);
-    const merge = await mergeClaudeSettings({
-      settingsPath,
-      bridgePort: ctx.bridgePort,
-      ...(ctx.localHookSecret !== undefined ? { localHookSecret: ctx.localHookSecret } : {}),
-      force: ctx.force,
-      dryRun: ctx.dryRun,
-    });
-    const instr = await mergeInstructionFile({
-      cwd: ctx.cwd,
-      filename: 'CLAUDE.md',
-      projectSlug: ctx.projectSlug,
-      dryRun: ctx.dryRun,
-    });
-    return [merge.outcome, instr];
+    return (await installClaudePlugin(ctx)).outcomes;
   },
   async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    const settingsPath = ctx.settingsPath ?? defaultClaudeSettingsPath(ctx.userHome);
-    const rm = await removeClaudeSettings({ settingsPath, bridgePort: ctx.bridgePort, dryRun: ctx.dryRun });
-    const instr = await removeInstructionBlock({ cwd: ctx.cwd, filename: 'CLAUDE.md', dryRun: ctx.dryRun });
-    return [rm.outcome, instr];
+    return (await removeClaudePlugin(ctx)).outcomes;
   },
 };
 
@@ -153,7 +156,7 @@ const cursorAdapter: AgentAdapter = {
 };
 
 // ---------------------------------------------------------------------------
-// codex — .codex/config.toml + AGENTS.md
+// codex — global Codex plugin via the local personal marketplace.
 // ---------------------------------------------------------------------------
 
 const codexAdapter: AgentAdapter = {
@@ -161,35 +164,48 @@ const codexAdapter: AgentAdapter = {
   displayName: 'Codex',
   agentType: 'codex',
   detectionDir: '.codex',
-  postWireNote: CODEX_PROJECT_CONFIG_NOTE,
+  postWireNote:
+    'Restart Codex, install/enable the Coodra plugin from the Personal marketplace if prompted, then review/trust bundled hooks with /hooks.',
   detect: (userHome) => detectDir(userHome, '.codex'),
   async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const tomlPath = join(ctx.cwd, '.codex', 'config.toml');
+    const probe = await probeCodexPlugin(ctx);
     const files: AgentFileState[] = [
-      { label: '.codex/config.toml', path: tomlPath, state: toFileState(await probeCodexConfig(tomlPath)) },
-      await instructionFileState(ctx.cwd, 'AGENTS.md'),
+      {
+        label: '~/.agents/plugins/marketplace.json',
+        path: probe.paths.marketplacePath,
+        state: probe.marketplace ? 'wired' : 'missing',
+      },
+      {
+        label: 'Codex plugin manifest',
+        path: probe.paths.manifestPath,
+        state: probe.manifest ? 'wired' : 'missing',
+      },
+      {
+        label: 'Codex plugin MCP',
+        path: probe.paths.mcpPath,
+        state: probe.mcp ? 'wired' : 'missing',
+      },
+      {
+        label: 'Codex plugin hooks',
+        path: probe.paths.hooksPath,
+        state: probe.hooks ? 'wired' : 'missing',
+      },
+      {
+        label: 'Codex plugin skills',
+        path: probe.paths.skillsRoot,
+        state: probe.skills ? 'wired' : 'missing',
+      },
     ];
     return buildStatus(this, await this.detect(ctx.userHome), files);
   },
   async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    const toml = await mergeCodexConfig({
-      cwd: ctx.cwd,
-      entry: mcpEntry(ctx, 'codex'),
-      force: ctx.force,
-      dryRun: ctx.dryRun,
-    });
-    const instr = await mergeInstructionFile({
-      cwd: ctx.cwd,
-      filename: 'AGENTS.md',
-      projectSlug: ctx.projectSlug,
-      dryRun: ctx.dryRun,
-    });
-    return [toml, instr];
+    return (await installCodexPlugin(ctx)).outcomes;
   },
   async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    const toml = await removeCodexConfig({ cwd: ctx.cwd, dryRun: ctx.dryRun });
-    const instr = await removeInstructionBlock({ cwd: ctx.cwd, filename: 'AGENTS.md', dryRun: ctx.dryRun });
-    return [toml, instr];
+    const plugin = await removeCodexPlugin(ctx);
+    const legacyMcp = await removeCodexConfig({ cwd: ctx.cwd, dryRun: ctx.dryRun });
+    const legacyInstr = await removeInstructionBlock({ cwd: ctx.cwd, filename: 'AGENTS.md', dryRun: ctx.dryRun });
+    return [...plugin.outcomes, legacyMcp, legacyInstr];
   },
 };
 

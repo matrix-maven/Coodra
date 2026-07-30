@@ -10,14 +10,14 @@ import type { WriteOutcome } from '../init/types.js';
  * The registry collapses those into one adapter per agent; `coodra agent
  * add/status/remove/repair`, `coodra init`, and `coodra agents` all drive it.
  *
- * Ownership boundary (locked by the init test "asks per agent…", 2026-07-02):
- * `.mcp.json` is the PROJECT-level Coodra MCP registration, NOT a per-agent
- * surface — it is ensured by the command layer (`ensureProjectMcpJson`),
- * unconditionally by init and per `coodra agent add`. Adapters own only the
- * per-agent surfaces:
- *   - claude   → ~/.claude/settings.json (hooks) + CLAUDE.md
+ * Ownership boundary:
+ * `coodra init` owns only `<repo>/.coodra/`. `coodra agent add` owns the
+ * native agent surfaces. Codex and Claude now use global plugin bundles; the
+ * other adapters still use their current MCP/instruction surfaces until their
+ * native-plugin features land:
+ *   - claude   → ~/.coodra/claude-marketplaces/coodra + ~/.claude plugin registry/cache/settings
  *   - cursor   → .cursor/mcp.json + .cursorrules
- *   - codex    → .codex/config.toml + AGENTS.md
+ *   - codex    → ~/.agents/plugins/marketplace.json + ~/.codex/plugins/coodra
  *   - windsurf → ~/.codeium/windsurf/mcp_config.json (global) + .windsurfrules
  */
 
@@ -55,9 +55,9 @@ export interface AgentStatus {
 
 /** Filesystem anchors shared by status / wire / remove. */
 export interface AgentPathContext {
-  /** Project root — anchors project-scoped files (.mcp.json, .cursorrules, …). */
+  /** Project root — anchors project-scoped files for legacy adapters and project reads. */
   readonly cwd: string;
-  /** $HOME — anchors global files (~/.claude/settings.json, ~/.codeium/windsurf/…). */
+  /** $HOME — anchors global native agent files. */
   readonly userHome: string;
   /** Override for ~/.claude/settings.json (tests). */
   readonly settingsPath?: string;
@@ -76,6 +76,7 @@ export interface AgentContext extends AgentPathContext {
 
 /** What an adapter needs to REMOVE the per-agent surfaces. */
 export interface AgentRemoveContext extends AgentPathContext {
+  readonly coodraHome: string;
   readonly bridgePort: number;
   readonly dryRun: boolean;
 }

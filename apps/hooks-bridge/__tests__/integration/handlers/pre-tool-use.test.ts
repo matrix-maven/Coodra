@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDb, type DbHandle, migrateSqlite, sqliteSchema } from '@coodra/db';
@@ -18,7 +18,7 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  * back through the agent's response shape.
  *
  * Layout:
- *   - tmp dir with `.coodra.json` containing a project slug
+ *   - tmp dir with `.coodra/config.json` containing a project slug
  *   - sqlite path inside the tmp dir; migrations applied at setup
  *   - one project row + one policy row + one rule denying writes to
  *     `src/auth/**` for any agent
@@ -46,7 +46,8 @@ function makeEnv(): AuthEnv {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'pre-tool-test-'));
   const slug = `test-proj-${randomUUID().slice(0, 8)}`;
-  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
+  mkdirSync(join(cwd, '.coodra'), { recursive: true });
+  writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   // sqlite-vec MUST be loaded — migration 0001's hand-written

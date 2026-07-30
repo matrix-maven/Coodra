@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,11 +12,11 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  * M04 Phase 2 S1 (F3 root-cause fix) — locks `resolveAndEnsure()`'s
  * contract:
  *
- *   1. When a `.coodra.json` slug exists + projects row exists →
+ *   1. When a `.coodra/config.json` slug exists + projects row exists →
  *      returns existing id; no insert.
- *   2. When a `.coodra.json` slug exists but projects row doesn't →
+ *   2. When a `.coodra/config.json` slug exists but projects row doesn't →
  *      auto-creates the row + returns the new id.
- *   3. When no `.coodra.json` exists → derives slug from
+ *   3. When no `.coodra/config.json` exists → derives slug from
  *      `basename(cwd)` + auto-creates.
  *   4. Reserved basenames (tmp, var, root, etc.) → returns
  *      `{ slug: undefined, projectId: undefined }` (caller falls back
@@ -47,11 +47,12 @@ async function freshDb() {
 }
 
 describe('resolveAndEnsure — F3 root-cause fix', () => {
-  it('returns the existing projectId when both .coodra.json and the row exist', async () => {
+  it('returns the existing projectId when both .coodra/config.json and the row exist', async () => {
     const db = await freshDb();
     if (db.kind !== 'sqlite') throw new Error('expected sqlite');
     const cwd = mkdtempSync(join(tmpRoot, 'has-sidecar-and-row-'));
-    writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'pre-existing' }));
+    mkdirSync(join(cwd, '.coodra'), { recursive: true });
+    writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'pre-existing' }));
     await db.db.insert(sqliteSchema.projects).values({
       id: 'pre-existing-id',
       slug: 'pre-existing',
@@ -63,11 +64,15 @@ describe('resolveAndEnsure — F3 root-cause fix', () => {
     expect(r).toEqual({ slug: 'pre-existing', projectId: 'pre-existing-id' });
   });
 
-  it('auto-creates the projects row when .coodra.json names an unregistered slug', async () => {
+  it('auto-creates the projects row when .coodra/config.json names an unregistered slug', async () => {
     const db = await freshDb();
     if (db.kind !== 'sqlite') throw new Error('expected sqlite');
     const cwd = mkdtempSync(join(tmpRoot, 'has-sidecar-no-row-'));
-    writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'auto-created-from-sidecar' }));
+    mkdirSync(join(cwd, '.coodra'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.coodra', 'config.json'),
+      JSON.stringify({ version: 1, projectSlug: 'auto-created-from-sidecar' }),
+    );
     const resolver = createProjectSlugResolver();
     const r = await resolver.resolveAndEnsure(cwd, db);
     expect(r.slug).toBe('auto-created-from-sidecar');
@@ -81,7 +86,7 @@ describe('resolveAndEnsure — F3 root-cause fix', () => {
     expect(rows[0]?.id).toBe(r.projectId);
   });
 
-  it('derives slug from basename(cwd) when no .coodra.json exists', async () => {
+  it('derives slug from basename(cwd) when no .coodra/config.json exists', async () => {
     const db = await freshDb();
     if (db.kind !== 'sqlite') throw new Error('expected sqlite');
     const cwd = mkdtempSync(join(tmpRoot, 'derive-from-basename-')); // basename will be 'derive-from-basename-XXXXXX'
@@ -144,7 +149,11 @@ describe('resolveAndEnsure — F3 root-cause fix', () => {
   it('resolve() (read-only path) does NOT auto-create — preserves the soft-fail contract', async () => {
     const db = await freshDb();
     const cwd = mkdtempSync(join(tmpRoot, 'read-only-'));
-    writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'should-not-auto-create' }));
+    mkdirSync(join(cwd, '.coodra'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.coodra', 'config.json'),
+      JSON.stringify({ version: 1, projectSlug: 'should-not-auto-create' }),
+    );
     const resolver = createProjectSlugResolver();
     const r = await resolver.resolve(cwd, db);
     expect(r.slug).toBe('should-not-auto-create');

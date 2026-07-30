@@ -1,7 +1,8 @@
-import { readFile, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { openLocalDb } from '../../lib/open-local-db.js';
+import { readProjectConfig } from '../../lib/project-store/index.js';
 import type { Check } from '../types.js';
 
 /**
@@ -49,19 +50,17 @@ export const preToolUseLoopCheck: Check = {
   name: 'PreToolUse synthetic POST returns deny for Write→.env (proves enforcement loop)',
   severity: 'red',
   async run(ctx) {
-    // Don't fire the synthetic when the cwd has no `.coodra.json`. The
+    // Don't fire the synthetic when the cwd has no `.coodra/config.json`. The
     // bridge would otherwise auto-create a project from `basename(cwd)`
     // (per `resolveAndEnsure`), polluting the projects table with one row
     // per `coodra doctor` invocation from an un-registered folder. The
     // policy-enforcement loop is meaningless for a freshly-derived project
     // anyway — no rules are seeded for it. Check 12 already covers the
-    // missing-sidecar case.
-    try {
-      await stat(join(ctx.cwd, '.coodra.json'));
-    } catch {
+    // missing-config case.
+    if ((await readProjectConfig(ctx.cwd)) === null) {
       return {
         status: 'yellow',
-        detail: 'cwd has no .coodra.json — skipping synthetic enforcement probe (would auto-create a stub project).',
+        detail: 'cwd has no .coodra/config.json — skipping synthetic enforcement probe (would auto-create a stub project).',
         remediation: 'Run `coodra init` from the project root to register it, then re-run doctor.',
       };
     }

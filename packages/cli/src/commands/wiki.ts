@@ -10,6 +10,7 @@ import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { openBrowser } from '../lib/browser-handoff.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
+import { readProjectConfig } from '../lib/project-store/index.js';
 import { assembleGrounding, renderGroundingMarkdown } from '../lib/wiki/grounding.js';
 import { assembleKnowledgeGrounding, type KnowledgeGrounding } from '../lib/wiki/knowledge.js';
 import {
@@ -58,19 +59,10 @@ interface ResolvedProject {
   readonly projectSlug: string;
 }
 
-/** Resolve the project: `.coodra.json::projectSlug` if present, else the directory basename. */
-function resolveProject(cwdOverride: string | undefined): ResolvedProject {
+/** Resolve the project: `.coodra/config.json::projectSlug` if present, else the directory basename. */
+async function resolveProject(cwdOverride: string | undefined): Promise<ResolvedProject> {
   const cwd = cwdOverride ?? process.cwd();
-  let projectSlug: string | undefined;
-  const sidecar = join(cwd, '.coodra.json');
-  if (existsSync(sidecar)) {
-    try {
-      const json = JSON.parse(readFileSync(sidecar, 'utf8')) as { projectSlug?: unknown };
-      if (typeof json.projectSlug === 'string' && json.projectSlug.length > 0) projectSlug = json.projectSlug;
-    } catch {
-      // ignore malformed sidecar — fall back to basename.
-    }
-  }
+  const projectSlug = (await readProjectConfig(cwd))?.projectSlug;
   return { cwd, projectSlug: projectSlug ?? basename(cwd) };
 }
 
@@ -120,7 +112,7 @@ export async function runWikiGenerateCommand(
   options: WikiGenerateOptions = {},
   io: WikiIO = DEFAULT_WIKI_IO,
 ): Promise<never> {
-  const { cwd, projectSlug } = resolveProject(options.cwd);
+  const { cwd, projectSlug } = await resolveProject(options.cwd);
   const json = options.json === true;
 
   // Mode.
@@ -331,7 +323,7 @@ export async function runWikiStatusCommand(
   options: WikiStatusOptions = {},
   io: WikiIO = DEFAULT_WIKI_IO,
 ): Promise<never> {
-  const { projectSlug } = resolveProject(options.cwd);
+  const { projectSlug } = await resolveProject(options.cwd);
   const env = options.env ?? process.env;
   const dataDb = resolveCoodraDataDb(resolveCoodraHome({ env }));
   const { projectFound, wikis } = await loadWikis(dataDb, projectSlug);
@@ -378,7 +370,7 @@ export interface WikiListOptions {
 }
 
 export async function runWikiListCommand(options: WikiListOptions = {}, io: WikiIO = DEFAULT_WIKI_IO): Promise<never> {
-  const { projectSlug } = resolveProject(options.cwd);
+  const { projectSlug } = await resolveProject(options.cwd);
   const env = options.env ?? process.env;
   const dataDb = resolveCoodraDataDb(resolveCoodraHome({ env }));
   const { wikis } = await loadWikis(dataDb, projectSlug);
@@ -449,7 +441,7 @@ export async function runWikiCleanCommand(
   options: WikiCleanOptions = {},
   io: WikiIO = DEFAULT_WIKI_IO,
 ): Promise<never> {
-  const { projectSlug } = resolveProject(options.cwd);
+  const { projectSlug } = await resolveProject(options.cwd);
   const env = options.env ?? process.env;
   const slug = toWikiSlug(rawSlug);
   const dataDb = resolveCoodraDataDb(resolveCoodraHome({ env }));

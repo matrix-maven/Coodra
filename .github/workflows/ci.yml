@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up pnpm
-        # Version is read from `packageManager` in package.json (pinned to pnpm@10.33.0).
+        # Version is read from `packageManager` in package.json (baseline pnpm@10.33.0).
         # Do NOT add `with: version:` — pnpm/action-setup@v5 rejects the run with
         # "Multiple versions of pnpm specified" when both sources are set.
         uses: pnpm/action-setup@v5
@@ -30,6 +30,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
+          # `.nvmrc` is the CI baseline. package.json engines intentionally allow
+          # newer Node majors after package smoke tests pass.
           node-version-file: .nvmrc
           cache: pnpm
 

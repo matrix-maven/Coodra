@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -80,7 +80,8 @@ function makeEnv(): AuthEnv {
 beforeAll(async () => {
   const cwd = mkdtempSync(join(tmpdir(), 'phase4-fix-f-test-'));
   const slug = 'phase4-fix-f-coverage';
-  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: slug }));
+  mkdirSync(join(cwd, '.coodra'), { recursive: true });
+  writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: slug }));
 
   const sqlitePath = join(cwd, 'data.db');
   const handle = createDb({ kind: 'local', sqlite: { path: sqlitePath } });

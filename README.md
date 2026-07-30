@@ -14,7 +14,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
 
 **Memory, project context, and policy guardrails for AI coding agents.**
-**Works with Claude Code, Cursor, and Windsurf — local-first, MIT.**
+**Works with Claude Code, Codex, Cursor, and Devin/Windsurf — local-first, MIT.**
 
 </div>
 
@@ -23,10 +23,16 @@
 Your AI agent forgets what it decided last session. It re-learns your project conventions every single time. It writes to files it shouldn't. Coodra fixes all three — by injecting **architectural context** at session start, recording **durable memory** as the session runs, and enforcing **policy rules** before every write. One command to install. Runs entirely on your laptop.
 
 ```bash
-npm i -g @coodra/cli@beta && coodra init && coodra start
+npm i -g @coodra/cli@beta && coodra install && coodra init && coodra start
 ```
 
-Then open Claude Code (or Cursor / Windsurf) in your project. The agent picks up the Feature Pack on its very first turn. That's it.
+pnpm users can install globally with native SQLite build approval:
+
+```bash
+pnpm add -g @coodra/cli@beta --allow-build=better-sqlite3
+```
+
+`coodra install` prepares the machine-level Coodra runtime under `~/.coodra/` and records the machine ledger in `~/.coodra/manifest.json`; this is the place for native agent plugin setup. `coodra init` is project-local: it registers the repo and creates `<repo>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}` without writing root `.env`, `.mcp.json`, or per-agent files. Add or repair an agent plugin later with `coodra agent add codex` (or `cursor`, `claude`, `devin`). The Codex path now installs a native global Coodra plugin with bundled skills, MCP, and hooks through the local personal plugin marketplace.
 
 ---
 
@@ -48,7 +54,7 @@ Plus an **on-demand skill layer** (Anthropic Skills pattern) the agent pulls onl
 
 ```mermaid
 flowchart LR
-  A["Claude Code<br/>Cursor<br/>Windsurf"]
+  A["Claude Code<br/>Codex<br/>Cursor<br/>Devin/Windsurf"]
   B["MCP Server<br/>:3100<br/>20 tools"]
   H["Hooks Bridge<br/>:3101<br/>Pre / Post / Start / End"]
   S["Sync Daemon<br/>team mode only"]
@@ -185,7 +191,7 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 └── runtime/                drizzle migrations + bundled native modules
 ```
 
-Single tarball via esbuild — `npm i -g @coodra/cli` is the only install step. Native modules (`better-sqlite3`, `sqlite-vec`) stay external so they install correctly per platform.
+Single tarball via esbuild — `npm i -g @coodra/cli` is the default install step. pnpm global installs use `pnpm add -g @coodra/cli --allow-build=better-sqlite3` because pnpm 10 blocks native dependency build scripts unless explicitly approved. Native modules (`better-sqlite3`, `sqlite-vec`) stay external so they install correctly per platform.
 
 ### Platform support
 
@@ -193,9 +199,9 @@ Single tarball via esbuild — `npm i -g @coodra/cli` is the only install step. 
 |---|---|---|
 | macOS (arm64 / x64) | ✅ Full | launchd-managed daemons; all surfaces |
 | Linux (x64 / arm64) | ✅ Full | systemd-user daemons; all surfaces |
-| **Windows (x64)** | ✅ **Core** | `npm i -g @coodra/cli` → `coodra init` → `coodra start` wires **Claude Code** (MCP server + Hooks Bridge). Daemons run via the detached-child fallback manager; native `better-sqlite3` + `sqlite-vec-windows-x64` install per-platform. Proven by the `windows-latest` CI smoke. |
+| **Windows (x64)** | ✅ **Core** | `npm i -g @coodra/cli` → `coodra install` → `coodra init` → `coodra start` prepares the machine runtime and registers a project. Daemons run via the detached-child fallback manager; native `better-sqlite3` + `sqlite-vec-windows-x64` install per-platform. Proven by the `windows-latest` CI smoke. |
 
-On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), the **Cursor / Windsurf** shell hook adapters (`.sh` + `curl` + `python3` — Claude Code's HTTP hooks are unaffected), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
+On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), the **Cursor / Devin/Windsurf** shell hook adapters (`.sh` + `curl` + `python3` — Claude Code's HTTP hooks are unaffected), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
 
 ---
 

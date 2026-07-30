@@ -535,11 +535,21 @@ export class ToolRegistry {
         });
     }
 
+    const textOutput =
+      outValidated.data !== null &&
+      typeof outValidated.data === 'object' &&
+      !Array.isArray(outValidated.data) &&
+      'hookOutput' in outValidated.data &&
+      typeof (outValidated.data as { hookOutput?: unknown }).hookOutput === 'object' &&
+      (outValidated.data as { hookOutput?: unknown }).hookOutput !== null
+        ? (outValidated.data as { hookOutput: unknown }).hookOutput
+        : { ok: true, data: outValidated.data };
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({ ok: true, data: outValidated.data }),
+          text: JSON.stringify(textOutput),
         },
       ],
       structuredContent: outValidated.data,

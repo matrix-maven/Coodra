@@ -158,7 +158,7 @@ This is access governance for AI agents — not just context injection.
 Coodra doesn't ask you to adopt a new IDE or rewrite your workflow. It wires into the
 tools you run:
 
-- **MCP‑native** — one server, 20 tools, consumed by Claude Code, Cursor, Windsurf, and
+- **MCP‑native** — one server, 21 tools, consumed by Claude Code, Cursor, Windsurf, and
   Codex alike. A hooks bridge adds zero‑effort Feature‑Pack injection and Context‑Pack
   capture on Claude Code and Cursor.
 - **Jira (via Atlassian's Rovo MCP)** — Coodra doesn't rebuild a Jira client; it wires

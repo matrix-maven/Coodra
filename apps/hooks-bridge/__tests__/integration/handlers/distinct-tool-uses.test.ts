@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -86,7 +86,8 @@ beforeAll(async () => {
     reason: 'forbidden by F14 test',
   });
 
-  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: PROJECT_SLUG }));
+  mkdirSync(join(cwd, '.coodra'), { recursive: true });
+  writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: PROJECT_SLUG }));
 
   const policy = createPolicyClient({ db: handle, cacheTtlMs: 100 });
   const projectSlugResolver = createProjectSlugResolver({ cacheTtlMs: 100 });

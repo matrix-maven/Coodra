@@ -50,6 +50,7 @@ import {
   runGraphifyOpenCommand,
 } from './commands/graphify-artifacts.js';
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
+import { type InstallIO, type InstallOptions, runInstallCommand } from './commands/install.js';
 import { type InviteIO, type InviteOptions, runInviteCommand } from './commands/invite.js';
 import {
   type JiraDisableOptions,
@@ -171,6 +172,8 @@ interface BuildProgramOptions {
   readonly initIO?: InitIO;
   /** Replace the init handler for unit tests. */
   readonly runInit?: (options: InitOptions, io?: InitIO) => Promise<unknown>;
+  readonly installIO?: InstallIO;
+  readonly runInstall?: (options: InstallOptions, io?: InstallIO) => Promise<unknown>;
   readonly startIO?: StartIO;
   readonly runStart?: (options: StartOptions, io?: StartIO) => Promise<unknown>;
   readonly stopIO?: StopIO;
@@ -319,12 +322,23 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .helpOption('-h, --help', 'Show help for a command.')
     .showHelpAfterError(false);
 
+  const installRunner = options.runInstall ?? runInstallCommand;
+  program
+    .command('install')
+    .description('Install or repair machine-level Coodra runtime state (~/.coodra, data.db, runtime env).')
+    .option('--dry-run', 'Print what install would prepare without touching disk.')
+    .option('--json', 'Emit structured JSON instead of human-readable text.')
+    .action(async (opts: InstallOptions) => {
+      await installRunner(opts, options.installIO);
+    });
+
   const initRunner = options.runInit ?? runInitCommand;
   program
     .command('init')
-    .description('Initialise Coodra in the current project (writes ~/.coodra/, .mcp.json, .coodra.json, .env).')
+    .description(
+      'Initialise Coodra in the current project (writes project-local .coodra/ config, manifest, skill-packs, graphify, and wiki dirs).',
+    )
     .option('--project-slug <slug>', 'Project slug; derives from path.basename(cwd) when omitted.')
-    .option('--ide <ide>', 'IDE to wire ("claude", "cursor", "windsurf", "codex", or "all").')
     .option(
       '--team',
       'On a team-mode machine: register this project under the team org (syncs to cloud). Default on a team machine; skips the interactive prompt.',
@@ -333,34 +347,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--solo',
       'On a team-mode machine: register this project as local-only (never synced to the team), even though the machine is in team mode.',
     )
-    .option(
-      '--graphify',
-      "Module 09: wire Graphify's codebase-graph MCP server (structural-query tool) into the agent config(s). Skips the interactive prompt.",
-    )
-    .option('--no-graphify', "Module 09: don't wire Graphify; skip the interactive prompt.")
-    .option(
-      '--jira',
-      "Module 09: wire Atlassian's Jira (Rovo) remote MCP server into the agent config(s). Skips the interactive prompt.",
-    )
-    .option('--no-jira', "Module 09: don't wire Jira; skip the interactive prompt.")
     .option('--dry-run', 'Print what init would write without touching disk.')
     .option('--force', 'Overwrite existing files with the baseline (destructive — see spec §11 Decision 3).')
-    .option(
-      '--template <name|path>',
-      'Module 08b S13: feature-pack template selector. Bundled options: generic, nextjs-saas, python-fastapi, python-ml, node-monorepo, rust-cli, go-service. Pass a path (./local-dir or absolute) to load from disk.',
-    )
-    .option(
-      '--mode <mode>',
-      'minimal (default; legacy skeleton) | default (template-driven) | auto (detect a template from project shape).',
-    )
-    .option(
-      '--feature-pack <mode>',
-      'How to seed docs/feature-packs/<slug>/. "template" (default) renders the 4-file template; ' +
-        '"empty" creates the folder + .gitkeep only (populate via web upload or your own .md files); ' +
-        '"skip" leaves the disk untouched. Use "empty" when you plan to upload via the web app to avoid ' +
-        'having to tick "force overwrite" on every upload.',
-    )
-    .option('--no-feature-pack', "Shorthand for --feature-pack=skip. Don't create docs/feature-packs/<slug>/ at all.")
     .action(async (opts: InitOptions) => {
       await initRunner(opts, options.initIO);
     });
@@ -426,9 +414,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   // Phase 1 — `coodra agent {add,status,remove,repair} <agent>` drives the
-  // AgentAdapter registry (lib/agents). Single-agent counterpart to `coodra
-  // init`: wire/re-wire/strip one agent (claude | cursor | codex | windsurf |
-  // devin | all | detected) without re-running the whole onboarding.
+  // AgentAdapter registry (lib/agents). Machine-level native plugin path for
+  // Codex, and the single-agent repair/status surface for other adapters while
+  // their native-plugin features land.
   const agentAddRunner = options.runAgentAdd ?? runAgentAddCommand;
   const agentRemoveRunner = options.runAgentRemove ?? runAgentRemoveCommand;
   const agentRepairRunner = options.runAgentRepair ?? runAgentRepairCommand;
@@ -439,7 +427,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   agent
     .command('add <agent>')
     .description(
-      "Wire the Coodra bundle for one agent: project .mcp.json + the agent's MCP config + instruction contract. Accepts claude|cursor|codex|windsurf|devin|all|detected. Idempotent.",
+      'Wire the Coodra bundle for one agent. Codex installs a global native plugin; older adapters use their current MCP/instruction surfaces. Accepts claude|cursor|codex|windsurf|devin|all|detected.',
     )
     .option('--force', 'Overwrite existing Coodra entries with the current baseline.')
     .option('--dry-run', 'Print what would change without touching disk.')
@@ -457,7 +445,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
   agent
     .command('remove <agent>')
-    .description("Strip only this agent's Coodra-owned entries. Leaves the project .mcp.json for `coodra uninstall`.")
+    .description("Strip only this agent's Coodra-owned entries. Some native-plugin cleanup is tracked for offboarding.")
     .option('--dry-run', 'Print what would change without touching disk.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (agentArg: string, opts: AgentCommandOptions) => {
@@ -977,7 +965,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   project
     .command('promote [identifier]')
     .description(
-      'Promote a project from solo (__solo__) to your verified Clerk org so it syncs to cloud. Resolves [identifier] (slug or id), or <cwd>/.coodra.json when omitted. Use this when `coodra init` ran before `coodra team init` + `coodra login`.',
+      'Promote a project from solo (__solo__) to your verified Clerk org so it syncs to cloud. Resolves [identifier] (slug or id), or <cwd>/.coodra/config.json when omitted. Use this when `coodra init` ran before `coodra team init` + `coodra login`.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string | undefined, opts: ProjectPromoteOptions) => {
@@ -989,7 +977,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   project
     .command('demote [identifier]')
     .description(
-      'Demote a project from your team org back to solo (local-only). SAFE-ONLY: refuses if the project has already synced to cloud (split-brain risk) — it only works in the window before any data left this machine. Resolves [identifier] (slug or id) or <cwd>/.coodra.json.',
+      'Demote a project from your team org back to solo (local-only). SAFE-ONLY: refuses if the project has already synced to cloud (split-brain risk) — it only works in the window before any data left this machine. Resolves [identifier] (slug or id) or <cwd>/.coodra/config.json.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string | undefined, opts: ProjectDemoteOptions) => {
@@ -1471,7 +1459,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   // Redeems a signed bootstrap URL (`/api/install/<token>` on the
   // admin's deployment) and writes ~/.coodra/config.json + .env.
   // Single-use; one invocation consumes the token at the server.
-  const installRunner = options.runTeamInstall ?? runTeamInstallCommand;
+  const teamInstallRunner = options.runTeamInstall ?? runTeamInstallCommand;
   team
     .command('install')
     .description(
@@ -1481,7 +1469,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--bootstrap-url <url>', 'Signed bootstrap URL from the invite email or /install/<token> page.')
     .option('--json', 'Print the result as JSON (suppresses human-formatted welcome message).')
     .action(async (opts: TeamInstallOptions) => {
-      await installRunner(opts, options.teamIO);
+      await teamInstallRunner(opts, options.teamIO);
     });
 
   // Interactive terminal UI — the tabbed terminal/commands/status app.

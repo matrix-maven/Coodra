@@ -52,7 +52,7 @@ describe('runStatusCommand — integration', () => {
     /* tmp cleaned by OS */
   });
 
-  it('all-services-down + no .coodra.json → exit 2 (services down)', async () => {
+  it('all-services-down + no .coodra/config.json → exit 2 (services down)', async () => {
     const { io, captured } = makeIO();
     await expect(
       runStatusCommand({ cwd, home, env: {}, fetchImpl: fakeFetchAllDown as unknown as typeof fetch }, io),
@@ -65,7 +65,7 @@ describe('runStatusCommand — integration', () => {
     expect(stdout).toContain('stopped');
   });
 
-  it('all-services-up + no .coodra.json → exit 1 (project unregistered)', async () => {
+  it('all-services-up + no .coodra/config.json → exit 1 (project unregistered)', async () => {
     const { io, captured } = makeIO();
     await expect(
       runStatusCommand({ cwd, home, env: {}, fetchImpl: fakeFetchAllUp as unknown as typeof fetch }, io),
@@ -74,13 +74,14 @@ describe('runStatusCommand — integration', () => {
     expect(captured.stdout.join('')).toContain('(unregistered)');
   });
 
-  it('all-services-up + .coodra.json + initialised db → exit 0', async () => {
+  it('all-services-up + .coodra/config.json + initialised db → exit 0', async () => {
     const dataDb = join(home, 'data.db');
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     migrateSqlite(handle.db);
     await ensureGlobalProject(handle);
     handle.close();
-    await writeFile(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }));
+    await mkdir(join(cwd, '.coodra'), { recursive: true });
+    await writeFile(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }));
 
     const { io, captured } = makeIO();
     await expect(
@@ -98,7 +99,8 @@ describe('runStatusCommand — integration', () => {
     migrateSqlite(handle.db);
     await ensureGlobalProject(handle);
     handle.close();
-    await writeFile(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }));
+    await mkdir(join(cwd, '.coodra'), { recursive: true });
+    await writeFile(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }));
 
     const { io, captured } = makeIO();
     await expect(

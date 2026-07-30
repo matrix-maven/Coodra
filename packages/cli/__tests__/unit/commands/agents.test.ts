@@ -18,6 +18,10 @@ describe('buildAgentReports', () => {
   let userHome: string;
   let cwd: string;
 
+  function claudePluginRoot(): string {
+    return join(userHome, '.claude', 'plugins', 'cache', 'coodra', 'coodra', '0.2.0-beta.28');
+  }
+
   beforeEach(async () => {
     userHome = await mkdtemp(join(tmpdir(), 'coodra-agents-home-'));
     cwd = await mkdtemp(join(tmpdir(), 'coodra-agents-cwd-'));
@@ -46,36 +50,64 @@ describe('buildAgentReports', () => {
     expect(cursor?.howToEnable).toBeNull();
   });
 
-  it('flags an MCP-config file as wired when it carries the coodra entry', async () => {
+  it('flags Claude plugin MCP as wired when it carries the coodra entry', async () => {
+    await mkdir(claudePluginRoot(), { recursive: true });
     await writeFile(
-      join(cwd, '.mcp.json'),
+      join(claudePluginRoot(), '.mcp.json'),
       JSON.stringify({ mcpServers: { coodra: { command: 'node' } } }, null, 2),
       'utf8',
     );
     const reports = await buildAgentReports({ cwd, userHome });
     const claude = reports.find((r) => r.name === 'claude');
-    const mcp = claude?.files.find((f) => f.label === '.mcp.json');
+    const mcp = claude?.files.find((f) => f.label === 'Claude plugin MCP');
     expect(mcp?.wired).toBe(true);
     expect(mcp?.exists).toBe(true);
   });
 
-  it('flags an MCP-config file as partial (exists, not wired) when coodra entry is missing', async () => {
+  it('flags Claude user plugin enablement when coodra@coodra is enabled', async () => {
+    await mkdir(join(userHome, '.claude'), { recursive: true });
     await writeFile(
-      join(cwd, '.mcp.json'),
+      join(userHome, '.claude', 'settings.json'),
+      JSON.stringify({ enabledPlugins: { 'coodra@coodra': true } }, null, 2),
+      'utf8',
+    );
+    const reports = await buildAgentReports({ cwd, userHome });
+    const claude = reports.find((r) => r.name === 'claude');
+    const enablement = claude?.files.find((f) => f.label === 'Claude user plugin enablement');
+    expect(enablement?.wired).toBe(true);
+  });
+
+  it('flags Claude local marketplace when the marketplace catalog is present', async () => {
+    await mkdir(join(userHome, '.coodra', 'claude-marketplaces', 'coodra', '.claude-plugin'), { recursive: true });
+    await writeFile(
+      join(userHome, '.coodra', 'claude-marketplaces', 'coodra', '.claude-plugin', 'marketplace.json'),
+      JSON.stringify({ name: 'coodra', owner: { name: 'Coodra' }, plugins: [] }, null, 2),
+      'utf8',
+    );
+    const reports = await buildAgentReports({ cwd, userHome });
+    const claude = reports.find((r) => r.name === 'claude');
+    const marketplace = claude?.files.find((f) => f.label === 'Claude local marketplace');
+    expect(marketplace?.wired).toBe(true);
+  });
+
+  it('flags Claude plugin MCP as partial (exists, not wired) when coodra entry is missing', async () => {
+    await mkdir(claudePluginRoot(), { recursive: true });
+    await writeFile(
+      join(claudePluginRoot(), '.mcp.json'),
       JSON.stringify({ mcpServers: { othersrv: { command: 'other' } } }, null, 2),
       'utf8',
     );
     const reports = await buildAgentReports({ cwd, userHome });
     const claude = reports.find((r) => r.name === 'claude');
-    const mcp = claude?.files.find((f) => f.label === '.mcp.json');
+    const mcp = claude?.files.find((f) => f.label === 'Claude plugin MCP');
     expect(mcp?.exists).toBe(true);
     expect(mcp?.wired).toBe(false);
   });
 
-  it('flags settings.json as wired only when a bridge URL is present', async () => {
-    await mkdir(join(userHome, '.claude'));
+  it('flags Claude plugin hooks as wired when lifecycle hooks are present', async () => {
+    await mkdir(join(claudePluginRoot(), 'hooks'), { recursive: true });
     await writeFile(
-      join(userHome, '.claude', 'settings.json'),
+      join(claudePluginRoot(), 'hooks', 'hooks.json'),
       JSON.stringify(
         {
           hooks: {
@@ -89,11 +121,11 @@ describe('buildAgentReports', () => {
     );
     const reports = await buildAgentReports({ cwd, userHome });
     const claude = reports.find((r) => r.name === 'claude');
-    const settings = claude?.files.find((f) => f.label === '~/.claude/settings.json');
-    expect(settings?.wired).toBe(true);
+    const hooks = claude?.files.find((f) => f.label === 'Claude plugin hooks');
+    expect(hooks?.wired).toBe(true);
   });
 
-  it('flags CLAUDE.md as wired when the marker block is present', async () => {
+  it('does not report repo-level CLAUDE.md for the global Claude plugin', async () => {
     await writeFile(
       join(cwd, 'CLAUDE.md'),
       '# My rules\n\n<!-- coodra:start -->\nblock\n<!-- coodra:end -->\n',
@@ -101,16 +133,19 @@ describe('buildAgentReports', () => {
     );
     const reports = await buildAgentReports({ cwd, userHome });
     const claude = reports.find((r) => r.name === 'claude');
-    const claudeMd = claude?.files.find((f) => f.label === 'CLAUDE.md');
-    expect(claudeMd?.wired).toBe(true);
+    expect(claude?.files.some((f) => f.label === 'CLAUDE.md')).toBe(false);
   });
 
-  it('flags Codex config.toml as wired when [mcp_servers.coodra] table is present', async () => {
-    await mkdir(join(cwd, '.codex'));
-    await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.coodra]\ncommand = "node"\n', 'utf8');
+  it('flags Codex plugin MCP as wired when it carries the coodra entry', async () => {
+    await mkdir(join(userHome, '.codex', 'plugins', 'coodra'), { recursive: true });
+    await writeFile(
+      join(userHome, '.codex', 'plugins', 'coodra', '.mcp.json'),
+      JSON.stringify({ mcpServers: { coodra: { command: 'node' } } }, null, 2),
+      'utf8',
+    );
     const reports = await buildAgentReports({ cwd, userHome });
     const codex = reports.find((r) => r.name === 'codex');
-    const cfg = codex?.files.find((f) => f.label === '.codex/config.toml');
+    const cfg = codex?.files.find((f) => f.label === 'Codex plugin MCP');
     expect(cfg?.wired).toBe(true);
   });
 });

@@ -370,7 +370,8 @@ describe('coodra wiki status / list / clean (DB-backed)', () => {
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), 'wiki-home-'));
     cwd = mkdtempSync(join(tmpdir(), 'wiki-proj-'));
-    writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }), 'utf8');
+    mkdirSync(join(cwd, '.coodra'), { recursive: true });
+    writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }), 'utf8');
     env = { ...process.env, COODRA_HOME: home };
 
     // Migrate a fresh data.db and seed a project + a half-authored wiki.

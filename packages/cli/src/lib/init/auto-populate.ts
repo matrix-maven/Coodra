@@ -182,7 +182,7 @@ function walkDirShallow(absRoot: string, relPath: string, depth: number, out: st
     '.turbo',
   ]);
   for (const name of entries.sort()) {
-    if (name.startsWith('.') && name !== '.coodra.json' && name !== '.mcp.json') continue;
+    if (name.startsWith('.') && name !== '.coodra' && name !== '.mcp.json') continue;
     if (skip.has(name)) continue;
     const subRel = relPath === '' ? name : `${relPath}/${name}`;
     let isDir = false;

@@ -18,6 +18,7 @@ import { eq } from 'drizzle-orm';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
+import { readProjectConfig } from '../lib/project-store/index.js';
 import { readTeamConfig, readTeamHomeEnv } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
@@ -27,7 +28,7 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
  *
  * The `__global__` sentinel is a special row used as the
  * audit-fallback FK for events arriving from cwds that have no
- * `.coodra.json`. `project list` shows it (with a `(sentinel)`
+ * `.coodra/config.json`. `project list` shows it (with a `(sentinel)`
  * tag); `project show __global__` works; `project reset` REFUSES to
  * touch it because losing it would break F7's audit-fallback path.
  */
@@ -207,7 +208,7 @@ export async function runProjectResetCommand(
  * `feature add` reports "team-mode sync skipped — local-only project org".
  *
  * Resolves the target project from `[identifier]` (slug or id) if given,
- * else from `<cwd>/.coodra.json::projectSlug`. Calls `ensureProject`
+ * else from `<cwd>/.coodra/config.json::projectSlug`. Calls `ensureProject`
  * with the verified org id — the promote branch updates the row AND
  * enqueues sync_to_cloud for the project + every pre-existing feature.
  *
@@ -252,23 +253,14 @@ export async function runProjectPromoteCommand(
   // Resolve which project to promote.
   let identifier = identifierArg?.trim();
   if (identifier === undefined || identifier.length === 0) {
-    // Fall back to <cwd>/.coodra.json::projectSlug.
-    const cfgPath = `${process.cwd()}/.coodra.json`;
-    try {
-      const { readFileSync } = await import('node:fs');
-      const parsed = JSON.parse(readFileSync(cfgPath, 'utf8')) as { projectSlug?: string };
-      if (typeof parsed.projectSlug === 'string' && parsed.projectSlug.length > 0) {
-        identifier = parsed.projectSlug;
-      }
-    } catch {
-      // no .coodra.json in cwd
-    }
+    // Fall back to <cwd>/.coodra/config.json::projectSlug.
+    identifier = (await readProjectConfig(process.cwd()))?.projectSlug;
     if (identifier === undefined || identifier.length === 0) {
       return surfaceError(
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        'no [identifier] given and no .coodra.json in the current directory. ' +
+        'no [identifier] given and no .coodra/config.json in the current directory. ' +
           'Run from a project root, or pass the slug/id explicitly: `coodra project promote <slug>`.',
       );
     }
@@ -387,25 +379,16 @@ export async function runProjectDemoteCommand(
     );
   }
 
-  // Resolve which project to demote (arg, else <cwd>/.coodra.json).
+  // Resolve which project to demote (arg, else <cwd>/.coodra/config.json).
   let identifier = identifierArg?.trim();
   if (identifier === undefined || identifier.length === 0) {
-    const cfgPath = `${process.cwd()}/.coodra.json`;
-    try {
-      const { readFileSync } = await import('node:fs');
-      const parsed = JSON.parse(readFileSync(cfgPath, 'utf8')) as { projectSlug?: string };
-      if (typeof parsed.projectSlug === 'string' && parsed.projectSlug.length > 0) {
-        identifier = parsed.projectSlug;
-      }
-    } catch {
-      // no .coodra.json in cwd
-    }
+    identifier = (await readProjectConfig(process.cwd()))?.projectSlug;
     if (identifier === undefined || identifier.length === 0) {
       return surfaceError(
         io,
         json,
         EXIT_USER_RECOVERABLE,
-        'no [identifier] given and no .coodra.json in the current directory. ' +
+        'no [identifier] given and no .coodra/config.json in the current directory. ' +
           'Run from a project root, or pass the slug/id explicitly: `coodra project demote <slug>`.',
       );
     }

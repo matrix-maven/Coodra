@@ -1,169 +1,76 @@
-import { readFile } from 'node:fs/promises';
-import { z } from 'zod';
+import { homedir } from 'node:os';
+import { createClaudeCliRunner, probeClaudePlugin } from '../../lib/agents/claude-plugin.js';
 import { defaultClaudeSettingsPath } from '../../lib/init/claude-settings-merge.js';
 import type { Check } from '../types.js';
 
 /**
- * Slice 5 (2026-05-03 audit §14.1) — settings.json hook registration
- * completeness. Pre-Slice-5 doctor checked port health (17/18) and
- * /healthz reachability (10/11) but had NO check that the user's
- * `~/.claude/settings.json` actually had the right hook entries pointing
- * at the bridge. The Phase 4 Fix F matcher bug + the Phase 4 Fix G
- * SessionEnd-missing bug both lived in production for weeks because
- * doctor never inspected the file that decides whether Claude Code
- * calls the bridge at all.
+ * Slice 5 (2026-05-03 audit §14.1) — originally verified `~/.claude/settings.json`'s
+ * `hooks` key against the (now legacy) HTTP-bridge integration: Claude Code
+ * POSTing SessionStart/PreToolUse/PostToolUse/Stop/SessionEnd to
+ * `http://<bridgeHost>:<bridgePort>/v1/hooks/claude-code`.
  *
- * This check reads `~/.claude/settings.json` and asserts:
- *   1. The file exists.
- *   2. All five required hook events are registered (post-Fix-G):
- *      SessionStart, PreToolUse, PostToolUse, Stop, SessionEnd.
- *   3. Each registration has a hook URL pointing at the configured
- *      bridge endpoint (`http://<bridgeHost>:<bridgePort>/v1/hooks/claude-code`).
+ * That model was replaced by the native Claude Code plugin (COOD-6/COOD-7):
+ * `coodra agent add claude` no longer writes hook entries into
+ * `settings.json`'s `hooks` key at all — it installs/enables a plugin
+ * (`coodra@coodra`) whose own bundled `hooks/hooks.json` uses `mcp_tool`-type
+ * entries calling `plugin:coodra:coodra` → `lifecycle_event` directly, not
+ * an HTTP POST to the bridge. `settings.json` under the new model only
+ * carries `enabledPlugins`/`extraKnownMarketplaces` — the hook definitions
+ * themselves live in the plugin bundle, not in settings.json.
  *
- * The settings path is resolved via `defaultClaudeSettingsPath(home, env)`
- * — the SAME resolver `init` / `uninstall` use — so it honours the
- * `CLAUDE_SETTINGS_PATH` override (F2). Before this, the check hardcoded
- * `~/.claude/settings.json` and so inspected a different file than the
- * one init wrote whenever the override was set (scratch / CI / bespoke
- * setups), producing a false "missing hook registrations" warning.
- *   4. PreToolUse and PostToolUse have a tool-name regex matcher
- *      covering the file-mutating tool set
- *      (Write|Edit|MultiEdit|NotebookEdit|Bash). The literal sentinel
- *      `__coodra__` is flagged as legacy pre-Fix-F drift — the
- *      remediation tells the user to re-run init.
- *   5. SessionStart/Stop/SessionEnd have NO matcher (per Claude Code's
- *      hook spec: matcher only applies to tool events).
+ * Left unchanged, this check would parse a `hooks` key that `coodra agent
+ * add claude` never writes anymore and report every native-plugin install as
+ * "missing hook registrations" — a false negative doctor would emit forever
+ * for the only install path Claude Code now uses. This rewrite delegates to
+ * `probeClaudePlugin` (the same probe `coodra agent status` uses) instead of
+ * re-parsing settings.json by hand, so the two surfaces can't drift again.
  *
- * Read-only — never writes to settings.json. Failures emit a yellow
- * status with a remediation that names the exact init re-run.
+ * `probeClaudePlugin` also shells out to `claude plugin list --json` when
+ * the `claude` CLI is on PATH, to catch a plugin installed via the preferred
+ * CLI path (which never touches Coodra's own cache mirror at all). That call
+ * is given a short (1.2s) timeout here — well under doctor's default 2s
+ * per-check budget — so a slow/hung CLI call fails fast and falls back to
+ * the file-based checks below, instead of the whole check racing past
+ * doctor's own timeout and reporting an uninformative "timeout" status.
+ *
+ * Read-only — `probeClaudePlugin` never writes to settings.json or the
+ * plugin cache.
  */
 
-const hookSpecSchema = z
-  .object({
-    type: z.string().optional(),
-    url: z.string().optional(),
-  })
-  .passthrough();
-
-const hookEntrySchema = z
-  .object({
-    matcher: z.string().optional(),
-    hooks: z.array(hookSpecSchema).optional(),
-  })
-  .passthrough();
-
-const settingsSchema = z
-  .object({
-    hooks: z.record(z.string(), z.array(hookEntrySchema)).optional(),
-  })
-  .passthrough();
-
-const REQUIRED_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const;
-const TOOL_EVENTS: ReadonlySet<string> = new Set(['PreToolUse', 'PostToolUse']);
-const EXPECTED_TOOL_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit|Bash';
-const LEGACY_SENTINEL = '__coodra__';
+const DOCTOR_CLI_PROBE_TIMEOUT_MS = 1200;
 
 export const claudeHookRegistrationCheck: Check = {
   id: 28,
-  name: '~/.claude/settings.json registers all 5 Coodra hook events with correct matchers',
+  name: 'Claude Code native plugin (coodra@coodra) is enabled with manifest, MCP, hooks, and skills wired',
   severity: 'yellow',
   async run(ctx) {
     // Honour CLAUDE_SETTINGS_PATH (F2) via the shared resolver — same path
-    // init/uninstall write to. Home is left to the resolver's homedir()
-    // default (CheckContext has no OS-home field; coodraHome is ~/.coodra,
-    // not the OS home), and the env override wins over home regardless.
+    // init/agent-add write to. Home is left to homedir() (CheckContext has
+    // no OS-home field; coodraHome is ~/.coodra, not the OS home).
     const settingsPath = defaultClaudeSettingsPath(undefined, ctx.env);
-    let raw: string;
-    try {
-      raw = await readFile(settingsPath, 'utf8');
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code === 'ENOENT') {
-        return {
-          status: 'yellow',
-          detail: `${settingsPath} not found — Claude Code is not configured to call the Coodra bridge.`,
-          remediation: 'Run `coodra agent add claude` (or `coodra init`) to write the hook registration.',
-        };
-      }
-      return {
-        status: 'yellow',
-        detail: `cannot read ${settingsPath}: ${(err as Error).message}`,
-      };
-    }
+    const probe = await probeClaudePlugin(
+      { cwd: ctx.cwd, userHome: homedir(), settingsPath },
+      createClaudeCliRunner(DOCTOR_CLI_PROBE_TIMEOUT_MS),
+    );
 
-    let parsed: z.infer<typeof settingsSchema>;
-    try {
-      parsed = settingsSchema.parse(JSON.parse(raw));
-    } catch (err) {
-      return {
-        status: 'yellow',
-        detail: `${settingsPath} invalid JSON or shape: ${(err as Error).message}`,
-        remediation: 'Run `coodra agent repair claude` (or re-run `coodra init`) to rewrite the hook registration.',
-      };
-    }
-
-    const hooks = parsed.hooks ?? {};
-    const expectedUrl = `http://${ctx.env.LOCAL_HOOK_HOST ?? '127.0.0.1'}:${ctx.bridgePort}/v1/hooks/claude-code`;
     const missing: string[] = [];
-    const driftedMatchers: string[] = [];
-    const legacySentinels: string[] = [];
+    if (!probe.enabled) missing.push('enabled in settings.json (enabledPlugins["coodra@coodra"])');
+    if (!probe.marketplace) missing.push('marketplace registration (known_marketplaces.json)');
+    if (!probe.manifest) missing.push('plugin manifest');
+    if (!probe.mcp) missing.push('MCP wiring');
+    if (!probe.hooks) missing.push('lifecycle hooks (SessionStart/PreToolUse/PostToolUse/Stop/SessionEnd)');
+    if (!probe.skills) missing.push('bundled skills (coodra-context)');
 
-    for (const eventName of REQUIRED_EVENTS) {
-      const entries = hooks[eventName];
-      if (!Array.isArray(entries) || entries.length === 0) {
-        missing.push(eventName);
-        continue;
-      }
-      const ours = entries.find((e) =>
-        (e.hooks ?? []).some((h) => typeof h.url === 'string' && h.url.startsWith(expectedUrl)),
-      );
-      if (ours === undefined) {
-        missing.push(`${eventName}(no-bridge-url)`);
-        continue;
-      }
-      // Matcher contract:
-      //   - tool events MUST equal EXPECTED_TOOL_MATCHER (Phase 4 Fix F)
-      //   - non-tool events MUST omit matcher entirely
-      //   - the legacy `__coodra__` sentinel is pre-Fix-F drift
-      if (TOOL_EVENTS.has(eventName)) {
-        if (ours.matcher === LEGACY_SENTINEL) {
-          legacySentinels.push(eventName);
-        } else if (ours.matcher !== EXPECTED_TOOL_MATCHER) {
-          driftedMatchers.push(`${eventName}=${ours.matcher ?? '(omitted)'}`);
-        }
-      } else {
-        if (ours.matcher !== undefined) {
-          driftedMatchers.push(`${eventName}=${ours.matcher} (should be omitted)`);
-        }
-      }
-    }
-
-    if (legacySentinels.length > 0) {
-      return {
-        status: 'yellow',
-        detail: `pre-Fix-F legacy matcher (\`__coodra__\`) present on: ${legacySentinels.join(', ')}. Claude Code's hook matcher is a regex over tool names; the literal sentinel never matches any real tool, so PreToolUse / PostToolUse hooks are functionally inert.`,
-        remediation:
-          'Run `coodra agent repair claude` (or re-run `coodra init`) to migrate the entry to the post-Fix-F per-event matcher (`Write|Edit|MultiEdit|NotebookEdit|Bash`).',
-      };
-    }
     if (missing.length > 0) {
       return {
         status: 'yellow',
-        detail: `missing hook registrations: ${missing.join(', ')}. Claude Code will not POST these events to the bridge.`,
-        remediation: 'Run `coodra agent add claude` (or re-run `coodra init`) to add the missing hook entries.',
-      };
-    }
-    if (driftedMatchers.length > 0) {
-      return {
-        status: 'yellow',
-        detail: `unexpected matcher shape: ${driftedMatchers.join(', ')}.`,
-        remediation:
-          'Run `coodra agent repair claude` (or re-run `coodra init`) to rewrite the hook entries with the canonical matcher set.',
+        detail: `native Claude Code plugin (coodra@coodra) is not fully wired at ${settingsPath} — missing: ${missing.join(', ')}.`,
+        remediation: 'Run `coodra agent add claude` (or `coodra agent repair claude`) to (re)install the native Claude Code plugin.',
       };
     }
     return {
       status: 'green',
-      detail: `all 5 hook events registered with bridge URL ${expectedUrl} and the canonical Phase-4 matcher set.`,
+      detail: 'native Claude Code plugin (coodra@coodra) is enabled with manifest, MCP, hooks, and skills wired.',
     };
   },
 };

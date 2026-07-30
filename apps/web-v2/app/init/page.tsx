@@ -12,33 +12,12 @@ interface SearchParams {
   readonly errorMessage?: string;
   readonly cwd?: string;
   readonly projectSlug?: string;
-  readonly ide?: string;
-  readonly template?: string;
 }
 
-const BUNDLED_TEMPLATES: ReadonlyArray<{ readonly value: string; readonly label: string }> = [
-  { value: '', label: 'Minimal — skeleton (no template overlay)' },
-  { value: 'generic', label: 'generic' },
-  { value: 'nextjs-saas', label: 'nextjs-saas' },
-  { value: 'node-monorepo', label: 'node-monorepo' },
-  { value: 'python-fastapi', label: 'python-fastapi' },
-  { value: 'python-ml', label: 'python-ml' },
-  { value: 'rust-cli', label: 'rust-cli' },
-  { value: 'go-service', label: 'go-service' },
-];
-
-const IDE_OPTIONS: ReadonlyArray<{ readonly value: string; readonly label: string }> = [
-  { value: 'claude', label: 'claude — wires ~/.claude/settings.json' },
-  { value: 'cursor', label: 'cursor (M07)' },
-  { value: 'windsurf', label: 'windsurf (M07)' },
-  { value: 'all', label: 'all detected' },
-];
-
 export default async function InitWizardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  // /init writes ~/.coodra/, .mcp.json, scaffolds docs/feature-packs/
-  // on the local repo — none of which exist on a team-hosted deployment
-  // server. Hide the page so sidebar links / "New project" CTAs don't
-  // dead-end on a 500.
+  // /init registers a local repo and writes project-local `.coodra/` state.
+  // None of that exists on a team-hosted deployment server. Hide the page so
+  // sidebar links / "New project" CTAs don't dead-end on a 500.
   if (resolveDeploymentMode() === 'team-hosted') notFound();
   const sp = await searchParams;
 
@@ -54,12 +33,11 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
             </h1>
             <p className="head__lede">
               Web parity with <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span>.
-              Provisions <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>~/.coodra/data.db</span>,
-              scaffolds a feature pack at{' '}
+              Registers the project and writes{' '}
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-                {`<cwd>/docs/feature-packs/<slug>/`}
+                {`<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}`}
               </span>
-              , registers the project + default policy + Claude Code hook entries.
+              .
             </p>
           </div>
           <div>
@@ -105,39 +83,6 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               pattern="[a-z0-9_-]+"
               hint="Lowercase letters, digits, underscores, hyphens. 1–64 characters."
             />
-            <SelectField
-              label="IDE to wire"
-              name="ide"
-              defaultValue={sp.ide ?? 'claude'}
-              options={IDE_OPTIONS}
-              hint="claude wires hook entries in ~/.claude/settings.json. cursor + windsurf land in M07."
-            />
-            <SelectField
-              label="Feature-pack template"
-              name="template"
-              defaultValue={sp.template ?? ''}
-              options={BUNDLED_TEMPLATES}
-              hint="Optional — picks a starter template for the auto-marker sections. Skipping = minimal skeleton."
-            />
-
-            <label
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                fontFamily: 'var(--mono)',
-                fontSize: 11,
-                color: 'var(--ink-dim)',
-                letterSpacing: '0.04em',
-                padding: '14px 0',
-                borderTop: '1px solid var(--rule)',
-                marginTop: 8,
-              }}
-            >
-              <input type="checkbox" name="noGraphify" defaultChecked />
-              Skip Graphify scan (default — install graphify CLI separately if needed)
-            </label>
-
             <div style={{ marginTop: 16 }}>
               <button type="submit" className="btn btn--accent" style={{ marginRight: 8 }}>
                 Provision project
@@ -154,16 +99,12 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
                 What this <em>will do</em>
               </h3>
-              <Step title="Create project row" body="Inserts into ~/.coodra/data.db so MCP + bridge can find it." />
+              <Step title="Create project row" body="Inserts into ~/.coodra/data.db so Coodra can find it." />
               <Step
-                title="Scaffold feature pack"
-                body="<cwd>/docs/feature-packs/<slug>/{spec,implementation,techstack}.md."
+                title="Create project state"
+                body="<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}."
               />
               <Step title="Seed default policy" body="The 25-rule starter chain. Editable later from /policies." />
-              <Step
-                title="Wire Claude hooks"
-                body="Adds PreToolUse + PostToolUse + SessionStart + SessionEnd entries."
-              />
             </div>
 
             <div className="aside-card">
@@ -171,9 +112,12 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
                 Next <em>steps</em>
               </h3>
               <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-                After provisioning, open Claude Code in your repo. The first session will hit{' '}
-                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra start</span> and surface
-                events on this dashboard in real-time.
+                After provisioning, run{' '}
+                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+                  coodra agent add &lt;agent&gt;
+                </span>{' '}
+                to install a native agent plugin, then{' '}
+                <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra start</span>.
               </p>
             </div>
           </div>
@@ -209,50 +153,6 @@ function Field(props: {
         {...(defaultValue !== undefined ? { defaultValue } : {})}
         style={fieldInputStyle}
       />
-      {hint !== undefined ? (
-        <p
-          style={{
-            fontFamily: 'var(--mono)',
-            fontSize: 10,
-            color: 'var(--ink-mute)',
-            marginTop: 6,
-            letterSpacing: '0.04em',
-            lineHeight: 1.6,
-          }}
-        >
-          {hint}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  name,
-  options,
-  defaultValue,
-  hint,
-}: {
-  readonly label: string;
-  readonly name: string;
-  readonly options: ReadonlyArray<{ readonly value: string; readonly label: string }>;
-  readonly defaultValue?: string;
-  readonly hint?: string;
-}) {
-  const selectId = `select-${name}`;
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <label htmlFor={selectId} style={fieldLabelStyle}>
-        {label}
-      </label>
-      <select id={selectId} name={name} defaultValue={defaultValue} style={fieldInputStyle}>
-        {options.map((opt) => (
-          <option key={opt.value || '_none'} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
       {hint !== undefined ? (
         <p
           style={{

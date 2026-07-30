@@ -418,7 +418,7 @@ export async function runTeamLeaveCommand(
   io.writeStdout(`${pc.bold('What stays:')}\n`);
   io.writeStdout('  • all local SQLite rows (runs, decisions, context_packs) — historical state intact\n');
   io.writeStdout('  • all cloud rows — other team members continue to see them, your past contributions remain\n');
-  io.writeStdout('  • per-project .coodra.json files (unchanged)\n\n');
+  io.writeStdout('  • per-project .coodra/config.json files (unchanged)\n\n');
 
   if (options.yes !== true) {
     const reader = options.readConfirm ?? defaultReadConfirm;

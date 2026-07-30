@@ -42,28 +42,18 @@ const FORM_SCHEMA = z.object({
     .min(1, 'project slug is required')
     .max(64, 'project slug too long (max 64 characters)')
     .regex(/^[a-z0-9_-]+$/, 'project slug must be lowercase letters, digits, underscores, or hyphens only'),
-  ide: z.enum(['claude', 'cursor', 'windsurf', 'all']).default('claude'),
-  template: z.string().optional(),
-  noGraphify: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()).default(true),
 });
 
 export async function initProjectAction(formData: FormData): Promise<void> {
-  // `init` is inherently a local-laptop operation — it writes
-  // .coodra.json + .mcp.json + scaffolds docs/feature-packs/ on
-  // disk + wires Claude Code hook entries in ~/.claude/settings.json.
-  // None of that has meaning on a Vercel server, so we refuse in
-  // team-hosted mode. Developers who need init use the CLI.
+  // `init` is inherently a local-laptop operation — it writes project-local
+  // `.coodra/` state and registers the project in the local SQLite store.
+  // None of that has meaning on a Vercel server, so we refuse in team-hosted
+  // mode. Developers who need init use the CLI.
   refuseInTeamHosted('initProjectAction');
 
   const raw = {
     cwd: String(formData.get('cwd') ?? '').trim(),
     projectSlug: String(formData.get('projectSlug') ?? '').trim(),
-    ide: String(formData.get('ide') ?? 'claude'),
-    template: (() => {
-      const t = String(formData.get('template') ?? '').trim();
-      return t === '' || t === 'minimal' ? undefined : t;
-    })(),
-    noGraphify: formData.get('noGraphify') ?? 'on',
   };
 
   const parsed = FORM_SCHEMA.safeParse(raw);
@@ -72,18 +62,11 @@ export async function initProjectAction(formData: FormData): Promise<void> {
     redirect(redirectWithError('validation_failed', firstError?.message ?? 'invalid form data', raw));
   }
 
-  const { cwd, projectSlug, ide, template, noGraphify } = parsed.data;
+  const { cwd, projectSlug } = parsed.data;
 
   const result = await runInit({
     cwd,
     projectSlug,
-    ide,
-    noGraphify,
-    ...(template !== undefined ? { template } : {}),
-    // Mode 'minimal' matches CLI's default (skeleton output, no
-    // template overlay). Web wizard explicit-set: when a template is
-    // chosen, switch to 'default' so the template renders.
-    mode: template !== undefined ? 'default' : 'minimal',
   });
 
   if (!result.ok) {
@@ -92,17 +75,11 @@ export async function initProjectAction(formData: FormData): Promise<void> {
   redirect(`/projects/${encodeURIComponent(result.projectSlug)}`);
 }
 
-function redirectWithError(
-  code: string,
-  message: string,
-  fields: { cwd: string; projectSlug: string; ide: string; template?: string | undefined },
-): string {
+function redirectWithError(code: string, message: string, fields: { cwd: string; projectSlug: string }): string {
   const search = new URLSearchParams();
   search.set('error', code);
   search.set('errorMessage', message);
   if (fields.cwd !== '') search.set('cwd', fields.cwd);
   if (fields.projectSlug !== '') search.set('projectSlug', fields.projectSlug);
-  if (fields.ide !== '') search.set('ide', fields.ide);
-  if (fields.template !== undefined && fields.template !== '') search.set('template', fields.template);
   return `/init?${search.toString()}`;
 }

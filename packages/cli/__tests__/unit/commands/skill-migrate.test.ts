@@ -53,7 +53,8 @@ function writeSkill(dirName: 'features' | 'skills', slug: string, body = 'placeh
 
 beforeEach(() => {
   cwd = mkdtempSync(join(tmpdir(), 'skill-migrate-'));
-  writeFileSync(join(cwd, '.coodra.json'), JSON.stringify({ projectSlug: 'demo' }), 'utf8');
+  mkdirSync(join(cwd, '.coodra'), { recursive: true });
+  writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }), 'utf8');
 });
 afterEach(() => rmSync(cwd, { recursive: true, force: true }));
 

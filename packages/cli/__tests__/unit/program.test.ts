@@ -33,6 +33,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       // Module 09 Track 9B — Graphify MCP wiring (enable/disable/status).
       'graphify',
       'init',
+      'install',
       'invite',
       // Module 09 Track 9A — Jira (Atlassian Rovo) MCP wiring (enable/disable/status).
       'jira',

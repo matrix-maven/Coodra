@@ -165,12 +165,32 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'project-manifest', cleanup: 'preserve', safeToDelete: false },
   },
   {
-    test: (rel) => rel === '.coodra.json',
-    cls: { owner: 'coodra', kind: 'project-config-legacy', cleanup: 'preserve', safeToDelete: false },
+    test: (rel) => rel === '.coodra/skill-packs',
+    cls: { owner: 'coodra', kind: 'skill-packs-dir', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (rel) => rel === '.coodra/graphify',
+    cls: { owner: 'coodra', kind: 'graphify-dir', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (rel) => rel === '.coodra/wiki',
+    cls: { owner: 'coodra', kind: 'wiki-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
     test: (_rel, base) => base === '.env',
     cls: { owner: 'coodra', kind: 'env', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (_rel, base) => base === 'data.db',
+    cls: { owner: 'coodra', kind: 'sqlite-db', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (_rel, base) => base === 'logs',
+    cls: { owner: 'coodra', kind: 'logs-dir', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (_rel, base) => base === 'pids',
+    cls: { owner: 'coodra', kind: 'pids-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
     test: (rel) => rel === '.mcp.json',

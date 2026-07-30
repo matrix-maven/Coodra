@@ -7,12 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadHomeEnv } from '../../src/lib/load-home-env.js';
 
 /**
- * Closes Finding A from the 2026-04-28 functionality test:
- *   `coodra init` writes `.env` to `<cwd>/.env`, but commit 34faa0e's
- *   loader read `<COODRA_HOME>/.env` only. Different files. Init's
- *   .env was therefore decorative end-to-end, team-mode setups silently
- *   fell back to solo, and doctor check 20 (`LOCAL_HOOK_SECRET` present)
- *   was YELLOW for this exact reason.
+ * Closes Finding A from the 2026-04-28 functionality test and preserves
+ * the layered-env contract: Coodra-owned runtime config lives in
+ * `<COODRA_HOME>/.env`, while an existing project `<cwd>/.env` may still
+ * provide user-managed overrides.
  *
  * The fix: `loadHomeEnv` now reads BOTH paths and returns a merged dict.
  * On conflict, `<cwd>/.env` wins because it's the more specific scope.
@@ -60,10 +58,9 @@ describe('loadHomeEnv — layered <COODRA_HOME>/.env + <cwd>/.env', () => {
     //     `.env` now wins for COODRA_MODE / DATABASE_URL /
     //     LOCAL_HOOK_SECRET / COODRA_TEAM_*.
     //   - Phase H.6 (2026-05-13): CLERK_SECRET_KEY + CLERK_PUBLISHABLE_KEY
-    //     joined the same set. `coodra init` writes the solo-bypass
-    //     sentinels into every project .env; without this carve-out
-    //     they overrode the real team-mode Clerk keys from ~/.coodra/.env
-    //     and feature-db.ts fell back to the legacy (forgeable) path.
+    //     joined the same set. A stale project .env with solo-bypass
+    //     sentinels must not override real team-mode Clerk keys from
+    //     ~/.coodra/.env and send feature-db.ts down the legacy path.
     writeFileSync(
       join(homeDir, '.env'),
       ['COODRA_MODE=team', 'CLERK_SECRET_KEY=sk_test_from_home', 'COODRA_GRAPHIFY_ROOT=/var/graphify-home'].join('\n'),
@@ -100,10 +97,10 @@ describe('loadHomeEnv — layered <COODRA_HOME>/.env + <cwd>/.env', () => {
     expect(merged.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
   });
 
-  it('case 4 — only <cwd>/.env exists → its vars loaded (this is the post-init shape)', () => {
-    // This is exactly the state `coodra init` leaves behind: it wrote
-    // .env to <cwd>, no <COODRA_HOME>/.env exists yet. Pre-fix, the
-    // loader returned {} here and `start` saw nothing.
+  it('case 4 — only <cwd>/.env exists → its vars loaded as user-managed overrides', () => {
+    // Existing projects may still carry user-managed overrides or legacy
+    // Coodra sentinels. The loader keeps reading them; init no longer
+    // creates this file.
     writeFileSync(
       join(cwdDir, '.env'),
       [

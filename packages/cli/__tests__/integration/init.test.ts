@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runInitCommand } from '../../src/commands/init.js';
-import { FORBIDDEN_INIT_KEYS } from '../../src/lib/init/env-merge.js';
+import { FORBIDDEN_INIT_KEYS } from '../../src/lib/init/forbidden-env.js';
 
 interface CapturedIO {
   stdout: string[];
@@ -48,7 +48,7 @@ describe('runInitCommand — integration', () => {
     /* tmp cleaned by OS */
   });
 
-  it('greenfield: writes data.db, .coodra.json, .mcp.json, .env, feature-pack', async () => {
+  it('greenfield: writes project registration and project-local Coodra layout only', async () => {
     const { io, captured } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
     expect(captured.exit).toBe(0);
@@ -59,105 +59,129 @@ describe('runInitCommand — integration', () => {
     expect((await stat(join(home, 'pids'))).isDirectory()).toBe(true);
 
     // Project artifacts
-    const coodraJson = JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8'));
-    expect(coodraJson.projectSlug).toBeDefined();
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(mcpJson.mcpServers.coodra).toBeDefined();
+    const projectConfig = JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8'));
+    expect(projectConfig.projectSlug).toBeDefined();
+    await expect(stat(join(cwd, '.coodra.json'))).rejects.toThrow();
+    await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
+    await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
+    await expect(stat(join(cwd, 'AGENTS.md'))).rejects.toThrow();
+    expect((await stat(join(cwd, '.coodra', 'skill-packs'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'wiki'))).isDirectory()).toBe(true);
 
-    const envBody = await readFile(join(cwd, '.env'), 'utf8');
-    // Phase 4 H5: COODRA_MODE intentionally NOT in project .env —
-    // mode lives in ~/.coodra/.env (per-machine), which the
-    // daemon-spawn path layers UNDER project .env. If we wrote
-    // COODRA_MODE=solo here, it would override `team setup`'s
-    // home-level COODRA_MODE=team and silently break team mode.
-    expect(envBody).not.toContain('COODRA_MODE=');
-    expect(envBody).toContain('CLERK_SECRET_KEY=sk_test_replace_me');
-    expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
-    expect(envBody).toContain('MCP_SERVER_PORT=3100');
+    await expect(stat(join(cwd, '.env'))).rejects.toThrow();
+    const homeEnvBody = await readFile(join(home, '.env'), 'utf8');
+    expect(homeEnvBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
+    expect(homeEnvBody).toContain('MCP_SERVER_PORT=3100');
+    expect(homeEnvBody).toContain('HOOKS_BRIDGE_PORT=3101');
 
-    // Feature pack seed (Phase 3 Fix C: all four files present so MCP
-    // get_feature_pack's Promise.all-on-read does not throw ENOENT).
-    const featurePackDir = join(cwd, 'docs/feature-packs', coodraJson.projectSlug);
-    const meta = JSON.parse(await readFile(join(featurePackDir, 'meta.json'), 'utf8'));
-    expect(meta.slug).toBe(coodraJson.projectSlug);
-    expect(meta.parentSlug).toBeNull();
-    expect(Array.isArray(meta.sourceFiles)).toBe(true);
-    expect((await stat(join(featurePackDir, 'spec.md'))).isFile()).toBe(true);
-    expect((await stat(join(featurePackDir, 'implementation.md'))).isFile()).toBe(true);
-    expect((await stat(join(featurePackDir, 'techstack.md'))).isFile()).toBe(true);
+    const manifest = JSON.parse(await readFile(join(cwd, '.coodra', 'manifest.json'), 'utf8'));
+    expect(manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: join(home, 'data.db'), scope: 'global', kind: 'sqlite-db' }),
+        expect.objectContaining({ path: join(home, '.env'), scope: 'global', kind: 'env' }),
+        expect.objectContaining({ path: join(home, 'logs'), scope: 'global', kind: 'logs-dir' }),
+        expect.objectContaining({ path: join(home, 'pids'), scope: 'global', kind: 'pids-dir' }),
+        expect.objectContaining({ path: '.coodra/skill-packs', scope: 'project', kind: 'skill-packs-dir' }),
+        expect.objectContaining({ path: '.coodra/graphify', scope: 'project', kind: 'graphify-dir' }),
+        expect.objectContaining({ path: '.coodra/wiki', scope: 'project', kind: 'wiki-dir' }),
+      ]),
+    );
+
+    // Project init keeps root-level docs untouched by default.
+    await expect(stat(join(cwd, 'docs', 'feature-packs', projectConfig.projectSlug))).rejects.toThrow();
 
     // Stdout includes the "Coodra is ready" banner.
     const stdout = captured.stdout.join('');
     expect(stdout).toContain('Coodra is ready');
+    expect(stdout).toContain('Project Coodra layout ready');
+    expect(stdout).toContain('Project init does not install or wire agent plugins');
   });
 
   it('idempotent re-run: no destructive writes (action: unchanged)', async () => {
     const { io: io1 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io1)).rejects.toThrow('__exit__:0');
 
-    // Snapshot the .env body before re-run.
-    const before = await readFile(join(cwd, '.env'), 'utf8');
+    // Snapshot the Coodra-owned home .env body before re-run.
+    const before = await readFile(join(home, '.env'), 'utf8');
 
     const { io: io2, captured: captured2 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io2)).rejects.toThrow('__exit__:0');
     expect(captured2.exit).toBe(0);
 
-    const after = await readFile(join(cwd, '.env'), 'utf8');
-    expect(after).toBe(before); // re-run preserves user values
+    await expect(stat(join(cwd, '.env'))).rejects.toThrow();
+    const after = await readFile(join(home, '.env'), 'utf8');
+    expect(after).toBe(before); // re-run preserves Coodra runtime values
 
-    // Stdout shows the unchanged glyph + notes for at least one artifact.
+    // Stdout shows the idempotent re-run preserved existing project files.
     const stdout = captured2.stdout.join('');
-    expect(stdout).toMatch(/already matches baseline|all baseline keys already present|projectSlug already/);
+    expect(stdout).toMatch(/file exists; pass --force to overwrite|projectSlug='/);
   });
 
-  it('--force overwrites .coodra.json baseline (Decision 3)', async () => {
+  it('--force overwrites .coodra/config.json baseline (Decision 3)', async () => {
     const { io: io1 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'first' }, io1)).rejects.toThrow(
       '__exit__:0',
     );
-    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('first');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8')).projectSlug).toBe('first');
 
     // Without --force, providing a different slug preserves the existing value.
     const { io: io2 } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second' }, io2)).rejects.toThrow(
       '__exit__:0',
     );
-    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('first');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8')).projectSlug).toBe('first');
 
     // With --force, baseline overwrites.
     const { io: io3 } = makeIO();
     await expect(
       runInitCommand({ cwd, home, userHome, env: {}, projectSlug: 'second', force: true }, io3),
     ).rejects.toThrow('__exit__:0');
-    expect(JSON.parse(await readFile(join(cwd, '.coodra.json'), 'utf8')).projectSlug).toBe('second');
+    expect(JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8')).projectSlug).toBe('second');
   });
 
-  it('preserves existing .mcp.json entries when adding coodra', async () => {
+  it('preserves an existing .mcp.json without adding Coodra during project init', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       JSON.stringify({ mcpServers: { other: { command: 'npx', args: ['something-else'] } } }),
     );
     const { io } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
-    const merged = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(merged.mcpServers.other).toEqual({ command: 'npx', args: ['something-else'] });
-    expect(merged.mcpServers.coodra).toBeDefined();
+    const existing = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
+    expect(existing.mcpServers.other).toEqual({ command: 'npx', args: ['something-else'] });
+    expect(existing.mcpServers.coodra).toBeUndefined();
   });
 
   it('--dry-run: prints outcomes but writes nothing', async () => {
     const { io, captured } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {}, dryRun: true }, io)).rejects.toThrow('__exit__:0');
-    // No .coodra.json written
+    // No project config written
+    await expect(stat(join(cwd, '.coodra', 'config.json'))).rejects.toThrow();
     await expect(stat(join(cwd, '.coodra.json'))).rejects.toThrow();
     // No data.db written
     await expect(stat(join(home, 'data.db'))).rejects.toThrow();
     expect(captured.stdout.join('')).toContain('--dry-run was set');
   });
 
-  it('NO secrets-leaked invariant: written .env never contains forbidden production keys (spec §6)', async () => {
+  it('detected agent config homes do not change project init output', async () => {
+    await mkdir(join(userHome, '.codex'), { recursive: true });
+    const { io, captured } = makeIO();
+    await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
+    expect(captured.exit).toBe(0);
+
+    expect(JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8')).projectSlug).toBeDefined();
+    await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
+    await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
+    await expect(stat(join(cwd, 'AGENTS.md'))).rejects.toThrow();
+    expect(captured.stdout.join('')).toContain('Project init does not install or wire agent plugins');
+    expect(captured.stdout.join('')).toContain('coodra agent add <agent>');
+  });
+
+  it('NO secrets-leaked invariant: init does not write forbidden production keys', async () => {
     const { io } = makeIO();
     await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
-    const envBody = await readFile(join(cwd, '.env'), 'utf8');
+    await expect(stat(join(cwd, '.env'))).rejects.toThrow();
+    const envBody = await readFile(join(home, '.env'), 'utf8');
     for (const key of FORBIDDEN_INIT_KEYS) {
       // The key may appear nowhere; if it does appear, it must be absent or empty.
       const lineRe = new RegExp(`^${key}=(.*)$`, 'm');
@@ -220,61 +244,6 @@ describe('runInitCommand — integration', () => {
     }
   });
 
-  it('Phase 3 Fix B: writes ~/.claude/settings.json on a clean userHome with no pre-existing ~/.claude', async () => {
-    // userHome is a fresh tmpdir from beforeEach — no `.claude/`
-    // subdirectory exists. Pre-Phase-3 init gated the merger on
-    // `~/.claude/` existence; the merge step was silently skipped.
-    // Post-Fix-B the merger is unconditional and creates the dir.
-    //
-    // We pass `ide: 'claude'` explicitly so the assertion targets the
-    // claude-wiring path. Without it, `detectIDE({ homeDir: userHome })`
-    // sees the fresh tmpdir and (correctly) reports zero installed IDEs,
-    // skipping every per-IDE merge. The Phase 3 Fix B invariant under
-    // test is "given claude is wanted, the merger creates the dir if
-    // missing" — not "init auto-wires claude into machines that don't
-    // have it installed".
-    const claudeDir = join(userHome, '.claude');
-    await expect(stat(claudeDir)).rejects.toMatchObject({ code: 'ENOENT' });
-
-    const { io, captured } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude' }, io)).rejects.toThrow('__exit__:0');
-    expect(captured.exit).toBe(0);
-
-    // Dir exists and contains settings.json.
-    const dirStat = await stat(claudeDir);
-    expect(dirStat.isDirectory()).toBe(true);
-    // Mode 0o700 — restrictive on multi-user systems.
-    if (process.platform !== 'win32') {
-      // POSIX permission bits live in the low 9 bits of `mode`.
-      expect(dirStat.mode & 0o777).toBe(0o700);
-    }
-
-    const settings = JSON.parse(await readFile(join(claudeDir, 'settings.json'), 'utf8'));
-    expect(settings.hooks.SessionStart).toHaveLength(1);
-    expect(settings.hooks.PreToolUse).toHaveLength(1);
-    expect(settings.hooks.PostToolUse).toHaveLength(1);
-    expect(settings.hooks.Stop).toHaveLength(1);
-    // Phase 4 Fix G (Slice 2 — 2026-05-03 audit): SessionEnd registered.
-    // Pre-Fix-G real Claude Code never POSTed SessionEnd → bridge's
-    // status-flip + auto-pack-save never fired for real sessions →
-    // runs accumulated as `in_progress` forever in the demo DB.
-    expect(settings.hooks.SessionEnd).toHaveLength(1);
-    // Phase 4 Fix F: tool events get the file-mutating-tool regex; non-tool
-    // events omit `matcher` entirely. Pre-Fix-F all four had matcher='__coodra__'
-    // which never matched any real Claude Code tool, so PreToolUse hooks
-    // were functionally inert.
-    const sessionStart = settings.hooks.SessionStart[0];
-    expect(sessionStart.matcher).toBeUndefined();
-    expect(sessionStart.hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
-    const preToolUse = settings.hooks.PreToolUse[0];
-    expect(preToolUse.matcher).toBe('Write|Edit|MultiEdit|NotebookEdit|Bash');
-    expect(preToolUse.hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
-    // SessionEnd: same shape as SessionStart (no matcher, bridge URL).
-    const sessionEnd = settings.hooks.SessionEnd[0];
-    expect(sessionEnd.matcher).toBeUndefined();
-    expect(sessionEnd.hooks[0].url).toBe('http://127.0.0.1:3101/v1/hooks/claude-code');
-  });
-
   it('fails with EXIT_USER_RECOVERABLE when no project root marker is found', async () => {
     const isolated = await mkdtemp(join(tmpdir(), 'coodra-init-no-root-'));
     const sub = join(isolated, 'a', 'b');
@@ -285,123 +254,11 @@ describe('runInitCommand — integration', () => {
     expect(captured.stderr.join('')).toMatch(/no project root marker found/);
   });
 
-  // Module 09 Track 9B — the optional Graphify step (wiring only; ADR-015
-  // retired the graphify-seed-packs recipe, so init seeds no skill).
-  it('--graphify wires the graphify MCP server and seeds no skill', async () => {
-    const { io, captured } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', graphify: true }, io)).rejects.toThrow(
-      '__exit__:0',
-    );
-    expect(captured.exit).toBe(0);
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    // The graphify entry sits alongside the coodra entry, not instead of it.
-    expect(mcpJson.mcpServers.coodra).toBeDefined();
-    expect(mcpJson.mcpServers.graphify).toBeDefined();
-    expect(mcpJson.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
-    // No graphify-seed-packs skill is written — Graphify is query-only.
+  it('creates the managed Graphify artifact directory without wiring Graphify MCP', async () => {
+    const { io } = makeIO();
+    await expect(runInitCommand({ cwd, home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
+    expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
+    await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
     await expect(stat(join(cwd, 'docs/features/graphify-seed-packs'))).rejects.toThrow();
-  });
-
-  it('--no-graphify leaves the graphify MCP server unwired', async () => {
-    const { io } = makeIO();
-    await expect(runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', graphify: false }, io)).rejects.toThrow(
-      '__exit__:0',
-    );
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(mcpJson.mcpServers.coodra).toBeDefined();
-    expect(mcpJson.mcpServers.graphify).toBeUndefined();
-    await expect(stat(join(cwd, 'docs/features/graphify-seed-packs'))).rejects.toThrow();
-  });
-
-  it('prompts for Graphify when neither flag is set — "y" wires it', async () => {
-    const { io } = makeIO();
-    await expect(
-      runInitCommand(
-        {
-          cwd,
-          home,
-          userHome,
-          env: {},
-          ide: 'claude',
-          readPrompt: async () => 'y',
-          // Verified stub — keeps the test off the real interpreter probe
-          // AND off the install offer (which would run uv/pip for real).
-          resolvePython: async () => ({ python: '/stub/python', verified: true, source: 'venv' }) as const,
-        },
-        io,
-      ),
-    ).rejects.toThrow('__exit__:0');
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeDefined();
-  });
-
-  it('offers the graphifyy[mcp] install when nothing verifies, wiring the installed interpreter', async () => {
-    const { io } = makeIO();
-    const offer = vi.fn(
-      async () => ({ python: '/installed/.venv/bin/python', verified: true, source: 'venv' }) as const,
-    );
-    await expect(
-      runInitCommand(
-        {
-          cwd,
-          home,
-          userHome,
-          env: {},
-          ide: 'claude',
-          readPrompt: async () => 'y',
-          resolvePython: async () => ({ python: 'python3', verified: false, source: 'fallback' }) as const,
-          offerGraphifyInstall: offer,
-        },
-        io,
-      ),
-    ).rejects.toThrow('__exit__:0');
-    expect(offer).toHaveBeenCalledOnce();
-    const graphify = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify;
-    expect(graphify.command).toBe('/installed/.venv/bin/python');
-  });
-
-  it('prompts for Graphify when neither flag is set — "n" (default) skips it', async () => {
-    const { io } = makeIO();
-    await expect(
-      runInitCommand({ cwd, home, userHome, env: {}, ide: 'claude', readPrompt: async () => '' }, io),
-    ).rejects.toThrow('__exit__:0');
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify).toBeUndefined();
-  });
-
-  // 2026-07-02 — per-agent onboarding ask: with no --ide flag and an
-  // interactive session, init confirms each agent. Undetected agents can
-  // be opted IN ('y'), detected defaults survive plain Enter.
-  it('asks per agent when no --ide flag is given, wiring only the agents answered yes', async () => {
-    const { io } = makeIO();
-    const answers: string[] = [];
-    // IDE_ORDER is claude, cursor, windsurf, codex. Nothing is detected in
-    // the tmp userHome, so defaults are all No; answer 'y' only for codex.
-    const script = ['n', '', '', 'y'];
-    await expect(
-      runInitCommand(
-        {
-          cwd,
-          home,
-          userHome,
-          env: {},
-          readPrompt: async (q: string) => {
-            answers.push(q);
-            return script[answers.length - 1] ?? '';
-          },
-        },
-        io,
-      ),
-    ).rejects.toThrow('__exit__:0');
-    // Codex got wired (config + AGENTS.md); Claude Code's per-agent
-    // surfaces (CLAUDE.md) did not. `.mcp.json` stays unconditional —
-    // it's the project-level Coodra MCP config, not a per-agent one.
-    await expect(stat(join(cwd, '.codex', 'config.toml'))).resolves.toBeDefined();
-    await expect(stat(join(cwd, 'AGENTS.md'))).resolves.toBeDefined();
-    await expect(stat(join(cwd, 'CLAUDE.md'))).rejects.toThrow();
-    expect(answers.some((q) => q.includes('Codex'))).toBe(true);
-    expect(answers.some((q) => q.includes('Claude Code'))).toBe(true);
-    // The Codex trust/restart caveat is surfaced.
-    const codexToml = await readFile(join(cwd, '.codex', 'config.toml'), 'utf8');
-    expect(codexToml).toContain('mcp_servers');
-    expect(codexToml).toContain('COODRA_AGENT_TYPE = "codex"');
   });
 });

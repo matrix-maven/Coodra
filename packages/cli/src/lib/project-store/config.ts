@@ -1,32 +1,20 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { z } from 'zod';
-import { writeCoodraJson } from '../init/coodra-json.js';
 import type { WriteOutcome } from '../init/types.js';
 
 /**
  * `lib/project-store/config.ts` — project-local identity under
- * `<root>/.coodra/config.json`, the richer successor to the root-level
- * `<root>/.coodra.json`.
+ * `<root>/.coodra/config.json`.
  *
- * Migration posture (staged, per the enhancement doc): this phase DUAL-WRITES.
- * `writeProjectConfig` writes the new `.coodra/config.json` AND keeps the
- * legacy `.coodra.json` current, so every existing reader (the hooks-bridge's
- * cwd→slug resolver, doctor check 12) keeps working UNCHANGED while new code
- * (the `coodra agent` context, `coodra files`) reads the richer file first via
- * `readProjectConfig`. Dropping the legacy write is a later release once all
- * readers prefer the new path — recorded so a future session doesn't remove
- * `.coodra.json` prematurely and break the bridge.
+ * `writeProjectConfig` writes `.coodra/config.json` only. The root-level
+ * `.coodra.json` is no longer created by init.
  */
 
 export const PROJECT_CONFIG_REL = '.coodra/config.json' as const;
-export const LEGACY_CONFIG_REL = '.coodra.json' as const;
 
 export function projectConfigPath(root: string): string {
   return join(root, '.coodra', 'config.json');
-}
-export function legacyConfigPath(root: string): string {
-  return join(root, '.coodra.json');
 }
 
 const projectConfigSchema = z
@@ -59,9 +47,8 @@ async function readJsonObject(path: string): Promise<Record<string, unknown> | n
 }
 
 /**
- * Read the project identity. Prefers `.coodra/config.json`; falls back to the
- * legacy `.coodra.json` (which carries only `projectSlug`). Returns null when
- * neither exists / neither has a usable slug.
+ * Read the project identity from `.coodra/config.json`. Returns null when the
+ * file is absent or does not carry a usable slug.
  */
 export async function readProjectConfig(root: string): Promise<ProjectConfig | null> {
   const fresh = await readJsonObject(projectConfigPath(root));
@@ -72,10 +59,6 @@ export async function readProjectConfig(root: string): Promise<ProjectConfig | n
     if (typeof fresh.projectSlug === 'string' && fresh.projectSlug.length > 0) {
       return { version: 1, projectSlug: fresh.projectSlug };
     }
-  }
-  const legacy = await readJsonObject(legacyConfigPath(root));
-  if (legacy !== null && typeof legacy.projectSlug === 'string' && legacy.projectSlug.length > 0) {
-    return { version: 1, projectSlug: legacy.projectSlug };
   }
   return null;
 }
@@ -98,14 +81,11 @@ export interface WriteProjectConfigOptions {
 }
 
 /**
- * Write the project identity to BOTH `.coodra/config.json` (rich, new) and the
- * legacy `.coodra.json` (slug-only, via the existing `writeCoodraJson` with its
- * drift-preservation semantics). Returns one WriteOutcome per file.
+ * Write the project identity to `.coodra/config.json`.
  *
- * `.coodra/config.json` merge rules mirror `writeCoodraJson`: on an existing
- * file, the caller's slug is NOT forced over a user-edited one unless `force`
- * (drift is preserved); unknown fields are always retained; `updatedAt` bumps
- * on every real write, `createdAt` is set once.
+ * On an existing file, the caller's slug is NOT forced over a user-edited one
+ * unless `force` (drift is preserved); unknown fields are always retained;
+ * `updatedAt` bumps on every real write, `createdAt` is set once.
  */
 export async function writeProjectConfig(opts: WriteProjectConfigOptions): Promise<WriteOutcome[]> {
   const now = opts.now ?? (() => new Date().toISOString());
@@ -153,11 +133,6 @@ export async function writeProjectConfig(opts: WriteProjectConfigOptions): Promi
     }
   }
 
-  // Legacy `.coodra.json` — keep current via the existing writer (its own
-  // drift-preservation + force semantics apply).
-  outcomes.push(
-    await writeCoodraJson({ cwd: opts.root, projectSlug: opts.projectSlug, force: opts.force, dryRun: opts.dryRun }),
-  );
   return outcomes;
 }
 
@@ -168,10 +143,9 @@ export interface EnsureProjectConfigResult {
 }
 
 /**
- * Idempotent migration/ensure: guarantees `.coodra/config.json` exists for a
- * project, copying the slug from the legacy `.coodra.json` when present. Safe to
- * run repeatedly (`coodra init`, `coodra doctor --fix`). Never overwrites a
- * user-edited slug without `force`.
+ * Idempotent ensure: guarantees `.coodra/config.json` exists for a project.
+ * Safe to run repeatedly (`coodra init`, `coodra agent add`). Never overwrites
+ * a user-edited slug without `force`.
  */
 export async function ensureProjectConfig(opts: WriteProjectConfigOptions): Promise<EnsureProjectConfigResult> {
   const existedBefore = (await readJsonObject(projectConfigPath(opts.root))) !== null;

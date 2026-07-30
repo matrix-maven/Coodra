@@ -12,102 +12,37 @@ import {
 } from '@coodra/db';
 import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
-import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
-import { type AgentContext, getAdapter } from '../lib/agents/index.js';
+import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
-import {
-  detectIDE,
-  detectLanguages,
-  detectProjectRoot,
-  type IDE,
-  IDE_DISPLAY,
-  IDE_ORDER,
-  resolveIdeSelection,
-} from '../lib/detect.js';
-import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
-import { type BaselineEnv, mergeEnvFile } from '../lib/init/env-merge.js';
-import { seedFeaturePack } from '../lib/init/feature-pack-seed.js';
-import { type OfferGraphifyInstallOptions, offerGraphifyInstall } from '../lib/init/graphify-install.js';
-import {
-  type GraphifyPythonResolution,
-  type GraphifyPythonResolver,
-  resolveGraphifyPython,
-} from '../lib/init/graphify-python.js';
-import { DEFAULT_GRAPHIFY_GRAPH_PATH, wireGraphify } from '../lib/init/graphify-wire.js';
-import { findForeignAtlassianServer, wireJira } from '../lib/init/jira-wire.js';
-import { buildCoodraMcpEntry, mergeMcpJson } from '../lib/init/mcp-merge.js';
+import { detectLanguages, detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import {
   classifyGeneratedPath,
+  ensureProjectLayout,
   manifestPath,
   recordManifestEntries,
   writeProjectConfig,
 } from '../lib/project-store/index.js';
-import { bundledMigrationsDir, resolveRuntimeBinary } from '../lib/runtime-paths.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { upsertEnvKey } from '../lib/team-init/finalize-config.js';
-import { listAvailableTemplates, resolveTemplatePath } from '../lib/template-paths.js';
-import { detectTemplate } from '../lib/templates/detect.js';
-import { loadTemplate, type TemplateDefinition, TemplateLoadError } from '../lib/templates/load-template.js';
 import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { commandTitle, hintLine, okLine, pc, terminalWidth } from '../ui/index.js';
 
 export interface InitOptions {
   readonly projectSlug?: string;
-  readonly ide?: string;
-  readonly graphify?: boolean;
-  readonly jira?: boolean;
   readonly dryRun?: boolean;
   readonly force?: boolean;
   readonly cwd?: string;
   /** Override `~/.coodra/` location. Tests pass a tmpdir; callers default to the user's resolved home. */
   readonly home?: string;
   /**
-   * Override `$HOME` for IDE detection AND for `~/.claude/settings.json`
-   * resolution. Tests pass a tmpdir to avoid touching the runner's
-   * real ~/.claude/. Production callers omit this and the runtime
-   * defaults to `os.homedir()`.
+   * Override `$HOME` for home-directory safety checks. Tests pass a tmpdir;
+   * production callers omit this and the runtime defaults to `os.homedir()`.
    */
   readonly userHome?: string;
   readonly env?: NodeJS.ProcessEnv;
-  /** Injectable Graphify interpreter resolver (tests). Defaults to the real probe-and-verify path. */
-  readonly resolvePython?: GraphifyPythonResolver;
-  /**
-   * Injectable graphifyy[mcp] install offer (tests). Defaults to the real
-   * prompt-consent → uv/pip install → re-verify flow in
-   * `lib/init/graphify-install.ts`.
-   */
-  readonly offerGraphifyInstall?: (opts: OfferGraphifyInstallOptions) => Promise<GraphifyPythonResolution>;
-  /**
-   * Module 08b S13: feature-pack template selector. Bare name resolves
-   * via `resolveTemplatePath` (user-installed → bundled). A path
-   * (absolute, relative, or with `/`) loads from disk directly.
-   * `--template auto` triggers project detection.
-   */
-  readonly template?: string;
-  /**
-   * Module 08b S13: `minimal` (default; legacy skeleton output),
-   * `default` (template-driven output), `auto` (detect + render).
-   * `--mode auto` implies `--template auto` if --template is omitted.
-   * The auto-section population pass lands in M08b S15.
-   */
-  readonly mode?: string;
-  /**
-   * 2026-05-08 — controls whether `init` writes the four-file template
-   * stub into `<root>/docs/feature-packs/<slug>/`. See
-   * `FeaturePackSeedMode` in `lib/init/feature-pack-seed.ts` for the
-   * semantics.
-   *
-   *   `template` (default) — render the 4 canonical files (today's behaviour)
-   *   `empty`              — create the folder + .gitkeep only
-   *   `skip`               — don't create the folder
-   *
-   * Commander accepts `--feature-pack <mode>` AND the boolean negation
-   * `--no-feature-pack` (which maps to `skip` in the runner).
-   */
-  readonly featurePack?: string;
   /**
    * W6 / beta.6 (2026-05-14) — project org scope selection on a
    * team-capable machine.
@@ -155,14 +90,13 @@ export interface InitReport {
   readonly coodraHome: string;
   readonly projectSlug: string;
   readonly languages: string[];
-  readonly ides: string[];
   readonly outcomes: WriteOutcome[];
   readonly dryRun: boolean;
 }
 
 /**
  * W6 / beta.6 (2026-05-14) — terminal prompt used by `runInitCommand`
- * for the team/solo, per-agent wire, Graphify, and Jira questions.
+ * for the team/solo question.
  * Tests inject `options.readPrompt`. 2026-07-02: now the shared
  * `lib/terminal-prompt.ts::terminalReadPrompt`.
  */
@@ -216,15 +150,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
 
   io.writeStdout(`${commandTitle('Initialise', `Coodra · ${projectSlug}`, { width: terminalWidth(), indent: 0 })}\n`);
 
-  const userHome = options.userHome ?? homedir();
   const languages = await detectLanguages(root);
-  const detectedIdes = await detectIDE({ homeDir: userHome });
-  const ideSelection = resolveIdeSelection({ flag: options.ide, detected: detectedIdes });
-  if (!ideSelection.ok) {
-    io.writeStderr(`${pc.red('coodra init')}: ${ideSelection.error}\n`);
-    return io.exit(EXIT_USER_RECOVERABLE);
-  }
-  let ides = ideSelection.ides;
 
   // Phase D (clarity-pass-plan, 2026-05-11) — surface the machine's
   // mode in the first lines of `coodra init` output. Projects
@@ -303,56 +229,11 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   if (languages.length > 0) {
     io.writeStdout(`${pc.green('✓')} Detected languages: ${languages.join(', ')}\n`);
   }
-  if (detectedIdes.length > 0) {
-    io.writeStdout(`${pc.green('✓')} Detected IDEs: ${detectedIdes.join(', ')}\n`);
-  } else {
-    io.writeStdout(`${pc.yellow('⚠')} No IDE config dir (~/.claude, ~/.cursor, ~/.windsurf, ~/.codex) detected.\n`);
-  }
-  if (options.ide !== undefined) {
-    if (ides.length === 0) {
-      io.writeStdout(`${pc.yellow('⚠')} --ide ${options.ide}: empty selection — no IDE will be wired.\n`);
-    } else {
-      io.writeStdout(`${pc.green('✓')} --ide ${options.ide}: wiring ${ides.join(', ')} (overrides detection).\n`);
-    }
-  } else {
-    // Per-agent onboarding ask (2026-07-02): with no `--ide` flag and an
-    // interactive session, confirm each agent explicitly instead of
-    // silently wiring whatever detection found. Detection sets the
-    // DEFAULT answer (detected → Y/n, not detected → y/N) so pressing
-    // Enter four times reproduces the old behaviour — but the user can
-    // now opt an undetected agent in (installing it later) or a detected
-    // one out. Non-interactive runs keep detection-only (scripted
-    // installs must not hang on a prompt).
-    const agentAskInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
-    if (agentAskInteractive) {
-      const agentReadPrompt = options.readPrompt ?? defaultInitReadPrompt;
-      io.writeStdout(
-        `\n${pc.bold('Which agents should Coodra wire?')} ${pc.gray('(MCP config + rules file per agent; Enter keeps the detected default)')}\n`,
-      );
-      const chosen: IDE[] = [];
-      for (const agent of IDE_ORDER) {
-        const detected = detectedIdes.includes(agent);
-        const suffix = detected ? '' : pc.gray(' (not detected)');
-        const defaults = detected ? `${pc.cyan('Y')}/n` : `y/${pc.cyan('N')}`;
-        const answer = (await agentReadPrompt(`  Wire ${IDE_DISPLAY[agent]}?${suffix} [${defaults}]: `))
-          .trim()
-          .toLowerCase();
-        const yes = detected ? answer !== 'n' && answer !== 'no' : answer === 'y' || answer === 'yes';
-        if (yes) chosen.push(agent);
-      }
-      ides = chosen;
-      io.writeStdout(
-        ides.length > 0
-          ? `${pc.green('✓')} Wiring: ${ides.map((i) => IDE_DISPLAY[i]).join(', ')}\n`
-          : `${pc.gray('·')} No agents selected — MCP config and rules files will be skipped.\n`,
-      );
-    }
-    if (ides.length === 0) {
-      io.writeStdout(
-        `  ${pc.gray('→')} ${pc.gray('No IDEs to wire. Install Claude Code, Cursor, Windsurf, or Codex CLI, then re-run `coodra init`.')}\n`,
-      );
-    }
-  }
+  io.writeStdout(
+    `${pc.gray('·')} Project init does not install or wire agent plugins. Run ${pc.cyan(
+      'coodra install',
+    )} for machine setup or ${pc.cyan('coodra agent add <agent>')} to add an agent plugin later.\n`,
+  );
 
   // Resolve and create ~/.coodra/{logs,pids} (data.db is created by openLocalDb).
   const coodraHome = resolveCoodraHome({
@@ -403,7 +284,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       migrateSqlite(handle.db);
       await ensureGlobalProject(handle);
       // Pass `cwd: root` so the projects row records the absolute filesystem
-      // path of the project (where .coodra.json lives). The web app reads
+      // path of the project (where .coodra/config.json lives). The web app reads
       // this back to write per-project pack uploads into the correct folder
       // — see `apps/web-v2/lib/queries/packs.ts:packsRoot()`.
       //
@@ -531,34 +412,11 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(`${pc.yellow('⚠')} Dry run: skipping migrations + sentinel seed\n`);
   }
 
-  // Resolve the bundled mcp-server binary path. dec_83ba10c1
-  // (2026-05-02) made this a hard requirement — pre-decision the npm-
-  // installed path silently fell back to a `npx … mcp-stdio` invocation
-  // that pointed at a subcommand that did not exist. Now we either
-  // resolve a real path or fail loudly with a remediation message.
-  let mcpServerBin: string;
-  try {
-    const resolved = await resolveRuntimeBinary('mcp-server');
-    mcpServerBin = resolved.path;
-    io.writeStdout(`${pc.green('✓')} Resolved mcp-server runtime: ${resolved.source} (${resolved.path})\n`);
-  } catch (err) {
-    io.writeStderr(`${pc.red('coodra init')}: ${(err as Error).message}\n`);
-    return io.exit(EXIT_ENVIRONMENT_PROBLEM);
-  }
-  const bundledMigrations = bundledMigrationsDir('sqlite');
-  // Strip the dialect suffix so the env var conveys the parent dir
-  // (`@coodra/db::MIGRATIONS_FOLDER` re-appends the dialect). Empty
-  // when the resolver returned null (workspace dev mode) — the bundled
-  // mcp-server falls through to its package-relative default.
-  const migrationsDir =
-    bundledMigrations !== null ? bundledMigrations.replace(/\/sqlite$/, '').replace(/\\sqlite$/, '') : null;
-
   // Phase F.6+ (2026-05-11) — reuse the daemon's LOCAL_HOOK_SECRET when
-  // it already exists in ~/.coodra/.env. Otherwise Claude Code reads
-  // the project-level secret (which init randomly generated) but the
-  // daemons read the home-level one, the secrets don't match, and every
-  // hook event 401s. Common symptom: "HTTP 401 from /v1/hooks/claude-code"
-  // in Claude Code's output.
+  // it already exists in ~/.coodra/.env. Otherwise plugins/hooks and
+  // the daemons can drift onto different secrets and every hook event 401s.
+  // Common symptom: "HTTP 401 from /v1/hooks/claude-code" in Claude Code's
+  // output.
   //
   // Resolution: try the daemon's existing secret first; fall back to a
   // fresh random one only for the very first init on this machine.
@@ -573,26 +431,17 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
   // F3 (E2E finding, 2026-07-04): honour the operator's port env instead
   // of hardcoding. Pre-fix, `HOOKS_BRIDGE_PORT=39101 coodra init` still
-  // wrote 3101 into .env + the Claude Code hook URLs, so hooks POSTed to
-  // the wrong bridge. A parse guard keeps the documented defaults when the
-  // env var is absent or non-numeric.
+  // wrote 3101 into project .env + the Claude Code hook URLs, so hooks
+  // POSTed to the wrong bridge. A parse guard keeps the documented defaults
+  // when the env var is absent or non-numeric.
   const portFromEnv = (name: string, fallback: string): string => {
     const raw = env[name];
     if (raw === undefined) return fallback;
     const n = Number(raw);
     return Number.isInteger(n) && n > 0 && n < 65536 ? String(n) : fallback;
   };
-  const baselineEnv: BaselineEnv = {
-    // Module 04 Phase 4 H6 — COODRA_MODE intentionally omitted. See
-    // BaselineEnv type comment for the full reason. tldr: project .env
-    // wins over home .env in `loadHomeEnv`, so writing 'solo' here
-    // would override `team setup`'s home-level COODRA_MODE=team.
-    CLERK_SECRET_KEY: 'sk_test_replace_me',
-    CLERK_PUBLISHABLE_KEY: 'pk_test_replace_me',
-    LOCAL_HOOK_SECRET: localHookSecret,
-    MCP_SERVER_PORT: portFromEnv('MCP_SERVER_PORT', '3100'),
-    HOOKS_BRIDGE_PORT: portFromEnv('HOOKS_BRIDGE_PORT', '3101'),
-  };
+  const mcpServerPort = portFromEnv('MCP_SERVER_PORT', '3100');
+  const hooksBridgePort = portFromEnv('HOOKS_BRIDGE_PORT', '3101');
 
   // F1 (E2E finding, 2026-07-04): persist the resolved LOCAL_HOOK_SECRET to
   // $COODRA_HOME/.env so subsequent inits + the daemons all read the SAME
@@ -601,13 +450,18 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // drifted apart and every hook event 401'd (the exact symptom the reuse
   // block above tries to prevent — but the file it reads never existed).
   // Solo mode bypasses hook auth so it was masked; team / non-sentinel
-  // setups hit the 401. Idempotent upsert; skipped on --dry-run.
+  // setups hit the 401. Runtime ports live here too: Coodra-owned service
+  // config belongs in ~/.coodra/.env, not the user's project .env.
+  // Idempotent upsert; skipped on --dry-run.
   if (!dryRun) {
+    const homeEnvPath = join(coodraHome, '.env');
     try {
-      upsertEnvKey(join(coodraHome, '.env'), 'LOCAL_HOOK_SECRET', localHookSecret);
+      upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
+      upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', mcpServerPort);
+      upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', hooksBridgePort);
     } catch (err) {
       io.writeStdout(
-        `${pc.yellow('⚠')} Could not persist LOCAL_HOOK_SECRET to ${join(coodraHome, '.env')}: ${
+        `${pc.yellow('⚠')} Could not persist Coodra runtime config to ${homeEnvPath}: ${
           err instanceof Error ? err.message : String(err)
         }\n`,
       );
@@ -616,382 +470,24 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
 
   const outcomes: WriteOutcome[] = [];
 
-  // Write/merge .coodra.json
-  // Phase 2: write the project-local `.coodra/config.json` identity (and keep
-  // the legacy `.coodra.json` current for the bridge / doctor readers).
+  // Write/merge the project-local `.coodra/config.json` identity.
   outcomes.push(...(await writeProjectConfig({ root, projectSlug, mode: machineCfg.mode, force, dryRun })));
+  outcomes.push(...(await ensureProjectLayout(root, dryRun)));
 
-  // Write/merge .mcp.json with the canonical coodra entry. Pin
-  // COODRA_HOME so the Claude-Code-spawned MCP server reads/writes
-  // the same SQLite the bridge does — without this, MCP tool calls
-  // (record_decision, save_context_pack) land in the user's default
-  // ~/.coodra/data.db while the bridge writes to the project home.
-  // Phase F.6+ (2026-05-12) — pin team-mode + DATABASE_URL into the MCP
-  // child env so Claude Code's spawned MCP server enqueues sync_to_cloud
-  // jobs on record_decision / save_context_pack writes. Without this,
-  // the child defaults to solo because it inherits Claude's shell env
-  // (which doesn't auto-load ~/.coodra/.env). Result pre-fix: cloud
-  // Postgres stays empty for decisions/packs even though local SQLite
-  // has the rows — web /decisions and /context-packs render empty.
-  const machineDatabaseUrl =
-    machineCfg.mode === 'team' && machineCfg.team !== undefined ? process.env.DATABASE_URL : undefined;
-  // One MCP entry per agent — identical except for the COODRA_AGENT_TYPE
-  // stamp, which lets the spawned stdio server attribute runs.agent_type
-  // correctly even for clients whose initialize clientInfo.name is
-  // unrecognised (Codex's 'codex-mcp-client' was landing as 'unknown').
-  const mcpEntryFor = (agentType: 'claude_code' | 'cursor' | 'windsurf' | 'codex') =>
-    buildCoodraMcpEntry({
-      mcpServerBin,
-      clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
-      migrationsDir,
-      coodraHome,
-      mode: machineCfg.mode,
-      ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
-        ? { databaseUrl: machineDatabaseUrl }
-        : {}),
-      localHookSecret,
-      agentType,
-    });
-  outcomes.push(await mergeMcpJson({ cwd: root, entry: mcpEntryFor('claude_code'), force, dryRun }));
-
-  // Write/merge .env with solo-mode sentinels
-  outcomes.push(await mergeEnvFile({ cwd: root, baseline: baselineEnv, force, dryRun }));
-
-  // Per-agent wiring — gated on the resolved `ides` list (detection or
-  // explicit `--ide`). Each agent gets two pieces:
-  //   1. MCP config — tells the agent how to spawn the bundled coodra
-  //      MCP server (the `coodra__*` tools).
-  //   2. Instruction file — the trigger contract telling the agent
-  //      WHEN to call which tool. Same marker-wrapped block per agent.
-  //
-  // Claude Code additionally gets hook entries in `~/.claude/settings.json`
-  // so the bridge can inject runtime `additionalContext` at SessionStart
-  // and auto-save Context Packs at SessionEnd (decision dec_83ba10c1).
-  // CLAUDE.md is defense-in-depth: works even if the bridge isn't running.
-  //
-  // Every writer is idempotent + reversed by `coodra uninstall`. The
-  // `--ide` flag overrides detection — see resolveIdeSelection.
-
-  // Per-agent wiring is driven by the AgentAdapter registry (lib/agents) —
-  // the SINGLE definition of each agent's surfaces, shared with the standalone
-  // `coodra agent add/repair/remove/status`. The context mirrors exactly what
-  // the old inline branches computed (bridge port, secret, mcp entry
-  // ingredients, claude settings path). `.mcp.json` is NOT wired here — it is
-  // the project-level registration written unconditionally above. The fixed
-  // order (claude → cursor → codex → windsurf) preserves the outcomes-list
-  // order the init tests lock.
-  const agentContext: AgentContext = {
-    cwd: root,
-    userHome,
-    projectSlug,
-    bridgePort: Number(baselineEnv.HOOKS_BRIDGE_PORT),
-    localHookSecret,
-    mcpEntryOptions: {
-      mcpServerBin,
-      clerkSecretKey: baselineEnv.CLERK_SECRET_KEY,
-      migrationsDir,
-      coodraHome,
-      mode: machineCfg.mode,
-      ...(typeof machineDatabaseUrl === 'string' && machineDatabaseUrl.length > 0
-        ? { databaseUrl: machineDatabaseUrl }
-        : {}),
-      localHookSecret,
-    },
-    settingsPath: defaultClaudeSettingsPath(userHome),
-    force,
-    dryRun,
-  };
-  for (const id of ['claude', 'cursor', 'codex', 'windsurf'] as const) {
-    if (!ides.includes(id)) continue;
-    const adapter = getAdapter(id);
-    try {
-      outcomes.push(...(await adapter.wire(agentContext)));
-      if (adapter.postWireNote !== undefined) {
-        io.writeStdout(`  ${pc.gray('→')} ${pc.gray(adapter.postWireNote)}\n`);
-      }
-    } catch (err) {
-      io.writeStderr(
-        `${pc.yellow('⚠')} Could not wire ${adapter.displayName} integration: ${(err as Error).message}\n`,
-      );
-    }
-  }
-
-  // Module 08b S13: resolve --template (and --mode auto) to a
-  // TemplateDefinition before seeding. Three paths:
-  //   - --template <path>  → load directly from disk
-  //   - --template <name>  → resolve via user-installed → bundled
-  //   - --mode auto + no --template → detect from project root
-  // Failures are surfaced as warnings + we fall through to the legacy
-  // skeleton path. The S15 follow-up adds auto-section population on
-  // top of the rendered template.
-  let template: TemplateDefinition | undefined;
-  const templateSelector =
-    options.template !== undefined && options.template.length > 0
-      ? options.template
-      : options.mode === 'auto'
-        ? 'auto'
-        : undefined;
-  if (templateSelector !== undefined && templateSelector !== 'auto') {
-    const resolved = resolveTemplatePath(templateSelector, { cwd: root });
-    if (resolved === null) {
-      io.writeStderr(
-        `${pc.yellow('⚠')} --template "${templateSelector}" not found (user templates: ~/.coodra/templates/, bundled: cli-dist/templates/). Falling back to skeleton.\n`,
-      );
-    } else {
-      try {
-        template = await loadTemplate(resolved.dir);
-        io.writeStdout(`${pc.green('✓')} Using template "${template.meta.name}" (source: ${resolved.source}).\n`);
-      } catch (err) {
-        const message = err instanceof TemplateLoadError ? err.message : (err as Error).message;
-        io.writeStderr(
-          `${pc.yellow('⚠')} Could not load template "${templateSelector}": ${message}. Falling back to skeleton.\n`,
-        );
-      }
-    }
-  } else if (templateSelector === 'auto') {
-    // Detect from project root.
-    const all = listAvailableTemplates();
-    const definitions: TemplateDefinition[] = [];
-    for (const t of all) {
-      try {
-        definitions.push(await loadTemplate(t.dir));
-      } catch {
-        // skip unloadable templates
-      }
-    }
-    // Sort: more-specific first; generic last.
-    const sorted = [...definitions].sort((a, b) => {
-      if (a.meta.name === 'generic') return 1;
-      if (b.meta.name === 'generic') return -1;
-      return a.meta.name.localeCompare(b.meta.name);
-    });
-    const detected = detectTemplate(root, sorted);
-    if (detected.chosen !== null) {
-      template = detected.chosen;
-      io.writeStdout(`${pc.green('✓')} --mode auto detected template "${template.meta.name}".\n`);
-    } else {
-      io.writeStderr(`${pc.yellow('⚠')} --mode auto could not detect a template; falling back to skeleton.\n`);
-    }
-  }
-
-  // Seed the feature pack folder. Module 08b S15: when --mode auto AND
-  // a template was resolved, also auto-populate the template's
-  // <!-- @auto:* --> sections from project shape (deps, directory tree,
-  // scripts, entry points).
-  const autoPopulate = options.mode === 'auto' && template !== undefined;
-
-  // 2026-05-08 — Resolve `--feature-pack <mode>` (and the Commander
-  // boolean negation `--no-feature-pack` which arrives as `false`)
-  // into the canonical FeaturePackSeedMode. Anything unrecognised
-  // falls back to 'template' (today's behaviour) with a warning so
-  // typos are surfaced rather than silently downgrading the user's
-  // intent.
-  const featurePackMode = resolveFeaturePackMode(options.featurePack, io);
-  if (featurePackMode === 'empty') {
-    io.writeStdout(
-      `${pc.green('✓')} --feature-pack=empty: creating an empty feature-pack folder; populate via web upload or your own .md files.\n`,
-    );
-  } else if (featurePackMode === 'skip') {
-    io.writeStdout(`${pc.green('✓')} --feature-pack=skip: not seeding any feature-pack folder.\n`);
-  }
-
-  const seedOutcomes = await seedFeaturePack({
-    cwd: root,
-    slug: projectSlug,
-    languages,
-    force,
-    dryRun,
-    ...(template !== undefined ? { template } : {}),
-    autoPopulate,
-    featurePack: featurePackMode,
-  });
-  outcomes.push(...seedOutcomes);
-  if (autoPopulate && template !== undefined && featurePackMode === 'template') {
-    io.writeStdout(
-      `${pc.green('✓')} Auto-populated ${template.meta.autoSections.length} <!-- @auto:* --> section(s) from project shape.\n`,
-    );
-  }
-
-  // Module 09 (Track 9B, ADR-010) — optional Graphify wiring. Graphify
-  // ships its own stdio MCP server (a structural-query tool); when the
-  // user opts in, `init` wires it next to the `coodra` entry in each
-  // agent config. Graphify is NOT wired by default — it needs a separate
-  // install (`graphifyy[mcp]`) plus a built graph, so a blind wire would
-  // point at a server that isn't there. Coodra mints no packs from the
-  // graph (ADR-015) — the agent calls Graphify's query tools directly.
-  //   --graphify     → wire it (no prompt)
-  //   --no-graphify  → skip it (no prompt)
-  //   neither + TTY  → prompt (default: skip)
-  //   neither, non-interactive → skip with a hint
-  let wireGraphifyChoice: boolean;
-  if (options.graphify === true) {
-    wireGraphifyChoice = true;
-  } else if (options.graphify === false) {
-    wireGraphifyChoice = false;
-  } else if (ides.length === 0) {
-    // No agent config to wire into — nothing to ask.
-    wireGraphifyChoice = false;
-  } else {
-    const graphifyReadPrompt = options.readPrompt ?? defaultInitReadPrompt;
-    const graphifyInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
-    if (graphifyInteractive) {
-      io.writeStdout(
-        `\n${pc.bold('Wire Graphify?')} ${pc.gray('— Graphify is a codebase-graph MCP server for structural queries (what depends on X, where is Y defined).')}\n` +
-          `  ${pc.gray('Needs a venv install (`graphifyy[mcp]`) + a built graph (`/graphify .` in the assistant).')}\n` +
-          `  ${pc.gray('Skip if unsure — `coodra graphify enable` adds it any time.')}\n`,
-      );
-      const answer = (await graphifyReadPrompt(`  Wire Graphify's MCP server? [${pc.cyan('y')}/${pc.cyan('N')}]: `))
-        .trim()
-        .toLowerCase();
-      wireGraphifyChoice = answer === 'y' || answer === 'yes';
-    } else {
-      wireGraphifyChoice = false;
-    }
-  }
-
-  if (wireGraphifyChoice && ides.length > 0) {
-    // Auto-detect + verify an interpreter that can `import graphify.serve,
-    // mcp` instead of hardcoding bare `python3` (which usually can't, and
-    // would write a graphify entry the agent reports as "failed").
-    let graphifyResolution = await (options.resolvePython ?? resolveGraphifyPython)({
-      cwd: root,
-      env: options.env ?? process.env,
-    });
-    // Install-first (2026-07-02): nothing verified → offer to install
-    // graphifyy[mcp] into <root>/.venv BEFORE wiring, so the entry points
-    // at an interpreter that works. An existing .venv is the user's — the
-    // prompt asks before touching it. Non-interactive runs skip the offer
-    // (unchanged behaviour: wire + print the manual steps).
-    if (!graphifyResolution.verified && !dryRun) {
-      const graphifyInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
-      graphifyResolution = await (options.offerGraphifyInstall ?? offerGraphifyInstall)({
-        resolution: graphifyResolution,
-        cwd: root,
-        interactive: graphifyInteractive,
-        ...(graphifyInteractive ? { readPrompt: options.readPrompt ?? defaultInitReadPrompt } : {}),
-        writeStdout: io.writeStdout,
-      });
-    }
-    for (const ide of ides) {
-      try {
-        outcomes.push(
-          await wireGraphify({
-            ide,
-            cwd: root,
-            userHome,
-            python: graphifyResolution.python,
-            graphPath: DEFAULT_GRAPHIFY_GRAPH_PATH,
-            force,
-            dryRun,
-          }),
-        );
-      } catch (err) {
-        io.writeStderr(`${pc.yellow('⚠')} Could not wire Graphify for ${ide}: ${(err as Error).message}\n`);
-      }
-    }
-    if (graphifyResolution.verified) {
-      io.writeStdout(
-        `${pc.green('✓')} Wired Graphify's MCP server with a verified interpreter ${pc.gray(`(${graphifyResolution.python})`)}.\n` +
-          `  ${pc.gray('Next: build the graph ─ `/graphify .` in the assistant (or `graphify update .`), then reconnect the agent.')}\n`,
-      );
-    } else {
-      io.writeStdout(
-        `${pc.green('✓')} Wired Graphify's MCP server (structural-query tool). ${pc.yellow('No working interpreter found yet —')}\n` +
-          `  ${pc.gray('install ─ `coodra graphify enable --install` (creates ./.venv + installs graphifyy[mcp]),')}\n` +
-          `  ${pc.gray('  or by hand ─ `uv venv .venv && uv pip install --python .venv/bin/python "graphifyy[mcp]"`')}\n` +
-          `  ${pc.gray('then build the graph ─ `/graphify .` in the assistant (or `.venv/bin/graphify update .`)')}\n` +
-          `  ${pc.gray('then re-wire ─ `coodra graphify enable --force` (auto-detects), or pin `--python .venv/bin/python`')}\n`,
-      );
-    }
-  } else if (options.graphify === false) {
-    io.writeStdout(`${pc.gray('·')} Skipped Graphify wiring (--no-graphify).\n`);
-  } else {
-    io.writeStdout(
-      `${pc.gray('·')} Graphify not wired. Run \`coodra graphify enable\` any time to add its codebase-graph MCP server.\n`,
-    );
-  }
-
-  // Module 09 (Track 9A, ADR-016) — optional Jira wiring. Atlassian ships
-  // its own remote MCP server ("Rovo"); when the user opts in, `init`
-  // wires it next to the `coodra` entry in each agent config. Jira is NOT
-  // wired by default — it needs a per-user OAuth sign-in (via the
-  // assistant's `/mcp`), so a blind wire would point at a server the user
-  // hasn't authorized. Coodra builds no Jira client (ADR-016) — the agent
-  // calls Atlassian's tools directly. Native remote entry only — no shim.
-  //   --jira     → wire it (no prompt)
-  //   --no-jira  → skip it (no prompt)
-  //   neither + TTY  → prompt (default: skip)
-  //   neither, non-interactive → skip with a hint
-  let wireJiraChoice: boolean;
-  if (options.jira === true) {
-    wireJiraChoice = true;
-  } else if (options.jira === false) {
-    wireJiraChoice = false;
-  } else if (ides.length === 0) {
-    wireJiraChoice = false;
-  } else {
-    const jiraReadPrompt = options.readPrompt ?? defaultInitReadPrompt;
-    const jiraInteractive = options.readPrompt !== undefined || process.stdin.isTTY === true;
-    if (jiraInteractive) {
-      io.writeStdout(
-        `\n${pc.bold('Wire Jira?')} ${pc.gray("— Atlassian's Rovo remote MCP lets the agent read tickets + post on request (getJiraIssue, searchJiraIssuesUsingJql, addCommentToJiraIssue).")}\n` +
-          `  ${pc.gray('Needs a per-user OAuth sign-in in your assistant (`/mcp`). No Coodra app, no API key.')}\n` +
-          `  ${pc.gray('Skip if unsure — `coodra jira enable` adds it any time.')}\n`,
-      );
-      const answer = (await jiraReadPrompt(`  Wire Atlassian Jira's MCP server? [${pc.cyan('y')}/${pc.cyan('N')}]: `))
-        .trim()
-        .toLowerCase();
-      wireJiraChoice = answer === 'y' || answer === 'yes';
-    } else {
-      wireJiraChoice = false;
-    }
-  }
-
-  if (wireJiraChoice && ides.length > 0) {
-    for (const ide of ides) {
-      try {
-        // Field fix 2026-07-12: an Atlassian MCP server may already be
-        // wired under another key (e.g. the user's own
-        // `atlassian-mcp-server`). Adding Coodra's `atlassian` entry next
-        // to it would leave two Atlassian servers — skip and say so
-        // (`coodra jira enable` asks interactively; `--force` overrides).
-        const foreign = force ? null : await findForeignAtlassianServer({ ide, cwd: root, userHome });
-        if (foreign !== null) {
-          io.writeStdout(
-            `${pc.yellow('⚠')} ${IDE_DISPLAY[ide]}: Atlassian MCP already wired (key '${foreign.key}' in ${foreign.configPath}) — skipped.\n` +
-              `  ${pc.gray("The agent can reach Jira through that entry as-is. Run `coodra jira enable --force` to add Coodra's entry anyway.")}\n`,
-          );
-          outcomes.push({
-            path: foreign.configPath,
-            action: 'unchanged',
-            notes: `existing Atlassian MCP server (key '${foreign.key}') — skipped`,
-          });
-          continue;
-        }
-        outcomes.push(await wireJira({ ide, cwd: root, userHome, force, dryRun }));
-      } catch (err) {
-        io.writeStderr(`${pc.yellow('⚠')} Could not wire Jira for ${ide}: ${(err as Error).message}\n`);
-      }
-    }
-    io.writeStdout(
-      `${pc.green('✓')} Wired Atlassian Jira's remote MCP server (Rovo).\n` +
-        `  ${pc.gray('Next: complete the OAuth sign-in ─ run `/mcp` in your assistant and authorize the `atlassian` server.')}\n` +
-        `  ${pc.gray('Then ask about tickets ─ "open PROJ-123", "my open tickets", "post the summary to the ticket".')}\n`,
-    );
-  } else if (options.jira === false) {
-    io.writeStdout(`${pc.gray('·')} Skipped Jira wiring (--no-jira).\n`);
-  } else {
-    io.writeStdout(
-      `${pc.gray('·')} Jira not wired. Run \`coodra jira enable\` any time to add Atlassian's Jira (Rovo) MCP server.\n`,
-    );
-  }
+  io.writeStdout(`${pc.green('✓')} Project Coodra layout ready: .coodra/skill-packs, .coodra/graphify, .coodra/wiki\n`);
 
   // Phase 2: record every generated file into `.coodra/manifest.json` so
   // `coodra files status/clean` can show + clean up Coodra's footprint. The
   // classifier assigns owner/kind/cleanup per file; the manifest itself is
   // recorded too. Skipped writes (dry-run) don't persist a manifest.
   try {
-    const generatedPaths = [...new Set([...outcomes.map((o) => o.path), manifestPath(root)])];
+    const globalRuntimePaths = [
+      dataDb,
+      join(coodraHome, '.env'),
+      resolveCoodraLogsDir(coodraHome),
+      resolveCoodraPidsDir(coodraHome),
+    ];
+    const generatedPaths = [...new Set([...outcomes.map((o) => o.path), manifestPath(root), ...globalRuntimePaths])];
     await recordManifestEntries({
       root,
       projectSlug,
@@ -1012,7 +508,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
 
   io.writeStdout('\n');
   io.writeStdout(`${okLine(`Coodra is ready — project '${projectSlug}'.`)}\n`);
-  io.writeStdout(`${hintLine('  → Restart your IDE so it picks up .mcp.json.')}\n`);
+  io.writeStdout(
+    `${hintLine('  → Install or update global agent plugins with `coodra install` or `coodra agent add <agent>`.')}\n`,
+  );
   io.writeStdout(`${hintLine('  → Run `coodra doctor` to verify the install.')}\n`);
   io.writeStdout(`${hintLine('  → Run `coodra start` to launch the MCP server + Hooks Bridge daemons.')}\n`);
 
@@ -1020,12 +518,6 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(`${pc.yellow('Note')}: --dry-run was set; no files were actually written.\n`);
   }
 
-  // No critical reds during init under happy path. Future expansions (e.g.,
-  // Graphify error) may surface EXIT_ENVIRONMENT_PROBLEM or
-  // EXIT_USER_ACTION_REQUIRED; those constants are imported here so a future
-  // slice doesn't have to re-thread them.
-  void EXIT_ENVIRONMENT_PROBLEM;
-  void EXIT_USER_ACTION_REQUIRED;
   return io.exit(EXIT_OK);
 }
 
@@ -1049,31 +541,4 @@ function actionGlyph(action: string): string {
     default:
       return pc.gray('?');
   }
-}
-
-/**
- * Map the raw `--feature-pack` value (or the boolean `--no-feature-pack`
- * negation, which arrives from Commander as `false`) into the canonical
- * `FeaturePackSeedMode`.
- *
- * Accepts:
- *   - `undefined`           → `'template'` (default; matches pre-2026-05-08 behaviour)
- *   - `'template'`          → `'template'`
- *   - `'empty'`             → `'empty'`
- *   - `'skip'` / `false`    → `'skip'` (Commander emits `false` for `--no-feature-pack`)
- *
- * Anything else is a typo — warn and fall back to `'template'` so a
- * stale shell completion or fat-finger doesn't silently change behaviour.
- */
-function resolveFeaturePackMode(raw: string | undefined, io: InitIO): 'template' | 'empty' | 'skip' {
-  // Commander turns `--no-feature-pack` into a `false` boolean on the
-  // options bag. The TypeScript type widens to string for callers that
-  // pass a value, but at runtime we accept either.
-  if ((raw as unknown) === false) return 'skip';
-  if (raw === undefined) return 'template';
-  if (raw === 'template' || raw === 'empty' || raw === 'skip') return raw;
-  io.writeStderr(
-    `${pc.yellow('⚠')} Unknown --feature-pack mode "${raw}" (expected: template, empty, skip). Falling back to "template".\n`,
-  );
-  return 'template';
 }

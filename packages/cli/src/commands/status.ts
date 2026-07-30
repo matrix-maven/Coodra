@@ -6,6 +6,7 @@ import { selectDaemonManager } from '../lib/daemon/index.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { readPidStatus } from '../lib/pid-status.js';
+import { readProjectConfig } from '../lib/project-store/index.js';
 import { SERVICES } from '../lib/services.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import {
@@ -182,15 +183,13 @@ async function collectProjectState(
   _env: NodeJS.ProcessEnv,
   inheritedMode: 'solo' | 'team',
 ): Promise<ProjectState> {
-  const configPath = join(cwd, '.coodra.json');
   const notes: string[] = [];
   let slug: string | null = null;
-  try {
-    const raw = await readFile(configPath, 'utf8');
-    const parsed = JSON.parse(raw) as { projectSlug?: unknown };
-    if (typeof parsed.projectSlug === 'string') slug = parsed.projectSlug;
-  } catch {
-    notes.push('.coodra.json missing — bridge will fall back to __global__ for this cwd');
+  const projectConfig = await readProjectConfig(cwd);
+  if (projectConfig !== null) {
+    slug = projectConfig.projectSlug;
+  } else {
+    notes.push('.coodra/config.json missing — bridge will fall back to __global__ for this cwd');
   }
   // Resolve the slug to a projects.id in local SQLite so `collectRecent`
   // can scope the "Last run / Last decision" query to THIS project.
@@ -222,7 +221,7 @@ async function collectProjectState(
       }
     } catch {
       // DB missing / unreadable — leave registered=false and projectId=null.
-      // The note from the missing-.coodra.json branch already covers
+      // The note from the missing project config branch already covers
       // the "you need to init" case; nothing extra to surface here.
     }
   }

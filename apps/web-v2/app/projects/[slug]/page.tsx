@@ -627,9 +627,7 @@ function FeaturePackPanel({
       {pack.primary?.isTemplateStub === true ? (
         <Banner tone="ok">
           Primary pack is a <code style={packCodeStyle}>coodra init</code> template stub — uploading via{' '}
-          <strong>+ Upload pack</strong> below will silently replace it (no force-overwrite needed). Tip: next time, run{' '}
-          <code style={packCodeStyle}>coodra init --feature-pack=empty</code> to skip the template scaffold and upload
-          your own <code style={packCodeStyle}>.md</code> from the start.
+          <strong>+ Upload pack</strong> below will silently replace it (no force-overwrite needed).
         </Banner>
       ) : null}
 

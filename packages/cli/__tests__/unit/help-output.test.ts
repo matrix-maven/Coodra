@@ -21,8 +21,11 @@ describe('coodra --help (snapshot-locked surface)', () => {
         -h, --help                Show help for a command.
 
       Commands:
+        install [options]         Install or repair machine-level Coodra runtime state
+                                  (~/.coodra, data.db, runtime env).
         init [options]            Initialise Coodra in the current project (writes
-                                  ~/.coodra/, .mcp.json, .coodra.json, .env).
+                                  project-local .coodra/ config, manifest,
+                                  skill-packs, graphify, and wiki dirs).
         start [options]           Start MCP Server + Hooks Bridge + Web Dashboard (+
                                   Sync Daemon in team mode) as background daemons.
         stop [options]            Stop Coodra daemons. Idempotent.
@@ -126,11 +129,25 @@ describe('coodra --help (snapshot-locked surface)', () => {
     expect(init).toBeDefined();
     const help = init?.helpInformation() ?? '';
     expect(help).toContain('--project-slug <slug>');
-    expect(help).toContain('--ide <ide>');
-    expect(help).toContain('--no-graphify');
+    expect(help).not.toContain('--ide <ide>');
+    expect(help).not.toContain('--no-agents');
+    expect(help).not.toContain('--no-graphify');
+    expect(help).not.toContain('--feature-pack');
+    expect(help).not.toContain('--template <name|path>');
+    expect(help).not.toContain('--mode <mode>');
     expect(help).toContain('--dry-run');
     expect(help).toContain('--force');
     expect(help).toContain('Overwrite existing files with the baseline');
+  });
+
+  it('renders install subcommand help with --dry-run and --json', () => {
+    const program = buildProgram();
+    const install = program.commands.find((c) => c.name() === 'install');
+    expect(install).toBeDefined();
+    const help = install?.helpInformation() ?? '';
+    expect(help).toContain('--dry-run');
+    expect(help).toContain('--json');
+    expect(help).toContain('machine-level Coodra runtime state');
   });
 
   it('renders doctor subcommand help with --json and --timeout-ms', () => {

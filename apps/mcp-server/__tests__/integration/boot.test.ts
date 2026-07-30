@@ -86,7 +86,9 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //   Module 10 (2026-06-06): Deep Wiki — wiki_save_structure +
     //     wiki_save_page + wiki_status added (DeepWiki-style two-pass codebase
     //     wiki; agent is the model, Coodra is schema + persistence) → 20
-    expect(tools.length).toBe(20);
+    //   COOD-6 (2026-07-29): lifecycle_event added so native Codex plugin
+    //     hooks can call Coodra MCP directly instead of the hooks bridge → 21
+    expect(tools.length).toBe(21);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

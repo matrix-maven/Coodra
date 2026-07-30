@@ -31,7 +31,7 @@ import { join } from 'node:path';
  *
  * Scope: this module ONLY operates on the per-project `.env` file at
  * `<cwd>/.env`. It does NOT touch `~/.coodra/.env` (that's owned by
- * team-config.ts) or `<cwd>/.coodra.json` (that's the project
+ * team-config.ts) or `<cwd>/.coodra/config.json` (that's the project
  * registration manifest, no env keys inside).
  *
  * Atomicity: writes use tmpfile + rename, same pattern as

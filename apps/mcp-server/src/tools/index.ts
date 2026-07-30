@@ -6,6 +6,7 @@ import { getFeaturePackToolRegistration } from './get-feature-pack/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
 import { createGetSkillToolRegistration } from './get-skill/manifest.js';
 import { createGetSkillFileToolRegistration } from './get-skill-file/manifest.js';
+import { createLifecycleEventToolRegistration } from './lifecycle-event/manifest.js';
 import { createLinkRunToIssueToolRegistration } from './link-run-to-issue/manifest.js';
 import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
 import { createListSkillsToolRegistration } from './list-skills/manifest.js';
@@ -50,6 +51,7 @@ export interface RegisterAllToolsDeps {
 export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsDeps): void {
   registry.register(pingToolRegistration);
   registry.register(createGetRunIdToolRegistration({ db: deps.db, mode: deps.mode }));
+  registry.register(createLifecycleEventToolRegistration({ db: deps.db, mode: deps.mode }));
   registry.register(getFeaturePackToolRegistration);
   registry.register(createSaveContextPackToolRegistration({ db: deps.db }));
   registry.register(createSearchPacksNlToolRegistration({ db: deps.db }));
@@ -73,7 +75,7 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // injection that surfaces the index list to agents. The former tool names
   // (list_features / get_feature / get_feature_file) are registered as hidden
   // aliases below so no agent config breaks on upgrade — they resolve to the
-  // same handlers but do NOT appear in tools/list (count stays 20).
+  // same handlers but do NOT appear in tools/list.
   registry.register(createListSkillsToolRegistration({ db: deps.db }));
   registry.register(createGetSkillToolRegistration({ db: deps.db }));
   registry.register(createGetSkillFileToolRegistration({ db: deps.db }));
@@ -108,6 +110,9 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(createWikiSaveStructureToolRegistration({ db: deps.db }));
   registry.register(createWikiSavePageToolRegistration({ db: deps.db }));
   registry.register(createWikiStatusToolRegistration({ db: deps.db }));
+  // COOD-6 (2026-07-29): lifecycle_event is registered near get_run_id above.
+  // It brings the count to 21 and lets native Codex plugin hooks call Coodra
+  // MCP directly rather than posting to the background hooks bridge.
   // Module 09 (External MCP Integrations, track 9B): Graphify is consumed
   // as its OWN MCP server wired alongside Coodra (ADR-010 / ADR-015) — the
   // agent calls Graphify's query_graph/get_node/etc. directly. Coodra mints

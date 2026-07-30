@@ -2,7 +2,8 @@ import { access, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { EXIT_OK } from '../exit-codes.js';
-import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
+import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
+import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import { INSTRUCTION_BLOCK_START } from '../lib/init/instruction-files.js';
 import { defaultWindsurfMcpConfigPath } from '../lib/init/windsurf-merge.js';
 import { pc } from '../ui/compat.js';
@@ -133,18 +134,54 @@ export async function buildAgentReports(input: BuildReportsInput): Promise<reado
 async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
   const claudeDir = join(input.userHome, '.claude');
   const detected = await pathExists(claudeDir);
-  const settingsPath = defaultClaudeSettingsPath(input.userHome);
-  const mcpPath = join(input.cwd, '.mcp.json');
-  const claudeMd = join(input.cwd, 'CLAUDE.md');
+  const plugin = claudePluginPaths(input.userHome);
   return {
     name: 'claude',
     displayName: 'Claude Code',
     detected,
     detectionPath: `${claudeDir}/`,
     files: [
-      await mcpJsonState({ path: mcpPath, label: '.mcp.json' }),
-      await settingsJsonState({ path: settingsPath, label: '~/.claude/settings.json' }),
-      await instructionFileState({ path: claudeMd, label: 'CLAUDE.md' }),
+      await fileContainsState({
+        path: plugin.settingsPath,
+        label: 'Claude user plugin enablement',
+        needle: '"coodra@coodra": true',
+        wiredNote: 'coodra@coodra enabled in user settings',
+        missingNote: 'missing',
+        partialNote: 'coodra@coodra is not enabled',
+      }),
+      await fileContainsState({
+        path: plugin.marketplacePath,
+        label: 'Claude local marketplace',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra local marketplace present',
+        missingNote: 'missing',
+        partialNote: 'marketplace manifest does not match coodra',
+      }),
+      await fileContainsState({
+        path: plugin.cacheManifestPath,
+        label: 'Claude plugin manifest',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra plugin manifest present',
+        missingNote: 'missing',
+        partialNote: 'plugin manifest does not match coodra',
+      }),
+      await mcpJsonState({ path: plugin.cacheMcpPath, label: 'Claude plugin MCP' }),
+      await fileContainsState({
+        path: plugin.cacheHooksPath,
+        label: 'Claude plugin hooks',
+        needle: '"SessionStart"',
+        wiredNote: 'coodra lifecycle hooks present',
+        missingNote: 'missing',
+        partialNote: 'no coodra lifecycle hooks',
+      }),
+      await fileContainsState({
+        path: join(plugin.cacheSkillsRoot, 'coodra-context', 'SKILL.md'),
+        label: 'Claude plugin skills',
+        needle: 'name: coodra-context',
+        wiredNote: 'coodra skills present',
+        missingNote: 'missing',
+        partialNote: 'coodra context skill missing',
+      }),
     ],
     howToEnable: detected
       ? null
@@ -194,14 +231,46 @@ async function windsurfReport(input: BuildReportsInput): Promise<AgentReport> {
 async function codexReport(input: BuildReportsInput): Promise<AgentReport> {
   const codexDir = join(input.userHome, '.codex');
   const detected = await pathExists(codexDir);
+  const plugin = codexPluginPaths(input.userHome);
   return {
     name: 'codex',
     displayName: 'Codex',
     detected,
     detectionPath: `${codexDir}/`,
     files: [
-      await codexConfigState({ path: join(input.cwd, '.codex', 'config.toml'), label: '.codex/config.toml' }),
-      await instructionFileState({ path: join(input.cwd, 'AGENTS.md'), label: 'AGENTS.md' }),
+      await fileContainsState({
+        path: plugin.marketplacePath,
+        label: '~/.agents/plugins/marketplace.json',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra marketplace entry present',
+        missingNote: 'missing',
+        partialNote: 'no coodra marketplace entry',
+      }),
+      await fileContainsState({
+        path: plugin.manifestPath,
+        label: 'Codex plugin manifest',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra plugin manifest present',
+        missingNote: 'missing',
+        partialNote: 'plugin manifest does not match coodra',
+      }),
+      await mcpJsonState({ path: plugin.mcpPath, label: 'Codex plugin MCP' }),
+      await fileContainsState({
+        path: plugin.hooksPath,
+        label: 'Codex plugin hooks',
+        needle: '"SessionStart"',
+        wiredNote: 'coodra lifecycle hooks present',
+        missingNote: 'missing',
+        partialNote: 'no coodra lifecycle hooks',
+      }),
+      await fileContainsState({
+        path: join(plugin.skillsRoot, 'coodra-context', 'SKILL.md'),
+        label: 'Codex plugin skills',
+        needle: 'name: coodra-context',
+        wiredNote: 'coodra skills present',
+        missingNote: 'missing',
+        partialNote: 'coodra context skill missing',
+      }),
     ],
     howToEnable: detected
       ? null
@@ -241,48 +310,30 @@ async function mcpJsonState(input: FileLabelInput): Promise<AgentFileState> {
   }
 }
 
-async function settingsJsonState(input: FileLabelInput): Promise<AgentFileState> {
-  const exists = await pathExists(input.path);
-  if (!exists) {
-    return { label: input.label, path: input.path, exists: false, wired: false, notes: 'missing — hooks not wired' };
-  }
-  try {
-    const raw = await readFile(input.path, 'utf8');
-    const parsed = JSON.parse(raw) as { hooks?: Record<string, unknown> };
-    const hooks = parsed.hooks ?? {};
-    const bridgeUrlPart = '/v1/hooks/claude-code';
-    const wired = JSON.stringify(hooks).includes(bridgeUrlPart);
-    return {
-      label: input.label,
-      path: input.path,
-      exists: true,
-      wired,
-      notes: wired
-        ? 'coodra hooks wired (SessionStart, Pre/PostToolUse, Stop, SessionEnd)'
-        : 'no coodra hooks — run `coodra init`',
-    };
-  } catch {
-    return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable JSON' };
-  }
+interface FileContainsInput extends FileLabelInput {
+  readonly needle: string;
+  readonly wiredNote: string;
+  readonly missingNote: string;
+  readonly partialNote: string;
 }
 
-async function codexConfigState(input: FileLabelInput): Promise<AgentFileState> {
+async function fileContainsState(input: FileContainsInput): Promise<AgentFileState> {
   const exists = await pathExists(input.path);
   if (!exists) {
-    return { label: input.label, path: input.path, exists: false, wired: false, notes: 'missing' };
+    return { label: input.label, path: input.path, exists: false, wired: false, notes: input.missingNote };
   }
   try {
     const raw = await readFile(input.path, 'utf8');
-    const wired = /\[mcp_servers\.coodra\]/.test(raw);
+    const wired = raw.includes(input.needle);
     return {
       label: input.label,
       path: input.path,
       exists: true,
       wired,
-      notes: wired ? 'coodra MCP entry present' : 'no coodra entry — run `coodra init`',
+      notes: wired ? input.wiredNote : input.partialNote,
     };
   } catch {
-    return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable TOML' };
+    return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable file' };
   }
 }
 

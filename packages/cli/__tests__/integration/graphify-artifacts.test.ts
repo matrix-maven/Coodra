@@ -56,7 +56,8 @@ const GRAPH = { nodes: [{ id: 'a', community: 0 }], links: [] };
 
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'coodra-gfxcmd-'));
-  await writeFile(join(root, '.coodra.json'), JSON.stringify({ projectSlug: 'gfx-demo' }));
+  await mkdir(join(root, '.coodra'), { recursive: true });
+  await writeFile(join(root, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'gfx-demo' }));
 });
 afterEach(async () => {
   const { rm } = await import('node:fs/promises');

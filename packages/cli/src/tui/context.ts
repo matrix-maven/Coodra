@@ -5,9 +5,8 @@
  * tree mounts; the Status view fetches its own richer data lazily.
  */
 
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
+import { readProjectConfig } from '../lib/project-store/index.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { VERSION } from '../version.js';
 
@@ -18,7 +17,7 @@ export interface TuiContext {
   readonly mode: 'solo' | 'team';
   /** Clerk org slug, when in team mode and the config carries one. */
   readonly orgSlug: string | null;
-  /** Project slug from `<cwd>/.coodra.json`, or null for an unregistered cwd. */
+  /** Project slug from `<cwd>/.coodra/config.json`, or null for an unregistered cwd. */
   readonly projectSlug: string | null;
 }
 
@@ -37,16 +36,7 @@ export async function loadTuiContext(): Promise<TuiContext> {
     // No config / unreadable — solo is the safe default.
   }
 
-  let projectSlug: string | null = null;
-  try {
-    const raw = await readFile(join(cwd, '.coodra.json'), 'utf8');
-    const parsed = JSON.parse(raw) as { projectSlug?: unknown };
-    if (typeof parsed.projectSlug === 'string' && parsed.projectSlug.length > 0) {
-      projectSlug = parsed.projectSlug;
-    }
-  } catch {
-    // Not a registered project — projectSlug stays null.
-  }
+  const projectSlug = (await readProjectConfig(cwd))?.projectSlug ?? null;
 
   return { version: VERSION, cwd, coodraHome, mode, orgSlug, projectSlug };
 }

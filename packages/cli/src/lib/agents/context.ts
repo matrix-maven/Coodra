@@ -16,8 +16,10 @@ import type { AgentContext } from './types.js';
  * the standalone counterpart to the inline resolution `coodra init` does
  * (mcp-server binary, bundled migrations dir, LOCAL_HOOK_SECRET, bridge
  * port, solo/team mode + DATABASE_URL). Keeping this here lets
- * `coodra agent add/repair` wire an agent WITHOUT re-running the full
- * `coodra init` flow.
+ * `coodra agent add/repair` wire an agent WITHOUT re-running project init.
+ * Codex uses this context to generate its global plugin `.mcp.json`; legacy
+ * adapters still use it for their existing config files while their native
+ * plugin features land.
  */
 
 export interface ResolveAgentContextOptions {
@@ -43,9 +45,8 @@ export interface ResolvedAgentWiring {
 }
 
 /**
- * Read the project slug via the shared project-store reader (prefers
- * `.coodra/config.json`, falls back to legacy `.coodra.json`); default to the
- * directory name when neither is present.
+ * Read the project slug via the shared project-store reader
+ * (`.coodra/config.json`); default to the directory name when it is absent.
  */
 async function readProjectSlug(root: string): Promise<string> {
   const cfg = await readProjectConfig(root);
@@ -116,10 +117,9 @@ export async function resolveAgentWiringContext(opts: ResolveAgentContextOptions
 }
 
 /**
- * Ensure `<cwd>/.mcp.json` carries the project-level Coodra MCP registration.
- * This is NOT a per-agent surface (see agents/types.ts): it is the project's
- * canonical MCP entry, stamped `claude_code` to match what `coodra init`
- * writes unconditionally. Both `coodra init` and `coodra agent add` ensure it.
+ * Ensure `<cwd>/.mcp.json` carries the legacy project-level Coodra MCP
+ * registration for adapters that still need it. Codex does not call this path;
+ * it gets MCP through its native global plugin.
  */
 export async function ensureProjectMcpJson(ctx: AgentContext): Promise<WriteOutcome> {
   const entry = buildCoodraMcpEntry({ ...ctx.mcpEntryOptions, agentType: 'claude_code' });

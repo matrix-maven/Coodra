@@ -3,23 +3,20 @@
  * binary's entry point AFTER `log-destination-shim` and BEFORE any module
  * that reads `process.env` at top level.
  *
- * Closes Finding A from the 2026-04-28 functionality test:
- *   `coodra init` writes a project-level `.env` (per spec §4.1) but
- *   no CLI command ever read it. Doctor check 20 was YELLOW because the
- *   `LOCAL_HOOK_SECRET` `init` wrote never reached `process.env`. Team
- *   mode silently fell back to solo for the same reason.
+ * Closes Finding A from the 2026-04-28 functionality test and preserves
+ * the layered-env contract: Coodra-owned runtime config lives in
+ * `~/.coodra/.env`, while an existing project `.env` may still provide
+ * user-managed overrides.
  *
  * What this shim does:
  *   1. Resolves `<COODRA_HOME>/.env` (user-global daemon defaults).
- *   2. Resolves `<process.cwd()>/.env` (per-project overrides — this is
- *      where `coodra init` writes).
+ *   2. Resolves `<process.cwd()>/.env` (user-managed per-project overrides).
  *   3. Layers them into `process.env`, with project-level winning over
  *      home-level on conflict, and existing `process.env` (shell
  *      exports) winning over both.
  *
  * After this runs:
- *   - `coodra doctor` sees LOCAL_HOOK_SECRET via `ctx.env` → check 20
- *     goes GREEN.
+ *   - `coodra doctor` sees LOCAL_HOOK_SECRET via `ctx.env`.
  *   - `coodra start` propagates the layered values to the daemon
  *     spawn env via `services.ts::resolveServices`.
  *   - Every other CLI command sees the same env, so future scripted

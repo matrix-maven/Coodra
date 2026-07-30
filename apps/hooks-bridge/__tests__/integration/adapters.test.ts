@@ -97,6 +97,64 @@ describe('per-agent adapter dispatch on POST /v1/hooks/{agent}', () => {
     expect(dispatch).toHaveBeenCalledTimes(1);
   });
 
+  it('codex: happy path produces a HookEvent + Codex hook response', async () => {
+    const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
+    const { hono } = buildApp({ env: makeEnv(), dispatch });
+
+    const res = await hono.request('/v1/hooks/codex', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hook_event_name: 'PreToolUse',
+        session_id: 'thr-1',
+        tool_name: 'apply_patch',
+        tool_use_id: 'tool-1',
+        tool_input: { file_path: 'src/x.ts' },
+        cwd: '/repo',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { hookSpecificOutput: { permissionDecision: string } };
+    expect(body.hookSpecificOutput.permissionDecision).toBe('allow');
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const event = vi.mocked(dispatch).mock.calls[0]?.[0];
+    expect(event).toMatchObject({
+      agentType: 'codex',
+      eventPhase: 'pre',
+      sessionId: 'thr-1',
+      toolName: 'apply_patch',
+      filePath: 'src/x.ts',
+    });
+  });
+
+  it('codex: SessionStart additionalContext is returned in Codex hookSpecificOutput', async () => {
+    const dispatch: DispatchHookEvent = vi.fn(async () => ({
+      permissionDecision: 'allow' as const,
+      additionalContext: 'Coodra context loaded.',
+    }));
+    const { hono } = buildApp({ env: makeEnv(), dispatch });
+
+    const res = await hono.request('/v1/hooks/codex', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hook_event_name: 'SessionStart',
+        session_id: 'thr-1',
+        source: 'startup',
+        cwd: '/repo',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { hookSpecificOutput: { hookEventName: string; additionalContext: string } };
+    expect(body.hookSpecificOutput).toEqual({
+      hookEventName: 'SessionStart',
+      additionalContext: 'Coodra context loaded.',
+    });
+  });
+
   it('claude-code: malformed payload (Zod rejection) → 200 + fail-open allow + reason invalid_hook_payload', async () => {
     const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
     const { hono } = buildApp({ env: makeEnv(), dispatch });
