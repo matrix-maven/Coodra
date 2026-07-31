@@ -56,6 +56,9 @@ export const runs = pgTable(
     status: text('status').notNull().default('in_progress'),
     issueRef: text('issue_ref'),
     prRef: text('pr_ref'),
+    // COOD-12 smart work sessions. Nullable so normal sessions remain
+    // project-scoped; set when a run is actively implementing a Work Pack.
+    workPackId: text('work_pack_id'),
     // Module 06 — see ./sqlite.ts::runs.baseSha for the full rationale.
     baseSha: text('base_sha'),
     // Module 04 Phase 4 — see ./sqlite.ts::runs.createdByUserId.
@@ -107,6 +110,9 @@ export const contextPacks = pgTable(
     // Module 05 — JSON-encoded agent-curated metadata. Use `text` (not
     // `jsonb`) for parity with SQLite. Handler does JSON.parse/stringify.
     meta: text('meta'),
+    // Nullable link to the Work Pack this recap belongs to. Kept as text
+    // because context_packs is declared before work_packs in this module.
+    workPackId: text('work_pack_id'),
     // Module 04 Phase 4 — see ./sqlite.ts::contextPacks.createdByUserId.
     createdByUserId: text('created_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -114,6 +120,7 @@ export const contextPacks = pgTable(
   (t) => [
     uniqueIndex('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
+    index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
   ],
 );
 

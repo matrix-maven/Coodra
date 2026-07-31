@@ -70,6 +70,7 @@ export interface ContextPackMeta {
   readonly affectedFiles?: ReadonlyArray<string>;
   readonly testStatus?: 'pass' | 'fail' | 'skip' | 'unknown';
   readonly openTodos?: ReadonlyArray<string>;
+  readonly workPackSlug?: string;
 }
 
 export type ContextPackSource = 'agent' | 'bridge_auto';
@@ -83,6 +84,8 @@ export interface ContextPackWriteOptions {
    * mode + when the actor identity is unavailable.
    */
   readonly createdByUserId?: string | null;
+  /** Nullable Work Pack link for smart Jira-work sessions. */
+  readonly workPackId?: string | null;
 }
 
 export interface ContextPackWriteResult {
@@ -151,6 +154,7 @@ async function insertRow(
     readonly source: ContextPackSource;
     readonly metaJson: string | null;
     readonly createdByUserId: string | null;
+    readonly workPackId: string | null;
   },
 ): Promise<{ readonly createdAt: Date }> {
   if (db.kind === 'sqlite') {
@@ -163,6 +167,7 @@ async function insertRow(
       contentExcerpt: row.contentExcerpt,
       source: row.source,
       meta: row.metaJson,
+      workPackId: row.workPackId,
       createdByUserId: row.createdByUserId,
     };
     const inserted = await db.db
@@ -180,6 +185,7 @@ async function insertRow(
     contentExcerpt: row.contentExcerpt,
     source: row.source,
     meta: row.metaJson,
+    workPackId: row.workPackId,
     createdByUserId: row.createdByUserId,
   };
   const inserted = await db.db
@@ -197,6 +203,7 @@ async function upgradeBridgeAutoToAgent(
     readonly content: string;
     readonly contentExcerpt: string;
     readonly metaJson: string | null;
+    readonly workPackId: string | null;
   },
 ): Promise<void> {
   if (db.kind === 'sqlite') {
@@ -208,6 +215,7 @@ async function upgradeBridgeAutoToAgent(
         contentExcerpt: payload.contentExcerpt,
         source: 'agent',
         meta: payload.metaJson,
+        workPackId: payload.workPackId,
       })
       .where(eq(sqliteSchema.contextPacks.id, rowId));
     return;
@@ -220,7 +228,22 @@ async function upgradeBridgeAutoToAgent(
       contentExcerpt: payload.contentExcerpt,
       source: 'agent',
       meta: payload.metaJson,
+      workPackId: payload.workPackId,
     })
+    .where(eq(postgresSchema.contextPacks.id, rowId));
+}
+
+async function linkExistingContextPackToWorkPack(db: DbHandle, rowId: string, workPackId: string): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .update(sqliteSchema.contextPacks)
+      .set({ workPackId })
+      .where(eq(sqliteSchema.contextPacks.id, rowId));
+    return;
+  }
+  await db.db
+    .update(postgresSchema.contextPacks)
+    .set({ workPackId })
     .where(eq(postgresSchema.contextPacks.id, rowId));
 }
 
@@ -278,6 +301,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
             content: input.content,
             contentExcerpt,
             metaJson,
+            workPackId: writeOptions.workPackId ?? null,
           });
           log.info(
             { event: 'context_pack_upgraded_from_bridge_auto', runId: input.runId, id: existing.id },
@@ -312,7 +336,13 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
           };
         }
         // Same-source re-call OR agent->bridge_auto downgrade attempt.
-        // Both are no-ops. Return existing row's shape unchanged.
+        // Both are content no-ops. If a later smart Work Pack save
+        // supplies a link for an older unlinked row, attach it without
+        // changing the append-only narrative payload.
+        const incomingWorkPackId = writeOptions.workPackId ?? null;
+        if ((existing.workPackId ?? null) === null && incomingWorkPackId !== null) {
+          await linkExistingContextPackToWorkPack(deps.db, existing.id, incomingWorkPackId);
+        }
         log.info(
           {
             event: 'context_pack_idempotent_hit',
@@ -320,6 +350,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
             id: existing.id,
             existingSource: existing.source,
             incomingSource,
+            attachedWorkPack: (existing.workPackId ?? null) === null && incomingWorkPackId !== null,
           },
           'context-pack.write: row already exists for runId — returning existing shape',
         );
@@ -345,6 +376,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
         source: incomingSource,
         metaJson,
         createdByUserId: writeOptions.createdByUserId ?? null,
+        workPackId: writeOptions.workPackId ?? null,
       });
 
       // M04 Phase 4: in team mode, enqueue a sync_to_cloud job so the

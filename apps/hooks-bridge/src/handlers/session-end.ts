@@ -10,6 +10,7 @@ import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
 import { runRunDiff } from '../lib/run-diff-runner.js';
 import type { RunRecorder } from '../lib/run-recorder.js';
 import { clearSessionState } from '../lib/session-state.js';
+import { updateLinkedWorkPackFromRun } from '../lib/work-pack-session-update.js';
 
 /**
  * `apps/hooks-bridge/src/handlers/session-end` — closes the `runs`
@@ -210,6 +211,7 @@ async function scheduleAutoContextPackSave(args: {
       db: args.db,
       ...(actor !== null ? { createdByUserId: actor.userId } : {}),
     });
+    await updateLinkedWorkPackFromRun({ db: args.db, runId });
   } catch (err) {
     sessionEndLogger.warn(
       {

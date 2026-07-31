@@ -37,3 +37,8 @@ export {
   runDiffFilesChangedSchema,
   truncateUnifiedDiff,
 } from './run-diff.js';
+export {
+  parseJiraWorkIntent,
+  renderJiraWorkModeContext,
+  type JiraWorkIntent,
+} from './work-intent.js';

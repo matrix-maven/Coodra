@@ -56,6 +56,31 @@ async function selectRunProjectId(db: DbHandle, runId: string): Promise<string |
   return rows[0]?.projectId ?? null;
 }
 
+async function selectWorkPackIdBySlug(db: DbHandle, projectId: string, slug: string): Promise<string | null> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ id: sqliteSchema.workPacks.id })
+      .from(sqliteSchema.workPacks)
+      .where(and(eq(sqliteSchema.workPacks.projectId, projectId), eq(sqliteSchema.workPacks.slug, slug)))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  }
+  const rows = await db.db
+    .select({ id: postgresSchema.workPacks.id })
+    .from(postgresSchema.workPacks)
+    .where(and(eq(postgresSchema.workPacks.projectId, projectId), eq(postgresSchema.workPacks.slug, slug)))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+async function linkRunToWorkPack(db: DbHandle, runId: string, workPackId: string): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db.update(sqliteSchema.runs).set({ workPackId }).where(eq(sqliteSchema.runs.id, runId));
+    return;
+  }
+  await db.db.update(postgresSchema.runs).set({ workPackId }).where(eq(postgresSchema.runs.id, runId));
+}
+
 async function markRunCompleted(db: DbHandle, runId: string): Promise<void> {
   if (db.kind === 'sqlite') {
     await db.db
@@ -119,6 +144,19 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       };
     }
     const actor = auth.actor;
+    const workPackId =
+      input.workPackSlug !== undefined ? await selectWorkPackIdBySlug(deps.db, projectId, input.workPackSlug) : null;
+    if (input.workPackSlug !== undefined && workPackId === null) {
+      handlerLogger.info(
+        {
+          event: 'save_context_pack_work_pack_not_found',
+          runId: input.runId,
+          workPackSlug: input.workPackSlug,
+          sessionId: ctx.sessionId,
+        },
+        'save_context_pack: workPackSlug not found yet; saving unlinked context pack',
+      );
+    }
     const written = (await ctx.contextPack.write(
       {
         runId: input.runId,
@@ -130,8 +168,13 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         source: 'agent',
         ...(input.meta !== undefined ? { meta: input.meta } : {}),
         ...(actor !== null ? { createdByUserId: actor.userId } : {}),
+        ...(workPackId !== null ? { workPackId } : {}),
       },
     )) as ContextPackWriteResult;
+
+    if (workPackId !== null) {
+      await linkRunToWorkPack(deps.db, input.runId, workPackId);
+    }
 
     // Mark the run completed — idempotent no-op if already completed.
     // Runs after the store write so that the context_packs row exists

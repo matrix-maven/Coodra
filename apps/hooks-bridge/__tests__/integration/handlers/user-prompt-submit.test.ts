@@ -127,4 +127,25 @@ describe('UserPromptSubmit (Claude Code)', () => {
     const thisPrompt = rows.filter((r) => r.toolInput.includes(promptId));
     expect(thisPrompt.length).toBe(1);
   });
+
+  it('injects Work Pack mode context for coodra-jira-work prompts', async () => {
+    const res = await h.hono.request('/v1/hooks/claude-code', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'sess-work-prompt',
+        cwd: h.cwd,
+        prompt: '/coodra-jira-work COOD-10 --related',
+        prompt_id: 'prompt-work',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      hookSpecificOutput?: { additionalContext?: string };
+    };
+    expect(body.hookSpecificOutput?.additionalContext).toContain('Coodra Work Pack mode: COOD-10');
+    expect(body.hookSpecificOutput?.additionalContext).toContain('coodra__work_pack_upsert');
+    expect(body.hookSpecificOutput?.additionalContext).toContain('workPackSlug');
+  });
 });

@@ -79,6 +79,7 @@ export async function installCodexPlugin(ctx: AgentContext): Promise<{
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
     [join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), deepWikiAuthorSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
+    [join(paths.skillsRoot, 'coodra-jira-work', 'SKILL.md'), coodraJiraWorkSkill()],
     [paths.marketplacePath, await marketplaceJson(paths.marketplacePath)],
   ]);
 
@@ -558,6 +559,24 @@ Use this skill when the user asks to graphify a repository, use the code graph, 
 2. Set \`GRAPHIFY_OUT=.coodra/graphify/out\` before running Graphify when the command supports it.
 3. Use Graphify artifacts as context before broad architecture, dependency, wiki, or refactor work.
 4. Do not leave new Graphify output in root-level \`graphify-out/\` unless the user explicitly asks.
+`;
+}
+
+function coodraJiraWorkSkill(): string {
+  return `---
+name: coodra-jira-work
+description: Start or resume a Jira-linked Coodra Work Pack implementation session from a Jira key such as COOD-10.
+---
+
+Use this skill when the user asks to work on, import, resume, or implement a Jira issue through Coodra.
+
+1. Parse the Jira key from the user request and derive the Work Pack slug by lowercasing it, for example \`COOD-10\` -> \`cood-10\`.
+2. Call \`coodra__get_run_id\` if you do not already have the current \`runId\`.
+3. Call \`coodra__work_pack_status { runId }\` and inspect any existing local Work Pack for that slug.
+4. Use Atlassian Rovo MCP to fetch the Jira issue. If the user asked for related work, also fetch bounded parent/epic, subtasks, blockers, blocked-by links, and same-epic tasks relevant to implementation.
+5. Call \`coodra__work_pack_upsert\` before editing code.
+6. Call \`coodra__save_context_pack\` with \`workPackSlug\` set to the slug to create the initial linked Context Pack.
+7. Implement the change using \`.coodra/work-packs/<slug>/\` as the local work record, call \`record_decision\` for material choices, and finish with a concise user-facing recap. The Coodra SessionEnd hook updates the linked Work Pack with the implementation overview and changed files.
 `;
 }
 

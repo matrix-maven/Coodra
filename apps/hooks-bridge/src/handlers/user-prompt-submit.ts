@@ -1,5 +1,5 @@
 import type { DbHandle } from '@coodra/db';
-import { createLogger } from '@coodra/shared';
+import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 
 import type { HookDispatchResult } from '../app.js';
@@ -47,15 +47,18 @@ export function createUserPromptSubmitHandler(deps: CreateUserPromptSubmitHandle
     // user_prompt run_event row lands with a real run_id FK.
     const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordUserPromptSubmit(event, projectId);
+    const intent = parseJiraWorkIntent(event.toolInput);
+    const additionalContext = intent !== null ? renderJiraWorkModeContext(intent) : undefined;
     userPromptLogger.info(
       {
         event: 'user_prompt_recorded',
         sessionId: event.sessionId,
         agentType: event.agentType,
         ...(projectId !== undefined ? { projectId } : {}),
+        ...(intent !== null ? { workPackSlug: intent.slug, jiraIssueKey: intent.issueKey } : {}),
       },
       'UserPromptSubmit audit scheduled',
     );
-    return { permissionDecision: 'allow' };
+    return { permissionDecision: 'allow', ...(additionalContext !== undefined ? { additionalContext } : {}) };
   };
 }

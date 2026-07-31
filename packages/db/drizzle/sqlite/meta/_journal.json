@@ -141,6 +141,13 @@
 			"when": 1785489000000,
 			"tag": "0019_drop_feature_packs",
 			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "6",
+			"when": 1785490800000,
+			"tag": "0020_work_pack_session_links",
+			"breakpoints": true
 		}
 	]
 }

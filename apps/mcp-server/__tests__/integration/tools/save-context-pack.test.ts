@@ -144,6 +144,36 @@ describe('save_context_pack — happy path', () => {
     expect(runRows[0]?.status).toBe('completed');
     expect(runRows[0]?.endedAt).toBeTruthy();
   });
+
+  it('links the Context Pack and run to a Work Pack by slug', async () => {
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('work_1', h.projectId, 'cood-10', 'COOD-10', 'task', 'draft', '', '', '', '{}');
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'Initial COOD-10 context', content: 'ready', workPackSlug: 'cood-10' },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const contextRows = await h.handle.db
+      .select({ workPackId: sqliteSchema.contextPacks.workPackId })
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.id, out.contextPackId));
+    const runRows = await h.handle.db
+      .select({ workPackId: sqliteSchema.runs.workPackId })
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.id, h.runId));
+    expect(contextRows[0]?.workPackId).toBe('work_1');
+    expect(runRows[0]?.workPackId).toBe('work_1');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -215,6 +245,52 @@ describe('save_context_pack — append-only re-call returns the original row unc
       .where(eq(sqliteSchema.contextPacks.id, first.contextPackId));
     expect(rows[0]?.content).toBe('original body');
     expect(rows[0]?.title).toBe('v1');
+  });
+
+  it('second call can attach an existing unlinked Context Pack to a Work Pack without rewriting content', async () => {
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('work_2', h.projectId, 'cood-12', 'COOD-12', 'task', 'draft', '', '', '', '{}');
+    const registry = buildRegistry(h);
+    const first = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'v1', content: 'original body' },
+        'sess_scp',
+      ),
+    );
+    const second = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'v2 DIFFERENT', content: 'ignored body', workPackSlug: 'cood-12' },
+        'sess_scp',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.contextPackId).toBe(first.contextPackId);
+
+    const contextRows = await h.handle.db
+      .select({
+        content: sqliteSchema.contextPacks.content,
+        title: sqliteSchema.contextPacks.title,
+        workPackId: sqliteSchema.contextPacks.workPackId,
+      })
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.id, first.contextPackId));
+    const runRows = await h.handle.db
+      .select({ workPackId: sqliteSchema.runs.workPackId })
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.id, h.runId));
+    expect(contextRows[0]?.content).toBe('original body');
+    expect(contextRows[0]?.title).toBe('v1');
+    expect(contextRows[0]?.workPackId).toBe('work_2');
+    expect(runRows[0]?.workPackId).toBe('work_2');
   });
 });
 

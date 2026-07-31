@@ -58,6 +58,9 @@ export const runs = sqliteTable(
     status: text('status').notNull().default('in_progress'),
     issueRef: text('issue_ref'),
     prRef: text('pr_ref'),
+    // COOD-12 smart work sessions. Nullable so normal sessions remain
+    // project-scoped; set when a run is actively implementing a Work Pack.
+    workPackId: text('work_pack_id'),
     // Module 06 (Run Diff, 2026-05-09). Git HEAD SHA captured at SessionStart
     // by the bridge (see apps/hooks-bridge/src/lib/capture-base-sha.ts). NULL
     // when the project is not a git repo, when `git rev-parse HEAD` failed,
@@ -129,6 +132,9 @@ export const contextPacks = sqliteTable(
     // schema): { decisionIds?, affectedFiles?, testStatus?, openTodos? }.
     // NULL when the caller didn't supply any.
     meta: text('meta'),
+    // Nullable link to the Work Pack this recap belongs to. Kept as text
+    // because context_packs is declared before work_packs in this module.
+    workPackId: text('work_pack_id'),
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
     // member who saved the pack. NULL on solo + bridge_auto rows where
     // no human identity exists. The MCP `save_context_pack` tool reads
@@ -139,6 +145,7 @@ export const contextPacks = sqliteTable(
   (t) => [
     uniqueIndex('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
+    index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
   ],
 );
 

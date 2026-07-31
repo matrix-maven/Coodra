@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 import type { DbHandle } from '@coodra/db';
-import { createLogger } from '@coodra/shared';
+import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import {
   adaptClaudeCode,
   adaptCodex,
@@ -285,8 +285,13 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     }
 
     const hookEventName = parsed.data.hook_event_name;
+    const workIntent = hookEventName === 'UserPromptSubmit' ? parseJiraWorkIntent(event.toolInput) : null;
     const additionalContext =
-      hookEventName === 'SessionStart' ? sessionAdditionalContext(projectSlug, runId) : undefined;
+      hookEventName === 'SessionStart'
+        ? sessionAdditionalContext(projectSlug, runId)
+        : workIntent !== null
+          ? renderJiraWorkModeContext(workIntent)
+          : undefined;
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,
@@ -302,6 +307,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         projectSlug,
         runId,
         permissionDecision,
+        ...(workIntent !== null ? { workPackSlug: workIntent.slug, jiraIssueKey: workIntent.issueKey } : {}),
       },
       'handled native plugin lifecycle event via MCP',
     );

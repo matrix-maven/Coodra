@@ -45,6 +45,13 @@ export const saveContextPackInputSchema = z
       .min(1, 'content is required')
       .max(MAX_CONTENT, `content must be at most ${MAX_CONTENT} characters (~1 MiB)`),
     meta: metaSchema.optional(),
+    workPackSlug: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'workPackSlug must be kebab-case')
+      .optional()
+      .describe('Optional Work Pack slug to link this Context Pack and run to, for example cood-10.'),
   })
   .strict()
   .describe('Input for coodra__save_context_pack.');
