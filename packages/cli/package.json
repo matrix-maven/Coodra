@@ -1,6 +1,6 @@
 {
   "name": "@coodra/cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",
@@ -69,7 +69,7 @@
     }
   },
   "bin": {
-    "coodra": "./dist/index.js"
+    "coodra": "dist/index.js"
   },
   "files": [
     "dist",
