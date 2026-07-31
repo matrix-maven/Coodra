@@ -127,6 +127,13 @@
 			"when": 1780756846869,
 			"tag": "0017_wikis",
 			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "6",
+			"when": 1785487200000,
+			"tag": "0018_work_packs",
+			"breakpoints": true
 		}
 	]
 }

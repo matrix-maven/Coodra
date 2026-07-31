@@ -147,7 +147,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
     rmSync(tmp, { recursive: true, force: true });
   });
 
-  it('applies the generated migrations and creates the seventeen-object logical schema', () => {
+  it('applies the generated migrations and creates the work-pack-aware logical schema', () => {
     const handle = createSqliteDb({ path: dbPath });
     try {
       migrateSqlite(handle.db);
@@ -173,11 +173,13 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'context_packs',
         'context_packs_vec',
         'decisions',
+        'external_work_items',
         'feature_packs',
         // Phase F.1 (2026-05-11) — pull-on-trigger skill recipes
         // (Anthropic Skills pattern). Dual-dialect; sync-daemon
         // round-trips file ↔ cloud in team mode.
         'features',
+        'integration_connections',
         'kill_switches',
         'pending_jobs',
         'policies',
@@ -187,6 +189,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'run_diffs',
         'run_events',
         'runs',
+        'sync_events',
         // M04 Phase 2 (2026-05-11) — invitation rows for team-hosted
         // mode. SQLite mirror exists for structural parity even though
         // only cloud Postgres ever populates rows in practice.
@@ -195,6 +198,11 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         // content/progress rows; `wikis` holds the structure envelope.
         'wiki_pages',
         'wikis',
+        // COOD-12 (2026-07-31) — Work Packs and agent-mediated
+        // Jira/Atlassian sync state.
+        'work_pack_external_links',
+        'work_pack_relationships',
+        'work_packs',
       ]);
     } finally {
       handle.close();
@@ -216,8 +224,8 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND substr(name, 1, 18) <> 'context_packs_vec_'`,
         )
         .get() as { n: number };
-      // 16 schema tables + context_packs_vec virtual table = 17.
-      expect(rows.n).toBe(17);
+      // 22 schema tables + context_packs_vec virtual table = 23.
+      expect(rows.n).toBe(23);
     } finally {
       first.close();
     }

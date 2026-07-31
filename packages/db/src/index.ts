@@ -128,3 +128,9 @@ export {
   type WikiListItem,
   type WikiPageDetail,
 } from './wikis.js';
+export {
+  getWorkPackDetail,
+  listWorkPacksDetailed,
+  type WorkPackDetail,
+  type WorkPackListItem,
+} from './work-packs.js';

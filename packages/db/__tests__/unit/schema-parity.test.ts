@@ -47,6 +47,12 @@ const tablePairs = [
   ['policy_rules', sq.policyRules, pg.policyRules],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
   ['feature_packs', sq.featurePacks, pg.featurePacks],
+  ['integration_connections', sq.integrationConnections, pg.integrationConnections],
+  ['external_work_items', sq.externalWorkItems, pg.externalWorkItems],
+  ['work_packs', sq.workPacks, pg.workPacks],
+  ['work_pack_external_links', sq.workPackExternalLinks, pg.workPackExternalLinks],
+  ['work_pack_relationships', sq.workPackRelationships, pg.workPackRelationships],
+  ['sync_events', sq.syncEvents, pg.syncEvents],
   ['decisions', sq.decisions, pg.decisions],
   ['kill_switches', sq.killSwitches, pg.killSwitches],
   ['run_diffs', sq.runDiffs, pg.runDiffs],
@@ -73,8 +79,8 @@ function columnsOf(table: unknown): Record<string, Column> {
   return getTableColumns(table as Parameters<typeof getTableColumns>[0]) as Record<string, Column>;
 }
 
-describe('sixteen-table schema is present in both dialects', () => {
-  it('SQLite exports all sixteen tables', () => {
+describe('work-pack-aware schema is present in both dialects', () => {
+  it('SQLite exports all expected tables', () => {
     expect(sq.projects).toBeDefined();
     expect(sq.runs).toBeDefined();
     expect(sq.runEvents).toBeDefined();
@@ -89,11 +95,17 @@ describe('sixteen-table schema is present in both dialects', () => {
     expect(sq.runDiffs).toBeDefined();
     expect(sq.teamInvites).toBeDefined();
     expect(sq.features).toBeDefined();
+    expect(sq.integrationConnections).toBeDefined();
+    expect(sq.externalWorkItems).toBeDefined();
+    expect(sq.workPacks).toBeDefined();
+    expect(sq.workPackExternalLinks).toBeDefined();
+    expect(sq.workPackRelationships).toBeDefined();
+    expect(sq.syncEvents).toBeDefined();
     expect(sq.wikis).toBeDefined();
     expect(sq.wikiPages).toBeDefined();
   });
 
-  it('Postgres exports all sixteen tables', () => {
+  it('Postgres exports all expected tables', () => {
     expect(pg.projects).toBeDefined();
     expect(pg.runs).toBeDefined();
     expect(pg.runEvents).toBeDefined();
@@ -108,6 +120,12 @@ describe('sixteen-table schema is present in both dialects', () => {
     expect(pg.runDiffs).toBeDefined();
     expect(pg.teamInvites).toBeDefined();
     expect(pg.features).toBeDefined();
+    expect(pg.integrationConnections).toBeDefined();
+    expect(pg.externalWorkItems).toBeDefined();
+    expect(pg.workPacks).toBeDefined();
+    expect(pg.workPackExternalLinks).toBeDefined();
+    expect(pg.workPackRelationships).toBeDefined();
+    expect(pg.syncEvents).toBeDefined();
     expect(pg.wikis).toBeDefined();
     expect(pg.wikiPages).toBeDefined();
   });

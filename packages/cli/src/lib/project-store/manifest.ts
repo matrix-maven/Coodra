@@ -177,6 +177,14 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'wiki-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
+    test: (rel) => rel === '.coodra/work-packs',
+    cls: { owner: 'coodra', kind: 'work-packs-dir', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
+    test: (rel) => rel.startsWith('.coodra/work-packs/'),
+    cls: { owner: 'coodra', kind: 'work-pack', cleanup: 'preserve', safeToDelete: false },
+  },
+  {
     test: (rel) =>
       rel === '.coodra/wiki/grounding.md' ||
       rel === '.coodra/wiki/job.json' ||

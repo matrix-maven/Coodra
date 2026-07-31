@@ -159,6 +159,14 @@ import {
   type WikiOpenOptions,
   type WikiStatusOptions,
 } from './commands/wiki.js';
+import {
+  runWorkImportCommand,
+  runWorkShowCommand,
+  runWorkStatusCommand,
+  type WorkBaseOptions,
+  type WorkIO,
+  type WorkImportOptions,
+} from './commands/work.js';
 import { VERSION } from './version.js';
 
 interface BuildProgramOptions {
@@ -210,6 +218,10 @@ interface BuildProgramOptions {
   readonly runWikiList?: (options: WikiListOptions, io?: WikiIO) => Promise<unknown>;
   readonly runWikiOpen?: (options: WikiOpenOptions, io?: WikiIO) => Promise<unknown>;
   readonly runWikiClean?: (slug: string, options: WikiCleanOptions, io?: WikiIO) => Promise<unknown>;
+  readonly workIO?: WorkIO;
+  readonly runWorkStatus?: (options: WorkBaseOptions, io?: WorkIO) => Promise<unknown>;
+  readonly runWorkShow?: (slug: string, options: WorkBaseOptions, io?: WorkIO) => Promise<unknown>;
+  readonly runWorkImport?: (issueKey: string, options: WorkImportOptions, io?: WorkIO) => Promise<unknown>;
   readonly teamIO?: TeamCommandIO;
   readonly runTeamLogin?: (options: TeamLoginOptions, io?: TeamCommandIO) => Promise<unknown>;
   readonly runTeamLogout?: (io?: TeamCommandIO) => Promise<unknown>;
@@ -336,7 +348,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('init')
     .description(
-      'Initialise Coodra in the current project (writes project-local .coodra/ config, manifest, skill-packs, graphify, and wiki dirs).',
+      'Initialise Coodra in the current project (writes project-local .coodra/ config, manifest, skill-packs, graphify, wiki, and work-packs dirs).',
     )
     .option('--project-slug <slug>', 'Project slug; derives from path.basename(cwd) when omitted.')
     .option(
@@ -666,6 +678,37 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: WikiCleanOptions) => {
       await wikiCleanRunner(slug, opts, options.wikiIO);
+    });
+
+  // COOD-12 — Work Packs. Jira import is agent-mediated: this command
+  // prepares repo-local `.coodra/work-packs/<issue-key>/` artifacts and the
+  // agent persists fetched Jira content through Coodra MCP work_pack_* tools.
+  const workStatusRunner = options.runWorkStatus ?? runWorkStatusCommand;
+  const workShowRunner = options.runWorkShow ?? runWorkShowCommand;
+  const workImportRunner = options.runWorkImport ?? runWorkImportCommand;
+  const work = program.command('work').description('Manage Coodra Work Packs under .coodra/work-packs/.');
+  work
+    .command('status')
+    .description('Show local Work Pack artifacts for this project. Read-only.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: WorkBaseOptions) => {
+      await workStatusRunner(opts, options.workIO);
+    });
+  work
+    .command('show <slug>')
+    .description('Show one local Work Pack by slug, for example cood-12.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (slug: string, opts: WorkBaseOptions) => {
+      await workShowRunner(slug, opts, options.workIO);
+    });
+  work
+    .command('import <issueKey>')
+    .description('Prepare an agent-mediated Jira import into .coodra/work-packs/<issue-key>/.')
+    .option('--with-related', 'Ask the agent to fetch bounded parent/subtask/blocker/same-epic context too.')
+    .option('--force', 'Refresh the local import recipe if the Work Pack directory already exists.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (issueKey: string, opts: WorkImportOptions) => {
+      await workImportRunner(issueKey, opts, options.workIO);
     });
 
   // Module 09 Track 9A (Jira = Direct, ADR-016) — `coodra jira

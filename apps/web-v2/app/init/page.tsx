@@ -35,7 +35,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               Web parity with <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span>.
               Registers the project and writes{' '}
               <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
-                {`<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}`}
+                {`<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/,work-packs/}`}
               </span>
               .
             </p>
@@ -102,7 +102,7 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
               <Step title="Create project row" body="Inserts into ~/.coodra/data.db so Coodra can find it." />
               <Step
                 title="Create project state"
-                body="<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}."
+                  body="<cwd>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/,work-packs/}."
               />
               <Step title="Seed default policy" body="The 25-rule starter chain. Editable later from /policies." />
             </div>

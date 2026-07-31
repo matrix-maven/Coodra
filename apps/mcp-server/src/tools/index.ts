@@ -22,6 +22,8 @@ import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.
 import { createWikiSavePageToolRegistration } from './wiki-save-page/manifest.js';
 import { createWikiSaveStructureToolRegistration } from './wiki-save-structure/manifest.js';
 import { createWikiStatusToolRegistration } from './wiki-status/manifest.js';
+import { createWorkPackStatusToolRegistration } from './work-pack-status/manifest.js';
+import { createWorkPackUpsertToolRegistration } from './work-pack-upsert/manifest.js';
 
 /**
  * `apps/mcp-server/src/tools/index.ts` — registration barrel.
@@ -110,6 +112,11 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(createWikiSaveStructureToolRegistration({ db: deps.db }));
   registry.register(createWikiSavePageToolRegistration({ db: deps.db }));
   registry.register(createWikiStatusToolRegistration({ db: deps.db }));
+  // COOD-12 (2026-07-31): Work Packs are Coodra's local issue-bound
+  // implementation artifact. The agent reads/writes Jira through Atlassian
+  // Rovo MCP, then persists local state with these tools.
+  registry.register(createWorkPackUpsertToolRegistration({ db: deps.db }));
+  registry.register(createWorkPackStatusToolRegistration({ db: deps.db }));
   // COOD-6 (2026-07-29): lifecycle_event is registered near get_run_id above.
   // It brings the count to 21 and lets native Codex plugin hooks call Coodra
   // MCP directly rather than posting to the background hooks bridge.

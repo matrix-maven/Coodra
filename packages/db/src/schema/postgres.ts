@@ -273,6 +273,163 @@ export const features = pgTable(
   ],
 );
 
+/**
+ * COOD-12 — Work Packs and agent-mediated external planning sync.
+ *
+ * See sqlite.ts for the full product boundary: Coodra stores Work Pack
+ * content, sync state, and relationships; Atlassian owns Jira auth and all
+ * issue reads/writes through the active agent's MCP tools.
+ */
+export const integrationConnections = pgTable(
+  'integration_connections',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    provider: text('provider').notNull(),
+    mode: text('mode').notNull().default('agent-mediated'),
+    siteUrl: text('site_url').notNull(),
+    externalProjectKey: text('external_project_key').notNull(),
+    boardId: text('board_id'),
+    enabledCapabilitiesJson: text('enabled_capabilities_json').notNull().default('{}'),
+    createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('integration_connections_project_provider_uk').on(
+      t.projectId,
+      t.provider,
+      t.siteUrl,
+      t.externalProjectKey,
+    ),
+    index('integration_connections_project_idx').on(t.projectId, t.provider),
+  ],
+);
+
+export const externalWorkItems = pgTable(
+  'external_work_items',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    provider: text('provider').notNull(),
+    externalKey: text('external_key').notNull(),
+    issueType: text('issue_type').notNull(),
+    title: text('title').notNull(),
+    status: text('status').notNull(),
+    url: text('url'),
+    parentExternalKey: text('parent_external_key'),
+    rawExternalJson: text('raw_external_json').notNull().default('{}'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('external_work_items_project_provider_key_uk').on(t.projectId, t.provider, t.externalKey),
+    index('external_work_items_project_status_idx').on(t.projectId, t.status),
+  ],
+);
+
+export const workPacks = pgTable(
+  'work_packs',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    slug: text('slug').notNull(),
+    title: text('title').notNull(),
+    packType: text('pack_type').notNull().default('unknown'),
+    status: text('status').notNull().default('draft'),
+    specMarkdown: text('spec_markdown').notNull().default(''),
+    implementationMarkdown: text('implementation_markdown').notNull().default(''),
+    syncMarkdown: text('sync_markdown').notNull().default(''),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    createdByUserId: text('created_by_user_id'),
+    orgId: text('org_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('work_packs_project_slug_uk').on(t.projectId, t.slug),
+    index('work_packs_project_type_idx').on(t.projectId, t.packType),
+    index('work_packs_project_status_idx').on(t.projectId, t.status),
+  ],
+);
+
+export const workPackExternalLinks = pgTable(
+  'work_pack_external_links',
+  {
+    id: text('id').primaryKey(),
+    workPackId: text('work_pack_id')
+      .notNull()
+      .references(() => workPacks.id, { onDelete: 'cascade' }),
+    externalWorkItemId: text('external_work_item_id')
+      .notNull()
+      .references(() => externalWorkItems.id, { onDelete: 'cascade' }),
+    syncDirection: text('sync_direction').notNull().default('bidirectional'),
+    syncState: text('sync_state').notNull().default('synced'),
+    lastSyncedHash: text('last_synced_hash'),
+    conflictState: text('conflict_state'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('work_pack_external_links_pair_uk').on(t.workPackId, t.externalWorkItemId),
+    index('work_pack_external_links_external_idx').on(t.externalWorkItemId),
+  ],
+);
+
+export const workPackRelationships = pgTable(
+  'work_pack_relationships',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    sourceWorkPackId: text('source_work_pack_id').references(() => workPacks.id, { onDelete: 'cascade' }),
+    targetWorkPackId: text('target_work_pack_id').references(() => workPacks.id, { onDelete: 'set null' }),
+    sourceExternalKey: text('source_external_key'),
+    targetExternalKey: text('target_external_key').notNull(),
+    relationshipType: text('relationship_type').notNull(),
+    syncLevel: text('sync_level').notNull().default('summary'),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('work_pack_relationships_project_source_idx').on(t.projectId, t.sourceExternalKey),
+    index('work_pack_relationships_project_target_idx').on(t.projectId, t.targetExternalKey),
+  ],
+);
+
+export const syncEvents = pgTable(
+  'sync_events',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    workPackId: text('work_pack_id').references(() => workPacks.id, { onDelete: 'set null' }),
+    provider: text('provider').notNull(),
+    direction: text('direction').notNull(),
+    action: text('action').notNull(),
+    result: text('result').notNull(),
+    actorRunId: text('actor_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    externalKey: text('external_key'),
+    summary: text('summary').notNull().default(''),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('sync_events_project_created_idx').on(t.projectId, t.createdAt),
+    index('sync_events_work_pack_idx').on(t.workPackId, t.createdAt),
+  ],
+);
+
 export const decisions = pgTable(
   'decisions',
   {
@@ -415,6 +572,18 @@ export type FeaturePack = typeof featurePacks.$inferSelect;
 export type NewFeaturePack = typeof featurePacks.$inferInsert;
 export type Feature = typeof features.$inferSelect;
 export type NewFeature = typeof features.$inferInsert;
+export type IntegrationConnection = typeof integrationConnections.$inferSelect;
+export type NewIntegrationConnection = typeof integrationConnections.$inferInsert;
+export type ExternalWorkItem = typeof externalWorkItems.$inferSelect;
+export type NewExternalWorkItem = typeof externalWorkItems.$inferInsert;
+export type WorkPack = typeof workPacks.$inferSelect;
+export type NewWorkPack = typeof workPacks.$inferInsert;
+export type WorkPackExternalLink = typeof workPackExternalLinks.$inferSelect;
+export type NewWorkPackExternalLink = typeof workPackExternalLinks.$inferInsert;
+export type WorkPackRelationship = typeof workPackRelationships.$inferSelect;
+export type NewWorkPackRelationship = typeof workPackRelationships.$inferInsert;
+export type SyncEvent = typeof syncEvents.$inferSelect;
+export type NewSyncEvent = typeof syncEvents.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
 export type KillSwitch = typeof killSwitches.$inferSelect;
