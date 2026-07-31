@@ -725,11 +725,13 @@ description: Generate, update, inspect, or use the Coodra project wiki stored un
 
 Use this skill when the user asks for wiki generation, architecture documentation, codebase explanations, or wiki-grounded implementation context.
 
-1. Inspect \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` first when generating or refreshing a wiki.
-2. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
-3. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
-4. Use Graphify artifacts under \`.coodra/graphify/out/\` when they exist, and derive the wiki shape from this repo rather than a fixed template.
-5. Use existing wiki records as grounding, but verify claims against source files before editing.
+1. If \`.coodra/wiki/job.md\` or \`.coodra/wiki/grounding.md\` is missing, run \`coodra wiki build\` first. That command creates the bounded grounding bundle and includes Graphify communities, god nodes, and \`GRAPH_REPORT.md\` when \`.coodra/graphify/out/graph.json\` exists.
+2. Read \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` before planning. Treat the Graphify section as the first structural map; do not start by recursively scanning the whole repo unless the grounding explicitly says the file list is truncated or a page needs verification.
+3. When the managed Graphify MCP server is available, query it without \`project_path\` for neighbours/dependency paths that the grounding summary does not already include.
+4. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
+5. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
+6. Derive the wiki shape from this repo's real graph, domains, and workflows rather than a fixed template.
+7. Use existing wiki records as grounding, but verify claims against targeted source files before editing.
 `;
 }
 

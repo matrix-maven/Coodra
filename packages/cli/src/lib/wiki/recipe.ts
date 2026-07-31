@@ -182,6 +182,9 @@ export function renderWikiRecipe(args: {
     '   - **Graphify communities → candidate sections**, **god nodes → candidate `importance: "high"` pages** — the grounding already lists them. Map communities onto real modules; do NOT mint one page per community (ADR-015).',
   );
   lines.push(
+    '   - **Graph-first planning:** when the grounding has a Graphify section, plan from communities/hubs plus README/domain evidence first. Do not recursively scan the entire repository before the structure pass; read targeted files only to verify or fill gaps.',
+  );
+  lines.push(
     '   - **Prior recorded work → the architecture that was actually decided.** When the grounding lists a decision with a rationale, the wiki must EXPLAIN that architecture (and cite the reason), not re-derive a different one from the code and contradict it. Pull a full recap with `coodra__read_context_pack` / `coodra__search_packs_nl` when a pack looks load-bearing.',
   );
   lines.push(
