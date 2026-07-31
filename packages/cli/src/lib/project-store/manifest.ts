@@ -165,8 +165,8 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'project-manifest', cleanup: 'preserve', safeToDelete: false },
   },
   {
-    test: (rel) => rel === '.coodra/skill-packs',
-    cls: { owner: 'coodra', kind: 'skill-packs-dir', cleanup: 'preserve', safeToDelete: false },
+    test: (rel) => rel === '.coodra/recipes',
+    cls: { owner: 'coodra', kind: 'recipes-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
     test: (rel) => rel === '.coodra/graphify',

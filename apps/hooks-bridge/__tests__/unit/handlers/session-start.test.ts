@@ -61,13 +61,13 @@ describe('createSessionStartHandler — SessionStart context', () => {
     /* tmp cleaned by OS */
   });
 
-  it('injects additionalContext with the skills index when slug + index resolve', async () => {
+  it('injects additionalContext with the Agent Recipes index when slug + index resolve', async () => {
     const slug = 'auto-inject-target';
-    const skillsDir = join(cwd, 'docs', 'skills');
-    await mkdir(skillsDir, { recursive: true });
-    await mkdir(join(skillsDir, 'ship-cleanly'), { recursive: true });
+    const recipesDir = join(cwd, '.coodra', 'recipes');
+    await mkdir(recipesDir, { recursive: true });
+    await mkdir(join(recipesDir, 'ship-cleanly'), { recursive: true });
     await writeFile(
-      join(skillsDir, 'ship-cleanly', 'feature.md'),
+      join(recipesDir, 'ship-cleanly', 'recipe.md'),
       [
         '---',
         'name: ship-cleanly',
@@ -99,7 +99,7 @@ describe('createSessionStartHandler — SessionStart context', () => {
 
     expect(result.permissionDecision).toBe('allow');
     expect(typeof result.additionalContext).toBe('string');
-    expect(result.additionalContext ?? '').toContain('Available features');
+    expect(result.additionalContext ?? '').toContain('Available Agent Recipes');
     expect(result.additionalContext ?? '').toContain('ship-cleanly');
     expect(result.additionalContext ?? '').toContain('Session contract');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
@@ -133,7 +133,7 @@ describe('createSessionStartHandler — SessionStart context', () => {
     // Contract block is present.
     expect(result.additionalContext ?? '').toContain('Session contract');
     expect(result.additionalContext ?? '').toContain('save_context_pack');
-    expect(result.additionalContext ?? '').not.toContain('Available features');
+    expect(result.additionalContext ?? '').not.toContain('Available Agent Recipes');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
@@ -160,9 +160,8 @@ describe('createSessionStartHandler — SessionStart context', () => {
     expect(result.permissionDecision).toBe('allow');
     expect(typeof result.additionalContext).toBe('string');
     expect(result.additionalContext ?? '').toContain('Session contract');
-    // Skills block not present.
-    expect(result.additionalContext ?? '').not.toContain('Available features');
-    expect(result.additionalContext ?? '').not.toContain('Available skills');
+    // Agent Recipes block not present.
+    expect(result.additionalContext ?? '').not.toContain('Available Agent Recipes');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 

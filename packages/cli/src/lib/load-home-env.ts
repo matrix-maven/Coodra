@@ -55,7 +55,7 @@ import { parse as parseDotenv } from 'dotenv';
  * Phase H.6 (2026-05-13) — added `CLERK_SECRET_KEY` and
  * `CLERK_PUBLISHABLE_KEY` to this set. Pre-fix, `coodra init` wrote
  * the solo-bypass sentinels (`sk_test_replace_me` / `pk_test_replace_me`)
- * into every project's `.env`. When `coodra feature add` later ran from
+ * into every project's `.env`. When `coodra recipe add` later ran from
  * such a project, the sentinels overrode the real keys from `~/.coodra/.env`
  * → `verifyClerkJwtAndExtractClaims` threw the
  * solo-bypass-sentinel error → `readVerifiedToken` returned null →

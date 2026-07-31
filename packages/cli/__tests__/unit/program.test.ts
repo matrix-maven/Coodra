@@ -26,8 +26,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'db',
       'doctor',
       'export',
-      // Phase 5 — `coodra feature` renamed to `coodra skill` (alias kept); the
-      // command's primary name() is now 'skill'.
+      // COOD-23 — `coodra recipe` is primary; `skill` and `feature` stay aliases.
       // Phase 2 — generated-file manifest (files status/clean).
       'files',
       // Module 09 Track 9B — Graphify MCP wiring (enable/disable/status).
@@ -45,9 +44,9 @@ describe('buildProgram — full surface (post-S8)', () => {
       'pause',
       'policy',
       'project',
+      'recipe',
       'resume',
       'run',
-      'skill',
       'start',
       'status',
       'stop',
@@ -98,10 +97,11 @@ describe('buildProgram — full surface (post-S8)', () => {
     const templateSub = templateCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(templateSub).toEqual(['install', 'list']);
 
-    // 2026-05-08 — skills admin under `coodra skill` (renamed from `coodra
-    // feature` in Phase 5, 2026-07; `feature` stays as a Commander alias).
-    const featureCmd = program.commands.find((c) => c.name() === 'skill');
+    // COOD-23 — Agent Recipes admin under `coodra recipe`; `skill` and
+    // `feature` stay as Commander aliases.
+    const featureCmd = program.commands.find((c) => c.name() === 'recipe');
     expect(featureCmd).toBeDefined();
+    expect(featureCmd?.aliases()).toContain('skill');
     expect(featureCmd?.aliases()).toContain('feature');
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'migrate', 'remove', 'show']);

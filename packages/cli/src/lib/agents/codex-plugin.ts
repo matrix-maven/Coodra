@@ -75,7 +75,7 @@ export async function installCodexPlugin(ctx: AgentContext): Promise<{
     [paths.hookRunnerPath, hookRunner()],
     [join(paths.skillsRoot, 'coodra-init', 'SKILL.md'), coodraInitSkill()],
     [join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), coodraContextSkill()],
-    [join(paths.skillsRoot, 'coodra-skill', 'SKILL.md'), coodraSkillSkill()],
+    [join(paths.skillsRoot, 'coodra-recipe', 'SKILL.md'), coodraSkillSkill()],
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
     [join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), deepWikiAuthorSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
@@ -215,7 +215,7 @@ function pluginManifest(): string {
         displayName: 'Coodra',
         shortDescription: 'Project memory and context for Codex',
         longDescription:
-          'Use Coodra to initialize project state, retrieve context and skill packs, consult the project wiki, use Graphify output, and sync implementation progress.',
+          'Use Coodra to initialize project state, retrieve context and Agent Recipes, consult the project wiki, use Graphify output, and sync implementation progress.',
         developerName: 'Coodra',
         category: 'Developer Tools',
         capabilities: ['Read', 'Write'],
@@ -486,7 +486,7 @@ Use this skill when the user asks to initialize, register, repair, or inspect Co
 
 1. Inspect the repository root and current Coodra state under \`.coodra/\`.
 2. Run \`coodra init\` to create or repair project-local Coodra files.
-3. Confirm that setup created \`.coodra/config.json\`, \`.coodra/manifest.json\`, \`.coodra/skill-packs/\`, \`.coodra/graphify/\`, and \`.coodra/wiki/\`.
+3. Confirm that setup created \`.coodra/config.json\`, \`.coodra/manifest.json\`, \`.coodra/recipes/\`, \`.coodra/graphify/\`, and \`.coodra/wiki/\`.
 4. Do not create legacy root-level \`.coodra.json\`, \`.mcp.json\`, project \`.env\`, \`.codex/config.toml\`, or \`AGENTS.md\` for Coodra setup.
 `;
 }
@@ -508,16 +508,17 @@ Use this skill before implementation when the task may depend on repository arch
 
 function coodraSkillSkill(): string {
   return `---
-name: coodra-skill
-description: Find and apply project or global Coodra skill packs such as API development, security audit, plugin-building, or language best-practice workflows.
+name: coodra-recipe
+description: Find and apply project Coodra Agent Recipes such as API development, security audit, plugin-building, or language best-practice workflows.
 ---
 
-Use this skill when the user asks for a reusable project or global skill pack, or when a task clearly matches one.
+Use this skill when the user asks for a reusable project Agent Recipe, or when a task clearly matches one.
 
-1. Look for project skill packs under \`.coodra/skill-packs/\`.
-2. Prefer project skill packs over global packs when both apply.
-3. Treat skill packs as task workflow guidance, not issue-bound Work Packs.
-4. Apply the chosen pack's instructions before implementing.
+1. Look for project Agent Recipes under \`.coodra/recipes/\`.
+2. Use \`coodra__list_recipes\` to inspect available recipes.
+3. Load a matching recipe with \`coodra__get_recipe\`; do not load every recipe blindly.
+4. Treat Agent Recipes as reusable task guidance, not issue-bound Work Packs.
+5. Apply the chosen recipe's instructions before implementing.
 `;
 }
 

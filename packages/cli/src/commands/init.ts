@@ -474,7 +474,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   outcomes.push(...(await writeProjectConfig({ root, projectSlug, mode: machineCfg.mode, force, dryRun })));
   outcomes.push(...(await ensureProjectLayout(root, dryRun)));
 
-  io.writeStdout(`${pc.green('✓')} Project Coodra layout ready: .coodra/skill-packs, .coodra/graphify, .coodra/wiki\n`);
+  io.writeStdout(`${pc.green('✓')} Project Coodra layout ready: .coodra/recipes, .coodra/graphify, .coodra/wiki\n`);
 
   // Phase 2: record every generated file into `.coodra/manifest.json` so
   // `coodra files status/clean` can show + clean up Coodra's footprint. The

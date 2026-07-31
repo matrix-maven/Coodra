@@ -9,15 +9,15 @@ import type { ToolContext } from '../../framework/tool-context.js';
 import type { GetFeatureInput, GetFeatureOutput } from './schema.js';
 
 /**
- * Handler for `coodra__get_feature`.
+ * Handler for `coodra__get_recipe`.
  *
  * Loads the body of one feature on demand, after the agent has decided
- * (via `list_features`) that the feature is relevant to the current
+ * (via `list_recipes`) that the recipe is relevant to the current
  * task. The skill-pattern split is exactly this: index → fetch.
  *
  * Returns frontmatter + body + supporting-file metadata. Supporting
  * files' contents are NOT included; the agent fetches them
- * individually via `get_feature_file` so the registry can apply
+ * individually via `get_recipe_file` so the registry can apply
  * extension / size gates per file.
  */
 
@@ -25,7 +25,7 @@ export interface GetFeatureHandlerDeps {
   readonly db: DbHandle;
 }
 
-const handlerLogger = createLogger('mcp-server.tool.get_feature');
+const handlerLogger = createLogger('mcp-server.tool.get_recipe');
 
 export function createGetFeatureHandler(
   deps: GetFeatureHandlerDeps,
@@ -50,25 +50,25 @@ export function createGetFeatureHandler(
     const dir = join(skillsRoot(project.cwd), input.slug);
     if (!existsSync(dir) || !statSync(dir).isDirectory()) {
       handlerLogger.info(
-        { event: 'get_feature_not_found', projectSlug: input.projectSlug, slug: input.slug, dir },
-        'get_feature: feature directory missing',
+        { event: 'get_recipe_not_found', projectSlug: input.projectSlug, slug: input.slug, dir },
+        'get_recipe: recipe directory missing',
       );
       return {
         ok: false,
         error: 'feature_not_found',
-        howToFix: `No feature at \`${dir}\`. Call \`coodra__list_skills\` to see what's available, or \`coodra skill add ${input.slug}\` to create it.`,
+        howToFix: `No Agent Recipe at \`${dir}\`. Call \`coodra__list_recipes\` to see what's available, or \`coodra recipe add ${input.slug}\` to create it.`,
       };
     }
     const row = readFeatureRow(input.slug, dir);
     if (row === null) {
-      // Directory exists but has no feature.md — the walker would have
-      // also skipped this in list_features, so the agent shouldn't have
+      // Directory exists but has no recipe.md — the walker would have
+      // also skipped this in list_recipes, so the agent shouldn't have
       // seen this slug. Treat as feature_not_found to keep the
       // soft-failure surface tight.
       return {
         ok: false,
         error: 'feature_not_found',
-        howToFix: `\`${dir}\` exists but has no \`feature.md\`. Either remove the empty directory or run \`coodra skill add ${input.slug} --force\` to scaffold one.`,
+        howToFix: `\`${dir}\` exists but has no \`recipe.md\`. Either remove the empty directory or run \`coodra recipe add ${input.slug} --force\` to scaffold one.`,
       };
     }
 

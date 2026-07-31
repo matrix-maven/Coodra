@@ -4,31 +4,30 @@ import { type FeatureIndex, type FeatureIndexEntry, generateFeaturesIndex, skill
 
 /**
  * `apps/hooks-bridge/src/lib/features-index-loader` — reads
- * `<cwd>/docs/features/INDEX.json` for SessionStart `additionalContext`
+ * `<cwd>/.coodra/recipes/INDEX.json` for SessionStart `additionalContext`
  * injection.
  *
- * The skill-pattern insight: the agent reads the index (cheap — names
+ * The recipe-pattern insight: the agent reads the index (cheap — names
  * + descriptions only) on every session start, then calls
- * `coodra__get_feature(slug)` to load a body on demand. The bridge
+ * `coodra__get_recipe(slug)` to load a body on demand. The bridge
  * is the courier that ships the index to the agent at turn zero.
  *
  * Three behaviours this module guarantees:
  *
- *   1. **Stale-index regen.** If `docs/features/` has a higher mtime
+ *   1. **Stale-index regen.** If `.coodra/recipes/` has changed
  *      than the recorded `indexerSourceMtime` in `INDEX.json`, the
  *      bridge silently regenerates before reading. This means the
  *      agent always sees a fresh index even when the user dropped a
- *      file under `docs/features/<slug>/` without running `feature
- *      index`.
+ *      file under `.coodra/recipes/<slug>/` without running `recipe index`.
  *
  *   2. **Size cap.** The bridge appends up to `MAX_INDEX_BYTES` of
  *      rendered index text. If the full index would exceed the cap,
  *      we drop the oldest features (by `lastUpdatedAt`) and append a
- *      "+N more (use coodra__list_features)" footer so the agent
+ *      "+N more (use coodra__list_recipes)" footer so the agent
  *      knows it can fetch the rest.
  *
  *   3. **Soft failure on every error.** No throw escapes this module.
- *      Missing `docs/features/`, unreadable INDEX.json, parse errors
+ *      Missing `.coodra/recipes/`, unreadable INDEX.json, parse errors
  *      — all logged at info / warn and treated as "no features
  *      available", which matches the existing feature-pack-loader's
  *      contract.
@@ -69,18 +68,18 @@ export interface LoadedFeaturesIndex {
 }
 
 /**
- * Read the features index for a session. Returns `null` when there are
- * no features to surface (no `docs/features/` directory, an empty
+ * Read the Agent Recipe index for a session. Returns `null` when there are
+ * no recipes to surface (no `.coodra/recipes/` directory, an empty
  * index, or any read error). The session-start handler treats `null`
  * as "skip the features block" — same shape as the existing pack
  * loader's contract.
  *
  * **Read-time regeneration.** This loader ALWAYS calls
  * `generateFeaturesIndex` on read, then uses the in-memory index it
- * returns. Why: detecting "did anyone edit a feature.md since the last
+ * returns. Why: detecting "did anyone edit a recipe.md since the last
  * index?" via mtime alone is unreliable — the parent directory's mtime
  * doesn't change when a file *inside* gets edited (only on add/remove),
- * so editing `payments-flow/feature.md` from $EDITOR or the web UI
+ * so editing `payments-flow/recipe.md` from $EDITOR or the web UI
  * leaves `mtime(docs/features/)` untouched. The cleanest fix is
  * idempotent regen-on-read: the generator only writes to disk when
  * content actually changed (verified by Phase A test "is idempotent —
@@ -97,7 +96,7 @@ export async function loadFeaturesIndexForSession(
   const root = skillsRoot(options.cwd);
 
   // Step 1 — does the directory exist at all? If not, this project
-  // simply hasn't adopted features yet. Quietly return null.
+  // simply hasn't adopted Agent Recipes yet. Quietly return null.
   let rootExists = false;
   try {
     rootExists = statSync(root).isDirectory();
@@ -111,7 +110,7 @@ export async function loadFeaturesIndexForSession(
   // Step 2 — always regenerate on read. The generator's `changed` flag
   // means we only pay disk-write cost when something actually changed
   // (compared to the existing INDEX.json bytes). Failure here is
-  // soft-fail: the SessionStart proceeds without a features block.
+  // soft-fail: the SessionStart proceeds without an Agent Recipes block.
   let parsedIndex: FeatureIndex;
   try {
     const result = generateFeaturesIndex({
@@ -237,11 +236,11 @@ function renderForInjection(index: FeatureIndex, maxBytes: number): { content: s
 
 function renderHeader(projectSlug: string, total: number): string {
   return [
-    '## Available features (skill-style index)',
+    '## Available Agent Recipes',
     '',
-    `This project (${projectSlug}) has ${total} feature${total === 1 ? '' : 's'} available on demand. Each entry below`,
+    `This project (${projectSlug}) has ${total} Agent Recipe${total === 1 ? '' : 's'} available on demand. Each entry below`,
     'declares **when to use it** — read the trigger description and call',
-    '`coodra__get_feature({slug:"<slug>"})` to load the body of any that fits the current task.',
+    '`coodra__get_recipe({slug:"<slug>"})` to load the body of any that fits the current task.',
     '',
   ].join('\n');
 }
@@ -268,8 +267,8 @@ function renderFooter(droppedCount: number): string {
   if (droppedCount <= 0) return '';
   return [
     '',
-    `_+${droppedCount} more feature${droppedCount === 1 ? '' : 's'} omitted to fit the context budget._`,
-    `_Call \`coodra__list_features({projectSlug:"<slug>"})\` to see the full list._`,
+    `_+${droppedCount} more Agent Recipe${droppedCount === 1 ? '' : 's'} omitted to fit the context budget._`,
+    `_Call \`coodra__list_recipes({projectSlug:"<slug>"})\` to see the full list._`,
     '',
   ].join('\n');
 }

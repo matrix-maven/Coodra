@@ -18,28 +18,28 @@ import {
  *
  * Two responsibilities:
  *
- *   1. Anchor every read on `<projectCwd>/docs/features/` rather than
+ *   1. Anchor every read on the resolved Agent Recipes root rather than
  *      web-v2's process.cwd(). The CWD comes from `projects.cwd`
  *      (added 2026-05-08 schema bump) and falls back to web-v2's cwd
  *      for legacy null-cwd rows. Same fallback the packs queries use,
- *      so a project with neither feature-packs nor features
+ *      so a project with no Agent Recipes
  *      consistently shows the warning banner.
  *
  *   2. Always run the indexer on read (idempotent regen-on-read).
  *      This means the web list page never shows stale data even if
  *      a hook-bridge SessionStart hasn't fired since the user edited
- *      a feature.md by hand. Cost: one walk per render — bounded by
+ *      a recipe.md by hand. Cost: one walk per render — bounded by
  *      Phase A unit-test idempotency guarantees.
  */
 
 export interface ProjectFeaturesSnapshot {
-  /** Absolute path to <projectCwd>/docs/features/. */
+  /** Absolute path to the resolved Agent Recipes root. */
   readonly featuresRoot: string;
-  /** True when docs/features/ exists on disk. */
+  /** True when the Agent Recipes root exists on disk. */
   readonly rootExists: boolean;
   /** Lightweight per-feature views, sorted by slug. */
   readonly features: ReadonlyArray<FeatureSummary>;
-  /** Slugs whose feature.md has validation warnings — surfaced in the UI as a "fix me" badge. */
+  /** Slugs whose recipe.md has validation warnings — surfaced in the UI as a "fix me" badge. */
   readonly slugsWithWarnings: ReadonlyArray<string>;
 }
 
@@ -98,7 +98,7 @@ export function fetchProjectFeaturesSnapshot(args: {
 /**
  * Detail-page data: full FeatureRow (frontmatter + body + supporting
  * files + warnings). Returns null when the directory doesn't exist OR
- * when feature.md is missing.
+ * when recipe.md / legacy feature.md is missing.
  *
  * Re-exposes the shared `FeatureRow` shape directly — the detail page
  * needs everything the parser produced, no projection.

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `coodra__list_features`.
+ * Input + output schemas for `coodra__list_recipes`.
  *
  * Output is a discriminated union per `09-common-patterns §9.1.2`:
  *
@@ -23,11 +23,11 @@ export const listFeaturesInputSchema = z
       .min(1, 'projectSlug is required')
       .max(128, 'projectSlug must be ≤ 128 chars')
       .describe(
-        'Project slug (matches `projects.slug` and the on-disk `docs/skills/` — or legacy `docs/features/` — directory).',
+        'Project slug (matches `projects.slug` and the on-disk `.coodra/recipes/` — or legacy `docs/features/` — directory).',
       ),
   })
   .strict()
-  .describe('Input for coodra__list_features.');
+  .describe('Input for coodra__list_recipes.');
 
 const featureEntrySchema = z
   .object({
@@ -52,11 +52,11 @@ const successBranch = z
     featuresRoot: z
       .string()
       .min(1)
-      .describe('Absolute path to the resolved skills dir (<projectCwd>/docs/skills/ or legacy docs/features/).'),
+      .describe('Absolute path to the resolved recipes dir (<projectCwd>/.coodra/recipes/ or legacy docs/features/).'),
     features: z
       .array(featureEntrySchema)
       .describe(
-        'Lightweight skill-style index. The agent reads description + whenNotToUse to decide whether to call get_feature for the body.',
+        'Lightweight Agent Recipe index. The agent reads description + whenNotToUse to decide whether to call get_recipe for the body.',
       ),
   })
   .strict();

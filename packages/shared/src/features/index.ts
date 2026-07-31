@@ -31,8 +31,13 @@ export type {
 } from './types.js';
 export {
   featuresRoot,
+  LEGACY_FEATURE_MD_NAME,
   LEGACY_FEATURES_DIR_NAME,
+  RECIPE_MD_NAME,
+  RECIPES_DIR_NAME,
   readFeatureRow,
+  recipesDirCandidates,
+  recipesRoot,
   SKILLS_DIR_NAME,
   skillsDirCandidates,
   skillsRoot,

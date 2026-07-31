@@ -33,16 +33,16 @@ export default async function EditFeaturePage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / skills / ${row.slug} / edit`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / Agent Recipes / ${row.slug} / edit`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/01 · PROJECT · SKILL · EDIT</div>
+            <div className="head__num">/01 · PROJECT · AGENT RECIPE · EDIT</div>
             <h1 className="head__title">
               Edit <em>{row.slug}</em>
             </h1>
             <p className="head__lede">
-              Edit the trigger description, body, or maturity. Save to overwrite <code style={mono}>feature.md</code> on
+              Edit the trigger description, body, or maturity. Save to overwrite <code style={mono}>recipe.md</code> on
               disk; the index regenerates automatically.
             </p>
           </div>
@@ -76,7 +76,7 @@ export default async function EditFeaturePage({
             <h2 className="card__title">
               Metadata <em>+</em> body
             </h2>
-            <span className="card__role">writes feature.md</span>
+            <span className="card__role">writes recipe.md</span>
           </div>
           <form action={editFeatureMetaAction} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <input type="hidden" name="projectSlug" value={project.slug} />
@@ -135,7 +135,7 @@ export default async function EditFeaturePage({
               </label>
               <textarea id="edit-feature-body" name="body" rows={20} defaultValue={row.body} style={textareaStyle} />
               <p style={hintStyle}>
-                Free-form markdown. Loaded by <code style={mono}>coodra__get_skill</code>. The frontmatter is emitted
+                Free-form markdown. Loaded by <code style={mono}>coodra__get_recipe</code>. The frontmatter is emitted
                 deterministically by the server action — your edits round-trip without diff noise.
               </p>
             </div>
@@ -184,7 +184,7 @@ export default async function EditFeaturePage({
         >
           <div className="card__head" style={{ marginBottom: 12 }}>
             <h2 className="card__title" style={{ color: 'var(--warn)' }}>
-              Remove <em>skill</em>
+              Remove <em>recipe</em>
             </h2>
             <span className="card__role">irreversible · deletes the directory</span>
           </div>
@@ -202,7 +202,7 @@ export default async function EditFeaturePage({
               style={textInputStyle}
             />
             <button type="submit" className="btn btn--sm" style={{ borderColor: 'var(--warn)', color: 'var(--warn)' }}>
-              Remove skill
+              Remove recipe
             </button>
           </form>
         </div>

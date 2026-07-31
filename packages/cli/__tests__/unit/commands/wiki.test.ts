@@ -354,9 +354,7 @@ describe('coodra wiki build/generate', () => {
     expect(existsSync(join(dir, '.coodra', 'wiki', 'job.md'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'my-wiki'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'okf'))).toBe(true);
-    // Phase 5: the scaffold now lands under docs/skills/ (greenfield resolves
-    // there via skillsRoot); a legacy docs/features/ project would keep it there.
-    const feature = readFileSync(join(dir, 'docs', 'skills', 'deep-wiki-author', 'feature.md'), 'utf8');
+    const feature = readFileSync(join(dir, '.coodra', 'recipes', 'deep-wiki-author', 'recipe.md'), 'utf8');
     expect(feature).toContain('deep-wiki-author');
     const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki', 'job.json'), 'utf8')) as {
       slug: string;

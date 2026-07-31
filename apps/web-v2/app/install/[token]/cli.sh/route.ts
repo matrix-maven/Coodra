@@ -171,7 +171,7 @@ coodra start || true
 
 # --- final message --------------------------------------------------------
 echo ""
-echo "✓ Welcome ${friendlyName}! Try: coodra feature add my-first-thing"
+echo "✓ Welcome ${friendlyName}! Try: coodra recipe add my-first-thing"
 echo ""
 `;
   return plainTextResponse(script);

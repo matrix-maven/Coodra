@@ -66,21 +66,23 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // tools that replaced the abandoned embedding pipeline.
   registry.register(createListContextPacksToolRegistration({ db: deps.db }));
   registry.register(createReadContextPackToolRegistration({ db: deps.db }));
-  // Skills (2026-05-08; renamed from "Features" 2026-07): the three
-  // retrieval tools that back the docs/skills/<slug>/ knowledge-units layer
-  // (legacy docs/features/ is still read — see @coodra/shared skillsRoot).
+  // Agent Recipes (2026-07-31; renamed from Skills / Features): the three
+  // retrieval tools that back the .coodra/recipes/<slug>/ reusable guidance
+  // layer (legacy docs/skills and docs/features are still read — see
+  // @coodra/shared recipesRoot).
   // See packages/shared/src/features/types.ts for the format spec, and
   // apps/hooks-bridge/src/lib/features-index-loader.ts for the SessionStart
-  // injection that surfaces the index list to agents. The former tool names
-  // (list_features / get_feature / get_feature_file) are registered as hidden
-  // aliases below so no agent config breaks on upgrade — they resolve to the
-  // same handlers but do NOT appear in tools/list.
+  // injection that surfaces the index list to agents. Former tool names are
+  // registered as hidden aliases below so no agent config breaks on upgrade.
   registry.register(createListSkillsToolRegistration({ db: deps.db }));
   registry.register(createGetSkillToolRegistration({ db: deps.db }));
   registry.register(createGetSkillFileToolRegistration({ db: deps.db }));
-  registry.registerAlias('list_features', 'list_skills');
-  registry.registerAlias('get_feature', 'get_skill');
-  registry.registerAlias('get_feature_file', 'get_skill_file');
+  registry.registerAlias('list_skills', 'list_recipes');
+  registry.registerAlias('get_skill', 'get_recipe');
+  registry.registerAlias('get_skill_file', 'get_recipe_file');
+  registry.registerAlias('list_features', 'list_recipes');
+  registry.registerAlias('get_feature', 'get_recipe');
+  registry.registerAlias('get_feature_file', 'get_recipe_file');
   // Module 06 (Run Diff, 2026-05-09): surfaces run_diffs rows written
   // by the hooks-bridge SessionEnd runner. Server-side computation is
   // pure-deterministic (git diff, no LLM); the agent reads the

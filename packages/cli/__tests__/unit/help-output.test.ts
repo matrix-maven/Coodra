@@ -24,8 +24,8 @@ describe('coodra --help (snapshot-locked surface)', () => {
         install [options]         Install or repair machine-level Coodra runtime state
                                   (~/.coodra, data.db, runtime env).
         init [options]            Initialise Coodra in the current project (writes
-                                  project-local .coodra/ config, manifest,
-                                  skill-packs, graphify, wiki, and work-packs dirs).
+                                  project-local .coodra/ config, manifest, recipes,
+                                  graphify, wiki, and work-packs dirs).
         start [options]           Start MCP Server + Hooks Bridge + Web Dashboard (+
                                   Sync Daemon in team mode) as background daemons.
         stop [options]            Stop Coodra daemons. Idempotent.
@@ -90,8 +90,8 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   audit.
         template                  Manage reusable Coodra templates (bundled +
                                   user-installed).
-        skill|feature             Manage docs/skills/<slug>/ — skill-style knowledge
-                                  units the agent loads on demand.
+        recipe|skill              Manage .coodra/recipes/<slug>/ — Agent Recipes the
+                                  agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
         uninstall [options]       Reverse \`coodra init\`: stop + remove the daemon
                                   units (mcp-server, hooks-bridge, sync-daemon, web),
