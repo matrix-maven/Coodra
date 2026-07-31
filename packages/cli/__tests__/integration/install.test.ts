@@ -49,6 +49,9 @@ describe('runInstallCommand — integration', () => {
     expect((await stat(join(home, 'manifest.json'))).isFile()).toBe(true);
     const envBody = await readFile(join(home, '.env'), 'utf8');
     expect(envBody).toContain('# Graphify semantic build backend (optional)');
+    expect(envBody).toContain('# GRAPHIFY_BACKEND selects the provider/client; the matching API key authenticates it.');
+    expect(envBody).toContain('#   GRAPHIFY_BACKEND=claude   needs ANTHROPIC_API_KEY=...');
+    expect(envBody).toContain('#   GRAPHIFY_BACKEND=ollama   needs a local Ollama server, usually no API key.');
     expect(envBody).toContain('# GRAPHIFY_BACKEND=claude');
     expect(envBody).toContain('# ANTHROPIC_API_KEY=');
     expect(envBody).not.toMatch(/^ANTHROPIC_API_KEY=/m);
