@@ -63,9 +63,10 @@ describe('runInstallCommand — integration', () => {
     expect(manifest.agents).toEqual([]);
     expect(stdout.join('')).toContain('Machine manifest');
     expect(stdout.join('')).toContain('Graphify MCP runtime');
-    expect(stdout.join('')).toContain('Optional: run `coodra doctor` to verify this machine runtime.');
+    expect(stdout.join('')).toContain('Next: run `coodra start` to launch the local Coodra services.');
+    expect(stdout.join('')).toContain('Then run `coodra doctor` to verify this machine runtime.');
     expect(stdout.join('')).toContain(
-      'Next: wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.',
+      'Wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.',
     );
     expect(stdout.join('')).toContain(
       'Then open a project and run `coodra init`, or ask the installed agent to use `/coodra init`.',
@@ -120,7 +121,7 @@ describe('runInstallCommand — integration', () => {
     ).rejects.toThrow('__exit__:0');
 
     const parsed = JSON.parse(stdout.join('')) as { next: string[]; pluginInstallers?: string };
-    expect(parsed.next).toEqual(['coodra doctor', 'coodra agent add <agent>', 'coodra init']);
+    expect(parsed.next).toEqual(['coodra start', 'coodra doctor', 'coodra agent add <agent>', 'coodra init']);
     expect(parsed.pluginInstallers).toBeUndefined();
   });
 });

@@ -182,7 +182,7 @@ export async function runInstallCommand(
           },
           graphifyRuntime,
           detectedAgents: detected,
-          next: ['coodra doctor', 'coodra agent add <agent>', 'coodra init'],
+          next: ['coodra start', 'coodra doctor', 'coodra agent add <agent>', 'coodra init'],
         },
         null,
         2,
@@ -213,10 +213,9 @@ export async function runInstallCommand(
     io.writeStdout(`\n${pc.gray('·')} No supported agent config homes detected yet.\n`);
   }
 
-  io.writeStdout(`\n${hintLine('Optional: run `coodra doctor` to verify this machine runtime.')}\n`);
-  io.writeStdout(
-    `${hintLine('Next: wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.')}\n`,
-  );
+  io.writeStdout(`\n${hintLine('Next: run `coodra start` to launch the local Coodra services.')}\n`);
+  io.writeStdout(`${hintLine('Then run `coodra doctor` to verify this machine runtime.')}\n`);
+  io.writeStdout(`${hintLine('Wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.')}\n`);
   io.writeStdout(
     `${hintLine('Then open a project and run `coodra init`, or ask the installed agent to use `/coodra init`.')}\n`,
   );

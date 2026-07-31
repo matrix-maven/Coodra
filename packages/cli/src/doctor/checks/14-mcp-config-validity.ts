@@ -27,7 +27,7 @@ const mcpConfigSchema = z.object({
 
 export const mcpConfigValidityCheck: Check = {
   id: 14,
-  name: 'Coodra MCP config is available (native plugin or .mcp.json)',
+  name: 'Coodra MCP config is available through a native agent plugin',
   severity: 'yellow',
   async run(ctx) {
     const path = join(ctx.cwd, '.mcp.json');
@@ -41,9 +41,8 @@ export const mcpConfigValidityCheck: Check = {
         if (native !== null) return native;
         return {
           status: 'yellow',
-          detail: `.mcp.json not found at ${path}`,
-          remediation:
-            'Run `coodra agent add codex` or `coodra agent add claude` to install a native plugin, or use `coodra graphify enable` / `coodra jira enable` for legacy project config entries.',
+          detail: `native Coodra plugin MCP not found; no legacy project .mcp.json found at ${path}`,
+          remediation: 'Run `coodra agent add codex` or `coodra agent add claude` to install a native plugin.',
         };
       }
       return { status: 'yellow', detail: `cannot read .mcp.json: ${(err as Error).message}` };

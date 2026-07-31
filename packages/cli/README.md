@@ -13,7 +13,8 @@ npm i -g @coodra/cli
 # Prepare the machine runtime
 coodra install
 
-# Optional verification / interactive terminal
+# Start services, then verify / open the interactive terminal
+coodra start
 coodra doctor
 coodra
 
