@@ -9,7 +9,7 @@
 <img src="docs/brand/coodra-pillars.svg" alt="Feature Pack · Context Pack · Policy" height="16">
 
 [![CI](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@coodra/cli/beta.svg)](https://www.npmjs.com/package/@coodra/cli)
+[![npm](https://img.shields.io/npm/v/@coodra/cli/latest.svg)](https://www.npmjs.com/package/@coodra/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
 
@@ -23,13 +23,13 @@
 Your AI agent forgets what it decided last session. It re-learns your project conventions every single time. It writes to files it shouldn't. Coodra fixes all three — by injecting **architectural context** at session start, recording **durable memory** as the session runs, and enforcing **policy rules** before every write. One command to install. Runs entirely on your laptop.
 
 ```bash
-npm i -g @coodra/cli@beta && coodra install && coodra init && coodra start
+npm i -g @coodra/cli && coodra install && coodra init && coodra start
 ```
 
 pnpm users can install globally with native SQLite build approval:
 
 ```bash
-pnpm add -g @coodra/cli@beta --allow-build=better-sqlite3
+pnpm add -g @coodra/cli --allow-build=better-sqlite3
 ```
 
 `coodra install` prepares the machine-level Coodra runtime under `~/.coodra/`, installs the shared Graphify MCP package into `~/.coodra/graphify-mcp/.venv` (`uv` when available, Python venv + pip otherwise), and records the machine ledger in `~/.coodra/manifest.json`; this is the place for native agent plugin setup. `coodra init` is project-local: it registers the repo and creates `<repo>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}` without writing root `.env`, `.mcp.json`, or per-agent files. Add or repair an agent plugin later with `coodra agent add codex` (or `cursor`, `claude`, `devin`). The Codex and Claude paths install native global Coodra plugins with bundled skills, lifecycle hooks, the Coodra MCP server, a default managed Graphify MCP capability that uses the shared machine runtime while reading project-local graphs from `.coodra/graphify/out/graph.json`, and the Deep Wiki authoring recipe that persists pages through Coodra's wiki MCP tools.
@@ -186,7 +186,7 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 ## What ships
 
 ```
-@coodra/cli@beta            single npm install — everything bundled
+@coodra/cli                 single npm install — everything bundled
 ├── mcp-server              TS · 20 MCP tools · stdio + HTTP transport
 ├── hooks-bridge            TS · Hono on 127.0.0.1:3101 · 5 hook events
 ├── sync-daemon             TS · outbox push + cloud→local puller (team only)
@@ -276,7 +276,7 @@ credentials.
 
 ## Status
 
-**`@coodra/cli@0.2.0-beta.3`** — public beta.
+**`@coodra/cli@0.3.0`** — stable native-agent release.
 
 Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Feature Packs + on-demand Skills).
 

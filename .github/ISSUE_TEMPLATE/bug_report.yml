@@ -30,7 +30,7 @@ body:
       label: Reproduction steps
       description: Commands you ran, in order. Include input where relevant.
       placeholder: |
-        1. `npm i -g @coodra/cli@beta`
+        1. `npm i -g @coodra/cli`
         2. `cd my-project`
         3. `coodra init --project-slug demo`
         4. `coodra start`
@@ -54,7 +54,7 @@ body:
     attributes:
       label: CLI version
       description: From `coodra --version`.
-      placeholder: 0.2.0-beta.3
+      placeholder: 0.3.0
     validations:
       required: true
 
@@ -112,7 +112,7 @@ body:
     attributes:
       label: Pre-flight
       options:
-        - label: I am on the latest `@coodra/cli@beta` (`coodra upgrade --check-only`).
+        - label: I am on the latest `@coodra/cli` (`coodra upgrade --check-only`).
           required: true
         - label: I searched existing issues for the same symptom.
           required: true

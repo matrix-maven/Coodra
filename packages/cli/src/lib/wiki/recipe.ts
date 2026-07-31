@@ -168,7 +168,7 @@ export function renderWikiRecipe(args: {
   lines.push('- `coodra__wiki_status`  → check progress');
   lines.push('');
   lines.push(
-    '**Preflight:** confirm `coodra__wiki_save_structure` is in your available tools. If it is NOT listed, STOP and tell the user: *“Restart the Coodra MCP server (`coodra stop && coodra start`) and reconnect this agent (e.g. `/mcp` in Claude Code), then ask me again — the wiki tools shipped in CLI 0.2.0-beta.21.”* Do not fall back to writing files.',
+    '**Preflight:** confirm `coodra__wiki_save_structure` is in your available tools. If it is NOT listed, STOP and tell the user: *“Restart the Coodra MCP server (`coodra stop && coodra start`) and reconnect this agent (e.g. `/mcp` in Claude Code), then ask me again — the wiki tools ship with the current Coodra CLI.”* Do not fall back to writing files.',
   );
   lines.push('');
 

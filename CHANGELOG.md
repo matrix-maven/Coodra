@@ -1,8 +1,10 @@
 # Changelog
 
-All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Beta tags do not guarantee SemVer; breaking changes between `0.2.0-beta.x` releases are possible and called out per entry.
+All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Pre-release tags do not guarantee SemVer; breaking changes between beta releases are possible and called out per entry.
 
 ## [Unreleased]
+
+## [0.3.0] — 2026-07-31
 
 ### Added
 
