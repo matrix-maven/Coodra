@@ -557,9 +557,12 @@ description: Build, inspect, or use Graphify codebase graph artifacts managed by
 Use this skill when the user asks to graphify a repository, use the code graph, inspect graph artifacts, or make the assistant always consult the graph.
 
 1. Prefer Coodra-managed Graphify output under \`.coodra/graphify/out/\`.
-2. Set \`GRAPHIFY_OUT=.coodra/graphify/out\` before running Graphify when the command supports it.
-3. Use Graphify artifacts as context before broad architecture, dependency, wiki, or refactor work.
-4. Do not leave new Graphify output in root-level \`graphify-out/\` unless the user explicitly asks.
+2. Build with \`coodra graphify build\`; it sets \`GRAPHIFY_OUT=.coodra/graphify/out\` and records generated artifacts.
+3. Do not inspect or print environment variables to discover LLM keys unless the user explicitly asks. If a semantic build fails because Graphify lacks a backend, explain that the external Graphify process cannot automatically borrow this Codex chat session, then fall back to \`coodra graphify build --no-llm\` for a structural graph.
+4. When querying the managed Graphify MCP server installed by the Coodra plugin, omit \`project_path\` unless the user has explicitly wired a custom Graphify server. The managed plugin entry already points at \`.coodra/graphify/out/graph.json\`; passing \`project_path\` can make Graphify append its stock \`graphify-out/\` path and miss the Coodra-managed graph.
+5. Treat \`coodra graphify status\` legacy config rows as explicit/custom wiring only. Native Coodra plugin wiring is managed by \`coodra agent add <agent>\` / \`coodra agent repair <agent>\`.
+6. Use Graphify artifacts as context before broad architecture, dependency, wiki, or refactor work.
+7. Do not leave new Graphify output in root-level \`graphify-out/\` unless the user explicitly asks.
 `;
 }
 

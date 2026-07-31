@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { createClaudeCliRunner, probeClaudePlugin } from '../lib/agents/claude-plugin.js';
+import { probeCodexPlugin } from '../lib/agents/codex-plugin.js';
 import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
 import {
   detectGraphifyLayout,
@@ -12,6 +14,7 @@ import {
   scanGraphifyArtifacts,
   writeGraphifyRecord,
 } from '../lib/graphify/artifacts.js';
+import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
 import { type InstallCommandRunner, offerGraphifyInstall } from '../lib/init/graphify-install.js';
 import {
   type GraphifyPythonResolution,
@@ -99,6 +102,7 @@ export interface GraphifyStatusOptions {
   readonly json?: boolean;
   readonly cwd?: string;
   readonly userHome?: string;
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export interface GraphifyIO {
@@ -469,6 +473,7 @@ interface GraphifyIdeStatus {
   readonly exists: boolean;
   readonly wired: boolean;
   readonly unreadable: boolean;
+  readonly nativeManaged: boolean;
 }
 
 function renderStatusRow(s: GraphifyIdeStatus): string {
@@ -478,6 +483,9 @@ function renderStatusRow(s: GraphifyIdeStatus): string {
   if (s.unreadable) {
     glyph = pc.red('✗');
     note = `${s.configPath} — unreadable config`;
+  } else if (s.nativeManaged) {
+    glyph = pc.green('✓');
+    note = `${s.configPath} — managed by native Coodra plugin`;
   } else if (s.wired) {
     glyph = pc.green('✓');
     note = `${s.configPath} — graphify MCP entry present`;
@@ -556,15 +564,20 @@ export async function runGraphifyStatusCommand(
 ): Promise<never> {
   const cwd = options.cwd ?? process.cwd();
   const userHome = options.userHome ?? homedir();
+  const env = options.env ?? process.env;
+  const nativeManaged = await probeNativeManagedGraphify({ cwd, userHome, env });
 
   const statuses: GraphifyIdeStatus[] = [];
   for (const ide of IDE_ORDER) {
     const presence = await readGraphifyPresence({ ide, cwd, userHome });
+    const managed = nativeManaged.has(ide);
     statuses.push({
       ide,
       displayName: IDE_DISPLAY[ide],
       configPath: graphifyConfigPath(ide, cwd, userHome),
       ...presence,
+      wired: presence.wired || managed,
+      nativeManaged: managed,
     });
   }
 
@@ -588,13 +601,40 @@ export async function runGraphifyStatusCommand(
   renderScan(io, scan);
   io.writeStdout('\n');
   const anyWired = statuses.some((s) => s.wired);
+  const anyNativeManaged = statuses.some((s) => s.nativeManaged);
   io.writeStdout(
     hintLine(
-      anyWired
-        ? '  Run `coodra graphify disable` to remove the wiring.'
-        : '  Run `coodra graphify enable` to wire Graphify into your agent config.',
+      anyNativeManaged
+        ? '  Native plugin wiring is managed by `coodra agent add <agent>` / `coodra agent repair <agent>`; use `coodra graphify enable` only for custom or non-plugin agents.'
+        : anyWired
+          ? '  Run `coodra graphify disable` to remove the wiring.'
+          : '  Run `coodra graphify enable` to wire Graphify into your agent config.',
     ),
   );
   io.writeStdout('\n');
   return io.exit(EXIT_OK);
+}
+
+async function probeNativeManagedGraphify(args: {
+  readonly cwd: string;
+  readonly userHome: string;
+  readonly env: NodeJS.ProcessEnv;
+}): Promise<ReadonlySet<IDE>> {
+  const native = new Set<IDE>();
+  try {
+    const codex = await probeCodexPlugin({ cwd: args.cwd, userHome: args.userHome });
+    if (codex.mcp) native.add('codex');
+  } catch {
+    // status remains best-effort
+  }
+  try {
+    const claude = await probeClaudePlugin(
+      { cwd: args.cwd, userHome: args.userHome, settingsPath: defaultClaudeSettingsPath(undefined, args.env) },
+      createClaudeCliRunner(1200),
+    );
+    if (claude.mcp) native.add('claude');
+  } catch {
+    // status remains best-effort
+  }
+  return native;
 }

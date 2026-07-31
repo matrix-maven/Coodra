@@ -444,6 +444,19 @@ describe('runGraphifyStatusCommand', () => {
     expect(claude).toMatchObject({ exists: true, wired: true, unreadable: false });
   });
 
+  it('reports native Codex plugin Graphify as managed wiring', async () => {
+    await mkdir(join(home, '.codex', 'plugins', 'coodra'), { recursive: true });
+    await writeFile(
+      join(home, '.codex', 'plugins', 'coodra', '.mcp.json'),
+      JSON.stringify({ mcpServers: { coodra: { command: 'node' }, graphify: { command: 'python' } } }, null, 2),
+      'utf8',
+    );
+    const c = makeIO();
+    await expect(runGraphifyStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    const codex = JSON.parse(c.stdout()).ides.find((i: { ide: string }) => i.ide === 'codex');
+    expect(codex).toMatchObject({ exists: false, wired: true, nativeManaged: true });
+  });
+
   it('probes Codex TOML for a [mcp_servers.graphify] table', async () => {
     await mkdir(join(cwd, '.codex'));
     await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.graphify]\ncommand = "python3"\n', 'utf8');
