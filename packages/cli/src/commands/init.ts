@@ -230,9 +230,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     io.writeStdout(`${pc.green('✓')} Detected languages: ${languages.join(', ')}\n`);
   }
   io.writeStdout(
-    `${pc.gray('·')} Project init does not install or wire agent plugins. Run ${pc.cyan(
-      'coodra install',
-    )} for machine setup or ${pc.cyan('coodra agent add <agent>')} to add an agent plugin later.\n`,
+    `${pc.gray('·')} Project init only creates project-local .coodra state. Agent plugins are global; wire them with ${pc.cyan(
+      'coodra agent add <agent>',
+    )}.\n`,
   );
 
   // Resolve and create ~/.coodra/{logs,pids} (data.db is created by openLocalDb).
@@ -474,7 +474,9 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   outcomes.push(...(await writeProjectConfig({ root, projectSlug, mode: machineCfg.mode, force, dryRun })));
   outcomes.push(...(await ensureProjectLayout(root, dryRun)));
 
-  io.writeStdout(`${pc.green('✓')} Project Coodra layout ready: .coodra/recipes, .coodra/graphify, .coodra/wiki\n`);
+  io.writeStdout(
+    `${pc.green('✓')} Project Coodra layout ready: .coodra/recipes, .coodra/work-packs, .coodra/graphify, .coodra/wiki\n`,
+  );
 
   // Phase 2: record every generated file into `.coodra/manifest.json` so
   // `coodra files status/clean` can show + clean up Coodra's footprint. The
@@ -509,7 +511,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   io.writeStdout('\n');
   io.writeStdout(`${okLine(`Coodra is ready — project '${projectSlug}'.`)}\n`);
   io.writeStdout(
-    `${hintLine('  → Install or update global agent plugins with `coodra install` or `coodra agent add <agent>`.')}\n`,
+    `${hintLine('  → If you have not already wired your agent, run `coodra agent add codex` or `coodra agent add claude`.')}\n`,
   );
   io.writeStdout(`${hintLine('  → Run `coodra doctor` to verify the install.')}\n`);
   io.writeStdout(`${hintLine('  → Run `coodra start` to launch the MCP server + Hooks Bridge daemons.')}\n`);

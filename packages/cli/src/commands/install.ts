@@ -182,7 +182,7 @@ export async function runInstallCommand(
           },
           graphifyRuntime,
           detectedAgents: detected,
-          pluginInstallers: 'pending-native-agent-features',
+          next: ['coodra doctor', 'coodra agent add <agent>', 'coodra init'],
         },
         null,
         2,
@@ -213,12 +213,13 @@ export async function runInstallCommand(
     io.writeStdout(`\n${pc.gray('·')} No supported agent config homes detected yet.\n`);
   }
 
+  io.writeStdout(`\n${hintLine('Optional: run `coodra doctor` to verify this machine runtime.')}\n`);
   io.writeStdout(
-    `\n${hintLine(
-      'Native agent plugin installers are tracked separately in COOD-6 through COOD-9. `coodra agent add <agent>` remains the follow-up command for adding one later.',
-    )}\n`,
+    `${hintLine('Next: wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.')}\n`,
   );
-  io.writeStdout(`${hintLine('Next: run `coodra init` inside a repo to create that project’s .coodra/ layout.')}\n`);
+  io.writeStdout(
+    `${hintLine('Then open a project and run `coodra init`, or ask the installed agent to use `/coodra init`.')}\n`,
+  );
 
   return io.exit(EXIT_OK);
 }

@@ -1,6 +1,10 @@
 import { access, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
+import { createClaudeCliRunner, probeClaudePlugin } from '../../lib/agents/claude-plugin.js';
+import { probeCodexPlugin } from '../../lib/agents/codex-plugin.js';
+import { defaultClaudeSettingsPath } from '../../lib/init/claude-settings-merge.js';
 import type { Check } from '../types.js';
 
 const mcpConfigSchema = z.object({
@@ -23,7 +27,7 @@ const mcpConfigSchema = z.object({
 
 export const mcpConfigValidityCheck: Check = {
   id: 14,
-  name: '.mcp.json parses + Coodra entry command path resolves',
+  name: 'Coodra MCP config is available (native plugin or .mcp.json)',
   severity: 'yellow',
   async run(ctx) {
     const path = join(ctx.cwd, '.mcp.json');
@@ -33,10 +37,13 @@ export const mcpConfigValidityCheck: Check = {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
+        const native = await probeNativePluginMcp(ctx);
+        if (native !== null) return native;
         return {
           status: 'yellow',
           detail: `.mcp.json not found at ${path}`,
-          remediation: 'Run `coodra init` to write a baseline .mcp.json.',
+          remediation:
+            'Run `coodra agent add codex` or `coodra agent add claude` to install a native plugin, or use `coodra graphify enable` / `coodra jira enable` for legacy project config entries.',
         };
       }
       return { status: 'yellow', detail: `cannot read .mcp.json: ${(err as Error).message}` };
@@ -109,3 +116,23 @@ export const mcpConfigValidityCheck: Check = {
     return { status: 'green', detail: `.mcp.json valid; Coodra entry command=${cmd}` };
   },
 };
+
+async function probeNativePluginMcp(
+  ctx: Parameters<Check['run']>[0],
+): Promise<{ status: 'green'; detail: string } | null> {
+  const userHome = ctx.env.HOME || ctx.env.USERPROFILE || homedir();
+  const codex = await probeCodexPlugin({ cwd: ctx.cwd, userHome });
+  if (codex.mcp) {
+    return { status: 'green', detail: `native Codex plugin provides Coodra MCP at ${codex.paths.mcpPath}` };
+  }
+
+  const settingsPath = defaultClaudeSettingsPath(undefined, ctx.env);
+  const claude = await probeClaudePlugin(
+    { cwd: ctx.cwd, userHome, settingsPath },
+    createClaudeCliRunner(Math.min(ctx.timeoutMs, 1200)),
+  );
+  if (claude.mcp) {
+    return { status: 'green', detail: `native Claude Code plugin provides Coodra MCP at ${claude.paths.cacheMcpPath}` };
+  }
+  return null;
+}

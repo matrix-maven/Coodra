@@ -60,30 +60,30 @@ export const preToolUseLoopCheck: Check = {
     if ((await readProjectConfig(ctx.cwd)) === null) {
       return {
         status: 'yellow',
-        detail: 'cwd has no .coodra/config.json — skipping synthetic enforcement probe (would auto-create a stub project).',
+        detail:
+          'cwd has no .coodra/config.json — skipping synthetic enforcement probe (would auto-create a stub project).',
         remediation: 'Run `coodra init` from the project root to register it, then re-run doctor.',
       };
     }
 
     const url = `http://127.0.0.1:${ctx.bridgePort}/v1/hooks/claude-code`;
-    // Read LOCAL_HOOK_SECRET from the project's .env (the bridge requires
-    // the secret on every hook call). Doctor probes for the secret in
-    // check 20; here we just need the value.
+    // Read LOCAL_HOOK_SECRET from machine runtime env. Project init no longer
+    // writes a project .env; `coodra install` owns ~/.coodra/.env.
     let secret = ctx.env.LOCAL_HOOK_SECRET ?? '';
     if (!secret) {
       try {
-        const envBody = await readFile(join(ctx.cwd, '.env'), 'utf8');
+        const envBody = await readFile(join(ctx.coodraHome, '.env'), 'utf8');
         const match = envBody.match(/^LOCAL_HOOK_SECRET=([0-9a-fA-F]+)/m);
         if (match?.[1]) secret = match[1];
       } catch {
-        // .env missing — surface that before assuming the bridge is broken
+        // ~/.coodra/.env missing — surface that before assuming the bridge is broken
       }
     }
     if (!secret) {
       return {
         status: 'yellow',
-        detail: 'LOCAL_HOOK_SECRET not found in env or .env — cannot fire synthetic hook.',
-        remediation: 'Run `coodra init` to lay down a fresh .env with a generated LOCAL_HOOK_SECRET.',
+        detail: 'LOCAL_HOOK_SECRET not found in env or ~/.coodra/.env — cannot fire synthetic hook.',
+        remediation: 'Run `coodra install` to repair machine runtime env.',
       };
     }
 
@@ -101,7 +101,7 @@ export const preToolUseLoopCheck: Check = {
     const timer = setTimeout(() => controller.abort(), Math.max(ctx.timeoutMs - 200, 500));
     let body: unknown;
     let httpError: { status: 'red'; detail: string; remediation: string } | null = null;
-    let fetchError: { status: 'red'; detail: string; remediation: string } | null = null;
+    let fetchError: { status: 'yellow'; detail: string; remediation: string } | null = null;
     try {
       const res = await fetch(url, {
         method: 'POST',
@@ -115,7 +115,7 @@ export const preToolUseLoopCheck: Check = {
           detail: `bridge returned HTTP ${res.status} for synthetic PreToolUse POST.`,
           remediation:
             res.status === 401 || res.status === 403
-              ? 'Re-run `coodra init` to align the LOCAL_HOOK_SECRET between .env and the bridge.'
+              ? 'Run `coodra install`, then restart Coodra services so the bridge reads the same ~/.coodra/.env secret.'
               : `Check ~/.coodra/logs/hooks-bridge.log for the request handling.`,
         };
       } else {
@@ -123,15 +123,18 @@ export const preToolUseLoopCheck: Check = {
       }
     } catch (err) {
       fetchError = {
-        status: 'red',
+        status: 'yellow',
         detail: `synthetic PreToolUse POST failed: ${(err as Error).message}`,
-        remediation:
-          'Confirm hooks-bridge is running (`coodra status`) and that the daemon listens on ' +
-          `port ${ctx.bridgePort}.`,
+        remediation: `Run \`coodra start\` to launch hooks-bridge on port ${ctx.bridgePort}, then re-run doctor.`,
       };
     } finally {
       clearTimeout(timer);
     }
+
+    // If there was no bridge connection, the bridge could not have created
+    // probe rows. Return before the DB sweep so short-timeout doctor runs stay
+    // responsive during the normal pre-`coodra start` onboarding path.
+    if (fetchError !== null) return fetchError;
 
     // Always sweep the probe rows the bridge created on our behalf — one
     // run, one policy_decision, one or more run_events keyed on the unique
@@ -141,7 +144,6 @@ export const preToolUseLoopCheck: Check = {
     await sweepProbeRows({ dataDb: ctx.dataDb, probeSessionId });
 
     if (httpError !== null) return httpError;
-    if (fetchError !== null) return fetchError;
 
     const parsed = hookResponseSchema.safeParse(body);
     if (!parsed.success) {

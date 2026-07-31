@@ -23,8 +23,14 @@
 Your AI agent forgets what it decided last session. It re-learns your project conventions every single time. It writes to files it shouldn't. Coodra fixes all three — by injecting **architectural context** at session start, recording **durable memory** as the session runs, and enforcing **policy rules** before every write. One command to install. Runs entirely on your laptop.
 
 ```bash
-npm i -g @coodra/cli && coodra install && coodra init && coodra start
+npm i -g @coodra/cli
+coodra install
+coodra doctor              # optional verification
+coodra agent add codex     # or: coodra agent add claude
 ```
+
+Then open your repo and either run `coodra init` in the terminal, or ask the
+installed agent to use `/coodra init`.
 
 pnpm users can install globally with native SQLite build approval:
 
@@ -32,7 +38,7 @@ pnpm users can install globally with native SQLite build approval:
 pnpm add -g @coodra/cli --allow-build=better-sqlite3
 ```
 
-`coodra install` prepares the machine-level Coodra runtime under `~/.coodra/`, installs the shared Graphify MCP package into `~/.coodra/graphify-mcp/.venv` (`uv` when available, Python venv + pip otherwise), and records the machine ledger in `~/.coodra/manifest.json`; this is the place for native agent plugin setup. `coodra init` is project-local: it registers the repo and creates `<repo>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}` without writing root `.env`, `.mcp.json`, or per-agent files. Add or repair an agent plugin later with `coodra agent add codex` (or `cursor`, `claude`, `devin`). The Codex and Claude paths install native global Coodra plugins with bundled skills, lifecycle hooks, the Coodra MCP server, a default managed Graphify MCP capability that uses the shared machine runtime while reading project-local graphs from `.coodra/graphify/out/graph.json`, and the Deep Wiki authoring recipe that persists pages through Coodra's wiki MCP tools.
+`coodra install` prepares the machine-level Coodra runtime under `~/.coodra/`, installs the shared Graphify MCP package into `~/.coodra/graphify-mcp/.venv` (`uv` when available, Python venv + pip otherwise), and records the machine ledger in `~/.coodra/manifest.json`. `coodra agent add codex` / `coodra agent add claude` installs the native global agent plugin with bundled skills, lifecycle hooks, the Coodra MCP server, managed Graphify, and the Deep Wiki authoring recipe. `coodra init` is project-local: it registers the repo and creates `<repo>/.coodra/{config.json,manifest.json,recipes/,graphify/,wiki/,work-packs/}` without writing root `.env`, `.mcp.json`, or per-agent files.
 
 ---
 
