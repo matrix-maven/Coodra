@@ -249,6 +249,26 @@ describe('coodra graphify build', () => {
     expect(calls[0]).toEqual(['.', '--backend', 'ollama']);
   });
 
+  it('layers ~/.coodra/.env into the Graphify subprocess env', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'coodra-gfx-home-'));
+    await mkdir(home, { recursive: true });
+    await writeFile(join(home, '.env'), 'ANTHROPIC_API_KEY=sk-test-graphify\nGRAPHIFY_BACKEND=claude\n', 'utf8');
+    const argCalls: Array<readonly string[]> = [];
+    const calls: Array<NodeJS.ProcessEnv> = [];
+    const runner = async (_b: string, args: readonly string[], o: { cwd: string; env: NodeJS.ProcessEnv }) => {
+      argCalls.push(args);
+      calls.push(o.env);
+      await mkdir(join(root, '.coodra/graphify/out'), { recursive: true });
+      await writeFile(join(root, '.coodra/graphify/out/graph.json'), JSON.stringify(GRAPH));
+      return { stdout: '', stderr: '' };
+    };
+    const { io } = makeIO();
+    await run(() => runGraphifyBuildCommand(opts({ runner, env: { COODRA_HOME: home } }), io));
+    expect(calls[0]?.ANTHROPIC_API_KEY).toBe('sk-test-graphify');
+    expect(calls[0]?.GRAPHIFY_BACKEND).toBe('claude');
+    expect(argCalls[0]).toEqual(['.', '--backend', 'claude']);
+  });
+
   it('a missing-LLM-key failure names the key-free alternatives', async () => {
     const runner = async () => {
       throw new Error('Command failed: graphify .\nerror: no LLM API key found. Set GEMINI_API_KEY');

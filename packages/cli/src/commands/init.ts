@@ -15,6 +15,7 @@ import { eq } from 'drizzle-orm';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import { detectLanguages, detectProjectRoot } from '../lib/detect.js';
+import { ensureGraphifyLlmEnvTemplate } from '../lib/graphify/env-template.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -459,6 +460,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
       upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', mcpServerPort);
       upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', hooksBridgePort);
+      ensureGraphifyLlmEnvTemplate(homeEnvPath);
     } catch (err) {
       io.writeStdout(
         `${pc.yellow('⚠')} Could not persist Coodra runtime config to ${homeEnvPath}: ${

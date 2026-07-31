@@ -6,6 +6,7 @@ import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
 import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import { detectIDE, IDE_DISPLAY } from '../lib/detect.js';
+import { ensureGraphifyLlmEnvTemplate } from '../lib/graphify/env-template.js';
 import {
   ensureManagedGraphifyRuntime,
   type ManagedGraphifyRuntimeResult,
@@ -123,6 +124,7 @@ export async function runInstallCommand(
     upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
     upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', portFromEnv(env, 'MCP_SERVER_PORT', '3100'));
     upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', portFromEnv(env, 'HOOKS_BRIDGE_PORT', '3101'));
+    ensureGraphifyLlmEnvTemplate(homeEnvPath);
 
     const handle = await openLocalDb(dataDbPath, { loadVecExtension: true });
     try {
@@ -195,6 +197,7 @@ export async function runInstallCommand(
   io.writeStdout(`${pc.green('✓')} Runtime directories: logs, pids\n`);
   io.writeStdout(`${pc.green('✓')} Local SQLite store: data.db + migrations + __global__ sentinel\n`);
   io.writeStdout(`${pc.green('✓')} Runtime env: LOCAL_HOOK_SECRET, MCP_SERVER_PORT, HOOKS_BRIDGE_PORT\n`);
+  io.writeStdout(`${pc.green('✓')} Graphify LLM backend placeholders: ~/.coodra/.env\n`);
   if (graphifyRuntime.ok) {
     io.writeStdout(
       `${pc.green('✓')} Graphify MCP runtime: ${graphifyRuntime.python}${graphifyRuntime.installed ? pc.gray(` (${graphifyRuntime.tool})`) : ''}\n`,

@@ -47,6 +47,11 @@ describe('runInstallCommand — integration', () => {
     expect((await stat(join(home, 'logs'))).isDirectory()).toBe(true);
     expect((await stat(join(home, 'pids'))).isDirectory()).toBe(true);
     expect((await stat(join(home, 'manifest.json'))).isFile()).toBe(true);
+    const envBody = await readFile(join(home, '.env'), 'utf8');
+    expect(envBody).toContain('# Graphify semantic build backend (optional)');
+    expect(envBody).toContain('# GRAPHIFY_BACKEND=claude');
+    expect(envBody).toContain('# ANTHROPIC_API_KEY=');
+    expect(envBody).not.toMatch(/^ANTHROPIC_API_KEY=/m);
 
     const manifest = JSON.parse(await readFile(join(home, 'manifest.json'), 'utf8'));
     expect(manifest.entries).toEqual(
@@ -63,6 +68,7 @@ describe('runInstallCommand — integration', () => {
     expect(manifest.agents).toEqual([]);
     expect(stdout.join('')).toContain('Machine manifest');
     expect(stdout.join('')).toContain('Graphify MCP runtime');
+    expect(stdout.join('')).toContain('Graphify LLM backend placeholders');
     expect(stdout.join('')).toContain('Next: run `coodra start` to launch the local Coodra services.');
     expect(stdout.join('')).toContain('Then run `coodra doctor` to verify this machine runtime.');
     expect(stdout.join('')).toContain(
