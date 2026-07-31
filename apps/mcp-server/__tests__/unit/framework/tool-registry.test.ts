@@ -147,11 +147,11 @@ describe('ToolRegistry — register-time enforcement (negative cases)', () => {
   });
 });
 
-describe('ToolRegistry — back-compat aliases (Features→Skills rename, Phase 5)', () => {
+describe('ToolRegistry — back-compat aliases (Features/Skills→Recipes rename, COOD-23)', () => {
   it('an alias routes handleCall to the canonical handler', async () => {
     const registry = freshRegistry();
-    registry.register(makeValidReg({ name: 'list_skills' }));
-    registry.registerAlias('list_features', 'list_skills');
+    registry.register(makeValidReg({ name: 'list_recipes' }));
+    registry.registerAlias('list_features', 'list_recipes');
     const result = await registry.handleCall('list_features', { a: 'hi' }, 'sess_alias');
     expect(result.isError).toBeUndefined();
     // Canonical handler ran (echo:hi) even though we called the old name.
@@ -160,10 +160,10 @@ describe('ToolRegistry — back-compat aliases (Features→Skills rename, Phase 
 
   it('an alias is NOT advertised in list() — tools/list shows only the canonical name', () => {
     const registry = freshRegistry();
-    registry.register(makeValidReg({ name: 'get_skill' }));
-    registry.registerAlias('get_feature', 'get_skill');
+    registry.register(makeValidReg({ name: 'get_recipe' }));
+    registry.registerAlias('get_feature', 'get_recipe');
     const names = registry.list().map((t) => t.name);
-    expect(names).toContain('get_skill');
+    expect(names).toContain('get_recipe');
     expect(names).not.toContain('get_feature');
     // size() counts real tools only — the alias does not inflate the count.
     expect(registry.size()).toBe(1);
@@ -171,19 +171,19 @@ describe('ToolRegistry — back-compat aliases (Features→Skills rename, Phase 
 
   it('has() is true for both the canonical name and its alias', () => {
     const registry = freshRegistry();
-    registry.register(makeValidReg({ name: 'get_skill_file' }));
-    registry.registerAlias('get_feature_file', 'get_skill_file');
-    expect(registry.has('get_skill_file')).toBe(true);
+    registry.register(makeValidReg({ name: 'get_recipe_file' }));
+    registry.registerAlias('get_feature_file', 'get_recipe_file');
+    expect(registry.has('get_recipe_file')).toBe(true);
     expect(registry.has('get_feature_file')).toBe(true);
     expect(registry.has('nope')).toBe(false);
   });
 
   it('refuses an alias to an unregistered canonical, a colliding alias, and a malformed alias name', () => {
     const registry = freshRegistry();
-    registry.register(makeValidReg({ name: 'list_skills' }));
+    registry.register(makeValidReg({ name: 'list_recipes' }));
     expect(() => registry.registerAlias('list_features', 'does_not_exist')).toThrow(/is not registered/);
-    expect(() => registry.registerAlias('list_skills', 'list_skills')).toThrow(/collides/);
-    expect(() => registry.registerAlias('Bad-Alias', 'list_skills')).toThrow(/tool-name shape/);
+    expect(() => registry.registerAlias('list_recipes', 'list_recipes')).toThrow(/collides/);
+    expect(() => registry.registerAlias('Bad-Alias', 'list_recipes')).toThrow(/tool-name shape/);
   });
 });
 

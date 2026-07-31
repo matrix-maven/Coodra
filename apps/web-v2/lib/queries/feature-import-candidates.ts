@@ -8,13 +8,13 @@ import { FEATURE_SLUG_RE, walkFeatures } from '@coodra/shared/features';
 /**
  * `apps/web-v2/lib/queries/feature-import-candidates.ts` — scan a
  * project's filesystem for markdown documents that look like good
- * candidates for promotion to a skill-style feature.
+ * candidates for promotion to an Agent Recipe.
  *
  * Path B of the onboarding plan: when a user lands in Coodra with
  * an existing project that already has scattered docs (`docs/auth.md`,
  * `specs/payments-spec.md`, `architecture/csv-import.md`), we don't
  * want them to start over from a blank wizard. We scan the project,
- * propose draft features, and let them check off which ones to promote.
+ * propose draft Agent Recipes, and let them check off which ones to promote.
  *
  * Heuristics — what counts as a "candidate":
  *
@@ -23,10 +23,10 @@ import { FEATURE_SLUG_RE, walkFeatures } from '@coodra/shared/features';
  *   2. Extension is `.md`.
  *   3. Size between MIN_BYTES and MAX_BYTES (skips empty stubs and
  *      runaway dumps).
- *   4. NOT under `docs/feature-packs/` or `docs/features/` — those
- *      are the pre-existing pack layer + the features layer itself.
+ *   4. NOT under `docs/feature-packs/`, `.coodra/recipes/`, or legacy
+ *      recipe directories.
  *   5. NOT a `README.md` at the project root (too generic to be a
- *      feature trigger; will hit the agent's "default conventions"
+ *      recipe trigger; will hit the agent's "default conventions"
  *      noise floor).
  *
  * Each candidate gets a *suggested slug* derived from its filename
@@ -45,6 +45,7 @@ const SCAN_DIRECTORIES = ['docs', 'specs', 'architecture', 'arch', 'design'] as 
 const SKIP_SEGMENT_NAMES = new Set([
   'feature-packs',
   'features',
+  'recipes',
   'node_modules',
   '.git',
   '.next',
@@ -76,9 +77,9 @@ export interface FeatureImportCandidate {
   readonly bytes: number;
   /** ISO-8601 last-modified. */
   readonly modifiedAt: string;
-  /** Suggested feature slug (sanitized, kebab-case). May collide with existing slugs. */
+  /** Suggested Agent Recipe slug (sanitized, kebab-case). May collide with existing slugs. */
   readonly suggestedSlug: string;
-  /** True if `suggestedSlug` already exists under `docs/features/`. The form disables import for these by default. */
+  /** True if `suggestedSlug` already exists under the Agent Recipes root. The form disables import for these by default. */
   readonly slugCollides: boolean;
   /**
    * Suggested trigger description — the first non-heading paragraph,
@@ -86,13 +87,13 @@ export interface FeatureImportCandidate {
    * user has something useful to refine rather than an empty box.
    */
   readonly suggestedDescription: string;
-  /** True if this file already lives inside a feature directory. Excluded from the candidate list to avoid double-import. */
+  /** True if this file already lives inside an Agent Recipe directory. Excluded from the candidate list to avoid double-import. */
   readonly insideFeatures: boolean;
 }
 
 export interface ImportCandidatesResult {
   readonly candidates: ReadonlyArray<FeatureImportCandidate>;
-  /** Slugs that already exist under `docs/features/` — used by the wizard to flag collisions. */
+  /** Slugs that already exist under the Agent Recipes root — used by the wizard to flag collisions. */
   readonly existingSlugs: ReadonlyArray<string>;
   /** True when we hit `MAX_CANDIDATES` and stopped scanning early. */
   readonly truncated: boolean;
@@ -102,7 +103,7 @@ export interface ImportCandidatesResult {
 
 /**
  * Scan `<projectCwd>` for markdown files that look like candidates for
- * import as features. Sync — same shape as the rest of the read paths
+ * import as Agent Recipes. Sync — same shape as the rest of the read paths
  * in this module.
  */
 export function scanFeatureImportCandidates(projectCwd: string): ImportCandidatesResult {

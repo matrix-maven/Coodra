@@ -8,7 +8,7 @@ import type { ToolContext } from '../../framework/tool-context.js';
 import type { ListFeaturesInput, ListFeaturesOutput } from './schema.js';
 
 /**
- * Handler for `coodra__list_features`.
+ * Handler for `coodra__list_recipes`.
  *
  * Resolution order:
  *   1. `projectSlug` → `projects.cwd` via `lookupProjectBySlug`. The cwd
@@ -17,15 +17,15 @@ import type { ListFeaturesInput, ListFeaturesOutput } from './schema.js';
  *      registration; always populated for projects created post the
  *      2026-05-08 schema bump.
  *
- *   2. `<cwd>/docs/skills/` (or the legacy `docs/features/`) must exist on
+ *   2. `<cwd>/.coodra/recipes/` (or the legacy `docs/features/`) must exist on
  *      disk. Otherwise return `features_dir_missing` (stable error code kept
  *      for back-compat) so the agent can prompt the user to add a first skill
- *      via the web wizard or `coodra skill add`.
+ *      via the web wizard or `coodra recipe add`.
  *
  *   3. Run `generateFeaturesIndex` (idempotent regen-on-read — same
  *      pattern the bridge SessionStart loader uses; the generator
  *      writes only when content changed). This means the agent always
- *      sees fresh state even if the user edited a feature.md by hand
+ *      sees fresh state even if the user edited a recipe.md by hand
  *      since the last index.
  *
  *   4. Project the result down to the wire-shape `FeatureIndexEntry[]`
@@ -39,7 +39,7 @@ export interface ListFeaturesHandlerDeps {
   readonly db: DbHandle;
 }
 
-const handlerLogger = createLogger('mcp-server.tool.list_features');
+const handlerLogger = createLogger('mcp-server.tool.list_recipes');
 
 export function createListFeaturesHandler(
   deps: ListFeaturesHandlerDeps,
@@ -48,8 +48,8 @@ export function createListFeaturesHandler(
     const project = await lookupProjectBySlug(deps.db, input.projectSlug);
     if (project === null) {
       handlerLogger.info(
-        { event: 'list_features_project_not_found', projectSlug: input.projectSlug },
-        'list_features: returning project_not_found soft-failure',
+        { event: 'list_recipes_project_not_found', projectSlug: input.projectSlug },
+        'list_recipes: returning project_not_found soft-failure',
       );
       return {
         ok: false,
@@ -61,8 +61,8 @@ export function createListFeaturesHandler(
     }
     if (project.cwd === null) {
       handlerLogger.warn(
-        { event: 'list_features_project_cwd_unknown', projectSlug: input.projectSlug, projectId: project.id },
-        'list_features: project row exists but cwd is null (legacy row)',
+        { event: 'list_recipes_project_cwd_unknown', projectSlug: input.projectSlug, projectId: project.id },
+        'list_recipes: project row exists but cwd is null (legacy row)',
       );
       return {
         ok: false,
@@ -74,13 +74,13 @@ export function createListFeaturesHandler(
     const root = skillsRoot(project.cwd);
     if (!existsSync(root) || !statSync(root).isDirectory()) {
       handlerLogger.info(
-        { event: 'list_features_dir_missing', projectSlug: input.projectSlug, root },
-        'list_features: docs/features/ does not exist',
+        { event: 'list_recipes_dir_missing', projectSlug: input.projectSlug, root },
+        'list_recipes: docs/features/ does not exist',
       );
       return {
         ok: false,
         error: 'features_dir_missing',
-        howToFix: `No \`docs/skills/\` directory in this project. Add a first skill via the web UI (Project home → Skills → + Add) or run \`coodra skill add <slug>\` from inside the project root.`,
+        howToFix: `No \`.coodra/recipes/\` directory in this project. Add a first skill via the web UI (Project home → Agent Recipes → + Add) or run \`coodra recipe add <slug>\` from inside the project root.`,
       };
     }
 
@@ -93,17 +93,17 @@ export function createListFeaturesHandler(
     } catch (err) {
       handlerLogger.warn(
         {
-          event: 'list_features_regen_failed',
+          event: 'list_recipes_regen_failed',
           projectSlug: input.projectSlug,
           err: err instanceof Error ? err.message : String(err),
         },
-        'list_features: regen-on-read threw; surfacing features_dir_missing soft-failure',
+        'list_recipes: regen-on-read threw; surfacing features_dir_missing soft-failure',
       );
       return {
         ok: false,
         error: 'features_dir_missing',
         howToFix:
-          'Failed to scan the skills directory (`docs/skills/` or legacy `docs/features/`). Check the directory permissions and ensure each subdirectory has a valid `feature.md`.',
+          'Failed to scan the recipes directory (`.coodra/recipes/` or legacy `docs/features/`). Check the directory permissions and ensure each subdirectory has a valid `recipe.md`.',
       };
     }
 

@@ -43,12 +43,12 @@ export default async function FeatureDetailPage({
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / skills / ${row.slug}`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / Agent Recipes / ${row.slug}`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
             <div className="head__num">
-              /01 · PROJECT · {project.slug.toUpperCase()} · SKILL · {row.slug.toUpperCase()}
+              /01 · PROJECT · {project.slug.toUpperCase()} · AGENT RECIPE · {row.slug.toUpperCase()}
             </div>
             <h1 className="head__title">
               <em>{row.slug}</em>
@@ -77,7 +77,7 @@ export default async function FeatureDetailPage({
             </div>
             <div className="head__actions">
               <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
-                ← back to skills
+                ← back to Agent Recipes
               </Link>
               <Link className="btn" href={`${featureUrl}/edit`}>
                 Edit
@@ -86,7 +86,7 @@ export default async function FeatureDetailPage({
           </div>
         </div>
 
-        {sp.saved !== undefined ? <Banner tone="ok">Skill saved.</Banner> : null}
+        {sp.saved !== undefined ? <Banner tone="ok">Agent Recipe saved.</Banner> : null}
         {sp.uploaded !== undefined ? (
           <Banner tone="ok">
             File <code style={mono}>{sp.uploaded}</code> uploaded.
@@ -111,9 +111,9 @@ export default async function FeatureDetailPage({
           <div>
             <div className="card__head" style={{ marginBottom: 16 }}>
               <h2 className="card__title">
-                <em>feature.md</em> body
+                <em>recipe.md</em> body
               </h2>
-              <span className="card__role">loaded by `coodra__get_skill`</span>
+              <span className="card__role">loaded by `coodra__get_recipe`</span>
             </div>
             <pre
               style={{
@@ -157,8 +157,8 @@ export default async function FeatureDetailPage({
               </div>
               {row.files.length === 0 ? (
                 <p style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-mute)', margin: 0 }}>
-                  No supporting files. Add any md / code / spec files to this skill&apos;s folder so the agent can fetch
-                  them via <code style={mono}>get_skill_file</code>.
+                  No supporting files. Add any md / code / spec files to this recipe&apos;s folder so the agent can
+                  fetch them via <code style={mono}>get_recipe_file</code>.
                 </p>
               ) : (
                 <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>

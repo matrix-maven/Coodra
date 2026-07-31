@@ -15,22 +15,25 @@ import { z } from 'zod';
 import { assertActorRole, refuseInTeamHosted } from '@/lib/action-guards';
 import { getProject } from '@/lib/queries/projects';
 
+const RECIPE_MD_NAME = 'recipe.md';
+const LEGACY_FEATURE_MD_NAME = 'feature.md';
+
 /**
  * `apps/web-v2/lib/actions/features.ts` — server actions for the
- * skill-style features layer (Phase F).
+ * Agent Recipes layer.
  *
  * Five mutating endpoints:
  *
- *   createFeatureAction  — scaffold docs/features/<slug>/feature.md
+ *   createFeatureAction  — scaffold .coodra/recipes/<slug>/recipe.md
  *                          from name + description (+ optional initial
  *                          file uploads). Auto-runs the indexer.
  *   uploadFeatureFileAction — drop one supporting file alongside an
  *                          existing feature. Auto-runs the indexer.
- *   editFeatureMetaAction — overwrite feature.md frontmatter + body.
+ *   editFeatureMetaAction — overwrite recipe.md frontmatter + body.
  *                          Goes through the parser, refuses on
  *                          structural error, regen-on-success.
  *   removeFeatureAction   — typed-confirm cascade-delete the
- *                          docs/features/<slug>/ directory. Auto-runs
+ *                          .coodra/recipes/<slug>/ directory. Auto-runs
  *                          the indexer to drop the entry.
  *   reindexFeaturesAction — force a fresh INDEX.md / INDEX.json. Used
  *                          when the user dropped files via git pull or
@@ -142,13 +145,13 @@ const CREATE_SCHEMA = z.object({
 });
 
 export async function createFeatureAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const slug = String(formData.get('slug') ?? '').trim();
@@ -177,11 +180,11 @@ export async function createFeatureAction(formData: FormData): Promise<void> {
 
   const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
   const dir = join(featuresRootShared(cwd), parsed.data.slug);
-  const featureMdPath = join(dir, 'feature.md');
+  const featureMdPath = join(dir, RECIPE_MD_NAME);
 
   if (existsSync(featureMdPath) && parsed.data.force !== true) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/new?error=feature_exists&errorMessage=${encodeURIComponent(`Feature "${parsed.data.slug}" already exists. Tick "force overwrite" or pick a different slug.`)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/new?error=feature_exists&errorMessage=${encodeURIComponent(`Agent Recipe "${parsed.data.slug}" already exists. Tick "force overwrite" or pick a different slug.`)}`,
     );
   }
 
@@ -224,7 +227,7 @@ export async function createFeatureAction(formData: FormData): Promise<void> {
   try {
     generateFeaturesIndex({ projectCwd: cwd, projectSlug: parsed.data.projectSlug });
   } catch {
-    // Indexer threw (corrupted feature.md somewhere). The feature was
+    // Indexer threw (corrupted recipe.md somewhere). The recipe was
     // written; we still redirect to success but flag the error so the
     // user sees the warning banner on the list page. Drop into the
     // detail page; the warnings panel will surface the issue.
@@ -243,13 +246,13 @@ const UPLOAD_FILE_SCHEMA = z.object({
 });
 
 export async function uploadFeatureFileAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const fslug = String(formData.get('fslug') ?? '').trim();
@@ -284,7 +287,7 @@ export async function uploadFeatureFileAction(formData: FormData): Promise<void>
     redirect(
       detailHref(parsed.data.projectSlug, parsed.data.fslug, {
         error: 'extension_blocked',
-        errorMessage: `Files with extension ${ext} are not allowed. See the MCP get_feature_file tool docs for the full allowlist.`,
+        errorMessage: `Files with extension ${ext} are not allowed. See the MCP get_recipe_file tool docs for the full allowlist.`,
       }),
     );
   }
@@ -295,7 +298,7 @@ export async function uploadFeatureFileAction(formData: FormData): Promise<void>
     redirect(
       detailHref(parsed.data.projectSlug, parsed.data.fslug, {
         error: 'feature_not_found',
-        errorMessage: `No feature at ${dir}.`,
+        errorMessage: `No Agent Recipe at ${dir}.`,
       }),
     );
   }
@@ -337,13 +340,13 @@ const EDIT_META_SCHEMA = z.object({
 });
 
 export async function editFeatureMetaAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const fslug = String(formData.get('fslug') ?? '').trim();
@@ -369,12 +372,12 @@ export async function editFeatureMetaAction(formData: FormData): Promise<void> {
 
   const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
   const dir = join(featuresRootShared(cwd), parsed.data.fslug);
-  const featureMdPath = join(dir, 'feature.md');
-  if (!existsSync(featureMdPath)) {
+  const featureMdPath = authoredRecipePath(dir);
+  if (featureMdPath === null || !existsSync(featureMdPath)) {
     redirect(
       detailHref(parsed.data.projectSlug, parsed.data.fslug, {
         error: 'feature_not_found',
-        errorMessage: `No feature.md at ${featureMdPath}.`,
+        errorMessage: `No ${RECIPE_MD_NAME} at ${dir}.`,
       }),
     );
   }
@@ -410,7 +413,7 @@ export async function editFeatureMetaAction(formData: FormData): Promise<void> {
   const verify = parseFeatureMd(rendered);
   if (verify.errors.length > 0) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/${encodeURIComponent(parsed.data.fslug)}/edit?error=render_failed&errorMessage=${encodeURIComponent(verify.errors[0] ?? 'rendered feature.md does not round-trip')}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/${encodeURIComponent(parsed.data.fslug)}/edit?error=render_failed&errorMessage=${encodeURIComponent(verify.errors[0] ?? 'rendered recipe.md does not round-trip')}`,
     );
   }
 
@@ -442,13 +445,13 @@ const REMOVE_SCHEMA = z.object({
 });
 
 export async function removeFeatureAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const fslug = String(formData.get('fslug') ?? '').trim();
@@ -481,7 +484,7 @@ export async function removeFeatureAction(formData: FormData): Promise<void> {
     redirect(
       listHref(parsed.data.projectSlug, {
         error: 'feature_not_found',
-        errorMessage: `No feature at ${dir}.`,
+        errorMessage: `No Agent Recipe at ${dir}.`,
       }),
     );
   }
@@ -524,15 +527,15 @@ const IMPORT_ITEM_SCHEMA = z.array(
 );
 
 /**
- * Promote a batch of selected on-disk markdown files to features.
+ * Promote a batch of selected on-disk markdown files to Agent Recipes.
  *
  * For each item:
  *   1. Read the source markdown.
  *   2. Strip any YAML frontmatter that was already there (we re-emit
  *      our own).
- *   3. Render `feature.md` with the user-provided description as
+ *   3. Render `recipe.md` with the user-provided description as
  *      frontmatter and the original body as the markdown body.
- *   4. Write to `<projectCwd>/docs/features/<slug>/feature.md`.
+ *   4. Write to `<projectCwd>/.coodra/recipes/<slug>/recipe.md`.
  *   5. The original file at `absPath` is NOT moved or deleted —
  *      promotion is *additive*. The user may keep the original (for
  *      git history continuity) or delete it via a separate step.
@@ -545,13 +548,13 @@ const IMPORT_ITEM_SCHEMA = z.array(
  * query string so the wizard can re-show them.
  */
 export async function importFeaturesAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const payload = String(formData.get('payload') ?? '').trim();
@@ -587,9 +590,9 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
       continue;
     }
     const targetDir = join(featuresDir, item.slug);
-    const targetMd = join(targetDir, 'feature.md');
+    const targetMd = join(targetDir, RECIPE_MD_NAME);
     if (existsSync(targetMd)) {
-      failed.push({ slug: item.slug, reason: `feature ${item.slug} already exists` });
+      failed.push({ slug: item.slug, reason: `Agent Recipe ${item.slug} already exists` });
       continue;
     }
     let raw: string;
@@ -648,13 +651,13 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function reindexFeaturesAction(formData: FormData): Promise<void> {
-  // Features write to <repo>/docs/features/<slug>/ on local disk. In
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
   // team-hosted mode the deployment server has no repo to write to.
   // Refuse with a redirect; CLI users still scaffold via `coodra
-  // feature add`. The Phase 2 invite + Phase 3 deployment plans put
-  // feature content into Supabase Storage so the web can author them
+  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
+  // recipe content into Supabase Storage so the web can author them
   // from any deployment, but that's not Phase 1.
-  refuseInTeamHosted('feature action');
+  refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   if (!PROJECT_SLUG_RE.test(projectSlug)) {
@@ -683,11 +686,19 @@ export async function reindexFeaturesAction(formData: FormData): Promise<void> {
 // helpers
 // ---------------------------------------------------------------------------
 
+function authoredRecipePath(dir: string): string | null {
+  const current = join(dir, RECIPE_MD_NAME);
+  if (existsSync(current)) return current;
+  const legacy = join(dir, LEGACY_FEATURE_MD_NAME);
+  if (existsSync(legacy)) return legacy;
+  return null;
+}
+
 /**
  * Conservative filename sanitiser. Strips path components, refuses
  * absolute paths, replaces anything outside `[A-Za-z0-9._-]` with `-`.
  * The web upload form already constrains the picker, but a fat-fingered
- * filename like `../../foo` shouldn't be able to escape the feature
+ * filename like `../../foo` shouldn't be able to escape the recipe
  * directory even by accident.
  */
 function sanitiseFilename(raw: string): string {
@@ -703,7 +714,7 @@ function scaffoldBody(slug: string): string {
   return [
     `# ${slug}`,
     '',
-    '## What this feature is',
+    '## What this recipe is',
     '',
     'TODO',
     '',

@@ -65,7 +65,7 @@ describe('runInitCommand — integration', () => {
     await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
     await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
     await expect(stat(join(cwd, 'AGENTS.md'))).rejects.toThrow();
-    expect((await stat(join(cwd, '.coodra', 'skill-packs'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'recipes'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'wiki'))).isDirectory()).toBe(true);
 
@@ -82,7 +82,7 @@ describe('runInitCommand — integration', () => {
         expect.objectContaining({ path: join(home, '.env'), scope: 'global', kind: 'env' }),
         expect.objectContaining({ path: join(home, 'logs'), scope: 'global', kind: 'logs-dir' }),
         expect.objectContaining({ path: join(home, 'pids'), scope: 'global', kind: 'pids-dir' }),
-        expect.objectContaining({ path: '.coodra/skill-packs', scope: 'project', kind: 'skill-packs-dir' }),
+        expect.objectContaining({ path: '.coodra/recipes', scope: 'project', kind: 'recipes-dir' }),
         expect.objectContaining({ path: '.coodra/graphify', scope: 'project', kind: 'graphify-dir' }),
         expect.objectContaining({ path: '.coodra/wiki', scope: 'project', kind: 'wiki-dir' }),
       ]),

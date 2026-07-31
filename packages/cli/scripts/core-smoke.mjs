@@ -144,7 +144,7 @@ async function main() {
   runCli(['init', '--project-slug', 'coodra-smoke']);
   assert(existsSync(join(projectDir, '.coodra', 'config.json')), 'project .coodra/config.json written');
   assert(existsSync(join(projectDir, '.coodra', 'manifest.json')), 'project .coodra/manifest.json written');
-  assert(existsSync(join(projectDir, '.coodra', 'skill-packs')), 'project .coodra/skill-packs directory written');
+  assert(existsSync(join(projectDir, '.coodra', 'recipes')), 'project .coodra/recipes directory written');
   assert(existsSync(join(projectDir, '.coodra', 'graphify')), 'project .coodra/graphify directory written');
   assert(existsSync(join(projectDir, '.coodra', 'wiki')), 'project .coodra/wiki directory written');
   const mcpJsonPath = join(projectDir, '.mcp.json');

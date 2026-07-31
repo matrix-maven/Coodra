@@ -173,7 +173,7 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/features', label: 'Skills', icon: <IconLedger /> },
+              { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },
@@ -209,7 +209,7 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/features', label: 'Skills', icon: <IconLedger /> },
+              { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
               { href: '/templates', label: 'Templates', icon: <IconGrid /> },

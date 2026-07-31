@@ -151,8 +151,8 @@ import {
   runWorkShowCommand,
   runWorkStatusCommand,
   type WorkBaseOptions,
-  type WorkIO,
   type WorkImportOptions,
+  type WorkIO,
 } from './commands/work.js';
 import { VERSION } from './version.js';
 
@@ -329,7 +329,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('init')
     .description(
-      'Initialise Coodra in the current project (writes project-local .coodra/ config, manifest, skill-packs, graphify, wiki, and work-packs dirs).',
+      'Initialise Coodra in the current project (writes project-local .coodra/ config, manifest, recipes, graphify, wiki, and work-packs dirs).',
     )
     .option('--project-slug <slug>', 'Project slug; derives from path.basename(cwd) when omitted.')
     .option(
@@ -611,7 +611,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--mode <mode>',
       'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
     )
-    .option('--force', 'Overwrite the deep-wiki-author Skill recipe if it already exists.')
+    .option('--force', 'Overwrite the deep-wiki-author Agent Recipe if it already exists.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: WikiGenerateOptions) => {
       await wikiGenerateRunner(opts, options.wikiIO);
@@ -624,7 +624,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--mode <mode>',
       'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
     )
-    .option('--force', 'Overwrite the deep-wiki-author Skill recipe if it already exists.')
+    .option('--force', 'Overwrite the deep-wiki-author Agent Recipe if it already exists.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: WikiGenerateOptions) => {
       await wikiGenerateRunner(opts, options.wikiIO);
@@ -1064,29 +1064,29 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await templateInstallRunner(source, opts, options.templateIO);
     });
 
-  // 2026-05-08 — skills admin (skill-style knowledge units under
-  // docs/skills/<slug>/, legacy docs/features/ still read). The mutating
+  // 2026-07-31 — Agent Recipes admin (reusable task guidance under
+  // .coodra/recipes/<slug>/, legacy docs/skills and docs/features still read). The mutating
   // subcommands always re-index on success; consumers (bridge, MCP, web) read
-  // INDEX.json so users never have to remember to run `skill index` after a
-  // normal add/remove/edit. Renamed from `coodra feature` 2026-07 to align
-  // with Anthropic's "Skills"; `coodra feature` stays as an alias.
+  // INDEX.json so users never have to remember to run `recipe index` after a
+  // normal add/remove/edit. Former `coodra skill` and `coodra feature` names
+  // stay as aliases.
   const skill = program
-    .command('skill')
-    .alias('feature')
-    .description('Manage docs/skills/<slug>/ — skill-style knowledge units the agent loads on demand.');
+    .command('recipe')
+    .aliases(['skill', 'feature'])
+    .description('Manage .coodra/recipes/<slug>/ — Agent Recipes the agent loads on demand.');
 
   const featureAddRunner = options.runFeatureAdd ?? runFeatureAddCommand;
   skill
     .command('add <slug>')
     .description(
-      'Scaffold a new skill at docs/skills/<slug>/feature.md with frontmatter + body template. Auto-runs `skill index` on success.',
+      'Scaffold a new Agent Recipe at .coodra/recipes/<slug>/recipe.md with frontmatter + body template. Auto-runs `recipe index` on success.',
     )
     .option(
       '--description <text>',
-      'Trigger description for the new skill (the "Use this when..." sentence the agent reads).',
+      'Trigger description for the new Agent Recipe (the "Use this when..." sentence the agent reads).',
     )
     .option('--maturity <level>', 'Initial maturity tag: draft (default) | beta | stable | deprecated.')
-    .option('--force', 'Overwrite an existing feature.md.')
+    .option('--force', 'Overwrite an existing recipe.md.')
     .option('--cwd <dir>', 'Override the project root (defaults to process.cwd()).')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: FeatureAddOptions) => {
@@ -1096,7 +1096,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const featureListRunner = options.runFeatureList ?? runFeatureListCommand;
   skill
     .command('list')
-    .description('List every skill under docs/skills/, with description + file count + warnings.')
+    .description('List every Agent Recipe under .coodra/recipes/, with description + file count + warnings.')
     .option('--cwd <dir>', 'Override the project root.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: FeatureBaseOptions) => {
@@ -1106,7 +1106,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const featureShowRunner = options.runFeatureShow ?? runFeatureShowCommand;
   skill
     .command('show <slug>')
-    .description('Print one skill — frontmatter, body, supporting file tree, validation warnings.')
+    .description('Print one Agent Recipe — frontmatter, body, supporting file tree, validation warnings.')
     .option('--cwd <dir>', 'Override the project root.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: FeatureBaseOptions) => {
@@ -1116,7 +1116,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const featureEditRunner = options.runFeatureEdit ?? runFeatureEditCommand;
   skill
     .command('edit <slug>')
-    .description('Open feature.md in $VISUAL / $EDITOR. Re-validates + regenerates the index after the editor exits.')
+    .description('Open recipe.md in $VISUAL / $EDITOR. Re-validates + regenerates the index after the editor exits.')
     .option('--cwd <dir>', 'Override the project root.')
     .action(async (slug: string, opts: FeatureBaseOptions) => {
       await featureEditRunner(slug, opts, options.featureIO);
@@ -1137,7 +1137,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const featureRemoveRunner = options.runFeatureRemove ?? runFeatureRemoveCommand;
   skill
     .command('remove <slug>')
-    .description('Delete docs/skills/<slug>/ from disk. Auto-regenerates the index. Refuses without --force.')
+    .description('Delete .coodra/recipes/<slug>/ from disk. Auto-regenerates the index. Refuses without --force.')
     .option('--force', 'Confirm the destructive delete (required).')
     .option('--cwd <dir>', 'Override the project root.')
     .action(async (slug: string, opts: FeatureRemoveOptions) => {
@@ -1148,10 +1148,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   skill
     .command('migrate')
     .description(
-      'Move a legacy docs/features/ directory to docs/skills/ (the post-rename home) and regenerate the index. No-op when already on docs/skills/ or when neither exists.',
+      'Move legacy docs/skills/ or docs/features/ Agent Recipes to .coodra/recipes/ and regenerate the index.',
     )
     .option('--cwd <dir>', 'Override the project root.')
-    .option('--force', 'Merge into an existing docs/skills/ (per-slug; refuses on a slug collision without this).')
+    .option('--force', 'Merge into an existing .coodra/recipes/ (per-slug; refuses on a slug collision without this).')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: FeatureRemoveOptions) => {
       await featureMigrateRunner(opts, options.featureIO);

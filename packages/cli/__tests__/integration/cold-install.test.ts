@@ -99,7 +99,7 @@ describe('cold install — bundled binary works end-to-end', () => {
     const projectConfig = JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8'));
     expect(projectConfig.projectSlug).toBe('cold-install');
     await expect(stat(join(cwd, '.coodra.json'))).rejects.toThrow();
-    expect((await stat(join(cwd, '.coodra', 'skill-packs'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'recipes'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'wiki'))).isDirectory()).toBe(true);
     await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();

@@ -71,7 +71,7 @@ export function buildInstructionBlock(projectSlug: string, filename: Instruction
 ## Coodra — agent operating contract (${agent.displayName})
 
 This project uses **Coodra**, an MCP server providing Work Packs
-(issue-bound implementation records), Skills (on-demand recipes), Context
+(issue-bound implementation records), Recipes (on-demand recipes), Context
 Packs (records of past work), and a Policy Engine. The Coodra MCP server is wired into this
 agent — you have the \`coodra__*\` tools available. **These tools are how
 Coodra works; if you don't call them, Coodra does nothing.**
@@ -89,8 +89,8 @@ Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool 
 2. \`coodra__work_pack_status { runId }\` — the local Work Pack inventory
    for this project under \`.coodra/work-packs/\`; read the relevant
    issue-bound pack before changing code.
-3. \`coodra__list_features { projectSlug: "${projectSlug}" }\` — the available
-   skills. Read each description; pull one with \`coodra__get_feature\` only
+3. \`coodra__list_recipes { projectSlug: "${projectSlug}" }\` — the available
+   Agent Recipes. Read each description; pull one with \`coodra__get_recipe\` only
    when a user request matches its trigger.
 4. \`coodra__query_run_history { projectSlug: "${projectSlug}", limit: 5 }\` +
    \`coodra__search_packs_nl { projectSlug: "${projectSlug}", query: "<what you're about to build>" }\`

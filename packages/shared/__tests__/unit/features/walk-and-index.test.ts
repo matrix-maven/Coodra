@@ -30,7 +30,7 @@ afterEach(() => {
 function writeFeature(slug: string, body: string, files: Record<string, string> = {}): void {
   const dir = join(featuresRoot(projectCwd), slug);
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, 'feature.md'), body, 'utf8');
+  writeFileSync(join(dir, 'recipe.md'), body, 'utf8');
   for (const [path, content] of Object.entries(files)) {
     const abs = join(dir, path);
     mkdirSync(join(abs, '..'), { recursive: true });
@@ -39,16 +39,16 @@ function writeFeature(slug: string, body: string, files: Record<string, string> 
 }
 
 describe('walkFeatures', () => {
-  it('returns an empty array when docs/features/ does not exist', () => {
+  it('returns an empty array when the Agent Recipes root does not exist', () => {
     expect(walkFeatures(projectCwd)).toEqual([]);
   });
 
-  it('returns an empty array when docs/features/ exists but contains no features', () => {
+  it('returns an empty array when the Agent Recipes root exists but contains no recipes', () => {
     mkdirSync(featuresRoot(projectCwd), { recursive: true });
     expect(walkFeatures(projectCwd)).toEqual([]);
   });
 
-  it('lists every direct child directory with a parseable feature.md', () => {
+  it('lists every direct child directory with a parseable recipe.md', () => {
     writeFeature(
       'auth',
       renderFeatureMd({
@@ -93,7 +93,7 @@ describe('walkFeatures', () => {
     expect(rows.map((r) => r.slug)).toEqual(['good']);
   });
 
-  it('lists supporting files recursively, depth-capped, with feature.md excluded', () => {
+  it('lists supporting files recursively, depth-capped, with recipe.md excluded', () => {
     writeFeature(
       'with-files',
       renderFeatureMd({
@@ -111,15 +111,15 @@ describe('walkFeatures', () => {
     const f = rows[0];
     if (f === undefined) throw new Error('expected one row');
     expect(f.files.map((x) => x.path).sort()).toEqual(['examples/charge.ts', 'examples/refund.ts', 'reference.md']);
-    // feature.md is metadata, not a supporting file
-    expect(f.files.every((x) => x.path !== 'feature.md')).toBe(true);
+    // recipe.md is metadata, not a supporting file
+    expect(f.files.every((x) => x.path !== 'recipe.md')).toBe(true);
   });
 
   it('surfaces parse errors as warnings instead of dropping the row', () => {
     const slug = 'broken';
     const dir = join(featuresRoot(projectCwd), slug);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'feature.md'), '# no frontmatter\n\njust a body\n', 'utf8');
+    writeFileSync(join(dir, 'recipe.md'), '# no frontmatter\n\njust a body\n', 'utf8');
     const rows = walkFeatures(projectCwd);
     expect(rows).toHaveLength(1);
     expect(rows[0]?.warnings.some((w) => /frontmatter_missing_open_fence/.test(w))).toBe(true);
@@ -143,21 +143,26 @@ describe('walkFeatures', () => {
 });
 
 describe('readFeatureRow', () => {
-  it('returns null when feature.md is missing', () => {
+  it('returns null when recipe.md is missing', () => {
     const dir = join(featuresRoot(projectCwd), 'no-md');
     mkdirSync(dir, { recursive: true });
     expect(readFeatureRow('no-md', dir)).toBeNull();
   });
 });
 
-// Phase 5 (Features→Skills rename): the directory resolver picks docs/skills/
-// (post-rename home) or a legacy docs/features/, never relocating silently.
-describe('skillsRoot — docs/skills vs legacy docs/features resolution', () => {
-  it('greenfield (neither dir exists) → docs/skills/', () => {
-    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
+// Agent Recipes resolver: prefer the current .coodra/recipes home, while
+// keeping legacy docs/skills and docs/features projects readable.
+describe('skillsRoot — .coodra/recipes vs legacy dirs resolution', () => {
+  it('greenfield (neither dir exists) → .coodra/recipes/', () => {
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, '.coodra', 'recipes'));
   });
 
-  it('only docs/skills/ exists → docs/skills/', () => {
+  it('only .coodra/recipes/ exists → .coodra/recipes/', () => {
+    mkdirSync(join(projectCwd, '.coodra', 'recipes'), { recursive: true });
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, '.coodra', 'recipes'));
+  });
+
+  it('only legacy docs/skills/ exists → keep reading docs/skills/ (no silent relocate)', () => {
     mkdirSync(join(projectCwd, 'docs', 'skills'), { recursive: true });
     expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
   });
@@ -167,13 +172,29 @@ describe('skillsRoot — docs/skills vs legacy docs/features resolution', () => 
     expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'features'));
   });
 
-  it('both exist → docs/skills/ wins (post-migration state)', () => {
+  it('.coodra/recipes/ wins when legacy dirs also exist', () => {
+    mkdirSync(join(projectCwd, '.coodra', 'recipes'), { recursive: true });
     mkdirSync(join(projectCwd, 'docs', 'skills'), { recursive: true });
     mkdirSync(join(projectCwd, 'docs', 'features'), { recursive: true });
-    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, 'docs', 'skills'));
+    expect(skillsRoot(projectCwd)).toBe(join(projectCwd, '.coodra', 'recipes'));
   });
 
-  it('walkFeatures reads a skill authored under the legacy docs/features/ dir', () => {
+  it('walkFeatures reads a recipe authored under legacy docs/skills/', () => {
+    const dir = join(projectCwd, 'docs', 'skills', 'legacy-skill');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'recipe.md'),
+      renderFeatureMd({
+        frontmatter: { name: 'legacy-skill', description: 'Use this when working on the legacy `foo` path.' },
+        body: 'body\n',
+      }),
+      'utf8',
+    );
+    const rows = walkFeatures(projectCwd);
+    expect(rows.map((r) => r.slug)).toEqual(['legacy-skill']);
+  });
+
+  it('walkFeatures reads a legacy feature.md under legacy docs/features/', () => {
     // Author directly under legacy features/ (simulates a pre-rename project).
     const dir = join(projectCwd, 'docs', 'features', 'legacy-skill');
     mkdirSync(dir, { recursive: true });
@@ -191,12 +212,12 @@ describe('skillsRoot — docs/skills vs legacy docs/features resolution', () => 
 });
 
 describe('generateFeaturesIndex', () => {
-  it('creates docs/skills/ if missing and writes an empty-state INDEX', () => {
+  it('creates .coodra/recipes/ if missing and writes an empty-state INDEX', () => {
     const result = generateFeaturesIndex({ projectCwd, projectSlug: 'widget-shop' });
     expect(result.changed).toBe(true);
     expect(result.index.features).toEqual([]);
     const md = readFileSync(result.indexMdPath, 'utf8');
-    expect(md).toContain('no skills yet');
+    expect(md).toContain('no agent recipes yet');
     expect(md).toContain('widget-shop');
     const json = JSON.parse(readFileSync(result.indexJsonPath, 'utf8'));
     expect(json.version).toBe(1);
@@ -294,7 +315,7 @@ describe('renderIndexMd', () => {
       indexerSourceMtime: 0,
       features: [],
     });
-    expect(md).toContain('no skills yet');
+    expect(md).toContain('no agent recipes yet');
     expect(md).toContain('shop');
   });
 
@@ -320,6 +341,6 @@ describe('renderIndexMd', () => {
         },
       ],
     });
-    expect(md).toContain('coodra__get_skill({slug:"auth"})');
+    expect(md).toContain('coodra__get_recipe({slug:"auth"})');
   });
 });

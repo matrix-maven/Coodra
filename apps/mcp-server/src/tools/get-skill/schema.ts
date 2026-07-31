@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `coodra__get_feature`.
+ * Input + output schemas for `coodra__get_recipe`.
  *
  *   - `{ ok: true, feature: { slug, frontmatter, body, files: [...] } }`
  *
@@ -11,7 +11,7 @@ import { z } from 'zod';
  *
  * `files` is metadata only (paths + bytes + mtime). Bodies of
  * supporting files are NOT included here — the agent calls
- * `get_feature_file(slug, path)` for those, gated by extension /
+ * `get_recipe_file(slug, path)` for those, gated by extension /
  * size limits.
  */
 
@@ -33,11 +33,11 @@ export const getFeatureInputSchema = z
       ),
   })
   .strict()
-  .describe('Input for coodra__get_feature.');
+  .describe('Input for coodra__get_recipe.');
 
 const featureFileSchema = z
   .object({
-    path: z.string().min(1).describe('POSIX-style path relative to the feature directory.'),
+    path: z.string().min(1).describe('POSIX-style path relative to the recipe directory.'),
     bytes: z.number().int().nonnegative(),
     modifiedAt: z.string().datetime(),
   })
@@ -59,8 +59,8 @@ const successBranch = z
     ok: z.literal(true),
     slug: z.string().min(1),
     frontmatter: featureFrontmatterSchema,
-    body: z.string().describe('Body of feature.md after the closing frontmatter fence.'),
-    files: z.array(featureFileSchema).describe('Supporting files in this feature directory (excludes feature.md).'),
+    body: z.string().describe('Body of recipe.md after the closing frontmatter fence.'),
+    files: z.array(featureFileSchema).describe('Supporting files in this recipe directory (excludes recipe.md).'),
     warnings: z
       .array(z.string())
       .describe('Validation warnings — non-fatal hints to surface to the user via the web UI.'),

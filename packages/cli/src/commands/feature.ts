@@ -9,7 +9,6 @@ import {
   readFeatureRow,
   renderFeatureMd,
   skillsDirCandidates,
-  skillsRoot,
   walkFeatures,
 } from '@coodra/shared/features';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
@@ -18,9 +17,13 @@ import { readProjectConfig } from '../lib/project-store/index.js';
 import { readTeamConfig } from '../lib/team-config.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
+const RECIPE_MD_NAME = 'recipe.md';
+const LEGACY_FEATURE_MD_NAME = 'feature.md';
+const RECIPES_DIR_NAME = 'recipes';
+
 /**
- * `coodra skill {add|list|show|edit|index|remove}` — admin surface
- * for the skill-style features layer.
+ * `coodra recipe {add|list|show|edit|index|remove}` — admin surface
+ * for Agent Recipes.
  *
  * Each subcommand does exactly one thing. They all share the same IO
  * shape (`FeatureIO`) and `--cwd` resolution so they're trivially
@@ -30,7 +33,7 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
  *
  * Every mutating command (add, edit-via-save, remove) ALWAYS regenerates
  * the index after a successful mutation. The user never has to remember
- * to run `feature index` themselves; they only do that when files
+ * to run `recipe index` themselves; they only do that when files
  * landed via some other path (git pull, a sibling tool, etc.).
  *
  * `--json` is supported on the read paths (list, show) for scripting;
@@ -73,8 +76,8 @@ export interface FeatureBaseOptions {
 
 export interface FeatureAddOptions extends FeatureBaseOptions {
   /**
-   * Trigger description for the new feature. Optional on the CLI;
-   * when omitted, the scaffolded `feature.md` ships with a placeholder
+   * Trigger description for the new Agent Recipe. Optional on the CLI;
+   * when omitted, the scaffolded `recipe.md` ships with a placeholder
    * that the user is expected to edit. The placeholder is intentionally
    * obvious so the agent's quality-warning lint catches an unedited
    * stub on the first index pass.
@@ -82,12 +85,22 @@ export interface FeatureAddOptions extends FeatureBaseOptions {
   readonly description?: string;
   /** Optional initial maturity tag. Defaults to `draft`. */
   readonly maturity?: string;
-  /** Replace an existing feature.md if one already exists. */
+  /** Replace an existing recipe.md if one already exists. */
   readonly force?: boolean;
 }
 
 export interface FeatureRemoveOptions extends FeatureBaseOptions {
   readonly force?: boolean;
+}
+
+function recipesRootForCwd(cwd: string): string {
+  const recipes = join(cwd, '.coodra', RECIPES_DIR_NAME);
+  if (existsSync(recipes)) return recipes;
+  const skills = join(cwd, 'docs', 'skills');
+  if (existsSync(skills)) return skills;
+  const legacy = join(cwd, 'docs', 'features');
+  if (existsSync(legacy)) return legacy;
+  return recipes;
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +118,7 @@ async function resolveProject(rawCwd: string | undefined, io: FeatureIO): Promis
   const projectSlug = (await readProjectConfig(cwd))?.projectSlug ?? basenameSlug(cwd);
   if (!FEATURE_SLUG_RE.test(projectSlug)) {
     io.writeStderr(
-      `${pc.red('coodra skill')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Run from a project root or run \`coodra init\` first.\n`,
+      `${pc.red('coodra recipe')}: derived project slug "${projectSlug}" doesn't match [a-z0-9_-]+. Run from a project root or run \`coodra init\` first.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -143,7 +156,7 @@ function sanitizeFeatureSlug(raw: string): string {
  * was a well-formed sentence that accidentally passed every quality
  * heuristic, hiding the fact that the user hadn't filled it in.
  */
-const PLACEHOLDER_DESCRIPTION = 'TODO: describe when this skill applies.';
+const PLACEHOLDER_DESCRIPTION = 'TODO: describe when this recipe applies.';
 
 export async function runFeatureAddCommand(
   rawSlug: string,
@@ -153,17 +166,17 @@ export async function runFeatureAddCommand(
   const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
   if (!FEATURE_SLUG_RE.test(slug)) {
-    io.writeStderr(`${pc.red('coodra skill add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`);
+    io.writeStderr(`${pc.red('coodra recipe add')}: slug "${rawSlug}" couldn't be sanitized into [a-z0-9_-]+ form.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
-  const root = skillsRoot(cwd);
+  const root = recipesRootForCwd(cwd);
   const dir = join(root, slug);
-  const featureMdPath = join(dir, 'feature.md');
+  const featureMdPath = join(dir, RECIPE_MD_NAME);
   const force = options.force === true;
 
   if (existsSync(featureMdPath) && !force) {
     io.writeStderr(
-      `${pc.red('coodra skill add')}: skill "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`coodra skill edit ${slug}\` to modify it in your editor.\n`,
+      `${pc.red('coodra recipe add')}: Agent Recipe "${slug}" already exists at ${featureMdPath}. Pass --force to overwrite, or use \`coodra recipe edit ${slug}\` to modify it in your editor.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -223,14 +236,14 @@ export async function runFeatureAddCommand(
       )}\n`,
     );
   } else {
-    io.writeStdout(`${pc.green('✓')} Created skill "${slug}" at ${featureMdPath}\n`);
+    io.writeStdout(`${pc.green('✓')} Created Agent Recipe "${slug}" at ${featureMdPath}\n`);
     if (description === PLACEHOLDER_DESCRIPTION) {
       io.writeStdout(
-        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`coodra skill index\` (or just save via the web UI) to refresh.\n`,
+        `${pc.yellow('⚠')} description is the placeholder — edit ${featureMdPath} and run \`coodra recipe index\` (or just save via the web UI) to refresh.\n`,
       );
     }
     io.writeStdout(
-      `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
+      `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} Agent Recipe${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
     );
     if (dbResult.ok) {
       if (dbResult.enqueued) {
@@ -274,12 +287,12 @@ function scaffoldBody(slug: string): string {
   return [
     `# ${slug}`,
     '',
-    '> The body of this skill is what the agent loads on demand via',
-    '> `coodra__get_skill({slug:"' + slug + '"})`. Keep the most',
+    '> The body of this Agent Recipe is what the agent loads on demand via',
+    `> \`coodra__get_recipe({slug:"${slug}"})\`. Keep the most`,
     '> load-bearing context here; deeper detail goes in supporting files',
-    '> alongside this `feature.md`.',
+    '> alongside this `recipe.md`.',
     '',
-    '## What this skill is',
+    '## What this recipe is',
     '',
     'TODO',
     '',
@@ -310,7 +323,7 @@ export async function runFeatureListCommand(
   if (options.json === true) {
     const payload = {
       projectSlug,
-      featuresRoot: skillsRoot(cwd),
+      featuresRoot: recipesRootForCwd(cwd),
       features: rows.map((r) => ({
         slug: r.slug,
         name: r.frontmatter.name,
@@ -329,14 +342,14 @@ export async function runFeatureListCommand(
     return io.exit(EXIT_OK);
   }
 
-  io.writeStdout(`${commandTitle('Skills', projectSlug, { width: terminalWidth() })}\n`);
+  io.writeStdout(`${commandTitle('Agent Recipes', projectSlug, { width: terminalWidth() })}\n`);
   if (rows.length === 0) {
-    io.writeStdout(`No skills yet. Run \`coodra skill add <name>\` to create one.\n`);
-    io.writeStdout(`(Looked in ${skillsRoot(cwd)})\n`);
+    io.writeStdout(`No recipes yet. Run \`coodra recipe add <name>\` to create one.\n`);
+    io.writeStdout(`(Looked in ${recipesRootForCwd(cwd)})\n`);
     return io.exit(EXIT_OK);
   }
-  io.writeStdout(`${rows.length} skill${rows.length === 1 ? '' : 's'} for ${pc.bold(projectSlug)}\n`);
-  io.writeStdout(`(Indexed root: ${skillsRoot(cwd)})\n\n`);
+  io.writeStdout(`${rows.length} Agent Recipe${rows.length === 1 ? '' : 's'} for ${pc.bold(projectSlug)}\n`);
+  io.writeStdout(`(Indexed root: ${recipesRootForCwd(cwd)})\n\n`);
   for (const row of rows) {
     const maturity = row.frontmatter.maturity ?? 'draft';
     const maturityTag = maturity === 'stable' ? '' : pc.dim(` [${maturity}]`);
@@ -364,14 +377,14 @@ export async function runFeatureShowCommand(
 ): Promise<never> {
   const { cwd } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const dir = join(skillsRoot(cwd), slug);
+  const dir = join(recipesRootForCwd(cwd), slug);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
-    io.writeStderr(`${pc.red('coodra skill show')}: no skill at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra recipe show')}: no Agent Recipe at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const row = readFeatureRow(slug, dir);
   if (row === null) {
-    io.writeStderr(`${pc.red('coodra skill show')}: ${dir} has no feature.md\n`);
+    io.writeStderr(`${pc.red('coodra recipe show')}: ${dir} has no recipe.md\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.json === true) {
@@ -392,7 +405,7 @@ export async function runFeatureShowCommand(
   }
   io.writeStdout(`  dir: ${row.dir}\n`);
   io.writeStdout(`  files (${row.files.length + 1}):\n`);
-  io.writeStdout(`    feature.md\n`);
+  io.writeStdout(`    recipe.md\n`);
   for (const f of row.files) {
     io.writeStdout(`    ${f.path}  ${pc.dim(`(${formatBytes(f.bytes)})`)}\n`);
   }
@@ -416,10 +429,10 @@ export async function runFeatureEditCommand(
 ): Promise<never> {
   const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const featureMdPath = join(skillsRoot(cwd), slug, 'feature.md');
-  if (!existsSync(featureMdPath)) {
+  const featureMdPath = authoredRecipePath(join(recipesRootForCwd(cwd), slug));
+  if (featureMdPath === null || !existsSync(featureMdPath)) {
     io.writeStderr(
-      `${pc.red('coodra skill edit')}: no feature.md at ${featureMdPath}. Create it with \`coodra skill add ${slug}\` first.\n`,
+      `${pc.red('coodra recipe edit')}: no ${RECIPE_MD_NAME} at ${join(recipesRootForCwd(cwd), slug)}. Create it with \`coodra recipe add ${slug}\` first.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -434,9 +447,9 @@ export async function runFeatureEditCommand(
   const raw = readFileSync(featureMdPath, 'utf8');
   const parsed = parseFeatureMd(raw);
   if (parsed.errors.length > 0) {
-    io.writeStderr(`${pc.yellow('⚠')} feature.md has parse errors after edit:\n`);
+    io.writeStderr(`${pc.yellow('⚠')} recipe.md has parse errors after edit:\n`);
     for (const e of parsed.errors) io.writeStderr(`  - ${e}\n`);
-    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`coodra skill index\`.\n`);
+    io.writeStderr(`Index NOT regenerated. Fix the errors and run \`coodra recipe index\`.\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
@@ -473,7 +486,7 @@ export async function runFeatureEditCommand(
   }
 
   io.writeStdout(
-    `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
+    `${pc.green('✓')} Index regenerated (${indexResult.index.features.length} Agent Recipe${indexResult.index.features.length === 1 ? '' : 's'} total)\n`,
   );
   return io.exit(EXIT_OK);
 }
@@ -505,16 +518,16 @@ export async function runFeatureIndexCommand(
   }
   if (result.changed) {
     io.writeStdout(
-      `${pc.green('✓')} Index regenerated — ${result.index.features.length} skill${result.index.features.length === 1 ? '' : 's'} indexed at ${result.indexJsonPath}\n`,
+      `${pc.green('✓')} Index regenerated — ${result.index.features.length} Agent Recipe${result.index.features.length === 1 ? '' : 's'} indexed at ${result.indexJsonPath}\n`,
     );
   } else {
     io.writeStdout(
-      `${pc.gray('=')} Index unchanged — already up to date (${result.index.features.length} skill${result.index.features.length === 1 ? '' : 's'})\n`,
+      `${pc.gray('=')} Index unchanged — already up to date (${result.index.features.length} Agent Recipe${result.index.features.length === 1 ? '' : 's'})\n`,
     );
   }
   if (result.slugsWithWarnings.length > 0) {
     io.writeStdout(
-      `${pc.yellow('⚠')} ${result.slugsWithWarnings.length} skill${result.slugsWithWarnings.length === 1 ? ' has' : 's have'} warnings: ${result.slugsWithWarnings.join(', ')}\n`,
+      `${pc.yellow('⚠')} ${result.slugsWithWarnings.length} Agent Recipe${result.slugsWithWarnings.length === 1 ? ' has' : 's have'} warnings: ${result.slugsWithWarnings.join(', ')}\n`,
     );
   }
   return io.exit(EXIT_OK);
@@ -531,14 +544,14 @@ export async function runFeatureRemoveCommand(
 ): Promise<never> {
   const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const slug = sanitizeFeatureSlug(rawSlug);
-  const dir = join(skillsRoot(cwd), slug);
+  const dir = join(recipesRootForCwd(cwd), slug);
   if (!existsSync(dir)) {
-    io.writeStderr(`${pc.red('coodra skill remove')}: no skill at ${dir}\n`);
+    io.writeStderr(`${pc.red('coodra recipe remove')}: no Agent Recipe at ${dir}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }
   if (options.force !== true) {
     io.writeStderr(
-      `${pc.red('coodra skill remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
+      `${pc.red('coodra recipe remove')}: refusing to delete ${dir} without --force. This is irreversible.\n`,
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -552,7 +565,7 @@ export async function runFeatureRemoveCommand(
   const dbResult = deleteFeatureFromDb({ projectSlug, slug });
 
   io.writeStdout(
-    `${pc.green('✓')} Removed skill "${slug}" (${dir}). Index regenerated (${indexResult.index.features.length} skill${indexResult.index.features.length === 1 ? '' : 's'} total).\n`,
+    `${pc.green('✓')} Removed Agent Recipe "${slug}" (${dir}). Index regenerated (${indexResult.index.features.length} Agent Recipe${indexResult.index.features.length === 1 ? '' : 's'} total).\n`,
   );
   if (dbResult.ok) {
     if (dbResult.deleted) {
@@ -565,22 +578,19 @@ export async function runFeatureRemoveCommand(
 }
 
 // ---------------------------------------------------------------------------
-// skill migrate — move a legacy docs/features/ tree to docs/skills/
+// recipe migrate — move legacy docs/skills or docs/features trees to .coodra/recipes/
 // ---------------------------------------------------------------------------
 
 /**
- * `coodra skill migrate` — relocate a pre-rename `docs/features/` directory to
- * `docs/skills/` (the post-2026-07 home) and regenerate the index.
+ * `coodra recipe migrate` — relocate pre-rename recipe directories into
+ * `.coodra/recipes/` and regenerate the index.
  *
  * Behaviour, mirroring the "never relocate silently" principle used for the
  * Graphify layout:
- *   - neither dir exists → nothing to do (report `already_migrated: true` with a
- *     "nothing to migrate" note — a greenfield project is already on skills);
- *   - only `docs/skills/` exists → already migrated, no-op;
- *   - only `docs/features/` exists → rename the whole directory (fast, atomic);
- *   - BOTH exist → per-slug move (skips INDEX.* which regenerate). A slug that
- *     exists in both refuses without `--force`; with `--force` the legacy copy
- *     overwrites. After moving, an emptied `docs/features/` is removed.
+ *   - no legacy dirs exist → nothing to do;
+ *   - `.coodra/recipes/` already exists → legacy slugs merge into it;
+ *   - slug collisions refuse before any move unless `--force`;
+ *   - `--force` lets the legacy copy overwrite the `.coodra/recipes/` copy.
  *
  * The DB mirror is location-independent (keyed by projectSlug+slug), so nothing
  * needs to change there — only the on-disk home moves.
@@ -592,70 +602,88 @@ export async function runFeatureMigrateCommand(
   const { cwd, projectSlug } = await resolveProject(options.cwd, io);
   const json = options.json === true;
   const { skills, legacy } = skillsDirCandidates(cwd);
+  const recipes = join(cwd, '.coodra', RECIPES_DIR_NAME);
   const force = options.force === true;
 
   const emit = (payload: Record<string, unknown>, human: () => void): never => {
-    if (json) io.writeStdout(`${JSON.stringify({ ok: true, command: 'skill migrate', ...payload }, null, 2)}\n`);
+    if (json) io.writeStdout(`${JSON.stringify({ ok: true, command: 'recipe migrate', ...payload }, null, 2)}\n`);
     else human();
     return io.exit(EXIT_OK);
   };
 
-  if (!existsSync(legacy)) {
-    return emit({ migrated: false, reason: existsSync(skills) ? 'already_on_skills' : 'nothing_to_migrate' }, () => {
+  const legacySources = [
+    { dir: skills, label: 'docs/skills/' },
+    { dir: legacy, label: 'docs/features/' },
+  ].filter((s) => existsSync(s.dir));
+
+  if (legacySources.length === 0) {
+    return emit({ migrated: false, reason: existsSync(recipes) ? 'already_on_recipes' : 'nothing_to_migrate' }, () => {
       io.writeStdout(
-        existsSync(skills)
-          ? `${pc.green('✓')} Already on ${pc.gray('docs/skills/')} — nothing to migrate.\n`
-          : `${pc.gray('·')} No ${pc.gray('docs/features/')} or ${pc.gray('docs/skills/')} in this project — nothing to migrate.\n`,
+        existsSync(recipes)
+          ? `${pc.green('✓')} Already on ${pc.gray('.coodra/recipes/')} — nothing to migrate.\n`
+          : `${pc.gray('·')} No ${pc.gray('.coodra/recipes/')}, ${pc.gray('docs/skills/')}, or ${pc.gray('docs/features/')} in this project — nothing to migrate.\n`,
       );
     });
   }
 
-  const moved: string[] = [];
+  const planned: Array<{ from: string; to: string; slug: string; source: string }> = [];
+  const seenDest = new Set<string>();
   const collisions: string[] = [];
 
-  if (!existsSync(skills)) {
-    // Simple case: no destination yet — rename the whole tree in one move.
-    renameSync(legacy, skills);
-    for (const entry of safeReaddir(skills)) {
-      if (entry !== 'INDEX.md' && entry !== 'INDEX.json' && FEATURE_SLUG_RE.test(entry)) moved.push(entry);
-    }
-  } else {
-    // Merge case: move slug directories one at a time.
-    for (const entry of safeReaddir(legacy)) {
+  for (const source of legacySources) {
+    for (const entry of safeReaddir(source.dir)) {
       if (entry === 'INDEX.md' || entry === 'INDEX.json' || entry.startsWith('.')) continue;
       if (!FEATURE_SLUG_RE.test(entry)) continue;
-      const from = join(legacy, entry);
+      const from = join(source.dir, entry);
       if (!statSync(from).isDirectory()) continue;
-      const to = join(skills, entry);
-      if (existsSync(to)) {
-        if (!force) {
-          collisions.push(entry);
-          continue;
-        }
-        rmSync(to, { recursive: true, force: true });
+      const to = join(recipes, entry);
+      if ((existsSync(to) || seenDest.has(to)) && !force) {
+        collisions.push(`${entry} (${source.label})`);
+        continue;
       }
-      renameSync(from, to);
-      moved.push(entry);
+      seenDest.add(to);
+      planned.push({ from, to, slug: entry, source: source.label });
     }
-    if (collisions.length > 0 && !force) {
-      io.writeStderr(
-        `${pc.red('coodra skill migrate')}: ${collisions.length} slug${collisions.length === 1 ? '' : 's'} exist in BOTH docs/features/ and docs/skills/ (${collisions.join(', ')}). Re-run with --force to overwrite the docs/skills/ copies, or resolve them by hand.\n`,
-      );
-      return io.exit(EXIT_USER_RECOVERABLE);
-    }
-    // Remove the legacy dir if it's now empty of slug directories.
-    const leftover = safeReaddir(legacy).filter((e) => e !== 'INDEX.md' && e !== 'INDEX.json' && !e.startsWith('.'));
-    if (leftover.length === 0) rmSync(legacy, { recursive: true, force: true });
+  }
+
+  if (collisions.length > 0 && !force) {
+    io.writeStderr(
+      `${pc.red('coodra recipe migrate')}: ${collisions.length} slug${collisions.length === 1 ? '' : 's'} would collide in .coodra/recipes/ (${collisions.join(', ')}). Re-run with --force to overwrite the .coodra/recipes/ copies, or resolve them by hand.\n`,
+    );
+    return io.exit(EXIT_USER_RECOVERABLE);
+  }
+
+  mkdirSync(recipes, { recursive: true });
+  const moved: string[] = [];
+  for (const item of planned) {
+    if (force && existsSync(item.to)) rmSync(item.to, { recursive: true, force: true });
+    renameSync(item.from, item.to);
+    moved.push(`${item.slug} from ${item.source}`);
+  }
+
+  for (const source of legacySources) {
+    const leftover = safeReaddir(source.dir).filter(
+      (e) => e !== 'INDEX.md' && e !== 'INDEX.json' && !e.startsWith('.'),
+    );
+    if (leftover.length === 0) rmSync(source.dir, { recursive: true, force: true });
   }
 
   const indexResult = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
 
-  return emit({ migrated: true, movedSlugs: moved, skillsRoot: skills }, () => {
+  return emit({ migrated: true, movedSlugs: moved, recipesRoot: recipes }, () => {
     io.writeStdout(
-      `${pc.green('✓')} Migrated ${moved.length} skill${moved.length === 1 ? '' : 's'} to ${pc.gray('docs/skills/')}. Index regenerated (${indexResult.index.features.length} total).\n`,
+      `${pc.green('✓')} Migrated ${moved.length} Agent Recipe${moved.length === 1 ? '' : 's'} to ${pc.gray('.coodra/recipes/')}. Index regenerated (${indexResult.index.features.length} total).\n`,
     );
     if (moved.length > 0) io.writeStdout(`${pc.gray('·')} ${moved.join(', ')}\n`);
   });
+}
+
+function authoredRecipePath(dir: string): string | null {
+  const current = join(dir, RECIPE_MD_NAME);
+  if (existsSync(current)) return current;
+  const legacy = join(dir, LEGACY_FEATURE_MD_NAME);
+  if (existsSync(legacy)) return legacy;
+  return null;
 }
 
 function safeReaddir(dir: string): string[] {

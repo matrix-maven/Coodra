@@ -3,10 +3,10 @@
  *
  * `features/` is Coodra's skill-style knowledge layer. Each feature is
  * a self-contained directory under `<project-root>/docs/features/<slug>/`
- * with one mandatory `feature.md` (frontmatter + body) plus any number
+ * with one mandatory `recipe.md` (frontmatter + body) plus any number
  * of supporting files. The skill-pattern insight: agents read the
  * generated INDEX (cheap — names + descriptions only) on every session
- * start, then call `coodra__get_feature(slug)` to load a body on
+ * start, then call `coodra__get_recipe(slug)` to load a body on
  * demand when a relevant prompt arrives.
  *
  * This module is the canonical source of truth for the feature shape.
@@ -26,12 +26,12 @@
  *
  * The bridge's index injection skips `deprecated` features so they
  * don't pollute the agent's mental map without explicit opt-in (the
- * MCP `list_features` tool returns them, with `maturity` surfaced).
+ * MCP `list_recipes` tool returns them, with `maturity` surfaced).
  */
 export type FeatureMaturity = 'draft' | 'beta' | 'stable' | 'deprecated';
 
 /**
- * Parsed frontmatter — the load-bearing metadata every feature.md must
+ * Parsed frontmatter — the load-bearing metadata every recipe.md must
  * declare. The body of the markdown after the closing `---` is held
  * separately on `ParsedFeatureMd.body`.
  */
@@ -75,13 +75,13 @@ export interface FeatureFrontmatter {
 }
 
 /**
- * One supporting file inside a feature directory. Paths are POSIX-
+ * One supporting file inside a recipe directory. Paths are POSIX-
  * style relative to the feature dir (never absolute, never `..`-prefixed).
- * `feature.md` itself is NOT listed here — it's the metadata file, not
+ * `recipe.md` itself is NOT listed here — it's the metadata file, not
  * a supporting file.
  */
 export interface FeatureFile {
-  /** POSIX-style path relative to the feature directory. */
+  /** POSIX-style path relative to the recipe directory. */
   readonly path: string;
   /** Byte size on disk. */
   readonly bytes: number;
@@ -98,13 +98,13 @@ export interface FeatureRow {
   readonly slug: string;
   /** Absolute path to `<projectRoot>/docs/features/<slug>/`. */
   readonly dir: string;
-  /** Frontmatter parsed from feature.md. */
+  /** Frontmatter parsed from recipe.md. */
   readonly frontmatter: FeatureFrontmatter;
-  /** Body of feature.md (markdown after the closing `---`). */
+  /** Body of recipe.md (markdown after the closing `---`). */
   readonly body: string;
   /** Supporting files, recursive, sorted by path. */
   readonly files: ReadonlyArray<FeatureFile>;
-  /** Total bytes across feature.md + every supporting file. */
+  /** Total bytes across recipe.md + every supporting file. */
   readonly totalBytes: number;
   /** ISO-8601 last-modified across all files in the feature. */
   readonly lastUpdatedAt: string;
@@ -118,7 +118,7 @@ export interface FeatureRow {
 
 /**
  * Lightweight projection of `FeatureRow` suitable for the bridge's
- * SessionStart injection and the MCP `list_features` tool. Drops the
+ * SessionStart injection and the MCP `list_recipes` tool. Drops the
  * body and per-file paths; keeps everything an agent needs to decide
  * "should I load this?".
  */

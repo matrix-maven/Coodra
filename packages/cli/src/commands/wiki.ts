@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import { lookupProjectBySlug, sqliteSchema } from '@coodra/db';
-import { generateFeaturesIndex, renderFeatureMd, skillsRoot } from '@coodra/shared/features';
+import { generateFeaturesIndex, renderFeatureMd } from '@coodra/shared/features';
 import {
   WIKI_GROUNDING_RELPATH,
   WIKI_ID_RE,
@@ -30,6 +30,18 @@ import {
 } from '../lib/wiki/recipe.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
+
+const RECIPE_MD_NAME = 'recipe.md';
+
+function recipesRootForCwd(cwd: string): string {
+  const recipes = join(cwd, '.coodra', 'recipes');
+  if (existsSync(recipes)) return recipes;
+  const skills = join(cwd, 'docs', 'skills');
+  if (existsSync(skills)) return skills;
+  const legacy = join(cwd, 'docs', 'features');
+  if (existsSync(legacy)) return legacy;
+  return recipes;
+}
 
 /**
  * `coodra wiki {build,generate,status,list,open,clean}` — Module 10 Deep Wiki.
@@ -110,7 +122,7 @@ export interface WikiGenerateOptions {
   readonly mode?: string;
   readonly cwd?: string;
   readonly json?: boolean;
-  /** Overwrite the `deep-wiki-author` Feature recipe if it already exists. */
+  /** Overwrite the `deep-wiki-author` Agent Recipe if it already exists. */
   readonly force?: boolean;
 }
 
@@ -165,14 +177,12 @@ export async function runWikiGenerateCommand(
   mkdirSync(mirrorDir, { recursive: true });
   mkdirSync(join(cwd, WIKI_OKF_DIR_RELPATH), { recursive: true });
 
-  // 3. Scaffold the `deep-wiki-author` skill (pulled on trigger). Idempotent
-  //    unless --force: a feature.md the user has edited is preserved. MUST use
-  //    the resolved skills dir (docs/skills/, or legacy docs/features/) so the
-  //    scaffold and the index that `generateFeaturesIndex` writes land in the
-  //    SAME directory — a hardcoded docs/features/ here would split them on a
-  //    greenfield project that resolves to docs/skills/.
-  const featureDir = join(skillsRoot(cwd), 'deep-wiki-author');
-  const featurePath = join(featureDir, 'feature.md');
+  // 3. Scaffold the `deep-wiki-author` Agent Recipe (pulled on trigger).
+  //    Idempotent unless --force: a recipe.md the user has edited is preserved.
+  //    MUST use the resolved recipes dir so the scaffold and the index that
+  //    `generateFeaturesIndex` writes land in the SAME directory.
+  const featureDir = join(recipesRootForCwd(cwd), 'deep-wiki-author');
+  const featurePath = join(featureDir, RECIPE_MD_NAME);
   let featureWritten = false;
   if (!existsSync(featurePath) || options.force === true) {
     mkdirSync(featureDir, { recursive: true });
@@ -250,8 +260,8 @@ export async function runWikiGenerateCommand(
   const featureRel = relative(cwd, featurePath).split(sep).join('/');
   io.writeStdout(
     featureWritten
-      ? `  ${pc.green('✓')} Skill       ${pc.gray(`${featureRel} — pulled when you ask the agent to build the wiki`)}\n`
-      : `  ${pc.yellow('◌')} Skill       ${pc.gray(`${featureRel} already exists (use --force to refresh)`)}\n`,
+      ? `  ${pc.green('✓')} Recipe      ${pc.gray(`${featureRel} — pulled when you ask the agent to build the wiki`)}\n`
+      : `  ${pc.yellow('◌')} Recipe      ${pc.gray(`${featureRel} already exists (use --force to refresh)`)}\n`,
   );
   io.writeStdout('\n');
   io.writeStdout(`  ${pc.bold('Next:')} open your coding agent in this project and invoke the bundled wiki skill:\n`);

@@ -6,10 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type FeatureIO, runFeatureMigrateCommand } from '../../../src/commands/feature.js';
 
 /**
- * `coodra skill migrate` (Phase 5) — relocate a legacy docs/features/ tree to
- * docs/skills/. Mirrors the "never relocate silently" principle: a simple
- * rename when there's no destination, a per-slug merge when both exist, and a
- * refusal on a slug collision without --force.
+ * `coodra recipe migrate` — relocate legacy docs/skills/ and docs/features/
+ * trees to .coodra/recipes/. Mirrors the "never relocate silently" principle:
+ * per-slug merge, with refusal on a slug collision without --force.
  */
 
 function captureIO(): { io: FeatureIO; out: () => string; err: () => string; code: () => number | null } {
@@ -67,39 +66,39 @@ describe('runFeatureMigrateCommand', () => {
     expect(cap.code()).toBe(0);
   });
 
-  it('only docs/skills exists → already on skills, no-op', async () => {
+  it('only docs/skills exists → migrates to .coodra/recipes and indexes', async () => {
     writeSkill('skills', 'auth');
     const cap = captureIO();
     await run(() => runFeatureMigrateCommand({ cwd, json: true }, cap.io));
-    expect(JSON.parse(cap.out())).toMatchObject({ migrated: false, reason: 'already_on_skills' });
-    // The skill stays put.
-    expect(existsSync(join(cwd, 'docs', 'skills', 'auth', 'feature.md'))).toBe(true);
+    expect(JSON.parse(cap.out())).toMatchObject({ migrated: true });
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'auth', 'feature.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'INDEX.json'))).toBe(true);
+    expect(existsSync(join(cwd, 'docs', 'skills'))).toBe(false);
   });
 
-  it('only legacy docs/features → renames the whole tree to docs/skills and indexes', async () => {
+  it('only legacy docs/features → migrates to .coodra/recipes and indexes', async () => {
     writeSkill('features', 'auth');
     writeSkill('features', 'payments');
     const cap = captureIO();
     await run(() => runFeatureMigrateCommand({ cwd, json: true }, cap.io));
     const r = JSON.parse(cap.out());
     expect(r.migrated).toBe(true);
-    expect(r.movedSlugs.sort()).toEqual(['auth', 'payments']);
-    // Files landed under docs/skills, and the legacy dir is gone.
-    expect(existsSync(join(cwd, 'docs', 'skills', 'auth', 'feature.md'))).toBe(true);
-    expect(existsSync(join(cwd, 'docs', 'skills', 'payments', 'feature.md'))).toBe(true);
+    expect(r.movedSlugs.sort()).toEqual(['auth from docs/features/', 'payments from docs/features/']);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'auth', 'feature.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'payments', 'feature.md'))).toBe(true);
     expect(existsSync(join(cwd, 'docs', 'features'))).toBe(false);
-    // Index regenerated in the new home.
-    expect(existsSync(join(cwd, 'docs', 'skills', 'INDEX.json'))).toBe(true);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'INDEX.json'))).toBe(true);
   });
 
-  it('both exist, no slug collision → merges legacy into skills and removes the empty legacy dir', async () => {
+  it('both legacy dirs exist, no slug collision → merges both into recipes and removes empty legacy dirs', async () => {
     writeSkill('skills', 'auth');
     writeSkill('features', 'billing');
     const cap = captureIO();
     await run(() => runFeatureMigrateCommand({ cwd, json: true }, cap.io));
-    expect(JSON.parse(cap.out()).movedSlugs).toEqual(['billing']);
-    expect(existsSync(join(cwd, 'docs', 'skills', 'auth', 'feature.md'))).toBe(true);
-    expect(existsSync(join(cwd, 'docs', 'skills', 'billing', 'feature.md'))).toBe(true);
+    expect(JSON.parse(cap.out()).movedSlugs.sort()).toEqual(['auth from docs/skills/', 'billing from docs/features/']);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'auth', 'feature.md'))).toBe(true);
+    expect(existsSync(join(cwd, '.coodra', 'recipes', 'billing', 'feature.md'))).toBe(true);
+    expect(existsSync(join(cwd, 'docs', 'skills'))).toBe(false);
     expect(existsSync(join(cwd, 'docs', 'features'))).toBe(false);
   });
 
@@ -109,19 +108,20 @@ describe('runFeatureMigrateCommand', () => {
     const cap = captureIO();
     await run(() => runFeatureMigrateCommand({ cwd, json: false }, cap.io));
     expect(cap.code()).toBe(1);
-    expect(cap.err()).toMatch(/exist in BOTH/);
+    expect(cap.err()).toMatch(/would collide/);
     // Neither copy was touched.
     expect(readFileSync(join(cwd, 'docs', 'skills', 'auth', 'feature.md'), 'utf8')).toContain('SKILLS COPY');
     expect(readFileSync(join(cwd, 'docs', 'features', 'auth', 'feature.md'), 'utf8')).toContain('LEGACY COPY');
   });
 
-  it('--force resolves a collision by overwriting the docs/skills copy with the legacy one', async () => {
+  it('--force resolves a collision by overwriting the earlier copy with the later legacy one', async () => {
     writeSkill('skills', 'auth', 'SKILLS COPY');
     writeSkill('features', 'auth', 'LEGACY COPY');
     const cap = captureIO();
     await run(() => runFeatureMigrateCommand({ cwd, force: true, json: true }, cap.io));
-    expect(JSON.parse(cap.out()).movedSlugs).toEqual(['auth']);
-    expect(readFileSync(join(cwd, 'docs', 'skills', 'auth', 'feature.md'), 'utf8')).toContain('LEGACY COPY');
+    expect(JSON.parse(cap.out()).movedSlugs).toEqual(['auth from docs/skills/', 'auth from docs/features/']);
+    expect(readFileSync(join(cwd, '.coodra', 'recipes', 'auth', 'feature.md'), 'utf8')).toContain('LEGACY COPY');
+    expect(existsSync(join(cwd, 'docs', 'skills'))).toBe(false);
     expect(existsSync(join(cwd, 'docs', 'features'))).toBe(false);
   });
 });

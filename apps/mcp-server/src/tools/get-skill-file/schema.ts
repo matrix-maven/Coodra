@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * Input + output schemas for `coodra__get_feature_file`.
+ * Input + output schemas for `coodra__get_recipe_file`.
  *
  *   - `{ ok: true, path, bytes, mediaType, content }`
  *
@@ -14,7 +14,7 @@ import { z } from 'zod';
  *   - `{ ok: false, error: 'path_escape',           howToFix }`
  *
  * The `path_escape` branch fires if the requested path tries to leave
- * the feature directory via `..` segments or absolute paths. This is a
+ * the recipe directory via `..` segments or absolute paths. This is a
  * defensive check on top of the input regex; the regex catches the
  * common case but a defence-in-depth realpath compare costs ~nothing.
  */
@@ -39,7 +39,7 @@ export const getFeatureFileInputSchema = z
       }),
   })
   .strict()
-  .describe('Input for coodra__get_feature_file.');
+  .describe('Input for coodra__get_recipe_file.');
 
 const successBranch = z
   .object({

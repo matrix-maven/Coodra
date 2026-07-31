@@ -8,22 +8,22 @@ import type { FeatureFile, FeatureRow } from './types.js';
 /**
  * @coodra/shared/features — filesystem walker.
  *
- * Pure read-side: walks `<projectRoot>/docs/features/` and yields one
+ * Pure read-side: walks `<projectRoot>/.coodra/recipes/` and yields one
  * `FeatureRow` per direct child directory that contains a parseable
- * `feature.md`. Sync because the rest of Coodra's read-side helpers
+ * `recipe.md` (or legacy `feature.md`). Sync because the rest of Coodra's read-side helpers
  * are sync (matches the meta.json + spec.md scanners in the web app);
  * keeps the bridge's SessionStart hot-path simple.
  *
  * What's INCLUDED in `FeatureRow.files`:
  *   - any file under the feature dir, recursive, depth-capped at 4
- *   - except `feature.md` itself (it's metadata, not a supporting file)
+ *   - except `recipe.md` / legacy `feature.md` itself (it's metadata, not a supporting file)
  *
  * What's EXCLUDED:
  *   - dotfiles (`.gitkeep`, `.DS_Store`)
  *   - anything under a `node_modules`, `.git`, or `dist` subfolder
  *     (defensive — features are docs, not code; nested deps are noise)
  *
- * What's NEVER thrown: malformed feature.md, unreadable supporting
+ * What's NEVER thrown: malformed recipe.md, unreadable supporting
  * files, deep recursion, oversized files. The walker collects errors
  * onto `FeatureRow.warnings` and keeps going. Callers decide what to
  * do with broken features.
@@ -36,63 +36,81 @@ const MAX_FILE_DEPTH = 4;
 const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', '.next', '.turbo']);
 
 /**
- * The current directory name for skill-style knowledge units, and the
- * legacy name they used before the 2026-07 Features→Skills rename.
+ * The current directory name for agent recipes, plus legacy names used before
+ * the 2026-07 Skills→Agent Recipes rename.
  */
+export const RECIPES_DIR_NAME = 'recipes' as const;
 export const SKILLS_DIR_NAME = 'skills' as const;
 export const LEGACY_FEATURES_DIR_NAME = 'features' as const;
+export const RECIPE_MD_NAME = 'recipe.md' as const;
+export const LEGACY_FEATURE_MD_NAME = 'feature.md' as const;
 
 /**
- * Resolve the effective on-disk home for this project's skills. Returns
+ * Resolve the effective on-disk home for this project's Agent Recipes. Returns
  * the path even if the directory doesn't exist — the caller checks
  * `existsSync`. Centralised so the CLI, the bridge, the web app, the
  * sync-daemon, and the MCP server all agree on one location.
  *
  * Precedence (mirrors the Graphify managed/legacy layout — NEVER relocate
  * a project's files silently):
- *   1. `docs/skills/` exists → use it (the post-rename home);
- *   2. else `docs/features/` exists → use it (legacy project — keep writing
- *      there until the user runs `coodra skill migrate`);
- *   3. else (greenfield) → `docs/skills/` (the new default).
+ *   1. `.coodra/recipes/` exists → use it (the current home);
+ *   2. else `docs/skills/` exists → use it (legacy Skills home);
+ *   3. else `docs/features/` exists → use it (legacy Features home);
+ *   4. else (greenfield) → `.coodra/recipes/` (the new default).
  *
  * This is a pure path resolution — it does not create anything. The one
  * writer that mkdir's is `generateFeaturesIndex`, which uses whatever this
- * returns, so a fresh project lands on `docs/skills/` and a legacy one stays
- * on `docs/features/`.
+ * returns, so a fresh project lands on `.coodra/recipes/` and legacy projects
+ * stay where their existing recipes live.
  */
 export function skillsRoot(projectCwd: string): string {
+  const recipes = join(projectCwd, '.coodra', RECIPES_DIR_NAME);
+  if (existsSync(recipes)) return recipes;
   const skills = join(projectCwd, 'docs', SKILLS_DIR_NAME);
   if (existsSync(skills)) return skills;
   const legacy = join(projectCwd, 'docs', LEGACY_FEATURES_DIR_NAME);
   if (existsSync(legacy)) return legacy;
-  return skills;
+  return recipes;
+}
+
+/** Current name for the project-local Agent Recipes root. */
+export function recipesRoot(projectCwd: string): string {
+  return skillsRoot(projectCwd);
 }
 
 /**
- * The two candidate directories (skills = new, legacy = pre-rename), for
- * `coodra skill migrate` and diagnostics. Neither is guaranteed to exist.
+ * Candidate directories for `coodra recipe migrate` and diagnostics. None are
+ * guaranteed to exist.
  */
-export function skillsDirCandidates(projectCwd: string): { readonly skills: string; readonly legacy: string } {
+export function skillsDirCandidates(projectCwd: string): {
+  readonly recipes: string;
+  readonly skills: string;
+  readonly legacy: string;
+} {
   return {
+    recipes: join(projectCwd, '.coodra', RECIPES_DIR_NAME),
     skills: join(projectCwd, 'docs', SKILLS_DIR_NAME),
     legacy: join(projectCwd, 'docs', LEGACY_FEATURES_DIR_NAME),
   };
 }
 
+/** Current name for Agent Recipe directory candidates. */
+export function recipesDirCandidates(projectCwd: string): ReturnType<typeof skillsDirCandidates> {
+  return skillsDirCandidates(projectCwd);
+}
+
 /**
- * @deprecated Coodra "Features" were renamed to "Skills" (2026-07). Use
- * `skillsRoot`. Kept so external importers don't break; resolves the SAME
- * effective path (skills → legacy features → greenfield skills).
+ * @deprecated Coodra "Features" / "Skills" were renamed to Agent Recipes
+ * (2026-07). Use `skillsRoot`. Kept so external importers don't break.
  */
 export function featuresRoot(projectCwd: string): string {
   return skillsRoot(projectCwd);
 }
 
 /**
- * Walk every feature in `<projectRoot>/docs/features/` and return their
+ * Walk every recipe in the resolved recipes root and return their
  * `FeatureRow` views. Sorted by slug, ascending. Folders without a
- * readable `feature.md` are skipped silently (the indexer flags them as
- * "incomplete features" via a separate diagnostics path).
+ * readable `recipe.md` / legacy `feature.md` are skipped silently.
  */
 export function walkFeatures(projectCwd: string): FeatureRow[] {
   const root = skillsRoot(projectCwd);
@@ -107,7 +125,7 @@ export function walkFeatures(projectCwd: string): FeatureRow[] {
   }
 
   for (const entry of entries) {
-    // Skip the index files (we generate these; they aren't features).
+    // Skip the index files (we generate these; they aren't recipes).
     if (entry === 'INDEX.md' || entry === 'INDEX.json') continue;
     // Skip dotfiles.
     if (entry.startsWith('.')) continue;
@@ -132,22 +150,24 @@ export function walkFeatures(projectCwd: string): FeatureRow[] {
 }
 
 /**
- * Read one feature directory into a `FeatureRow`. Exported so the CLI's
- * `feature show <slug>` and the web detail page can avoid walking the
+ * Read one recipe directory into a `FeatureRow`. Exported so the CLI's
+ * `recipe show <slug>` and the web detail page can avoid walking the
  * whole tree when they already know which slug they want.
  *
- * Returns `null` only when `feature.md` is missing — that's the one
- * case where the directory isn't a feature at all. Frontmatter parse
+ * Returns `null` only when neither `recipe.md` nor legacy `feature.md` exists
+ * — that's the one case where the directory isn't a recipe at all. Frontmatter parse
  * errors don't return null; they surface on `row.warnings` so the UI
  * can display "this feature has invalid frontmatter, fix it here".
  */
 export function readFeatureRow(slug: string, dir: string): FeatureRow | null {
-  const featureMdPath = join(dir, 'feature.md');
-  if (!existsSync(featureMdPath)) return null;
+  const recipeMdPath = join(dir, RECIPE_MD_NAME);
+  const legacyMdPath = join(dir, LEGACY_FEATURE_MD_NAME);
+  const recipePath = existsSync(recipeMdPath) ? recipeMdPath : existsSync(legacyMdPath) ? legacyMdPath : null;
+  if (recipePath === null) return null;
 
   let raw: string;
   try {
-    raw = readFileSync(featureMdPath, 'utf8');
+    raw = readFileSync(recipePath, 'utf8');
   } catch (err) {
     // Unreadable feature.md — surface as a warning row so the UI doesn't
     // silently hide the directory. The frontmatter is null; the UI will
@@ -155,18 +175,18 @@ export function readFeatureRow(slug: string, dir: string): FeatureRow | null {
     return {
       slug,
       dir,
-      frontmatter: { name: slug, description: '(feature.md unreadable)' },
+      frontmatter: { name: slug, description: '(recipe.md unreadable)' },
       body: '',
       files: [],
       totalBytes: 0,
       lastUpdatedAt: new Date(0).toISOString(),
-      warnings: [`feature_md_read_failed: ${(err as Error).message}`],
+      warnings: [`recipe_md_read_failed: ${(err as Error).message}`],
     };
   }
 
   const parsed = parseFeatureMd(raw);
   const files = walkFeatureFiles(dir);
-  const featureMdStat = safeStat(featureMdPath);
+  const featureMdStat = safeStat(recipePath);
   const featureMdBytes = featureMdStat?.size ?? Buffer.byteLength(raw, 'utf8');
   const featureMdMtime = featureMdStat?.mtime?.toISOString() ?? new Date().toISOString();
   const totalBytes = featureMdBytes + files.reduce((s, f) => s + f.bytes, 0);
@@ -190,7 +210,7 @@ export function readFeatureRow(slug: string, dir: string): FeatureRow | null {
   }
 
   // Slug-name mismatch is a warning, not a fatal error. The CLI's
-  // `feature add` always emits a matching `name`, but if a user
+  // `recipe add` always emits a matching `name`, but if a user
   // hand-edits frontmatter and forgets, we tell them politely.
   const warnings = [...parsed.warnings];
   if (parsed.frontmatter.name !== slug) {
@@ -212,7 +232,7 @@ export function readFeatureRow(slug: string, dir: string): FeatureRow | null {
 }
 
 /**
- * Walk every supporting file under a feature dir. Recursive,
+ * Walk every supporting file under a recipe dir. Recursive,
  * depth-capped. Returns POSIX-style relative paths sorted ascending.
  */
 function walkFeatureFiles(featureDir: string): FeatureFile[] {
@@ -231,7 +251,7 @@ function walkRecursive(absDir: string, relDir: string, depth: number, out: Featu
     return;
   }
   for (const name of entries) {
-    if (name === 'feature.md' && relDir === '') continue;
+    if ((name === RECIPE_MD_NAME || name === LEGACY_FEATURE_MD_NAME) && relDir === '') continue;
     if (name.startsWith('.')) continue;
     if (SKIP_DIR_NAMES.has(name)) continue;
     const abs = join(absDir, name);

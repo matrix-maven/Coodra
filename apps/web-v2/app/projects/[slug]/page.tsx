@@ -324,7 +324,7 @@ export default async function ProjectHomePage({
               </div>
               <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
-                  + Add skill
+                  + Add recipe
                 </Link>
                 <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
                   Open skills panel

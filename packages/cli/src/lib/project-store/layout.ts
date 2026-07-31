@@ -2,12 +2,7 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { WriteOutcome } from '../init/types.js';
 
-export const PROJECT_DIR_RELS = [
-  '.coodra/skill-packs',
-  '.coodra/graphify',
-  '.coodra/wiki',
-  '.coodra/work-packs',
-] as const;
+export const PROJECT_DIR_RELS = ['.coodra/recipes', '.coodra/graphify', '.coodra/wiki', '.coodra/work-packs'] as const;
 
 async function ensureDir(path: string, dryRun: boolean): Promise<WriteOutcome> {
   if (!dryRun) await mkdir(path, { recursive: true });

@@ -9,14 +9,14 @@ import type { ToolContext } from '../../framework/tool-context.js';
 import type { GetFeatureFileInput, GetFeatureFileOutput } from './schema.js';
 
 /**
- * Handler for `coodra__get_feature_file`.
+ * Handler for `coodra__get_recipe_file`.
  *
  * Returns the raw text contents of a single supporting file inside a
- * feature directory. Three gates protect against abuse:
+ * recipe directory. Three gates protect against abuse:
  *
  *   1. **Path traversal.** The schema regex rejects `..` and absolute
  *      paths; the handler additionally `resolve`s the requested path
- *      and asserts it stays inside the feature directory after symlink
+ *      and asserts it stays inside the recipe directory after symlink
  *      resolution. Defence in depth.
  *
  *   2. **Extension allowlist.** Only text-shaped extensions are
@@ -32,7 +32,7 @@ export interface GetFeatureFileHandlerDeps {
   readonly db: DbHandle;
 }
 
-const handlerLogger = createLogger('mcp-server.tool.get_feature_file');
+const handlerLogger = createLogger('mcp-server.tool.get_recipe_file');
 
 const MAX_FILE_BYTES = 256 * 1024;
 
@@ -95,7 +95,7 @@ export function createGetFeatureFileHandler(
       return {
         ok: false,
         error: 'feature_not_found',
-        howToFix: `No feature at \`${featureDir}\`. Call \`coodra__list_skills\` to see what's available, or scaffold via \`coodra skill add ${input.slug}\`.`,
+        howToFix: `No Agent Recipe at \`${featureDir}\`. Call \`coodra__list_recipes\` to see what's available, or scaffold via \`coodra recipe add ${input.slug}\`.`,
       };
     }
 
@@ -106,7 +106,7 @@ export function createGetFeatureFileHandler(
       return {
         ok: false,
         error: 'path_escape',
-        howToFix: 'path must be relative to the feature directory (no leading `/`).',
+        howToFix: 'path must be relative to the recipe directory (no leading `/`).',
       };
     }
     const candidate = resolve(featureDir, input.path);
@@ -115,19 +115,19 @@ export function createGetFeatureFileHandler(
     if (relPath.startsWith('..') || isAbsolute(relPath)) {
       handlerLogger.warn(
         {
-          event: 'get_feature_file_path_escape',
+          event: 'get_recipe_file_path_escape',
           projectSlug: input.projectSlug,
           slug: input.slug,
           requested: input.path,
           resolved: candidate,
         },
-        'get_feature_file: refused path traversal attempt',
+        'get_recipe_file: refused path traversal attempt',
       );
       return {
         ok: false,
         error: 'path_escape',
         howToFix:
-          'path must stay inside the feature directory; `..` segments and symlinks pointing outside are refused.',
+          'path must stay inside the recipe directory; `..` segments and symlinks pointing outside are refused.',
       };
     }
 
@@ -135,7 +135,7 @@ export function createGetFeatureFileHandler(
       return {
         ok: false,
         error: 'file_not_found',
-        howToFix: `No file at \`${candidate}\`. Call \`coodra__get_skill\` to list valid paths under this feature.`,
+        howToFix: `No file at \`${candidate}\`. Call \`coodra__get_recipe\` to list valid paths under this recipe.`,
       };
     }
     let stat: ReturnType<typeof statSync>;
@@ -143,8 +143,8 @@ export function createGetFeatureFileHandler(
       stat = statSync(candidate);
     } catch (err) {
       handlerLogger.warn(
-        { event: 'get_feature_file_stat_failed', err: err instanceof Error ? err.message : String(err) },
-        'get_feature_file: stat threw',
+        { event: 'get_recipe_file_stat_failed', err: err instanceof Error ? err.message : String(err) },
+        'get_recipe_file: stat threw',
       );
       return {
         ok: false,
@@ -171,7 +171,7 @@ export function createGetFeatureFileHandler(
         howToFix:
           ext === '.pdf'
             ? 'PDFs are not loaded into agent context — use the `pdf-viewer` skill to read the document interactively.'
-            : `Files with extension "${ext}" are not allowed via get_feature_file. Allowed extensions are listed in the response.`,
+            : `Files with extension "${ext}" are not allowed via get_recipe_file. Allowed extensions are listed in the response.`,
         extension: ext,
         allowed: Array.from(ALLOWED_EXTENSIONS.keys()).sort(),
       };
@@ -181,7 +181,7 @@ export function createGetFeatureFileHandler(
       return {
         ok: false,
         error: 'file_too_large',
-        howToFix: `File is ${stat.size} bytes; cap is ${MAX_FILE_BYTES}. Split the file into smaller pieces under this feature, or trim it.`,
+        howToFix: `File is ${stat.size} bytes; cap is ${MAX_FILE_BYTES}. Split the file into smaller pieces under this recipe, or trim it.`,
         bytes: stat.size,
         capBytes: MAX_FILE_BYTES,
       };
@@ -192,8 +192,8 @@ export function createGetFeatureFileHandler(
       content = readFileSync(candidate, 'utf8');
     } catch (err) {
       handlerLogger.warn(
-        { event: 'get_feature_file_read_failed', err: err instanceof Error ? err.message : String(err) },
-        'get_feature_file: read threw',
+        { event: 'get_recipe_file_read_failed', err: err instanceof Error ? err.message : String(err) },
+        'get_recipe_file: read threw',
       );
       return {
         ok: false,

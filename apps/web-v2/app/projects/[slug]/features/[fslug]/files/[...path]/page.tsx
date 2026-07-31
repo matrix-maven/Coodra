@@ -100,7 +100,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
 
   return (
     <>
-      <Topbar crumb={`${project.slug} / skills / ${featureSlug} / ${relPath}`} crumbPrefix="coodra / projects" />
+      <Topbar crumb={`${project.slug} / Agent Recipes / ${featureSlug} / ${relPath}`} crumbPrefix="coodra / projects" />
       <section className="screen">
         <div className="head">
           <div>
@@ -110,7 +110,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
             </h1>
             <p className="head__lede">
               Supporting file under <code style={mono}>{featureSlug}</code>. The agent reads this on demand via{' '}
-              <code style={mono}>coodra__get_skill_file</code>.
+              <code style={mono}>coodra__get_recipe_file</code>.
             </p>
           </div>
           <div>
@@ -143,7 +143,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
           >
             <p style={{ marginTop: 0 }}>
               Files with extension <code style={mono}>{ext}</code> are not rendered inline. The MCP tool
-              <code style={mono}> coodra__get_skill_file</code> would also refuse this with{' '}
+              <code style={mono}> coodra__get_recipe_file</code> would also refuse this with{' '}
               <code style={mono}>extension_blocked</code>.
             </p>
             <p>Allowed extensions: {Array.from(ALLOWED_EXTENSIONS).sort().join(', ')}</p>
