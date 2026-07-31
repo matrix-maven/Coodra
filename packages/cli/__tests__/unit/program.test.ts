@@ -14,7 +14,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     exitSpy.mockRestore();
   });
 
-  it('registers all top-level subcommands (M08a 8 + M08b S3-S17 + features 2026-05-08: pause/resume/logs/db/upgrade/uninstall/policy/project/run/export/pack/template/feature + Phase G login + Phase H invite + terminal-UI ui)', () => {
+  it('registers all top-level subcommands (M08a 8 + M08b S3-S17 + features 2026-05-08: pause/resume/logs/db/upgrade/uninstall/policy/project/run/export/template/feature + Work Packs + Phase G login + Phase H invite + terminal-UI ui)', () => {
     const program = buildProgram();
     const top = program.commands.map((c) => c.name()).sort();
     expect(top).toEqual([
@@ -42,7 +42,6 @@ describe('buildProgram — full surface (post-S8)', () => {
       'logs',
       'metrics',
       'org',
-      'pack',
       'pause',
       'policy',
       'project',
@@ -60,6 +59,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'upgrade',
       // Module 10 — Deep Wiki (build/generate/status/list/open/clean).
       'wiki',
+      'work',
     ]);
 
     const team = program.commands.find((c) => c.name() === 'team');
@@ -88,10 +88,10 @@ describe('buildProgram — full surface (post-S8)', () => {
     const runSub = runCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(runSub).toEqual(['cancel', 'list', 'show']);
 
-    const packCmd = program.commands.find((c) => c.name() === 'pack');
-    expect(packCmd).toBeDefined();
-    const packSub = packCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(packSub).toEqual(['delete', 'list', 'new', 'regenerate', 'show']);
+    const workCmd = program.commands.find((c) => c.name() === 'work');
+    expect(workCmd).toBeDefined();
+    const workSub = workCmd?.commands.map((c) => c.name()).sort() ?? [];
+    expect(workSub).toEqual(['import', 'show', 'status']);
 
     const templateCmd = program.commands.find((c) => c.name() === 'template');
     expect(templateCmd).toBeDefined();

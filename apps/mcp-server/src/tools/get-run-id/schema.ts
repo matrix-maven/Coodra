@@ -4,10 +4,7 @@ import { z } from 'zod';
 /**
  * Input schema for `coodra__get_run_id` (§24.4).
  *
- * `projectSlug` is the feature-pack-namespaced project identifier
- * (see `context_memory/decisions-log.md` 2026-04-24 12:15 "feature_
- * packs is single-namespace-by-slug" — the same slug convention the
- * MCP server uses for `feature-pack.get`). The handler resolves this
+ * `projectSlug` is the project identifier. The handler resolves this
  * to `projects.id` via `projects.slug` unique lookup.
  *
  * F9 + F10 closure (verification 2026-04-27): the optional
@@ -40,7 +37,7 @@ export const getRunIdInputSchema = z
       .string()
       .min(1, 'projectSlug is required')
       .max(128, 'projectSlug must be at most 128 characters')
-      .describe('Project slug (same namespace as feature-pack slugs — single global slug per §24.4).'),
+      .describe('Project slug (single global slug per §24.4).'),
     agentSessionId: runKeySegmentSchema
       .max(256, 'agentSessionId must be ≤256 chars')
       .optional()

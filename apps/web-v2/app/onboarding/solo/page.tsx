@@ -103,7 +103,7 @@ export default async function SoloOnboardingPage() {
                       From <em>this app</em>
                     </>
                   }
-                  body="Click below — fills in a small form, registers the project in your local DB, scaffolds a feature pack, wires the Claude Code hooks."
+                  body="Click below — fills in a small form, registers the project in your local DB, prepares .coodra project state, wires the Claude Code hooks."
                   cta={{ href: '/init', label: 'New project' }}
                   primary
                 />
@@ -140,7 +140,7 @@ export default async function SoloOnboardingPage() {
               </h3>
               <FactRow label="Database" value="~/.coodra/data.db" />
               <FactRow label="Logs" value="~/.coodra/logs/" />
-              <FactRow label="Per-project" value="<repo>/docs/feature-packs/" />
+              <FactRow label="Per-project" value="<repo>/.coodra/work-packs/" />
               <FactRow label="Hooks" value="~/.claude/settings.json" last />
             </div>
           </div>

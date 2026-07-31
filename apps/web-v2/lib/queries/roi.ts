@@ -65,7 +65,7 @@ export interface RoiSnapshot {
     readonly agentAuthoredPacks: number;
     readonly bridgeAutoPacks: number;
     readonly decisions: number;
-    readonly featurePacks: number;
+    readonly workPacks: number;
     readonly features: number;
     readonly wikis: number;
     readonly wikiPages: number;
@@ -216,12 +216,12 @@ async function simpleCount(handle: Handle, table: 'features' | 'wikis'): Promise
   return Number(rows[0]?.n ?? 0);
 }
 
-async function countFeaturePacks(handle: Handle): Promise<number> {
+async function countWorkPacks(handle: Handle): Promise<number> {
   if (handle.kind === 'sqlite') {
-    const rows = await handle.db.select({ n: count() }).from(sqliteSchema.featurePacks);
+    const rows = await handle.db.select({ n: count() }).from(sqliteSchema.workPacks);
     return Number(rows[0]?.n ?? 0);
   }
-  const rows = await handle.db.select({ n: count() }).from(postgresSchema.featurePacks);
+  const rows = await handle.db.select({ n: count() }).from(postgresSchema.workPacks);
   return Number(rows[0]?.n ?? 0);
 }
 
@@ -392,7 +392,7 @@ export async function fetchRoiSnapshot(): Promise<RoiSnapshot> {
     agentPacks,
     bridgePacks,
     decisionsTotal,
-    featurePacks,
+    workPacks,
     features,
     wikis,
     wikiPages,
@@ -417,7 +417,7 @@ export async function fetchRoiSnapshot(): Promise<RoiSnapshot> {
     countContextPacks(handle, 'agent'),
     countContextPacks(handle, 'bridge_auto'),
     countDecisionsTotal(handle),
-    countFeaturePacks(handle),
+    countWorkPacks(handle),
     simpleCount(handle, 'features'),
     simpleCount(handle, 'wikis'),
     countWikiPages(handle),
@@ -512,7 +512,7 @@ export async function fetchRoiSnapshot(): Promise<RoiSnapshot> {
       agentAuthoredPacks: agentPacks,
       bridgeAutoPacks: bridgePacks,
       decisions: decisionsTotal,
-      featurePacks,
+      workPacks,
       features,
       wikis,
       wikiPages: wikiPages.total,

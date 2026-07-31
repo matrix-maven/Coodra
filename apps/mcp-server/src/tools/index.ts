@@ -2,7 +2,6 @@ import type { DbHandle } from '@coodra/db';
 
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
-import { getFeaturePackToolRegistration } from './get-feature-pack/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
 import { createGetSkillToolRegistration } from './get-skill/manifest.js';
 import { createGetSkillFileToolRegistration } from './get-skill-file/manifest.js';
@@ -54,7 +53,6 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(pingToolRegistration);
   registry.register(createGetRunIdToolRegistration({ db: deps.db, mode: deps.mode }));
   registry.register(createLifecycleEventToolRegistration({ db: deps.db, mode: deps.mode }));
-  registry.register(getFeaturePackToolRegistration);
   registry.register(createSaveContextPackToolRegistration({ db: deps.db }));
   registry.register(createSearchPacksNlToolRegistration({ db: deps.db }));
   registry.register(createRecordDecisionToolRegistration({ db: deps.db }));
@@ -64,9 +62,8 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // the gap that record_decision wrote rows nothing in the 9-tool surface
   // could read back. See manifest.ts docblock.
   registry.register(createQueryDecisionsToolRegistration({ db: deps.db }));
-  // Module 05 (2026-05-08 reshape): the two new agent-driven retrieval
-  // tools that replace the abandoned embedding pipeline. See
-  // docs/feature-packs/05-agent-driven-nl-assembly/spec.md §5.1, §5.2.
+  // Module 05 (2026-05-08 reshape): the two agent-driven retrieval
+  // tools that replaced the abandoned embedding pipeline.
   registry.register(createListContextPacksToolRegistration({ db: deps.db }));
   registry.register(createReadContextPackToolRegistration({ db: deps.db }));
   // Skills (2026-05-08; renamed from "Features" 2026-07): the three
@@ -123,8 +120,6 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // Module 09 (External MCP Integrations, track 9B): Graphify is consumed
   // as its OWN MCP server wired alongside Coodra (ADR-010 / ADR-015) — the
   // agent calls Graphify's query_graph/get_node/etc. directly. Coodra mints
-  // NO packs from the graph: the seed_feature_packs_from_graph +
-  // build_codebase_graph tools were retired 2026-05-23 (ADR-015) because a
-  // 1-community-1-pack dump produced hundreds of un-injectable shells. See
-  // docs/feature-packs/09-integrations/ and `coodra graphify enable`.
+  // NO Work Packs from the graph: Graphify remains structural context, while
+  // Work Packs are issue-bound artifacts imported via the `coodra work` flow.
 }

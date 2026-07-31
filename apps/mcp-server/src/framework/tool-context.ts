@@ -10,7 +10,7 @@ import type { IdempotencyKey } from './idempotency.js';
  * DESIGN LOCK (2026-04-23, S7a): the member list below is the
  * authoritative list of per-call dependencies a tool handler may
  * consume. S7a builds the first four implementations (db, logger,
- * auth, policy); S7c fills in the remaining slots (featurePack,
+ * auth, policy); S7c fills in the remaining slots (contextPack,
  * contextPack, runRecorder). Stub factories
  * live today in the corresponding `src/lib/*.ts` file so the
  * filesystem shape is locked and S7c is a function-body change,
@@ -73,13 +73,6 @@ export interface DbClient {
 // (`import type { Identity } from '../framework/tool-context.js'`)
 // keep compiling. Imported above for use in the local interfaces.
 export type { AuthClient, Identity, PolicyClient };
-
-/** Feature-Pack store. Implemented (stub) in `lib/feature-pack.ts`, real impl in S7c. */
-export interface FeaturePackStore {
-  get(args: { projectSlug: string; filePath?: string }): Promise<unknown>;
-  list(args: { projectSlug: string }): Promise<ReadonlyArray<unknown>>;
-  upsert(pack: unknown): Promise<unknown>;
-}
 
 /**
  * Context-Pack store. Implemented in `lib/context-pack.ts`.
@@ -192,7 +185,6 @@ export interface ContextDeps {
   readonly logger: Logger;
   readonly auth: AuthClient;
   readonly policy: PolicyClient;
-  readonly featurePack: FeaturePackStore;
   readonly contextPack: ContextPackStore;
   readonly runRecorder: RunRecorder;
 }

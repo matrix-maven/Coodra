@@ -17,7 +17,7 @@ import { pc } from '../ui/index.js';
  * `coodra uninstall` — reverse `coodra init` writes.
  *
  * Per OQ-5 lock (2026-05-03) the default is conservative: preserve
- * data + config + feature/context packs by default. `--purge` adds
+ * data + config + project work by default. `--purge` adds
  * removal of `~/.coodra/`. Always prints the
  * `npm uninstall -g @coodra/cli` command for the user — the
  * CLI does NOT execute it (the binary is mid-execution).
@@ -51,10 +51,10 @@ import { pc } from '../ui/index.js';
  * "already stopped" notes for each step.
  *
  * NOT removed by default: `~/.coodra/data.db`,
- * `~/.coodra/config.json`, every `docs/feature-packs/<slug>/`,
- * every `docs/context-packs/`. The user can re-run `coodra init`
+ * `~/.coodra/config.json`, every `.coodra/work-packs/<slug>/`,
+ * and every `docs/context-packs/`. The user can re-run `coodra init`
  * after `npm i -g` and pick up where they left off. `--remove-data`
- * drops the DB but keeps config + packs; `--purge` drops everything.
+ * drops the DB but keeps config + project work; `--purge` drops everything.
  */
 
 export interface UninstallOptions {
@@ -271,8 +271,8 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   const preserved = purge
     ? []
     : removeData
-      ? [`${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/']
-      : [`${homePath}/data.db`, `${homePath}/config.json`, 'docs/feature-packs/', 'docs/context-packs/'];
+      ? [`${homePath}/config.json`, '.coodra/work-packs/', 'docs/context-packs/']
+      : [`${homePath}/data.db`, `${homePath}/config.json`, '.coodra/work-packs/', 'docs/context-packs/'];
 
   if (json) {
     const payload: UninstallJson = {

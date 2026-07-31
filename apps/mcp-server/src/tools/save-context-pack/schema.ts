@@ -6,8 +6,7 @@ import { z } from 'zod';
  * Module 05 reshape (2026-05-08): adds optional `meta` object for
  * agent-curated metadata (decisionIds, affectedFiles, testStatus,
  * openTodos). Removed nothing from the prior surface — strictly
- * additive, all new fields are optional. See
- * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.4.
+ * additive, all new fields are optional.
  *
  * `projectId` is NOT in the caller's input; the handler resolves it
  * from `runs.projectId` via the `runId`. This matches §24.4 and
@@ -45,7 +44,6 @@ export const saveContextPackInputSchema = z
       .string()
       .min(1, 'content is required')
       .max(MAX_CONTENT, `content must be at most ${MAX_CONTENT} characters (~1 MiB)`),
-    featurePackId: z.string().min(1).max(256).optional(),
     meta: metaSchema.optional(),
   })
   .strict()

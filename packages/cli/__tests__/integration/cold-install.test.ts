@@ -157,8 +157,8 @@ describe('cold install — bundled binary works end-to-end', () => {
     const out = String(child.stdout);
     expect(out).toContain('"jsonrpc":"2.0"');
     expect(out).toContain('"id":1');
-    // tools/list response includes the 9 Coodra tools.
-    expect(out).toContain('"name":"get_feature_pack"');
+    // tools/list response includes the core Coodra tools.
+    expect(out).toContain('"name":"work_pack_status"');
     expect(out).toContain('"name":"check_policy"');
     expect(out).toContain('"name":"save_context_pack"');
   }, 30_000);

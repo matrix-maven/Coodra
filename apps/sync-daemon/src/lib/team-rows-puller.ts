@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { type PostgresHandle, postgresSchema, type SqliteHandle } from '@coodra/db';
@@ -77,161 +77,6 @@ function safeReadUtf8(path: string): string | null {
 }
 
 /**
- * Phase F.2 — parse the `feature_packs.content_json` envelope. Shape:
- *   { spec: string, implementation: string, techstack: string,
- *     meta: object | null, sourceFiles: string[] }
- * Defensive — malformed JSON returns null so the puller falls back to
- * DB-only sync (the pack is still findable, just not filesystem-mirrored).
- */
-interface FeaturePackContentEnvelope {
-  readonly spec: string;
-  readonly implementation: string;
-  readonly techstack: string;
-  readonly meta: unknown;
-  readonly sourceFiles: ReadonlyArray<string>;
-}
-
-function parseFeaturePackContent(raw: string): FeaturePackContentEnvelope | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== 'object' || parsed === null) return null;
-  const obj = parsed as Record<string, unknown>;
-  const spec = typeof obj.spec === 'string' ? obj.spec : '';
-  const implementation = typeof obj.implementation === 'string' ? obj.implementation : '';
-  const techstack = typeof obj.techstack === 'string' ? obj.techstack : '';
-  const meta = obj.meta ?? null;
-  const sourceFiles = Array.isArray(obj.sourceFiles)
-    ? obj.sourceFiles.filter((v): v is string => typeof v === 'string')
-    : [];
-  if (spec.length === 0 && implementation.length === 0 && techstack.length === 0) return null;
-  return { spec, implementation, techstack, meta, sourceFiles };
-}
-
-/**
- * Phase F.2 — write a pack file, OR write a `.cloud.<basename>` sidecar
- * when the local file is newer than the cloud row and the content differs.
- *
- * The sidecar shape uses the `<basename>.cloud.<ext>` convention so the
- * file ID is searchable and the extension is preserved (the web app's
- * pack detail page filters `*.cloud.md` for conflict banners; F.3.b
- * surfaces them). When local content matches cloud, this is a no-op so
- * idempotent re-ticks don't churn mtimes.
- *
- * The `<filename>` parameter is the canonical name on disk (spec.md,
- * implementation.md, techstack.md, meta.json). The sidecar inserts
- * `.cloud` before the final extension:
- *   spec.md            → spec.cloud.md
- *   implementation.md  → implementation.cloud.md
- *   meta.json          → meta.cloud.json
- */
-function writePackFileOrSidecar(
-  packDir: string,
-  filename: string,
-  cloudContent: string,
-  cloudUpdatedAt: Date,
-  log: Logger,
-  slug: string,
-): void {
-  const path = join(packDir, filename);
-  const sidecarName = filename.includes('.')
-    ? `${filename.slice(0, filename.lastIndexOf('.'))}.cloud${filename.slice(filename.lastIndexOf('.'))}`
-    : `${filename}.cloud`;
-  const sidecarPath = join(packDir, sidecarName);
-  if (!existsSync(path)) {
-    try {
-      writeFileSync(path, cloudContent, 'utf8');
-    } catch (err) {
-      log.warn(
-        {
-          event: 'team_rows_pack_fs_write_failed',
-          slug,
-          filename,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'pack filesystem write failed',
-      );
-    }
-    return;
-  }
-  let onDisk: string;
-  let localMtime: Date;
-  try {
-    onDisk = readFileSync(path, 'utf8');
-    localMtime = statSync(path).mtime;
-  } catch (err) {
-    log.warn(
-      { event: 'team_rows_pack_fs_read_failed', slug, filename, err: err instanceof Error ? err.message : String(err) },
-      'pack filesystem read failed — skipping conflict check',
-    );
-    return;
-  }
-  if (onDisk === cloudContent) {
-    // Already in sync — no-op. Also clean up any stale sidecar.
-    if (existsSync(sidecarPath)) {
-      try {
-        // Stale sidecar from a previous conflict that's now resolved
-        // (file matches cloud again). Best-effort delete; ignore errors.
-        unlinkSync(sidecarPath);
-        log.info({ event: 'team_rows_pack_sidecar_cleared', slug, filename }, 'cleared resolved conflict sidecar');
-      } catch {
-        // ignore
-      }
-    }
-    return;
-  }
-  // Content differs. Decide based on mtime: cloud newer → overwrite;
-  // local newer → sidecar.
-  if (cloudUpdatedAt.getTime() >= localMtime.getTime()) {
-    try {
-      writeFileSync(path, cloudContent, 'utf8');
-      log.info(
-        { event: 'team_rows_pack_overwritten', slug, filename, cloudUpdatedAt: cloudUpdatedAt.toISOString() },
-        'cloud version is newer; overwrote local pack file',
-      );
-    } catch (err) {
-      log.warn(
-        {
-          event: 'team_rows_pack_fs_write_failed',
-          slug,
-          filename,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'pack filesystem overwrite failed',
-      );
-    }
-  } else {
-    try {
-      writeFileSync(sidecarPath, cloudContent, 'utf8');
-      log.info(
-        {
-          event: 'team_rows_pack_conflict_sidecar_written',
-          slug,
-          filename,
-          sidecar: sidecarName,
-          localMtime: localMtime.toISOString(),
-          cloudUpdatedAt: cloudUpdatedAt.toISOString(),
-        },
-        'local pack file is newer than cloud; wrote .cloud sidecar instead of overwriting',
-      );
-    } catch (err) {
-      log.warn(
-        {
-          event: 'team_rows_pack_sidecar_write_failed',
-          slug,
-          filename,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'pack sidecar write failed',
-      );
-    }
-  }
-}
-
-/**
  * `apps/sync-daemon/src/lib/team-rows-puller.ts` — Module 04 Phase 4.
  *
  * Cloud → local poller for the append-only tables that need to be
@@ -300,12 +145,6 @@ export interface TeamRowsPullSummary {
    * idempotent re-pulls of unchanged rows contribute 0 to this count.
    */
   readonly features: number;
-  /**
-   * Phase F.2 — feature_packs pulled from cloud Postgres on this tick.
-   * Same checksum-anti-loop semantics as features; counts cloud rows
-   * whose `checksum` column differed from the local mirror.
-   */
-  readonly featurePacks: number;
   /**
    * Module 10 — Deep Wiki structure rows pulled this tick (cloud rows
    * whose updated_at was newer than the local mirror's).
@@ -764,144 +603,6 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
   }
 
   /**
-   * Phase F.2 — feature_packs pull.
-   *
-   * Cloud `feature_packs` rows → local SQLite mirror + filesystem
-   * writeback to `<projects.cwd>/docs/feature-packs/<slug>/{spec.md,
-   * implementation.md, techstack.md, meta.json}`. The four-file
-   * filesystem layout is what the MCP `get_feature_pack` handler reads
-   * and what the bridge SessionStart hook injects via
-   * `additionalContext` (Pattern 20 / ADR-012).
-   *
-   * Project resolution: `feature_packs` is project-agnostic at the
-   * schema level (no project_id FK), but the filesystem layout lives
-   * under a project's cwd. The puller picks the FIRST registered
-   * non-sentinel project's cwd as the write target — the same heuristic
-   * the MCP-side reader uses today (see `apps/mcp-server/src/lib/
-   * feature-pack.ts`). If no project is registered yet, the pull
-   * touches DB only; the next tick after `coodra init` registers a
-   * project will retry.
-   *
-   * Anti-loop: cloud checksum == local checksum → skip (no DB write,
-   * no FS write).
-   *
-   * Conflict sidecar: if the local file's mtime is NEWER than the
-   * cloud row's `updated_at` AND the file's content differs from
-   * cloud, the cloud version is written to a `*.cloud.md` sidecar
-   * (e.g. `spec.cloud.md`, `implementation.cloud.md`) instead of
-   * overwriting. Surfaces in the web pack detail page (F.3.b will
-   * add a banner; F.1 ships the sidecar files unannotated).
-   *
-   * Status='draft' rows: upserted into local DB so admin web UI can
-   * render them, but the filesystem write is skipped — drafts stay
-   * in DB until promoted. Symmetric with `pullFeatures`.
-   */
-  async function pullFeaturePacks(): Promise<number> {
-    const ct = postgresSchema.featurePacks;
-    let cloudRows: Array<typeof ct.$inferSelect>;
-    try {
-      cloudRows = await cloudDb.db.select().from(ct).orderBy(sql`${ct.updatedAt} DESC`).limit(PULL_CHUNK_SIZE);
-    } catch (err) {
-      log.warn(
-        { event: 'team_rows_feature_packs_pull_failed', err: err instanceof Error ? err.message : String(err) },
-        'cloud SELECT feature_packs threw — will retry next tick',
-      );
-      return 0;
-    }
-    if (cloudRows.length === 0) return 0;
-
-    // Resolve a project cwd to write into. Pick the first non-sentinel
-    // project — the heuristic is acceptable in v1 because feature_packs
-    // is globally-scoped by slug; future "project-scoped pack" work
-    // tightens this. Null cwd means we can't filesystem-write; DB-only.
-    const targetCwd = localDb.raw
-      .prepare(
-        `SELECT cwd FROM projects
-           WHERE org_id NOT IN ('__solo__', '__global__')
-             AND cwd IS NOT NULL
-           ORDER BY created_at ASC
-           LIMIT 1`,
-      )
-      .get() as { cwd: string | null } | undefined;
-    const projectCwd: string | null = targetCwd !== undefined ? targetCwd.cwd : null;
-
-    let touched = 0;
-    for (const row of cloudRows) {
-      try {
-        const localRow = localDb.raw
-          .prepare('SELECT id, checksum FROM feature_packs WHERE slug = ? LIMIT 1')
-          .get(row.slug) as { id: string; checksum: string } | undefined;
-        if (localRow !== undefined && localRow.checksum === row.checksum) continue;
-
-        const upsertStmt = localDb.raw.prepare(`
-          INSERT INTO feature_packs
-            (id, slug, parent_slug, is_active, checksum, created_by_user_id,
-             content_json, status, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(slug) DO UPDATE SET
-            parent_slug = excluded.parent_slug,
-            is_active = excluded.is_active,
-            checksum = excluded.checksum,
-            created_by_user_id = excluded.created_by_user_id,
-            content_json = excluded.content_json,
-            status = excluded.status,
-            updated_at = excluded.updated_at
-        `);
-        upsertStmt.run(
-          row.id,
-          row.slug,
-          row.parentSlug,
-          row.isActive ? 1 : 0,
-          row.checksum,
-          row.createdByUserId,
-          row.contentJson,
-          row.status,
-          Math.floor(row.updatedAt.getTime() / 1000),
-        );
-        touched += 1;
-
-        // Filesystem writeback — only for published packs with content.
-        if (row.status !== 'published') continue;
-        if (row.contentJson === null) continue;
-        if (projectCwd === null) continue;
-        const content = parseFeaturePackContent(row.contentJson);
-        if (content === null) continue;
-
-        const packDir = join(projectCwd, 'docs', 'feature-packs', row.slug);
-        mkdirSync(packDir, { recursive: true });
-
-        // Each file: write iff (file absent) OR (local mtime ≤ cloud
-        // updatedAt AND content differs) — last-write-wins. Otherwise
-        // (local mtime > cloud AND content differs) → sidecar.
-        writePackFileOrSidecar(packDir, 'spec.md', content.spec, row.updatedAt, log, row.slug);
-        writePackFileOrSidecar(packDir, 'implementation.md', content.implementation, row.updatedAt, log, row.slug);
-        writePackFileOrSidecar(packDir, 'techstack.md', content.techstack, row.updatedAt, log, row.slug);
-        // Phase F.6 — meta.json carries the on-disk status flag for
-        // the bridge SessionStart draft gate. Merge cloud status into
-        // the cloud-supplied meta object so teammate filesystems
-        // always have a current status field even if the upstream
-        // meta came from a pre-Phase-F write that lacked it.
-        const metaObj =
-          content.meta !== null && typeof content.meta === 'object'
-            ? { ...(content.meta as Record<string, unknown>), status: row.status }
-            : { slug: row.slug, parentSlug: row.parentSlug ?? null, status: row.status };
-        const metaText = `${JSON.stringify(metaObj, null, 2)}\n`;
-        writePackFileOrSidecar(packDir, 'meta.json', metaText, row.updatedAt, log, row.slug);
-      } catch (err) {
-        log.warn(
-          {
-            event: 'team_rows_feature_packs_insert_failed',
-            slug: row.slug,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          'local feature_packs upsert threw — will re-pull next tick',
-        );
-      }
-    }
-    return touched;
-  }
-
-  /**
    * Module 10 — wikis pull. Cloud `wikis` → local SQLite mirror, so the
    * laptop-team web render and `coodra wiki status/list` see teammate-
    * authored wikis. Mutable (a re-plan replaces structure_json), so
@@ -1057,20 +758,18 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
     // ON CONFLICT DO NOTHING/DO UPDATE keeps the loop idempotent even
     // when a race re-inserts.
     //
-    // Features + feature_packs (Phase F.1/F.2) FK only to projects (or
-    // not at all in the pack case), so they run in parallel with the
+    // Features FK only to projects, so they run in parallel with the
     // run-dependent batch.
     const projects = await pullProjects();
     const runs = await pullRuns();
     // wikis must land before wiki_pages (the page FKs to wikis.id) — pull
     // them sequentially, then the rest of the dependent tables in parallel.
     const wikis = await pullWikis();
-    const [decisions, contextPacks, runEvents, features, featurePacks, wikiPages] = await Promise.all([
+    const [decisions, contextPacks, runEvents, features, wikiPages] = await Promise.all([
       pullDecisions(),
       pullContextPacks(),
       pullRunEvents(),
       pullFeatures(),
-      pullFeaturePacks(),
       pullWikiPages(),
     ]);
     const summary: TeamRowsPullSummary = {
@@ -1080,11 +779,10 @@ export function createTeamRowsPuller(deps: TeamRowsPullerDeps): TeamRowsPullerHa
       contextPacks,
       runEvents,
       features,
-      featurePacks,
       wikis,
       wikiPages,
     };
-    if (projects + runs + decisions + contextPacks + runEvents + features + featurePacks + wikis + wikiPages > 0) {
+    if (projects + runs + decisions + contextPacks + runEvents + features + wikis + wikiPages > 0) {
       log.info({ event: 'team_rows_pulled', ...summary }, 'team-rows pull tick complete');
     }
     return summary;

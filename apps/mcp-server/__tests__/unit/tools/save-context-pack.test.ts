@@ -52,17 +52,6 @@ describe('save_context_pack — input schema boundaries', () => {
     expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'body' }).success).toBe(true);
   });
 
-  it('accepts featurePackId when supplied', () => {
-    expect(
-      saveContextPackInputSchema.safeParse({
-        runId: 'r1',
-        title: 't',
-        content: 'body',
-        featurePackId: 'fp_xyz',
-      }).success,
-    ).toBe(true);
-  });
-
   it('rejects missing runId', () => {
     expect(saveContextPackInputSchema.safeParse({ title: 't', content: 'c' }).success).toBe(false);
   });

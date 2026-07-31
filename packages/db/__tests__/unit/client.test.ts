@@ -174,7 +174,6 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'context_packs_vec',
         'decisions',
         'external_work_items',
-        'feature_packs',
         // Phase F.1 (2026-05-11) — pull-on-trigger skill recipes
         // (Anthropic Skills pattern). Dual-dialect; sync-daemon
         // round-trips file ↔ cloud in team mode.
@@ -224,8 +223,8 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND substr(name, 1, 18) <> 'context_packs_vec_'`,
         )
         .get() as { n: number };
-      // 22 schema tables + context_packs_vec virtual table = 23.
-      expect(rows.n).toBe(23);
+      // 21 schema tables + context_packs_vec virtual table = 22.
+      expect(rows.n).toBe(22);
     } finally {
       first.close();
     }

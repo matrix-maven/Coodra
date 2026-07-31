@@ -283,29 +283,3 @@ describe('save_context_pack — FS failure degrades cleanly (DB-first; filesyste
     expect(rows[0]?.content).toBe('body here');
   });
 });
-
-// ---------------------------------------------------------------------------
-// featurePackId is accepted and doesn't break the write (currently discarded)
-// ---------------------------------------------------------------------------
-
-describe('save_context_pack — featurePackId is accepted (discarded by store in M02)', () => {
-  let h: Harness;
-  beforeEach(async () => {
-    h = await openHarness();
-  });
-  afterEach(async () => {
-    await h.close();
-  });
-
-  it('supplying featurePackId does not break the call; tool returns success', async () => {
-    const registry = buildRegistry(h);
-    const out = unwrap(
-      await registry.handleCall(
-        'save_context_pack',
-        { runId: h.runId, title: 't', content: 'c', featurePackId: 'fp_some_id' },
-        'sess_scp',
-      ),
-    );
-    expect(out.ok).toBe(true);
-  });
-});

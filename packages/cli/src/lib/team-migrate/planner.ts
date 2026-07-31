@@ -63,7 +63,6 @@ async function countLocalRows(local: SqliteHandle): Promise<MigrationCounts> {
     decisionsRow,
     policiesRow,
     killSwitchesRow,
-    featurePacksRow,
     runDiffsRow,
   ] = await Promise.all([
     local.db.select({ n: sql<number>`COUNT(*)` }).from(s.projects).where(sql`id != '__global__'`),
@@ -84,7 +83,6 @@ async function countLocalRows(local: SqliteHandle): Promise<MigrationCounts> {
     // skip them on migrate (per the plan — discard local kill switches
     // by default). Count for telemetry.
     local.db.select({ n: sql<number>`COUNT(*)` }).from(s.killSwitches),
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.featurePacks),
     local.db
       .select({ n: sql<number>`COUNT(*)` })
       .from(s.runDiffs)
@@ -100,7 +98,6 @@ async function countLocalRows(local: SqliteHandle): Promise<MigrationCounts> {
     decisions: numberFromRow(decisionsRow),
     policies: numberFromRow(policiesRow),
     killSwitches: numberFromRow(killSwitchesRow),
-    featurePacks: numberFromRow(featurePacksRow),
     runDiffs: numberFromRow(runDiffsRow),
   };
 }

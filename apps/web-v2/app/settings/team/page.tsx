@@ -252,7 +252,7 @@ export default async function TeamSettingsPage({ searchParams }: { searchParams:
                   <th>Decisions</th>
                   <th>Packs</th>
                   <th>Policies</th>
-                  <th>Feature packs</th>
+                  <th>Work Packs</th>
                   <th style={{ textAlign: 'right' }}>Last seen</th>
                 </tr>
               </thead>
@@ -290,7 +290,7 @@ export default async function TeamSettingsPage({ searchParams }: { searchParams:
                       <td className="tbl__mono">{m.perTable.decisions}</td>
                       <td className="tbl__mono">{m.perTable.contextPacks}</td>
                       <td className="tbl__mono">{m.perTable.policies}</td>
-                      <td className="tbl__mono">{m.perTable.featurePacks}</td>
+                      <td className="tbl__mono">{m.perTable.workPacks}</td>
                       <td className="tbl__mono" style={{ textAlign: 'right' }}>
                         {fmtRelative(m.lastSeenAt)}
                       </td>

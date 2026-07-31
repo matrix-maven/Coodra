@@ -281,7 +281,7 @@ export function deepWikiFeatureFrontmatter(): {
     description:
       'Use this when the user asks to generate, build, refresh, or update the Deep Wiki / codebase wiki / architecture docs for this project (e.g. "generate the deep wiki", "build the wiki", "document the architecture"). Drives the two-pass Coodra Wiki flow: plan a hierarchical WikiStructure, then author each page (Markdown + Mermaid) via Coodra’s wiki_save_structure / wiki_save_page / wiki_status MCP tools, reading the latest job at .coodra/wiki/job.md.',
     whenNotToUse:
-      'Don’t use for editing a single existing doc, for Feature Packs (module blueprints), or for Context Packs (session recaps). Those are separate surfaces.',
+      'Don’t use for editing a single existing doc, issue-bound Work Packs, or Context Packs (session recaps). Those are separate surfaces.',
     maturity: 'stable',
   };
 }

@@ -69,7 +69,6 @@ const EXPECTED_PUBLIC_TABLES: ReadonlySet<string> = new Set([
   '_migration_map',
   'context_packs',
   'decisions',
-  'feature_packs',
   'kill_switches',
   'pending_jobs',
   'policies',
@@ -78,6 +77,7 @@ const EXPECTED_PUBLIC_TABLES: ReadonlySet<string> = new Set([
   'projects',
   'run_diffs',
   'run_events',
+  'work_packs',
   'runs',
 ]);
 

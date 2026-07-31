@@ -36,7 +36,7 @@ export function createListSkillsToolRegistration(
       // caught the previous wording at 857).
       'Call when you need to discover available SKILLS for this project — atomic, reusable recipes fetched on ' +
       "demand when a user prompt matches a skill's trigger description (the Anthropic Skills pattern). Distinct " +
-      'from `get_feature_pack`: Feature Packs are MODULE blueprints pushed at SessionStart; skills are pull-based. ' +
+      'from Work Packs: Work Packs are issue-bound implementation records; skills are pull-based. ' +
       'Returns { ok: true, features: [{slug, description, whenNotToUse, maturity, fileCount, ...}] } sorted by ' +
       'slug (the `features` key is kept for back-compat), OR soft-failure with project_not_found / ' +
       'project_cwd_unknown / features_dir_missing. Call `get_skill(slug)` only for skills whose triggers match ' +

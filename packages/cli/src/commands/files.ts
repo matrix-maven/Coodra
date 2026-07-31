@@ -243,7 +243,7 @@ export async function runFilesCleanCommand(
     for (const f of failed) io.writeStderr(`    ${pc.gray('-')} ${f.path}: ${f.error}\n`);
   }
   io.writeStdout(
-    `\n${hintLine('Preserved config/env/feature-packs + global agent files are never auto-removed. `coodra uninstall` strips everything.')}\n`,
+    `\n${hintLine('Preserved config/env/data + global agent files are never auto-removed. `coodra uninstall` strips everything.')}\n`,
   );
   return io.exit(failed.length === 0 ? EXIT_OK : EXIT_USER_RECOVERABLE);
 }

@@ -134,6 +134,13 @@
 			"when": 1785487200000,
 			"tag": "0018_work_packs",
 			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "6",
+			"when": 1785489000000,
+			"tag": "0019_drop_feature_packs",
+			"breakpoints": true
 		}
 	]
 }

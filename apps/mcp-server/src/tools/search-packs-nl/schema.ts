@@ -26,7 +26,7 @@ export const searchPacksNlInputSchema = z
       .string()
       .min(1, 'projectSlug is required')
       .max(128, 'projectSlug must be at most 128 characters')
-      .describe('Project slug — same single-namespace convention as get_run_id / get_feature_pack.'),
+      .describe('Project slug — same single-namespace convention as get_run_id.'),
     query: z
       .string()
       .min(1, 'query is required')

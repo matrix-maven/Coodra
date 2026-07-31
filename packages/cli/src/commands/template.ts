@@ -9,7 +9,7 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
  * `coodra template {list|install}` — admin surface for the
- * feature-pack templates library. Module 08b S17.
+ * reusable Coodra templates library. Module 08b S17.
  *
  * `template list` walks both tiers (user-installed under
  * `~/.coodra/templates/<name>/` + bundled under

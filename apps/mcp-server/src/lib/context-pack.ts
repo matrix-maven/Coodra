@@ -48,7 +48,7 @@ const contextPackLogger = createMcpLogger('lib-context-pack');
 const EXCERPT_MAX_CODE_POINTS = 500 as const;
 
 // ---------------------------------------------------------------------------
-// Pack payload schema
+// Context payload schema
 // ---------------------------------------------------------------------------
 
 const packSchema = z.object({
@@ -56,7 +56,6 @@ const packSchema = z.object({
   projectId: z.string().min(1),
   title: z.string().min(1),
   content: z.string(),
-  featurePackId: z.string().min(1).optional(),
 });
 export type ContextPackInput = z.infer<typeof packSchema>;
 

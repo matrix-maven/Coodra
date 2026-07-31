@@ -4,7 +4,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecorder } from '../../../src/framework/tool-context.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
 import { createDbClient } from '../../../src/lib/db.js';
-import { getFeaturePackInputSchema } from '../../../src/tools/get-feature-pack/schema.js';
 import { getFeatureInputSchema } from '../../../src/tools/get-skill/schema.js';
 import { listContextPacksInputSchema } from '../../../src/tools/list-context-packs/schema.js';
 import { createQueryRunHistoryToolRegistration } from '../../../src/tools/query-run-history/manifest.js';
@@ -23,11 +22,6 @@ import { makeFakeDeps } from '../../helpers/fake-deps.js';
 describe('reuse-read schemas accept + retain optional runId', () => {
   it('search_packs_nl keeps runId in the parsed input', () => {
     const parsed = searchPacksNlInputSchema.safeParse({ projectSlug: 'p', query: 'q', runId: 'run_abc' });
-    expect(parsed.success).toBe(true);
-    if (parsed.success) expect(parsed.data.runId).toBe('run_abc');
-  });
-  it('get_feature_pack keeps runId', () => {
-    const parsed = getFeaturePackInputSchema.safeParse({ projectSlug: 'p', runId: 'run_abc' });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.runId).toBe('run_abc');
   });

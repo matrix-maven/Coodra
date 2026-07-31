@@ -121,7 +121,6 @@ const HOOK_SECRET = 'a'.repeat(64);
       await cloud.raw.unsafe('DELETE FROM run_diffs');
       await cloud.raw.unsafe('DELETE FROM runs');
       await cloud.raw.unsafe('DELETE FROM policies');
-      await cloud.raw.unsafe('DELETE FROM feature_packs');
       await cloud.raw.unsafe(`DELETE FROM projects WHERE id <> '__global__'`);
     }
   });
@@ -159,10 +158,10 @@ const HOOK_SECRET = 'a'.repeat(64);
       'policies',
       'policy_rules',
       'policy_decisions',
-      'feature_packs',
       'decisions',
       'kill_switches',
       'run_diffs',
+      'work_packs',
       '_migration_attempts',
       '_migration_map',
     ]) {

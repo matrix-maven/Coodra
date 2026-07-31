@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 /**
  * `apps/web/lib/queries/templates.ts` — server-only scanner for the
- * feature-pack templates library. Walks the same two tiers as the CLI's
+ * reusable Coodra templates library. Walks the same two tiers as the CLI's
  * `listAvailableTemplates` (M08b S17) — user-installed under
  * `~/.coodra/templates/` then bundled under
  * `<cli-pkg>/templates/`. User templates shadow bundled ones with the

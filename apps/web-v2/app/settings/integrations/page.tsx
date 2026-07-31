@@ -102,7 +102,7 @@ function GraphifyCard({ status }: { readonly status: GraphifyIntegrationStatus }
         Graphify (<code style={inlineMono}>safishamsi/graphify</code>) maps a repository into a queryable knowledge
         graph and ships its own stdio MCP server. Coodra wires that server into your agent configs so the agent can ask
         structural questions — blast radius, “where is X defined?”, dependency paths. The agent calls Graphify’s query
-        tools directly; Coodra mints no Feature Packs from the graph (ADR-015).
+        tools directly; Coodra does not mint Work Packs from the graph.
       </p>
 
       <SectionLabel>Prerequisites</SectionLabel>

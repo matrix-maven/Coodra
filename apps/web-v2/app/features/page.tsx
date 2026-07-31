@@ -61,10 +61,9 @@ export default async function FeaturesPage() {
               model — never loaded blindly.
               <br />
               <span style={{ color: 'var(--ink-mute)', fontSize: 13 }}>
-                Need always-loaded MODULE-level architectural context (spec / impl / techstack / meta)? Those are{' '}
-                <strong>Feature Packs</strong>, not skills — managed at{' '}
-                <Link href="/packs" style={{ color: 'var(--accent)' }}>
-                  /packs
+                Need issue-bound implementation context? Use{' '}
+                <Link href="/work-packs" style={{ color: 'var(--accent)' }}>
+                  Work Packs
                 </Link>
                 .
               </span>

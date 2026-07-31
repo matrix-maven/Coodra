@@ -208,29 +208,6 @@ export const policyDecisions = pgTable(
   (t) => [index('policy_decisions_session_idx').on(t.sessionId, t.createdAt)],
 );
 
-export const featurePacks = pgTable('feature_packs', {
-  id: text('id').primaryKey(),
-  slug: text('slug').notNull().unique(),
-  parentSlug: text('parent_slug'),
-  isActive: boolean('is_active').notNull().default(true),
-  checksum: text('checksum').notNull(),
-  // Module 04 Phase 4 — see ./sqlite.ts::featurePacks.createdByUserId.
-  createdByUserId: text('created_by_user_id'),
-  // Phase F.2 — see ./sqlite.ts::featurePacks.contentJson. text (not
-  // jsonb) for parity with the SQLite dialect; the handler JSON.parses
-  // when consuming.
-  contentJson: text('content_json'),
-  // Phase F.2 — draft/published lifecycle. Default 'published' preserves
-  // pre-Phase-F semantics.
-  status: text('status').notNull().default('published'),
-  // Phase G slice G.9 — multi-tenancy column. Nullable for backward
-  // compat; Phase G+1 backfills + tightens. New writes should populate
-  // from the verified Clerk JWT's org_id claim. See
-  // packages/db/drizzle/postgres/0018_feature_packs_org_id.sql.
-  orgId: text('org_id'),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
-});
-
 /**
  * Phase F.1 — features (2026-05-11) — postgres mirror.
  *
@@ -243,7 +220,7 @@ export const featurePacks = pgTable('feature_packs', {
  * back to teammate filesystems on its tick. Conflict resolution writes
  * `.cloud.md` sidecars when the local file mtime exceeds the cloud
  * row's `updated_at` AND the content differs (Phase F.2 semantics
- * shared across features + feature_packs).
+ * shared across skill-style knowledge rows).
  *
  * Status lifecycle gates agent visibility: only `status='published'`
  * rows reach the MCP `list_features` handler (Phase F.3 filter).
@@ -568,8 +545,6 @@ export type PolicyRule = typeof policyRules.$inferSelect;
 export type NewPolicyRule = typeof policyRules.$inferInsert;
 export type PolicyDecision = typeof policyDecisions.$inferSelect;
 export type NewPolicyDecision = typeof policyDecisions.$inferInsert;
-export type FeaturePack = typeof featurePacks.$inferSelect;
-export type NewFeaturePack = typeof featurePacks.$inferInsert;
 export type Feature = typeof features.$inferSelect;
 export type NewFeature = typeof features.$inferInsert;
 export type IntegrationConnection = typeof integrationConnections.$inferSelect;
@@ -731,8 +706,8 @@ export type NewWikiPageRow = typeof wikiPages.$inferInsert;
 /**
  * Phase F.3.c — `knowledge_audit` (2026-05-11). **Postgres-only**.
  *
- * Append-only audit log of every mutation to a knowledge artifact
- * (`features` or `feature_packs`). Captures the "who did what when" so
+ * Append-only audit log of every mutation to a shared knowledge artifact.
+ * Captures the "who did what when" so
  * admins can answer:
  *   - "Why did this feature change?" → resource_id + action='update'
  *   - "Who hid this pack?" → resource_id + action='unpublish'
@@ -749,7 +724,7 @@ export type NewWikiPageRow = typeof wikiPages.$inferInsert;
  * Postgres permissions tighten this further (Phase F.4 ops note).
  *
  * Resource_type / action are CHECK-constrained at the DB level:
- *   - resource_type ∈ { 'feature', 'feature_pack' }
+ *   - resource_type identifies the knowledge artifact family
  *   - action        ∈ { 'create', 'update', 'publish', 'unpublish', 'delete' }
  *
  * Before / after checksum capture the content-shape transition: create

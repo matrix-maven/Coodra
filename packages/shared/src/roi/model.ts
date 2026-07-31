@@ -23,7 +23,7 @@ import {
  * read from Coodra's tables — no estimation happens before this struct.
  */
 export interface RoiMeasuredInputs {
-  /** runs rows (all). Each Coodra session injects a Feature Pack at start (Pattern 20) → the compression lever applies per run. */
+  /** runs rows (all). Session instructions prime agents to reuse stored project context and Work Packs. */
   readonly totalRuns: number;
   /** runs with status='completed'. */
   readonly completedRuns: number;

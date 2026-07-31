@@ -496,7 +496,7 @@ name: coodra-context
 description: Retrieve and use Coodra project context, decisions, run history, and context packs before making code changes.
 ---
 
-Use this skill before implementation when the task may depend on repository architecture, previous decisions, feature-pack state, or policy history.
+Use this skill before implementation when the task may depend on repository architecture, previous decisions, Work Pack state, or policy history.
 
 1. Prefer Coodra MCP tools for live project context when available.
 2. Read \`.coodra/config.json\` and \`.coodra/manifest.json\` to identify the project.
@@ -515,7 +515,7 @@ Use this skill when the user asks for a reusable project or global skill pack, o
 
 1. Look for project skill packs under \`.coodra/skill-packs/\`.
 2. Prefer project skill packs over global packs when both apply.
-3. Treat skill packs as task workflow guidance, not as product feature packs.
+3. Treat skill packs as task workflow guidance, not issue-bound Work Packs.
 4. Apply the chosen pack's instructions before implementing.
 `;
 }

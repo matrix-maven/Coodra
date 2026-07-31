@@ -1,17 +1,14 @@
 import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
-import { installTemplateAction } from '@/lib/actions/packs';
 import { deleteProjectAction, renameProjectAction, resetProjectAction } from '@/lib/actions/projects';
 import { cancelAllInProgressRunsAction } from '@/lib/actions/runs';
 import { agentTypeLabel } from '@/lib/agent-label';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { resolveProjectFromParams } from '@/lib/project-context';
 import { fetchProjectFeaturesSnapshot } from '@/lib/queries/features';
-import type { ProjectHomePackInfo } from '@/lib/queries/project-home';
 import { fetchProjectHomeSnapshot } from '@/lib/queries/project-home';
 import { listRuns } from '@/lib/queries/runs';
-import { listTemplates, type TemplateRow } from '@/lib/queries/templates';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,11 +19,7 @@ interface SearchParams {
   readonly error?: string;
   readonly errorMessage?: string;
   readonly cleared?: string;
-  readonly packUploaded?: string;
   readonly linked?: string;
-  readonly templateInstalled?: string;
-  /** "stub" when the upload replaced a `coodra init` template stub. */
-  readonly replaced?: string;
 }
 
 export default async function ProjectHomePage({
@@ -47,14 +40,7 @@ export default async function ProjectHomePage({
     }),
     listRuns({ projectId: project.id, limit: 6 }),
   ]);
-  // Pack panel needs the cwd + template list. The cwd is project-scoped (from
-  // the projects row, recorded by the bridge or CLI's init) so per-project
-  // pack uploads land in `<project.cwd>/docs/feature-packs/`, not the web-v2
-  // server's cwd. Falls back to web-v2 cwd for legacy rows where projects.cwd
-  // is null — the FeaturePackPanel will surface a warning in that case.
   const cwd = project.cwd ?? process.cwd();
-  const cwdRecorded = project.cwd !== null;
-  const templates = listTemplates();
   // Features are filesystem-driven — cheap to read once per project-home
   // render. We surface counts + a quick CTA so the project home tells the
   // operator at a glance whether features have been defined or not.
@@ -117,30 +103,7 @@ export default async function ProjectHomePage({
             Cleared {sp.cleared} stuck run{sp.cleared === '1' ? '' : 's'} for this project.
           </Banner>
         ) : null}
-        {sp.packUploaded !== undefined ? (
-          <Banner tone="ok">
-            Pack <code style={packCodeStyle}>{sp.packUploaded}</code> uploaded
-            {sp.replaced === 'stub' ? (
-              <>
-                {' '}
-                · replaced the <code style={packCodeStyle}>coodra init</code> template stub
-              </>
-            ) : null}
-            {sp.linked === '1' ? (
-              <>
-                {' · linked as parent of '}
-                <code style={packCodeStyle}>{project.slug}</code>
-              </>
-            ) : null}
-            . Bridge picks it up on next SessionStart.
-          </Banner>
-        ) : null}
-        {sp.templateInstalled !== undefined ? (
-          <Banner tone="ok">
-            Template <code style={packCodeStyle}>{sp.templateInstalled}</code> installed onto{' '}
-            <code style={packCodeStyle}>{project.slug}</code>. Auto-marker sections re-rendered.
-          </Banner>
-        ) : null}
+        {sp.linked === '1' ? <Banner tone="ok">Linked current run to {project.slug}.</Banner> : null}
         {sp.error !== undefined ? <Banner tone="warn">{sp.errorMessage ?? sp.error}</Banner> : null}
 
         <div className="stats">
@@ -283,16 +246,7 @@ export default async function ProjectHomePage({
           </div>
         </div>
 
-        {/* Feature Pack panel — primary + parent chain + project-scoped actions.
-            Renders for every project (including the __global__ sentinel — useful
-            because uploads to the global namespace also live here). */}
-        <FeaturePackPanel
-          projectSlug={project.slug}
-          pack={snap.pack}
-          templates={templates}
-          cwd={cwd}
-          cwdRecorded={cwdRecorded}
-        />
+        <WorkPackPanel projectSlug={project.slug} total={snap.workPacks.total} active={snap.workPacks.active} />
 
         {/* Features panel — skill-style index. Empty state surfaces the
             "Define your first feature" CTA so onboarding from a fresh
@@ -570,246 +524,51 @@ function Banner({ children, tone }: { children: React.ReactNode; tone: 'ok' | 'w
   );
 }
 
-// ---------------------------------------------------------------------------
-// FeaturePackPanel — primary pack + parent chain + actions
-// ---------------------------------------------------------------------------
-
-function FeaturePackPanel({
+function WorkPackPanel({
   projectSlug,
-  pack,
-  templates,
-  cwd,
-  cwdRecorded,
+  total,
+  active,
 }: {
   readonly projectSlug: string;
-  readonly pack: ProjectHomePackInfo;
-  readonly templates: ReadonlyArray<TemplateRow>;
-  readonly cwd: string;
-  readonly cwdRecorded: boolean;
+  readonly total: number;
+  readonly active: number;
 }) {
-  const uploadHref = `/projects/${encodeURIComponent(projectSlug)}/packs/new`;
-  const returnTo = `/projects/${encodeURIComponent(projectSlug)}`;
-
   return (
     <div className="card" style={{ padding: 28, marginTop: 32 }}>
       <div className="card__head">
         <h2 className="card__title">
-          Feature <em>pack</em>
+          Work <em>Packs</em>
         </h2>
         <span className="card__role">
-          auto-injected on SessionStart · <span style={{ color: 'var(--ink-dim)' }}>{pack.packsRoot}</span>
+          {total} total · {active} active
         </span>
       </div>
-
-      {!cwdRecorded ? (
-        <Banner tone="warn">
-          This project has no recorded <code style={packCodeStyle}>cwd</code> — the pack panel is reading from the web
-          server&apos;s working directory (<code style={packCodeStyle}>{pack.packsRoot}</code>), which may not be the
-          project&apos;s real folder. Open a Claude Code session inside the project root once to register it (the bridge
-          writes <code style={packCodeStyle}>projects.cwd</code> on first SessionStart), or re-run{' '}
-          <code style={packCodeStyle}>coodra init</code>.
-        </Banner>
-      ) : null}
-
-      {pack.cycleDetected ? (
-        <Banner tone="warn">
-          Pack chain has a cycle — fix <code style={packCodeStyle}>meta.json:parentSlug</code> on one of the linked
-          packs. The MCP-side <code style={packCodeStyle}>get_feature_pack</code> will refuse to load until resolved.
-        </Banner>
-      ) : null}
-      {pack.missingAncestor !== null ? (
-        <Banner tone="warn">
-          Ancestor <code style={packCodeStyle}>{pack.missingAncestor}</code> referenced as a parent but missing on disk.
-          Re-upload it, or clear the offending <code style={packCodeStyle}>parentSlug</code>.
-        </Banner>
-      ) : null}
-
-      {pack.primary?.isTemplateStub === true ? (
-        <Banner tone="ok">
-          Primary pack is a <code style={packCodeStyle}>coodra init</code> template stub — uploading via{' '}
-          <strong>+ Upload pack</strong> below will silently replace it (no force-overwrite needed).
-        </Banner>
-      ) : null}
-
-      {pack.primary === null ? (
+      {total === 0 ? (
         <div className="empty" style={{ marginTop: 12 }}>
           <strong>
-            No primary pack <em>yet</em>.
+            No Work Packs <em>yet</em>.
           </strong>
-          The bridge skips <code style={packCodeStyle}>additionalContext</code> on SessionStart until{' '}
-          <code style={packCodeStyle}>{`${pack.packsRoot}/${projectSlug}/spec.md`}</code> exists.
+          Import a Jira epic, task, or story into <span style={{ fontFamily: 'var(--mono)' }}>.coodra/work-packs/</span>{' '}
+          so the agent has an issue-bound implementation record for this project.
           <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Link className="btn btn--accent" href={uploadHref}>
-              + Upload pack
-            </Link>
-            <Link className="btn btn--ghost" href="/init">
-              Bootstrap from template
+            <Link className="btn btn--accent" href="/work-packs">
+              Open Work Packs
             </Link>
           </div>
         </div>
       ) : (
-        <>
-          <div className="dash-list" style={{ marginTop: 12 }}>
-            {pack.chain.map((row) => (
-              <PackChainRow key={row.slug} row={row} kind="ancestor" />
-            ))}
-            <PackChainRow row={pack.primary} kind="primary" />
-          </div>
-
-          <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Link className="btn btn--accent" href={uploadHref}>
-              + Upload pack
-            </Link>
-            <Link className="btn btn--ghost" href={`/packs/${encodeURIComponent(projectSlug)}`}>
-              Open primary
-            </Link>
-            <details style={{ position: 'relative' }}>
-              <summary className="btn btn--sm btn--ghost" style={{ listStyle: 'none', cursor: 'pointer' }}>
-                Install a template…
-              </summary>
-              <form
-                action={installTemplateAction}
-                style={{
-                  marginTop: 12,
-                  padding: 18,
-                  border: '1px solid var(--rule)',
-                  background: 'var(--bg-2)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                  minWidth: 320,
-                }}
-              >
-                <input type="hidden" name="projectSlug" value={projectSlug} />
-                <input type="hidden" name="packSlug" value={projectSlug} />
-                <input type="hidden" name="cwd" value={cwd} />
-                <input type="hidden" name="returnTo" value={returnTo} />
-                <label htmlFor="pack-template-select" style={packLabelStyle}>
-                  Template
-                </label>
-                <select id="pack-template-select" name="templateName" required style={packInputStyle} defaultValue="">
-                  <option value="">— pick a template —</option>
-                  {templates.map((t) => (
-                    <option key={`${t.source}:${t.name}`} value={t.name}>
-                      {t.source} · {t.name}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor="pack-confirmation-input" style={packLabelStyle}>
-                  Confirmation (type <code style={packCodeStyle}>install &lt;template&gt;</code>)
-                </label>
-                <input
-                  id="pack-confirmation-input"
-                  name="confirmation"
-                  required
-                  placeholder="install <template>"
-                  style={packInputStyle}
-                />
-                <button className="btn btn--sm" type="submit">
-                  Overlay template
-                </button>
-                <p style={{ ...packHintStyle, marginTop: 0 }}>
-                  Re-renders <code style={packCodeStyle}>spec.md</code> /{' '}
-                  <code style={packCodeStyle}>implementation.md</code> / <code style={packCodeStyle}>techstack.md</code>{' '}
-                  auto-marker sections. User-edited content outside markers is preserved.
-                </p>
-              </form>
-            </details>
-            <span style={{ marginLeft: 'auto', ...packHintStyle, marginTop: 0 }}>
-              parent chain · {pack.chain.length} · resolved root-first by MCP
-            </span>
-          </div>
-        </>
+        <div style={{ marginTop: 18, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Link className="btn btn--accent" href="/work-packs">
+            Open Work Packs
+          </Link>
+          <span style={{ marginLeft: 'auto', fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-mute)' }}>
+            project · {projectSlug}
+          </span>
+        </div>
       )}
     </div>
   );
 }
-
-function PackChainRow({
-  row,
-  kind,
-}: {
-  readonly row: {
-    readonly slug: string;
-    readonly fileCount: number;
-    readonly parentSlug: string | null;
-    readonly isActive: boolean;
-  };
-  readonly kind: 'primary' | 'ancestor';
-}) {
-  const status =
-    row.fileCount === 4
-      ? { label: 'SYNCED', cls: 'badge--ok' }
-      : row.fileCount === 0
-        ? { label: 'EMPTY', cls: 'badge--warn' }
-        : { label: `${row.fileCount}/4`, cls: 'badge--caution' };
-  const dotCls = kind === 'primary' ? '' : 'row__dot--w';
-  const eyebrow =
-    kind === 'primary'
-      ? 'PRIMARY · auto-injected'
-      : `ANCESTOR · ${row.parentSlug !== null ? `→ ${row.parentSlug}` : 'root'}`;
-  return (
-    <Link
-      href={`/packs/${encodeURIComponent(row.slug)}`}
-      className="row"
-      style={{ display: 'grid', textDecoration: 'none' }}
-    >
-      <div className={`row__dot ${dotCls}`}></div>
-      <div className="row__main">
-        <div className="row__title">
-          <em>{row.slug}</em>
-          {row.parentSlug !== null && kind === 'primary' ? (
-            <span style={{ marginLeft: 8, color: 'var(--ink-mute)', fontFamily: 'var(--mono)', fontSize: 11 }}>
-              · child of {row.parentSlug}
-            </span>
-          ) : null}
-        </div>
-        <div className="row__sub">{eyebrow}</div>
-      </div>
-      <div className="row__verdict">
-        <span className={`badge ${status.cls}`}>
-          <span className="badge__dot"></span>
-          {status.label}
-        </span>
-      </div>
-      <div className="row__time">{row.isActive ? 'active' : 'inactive'}</div>
-    </Link>
-  );
-}
-
-const packCodeStyle: React.CSSProperties = {
-  fontFamily: 'var(--mono)',
-  fontSize: '0.92em',
-  color: 'var(--accent)',
-};
-
-const packLabelStyle: React.CSSProperties = {
-  fontFamily: 'var(--mono)',
-  fontSize: 9,
-  letterSpacing: '0.2em',
-  textTransform: 'uppercase',
-  color: 'var(--ink-mute)',
-};
-
-const packInputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 10px',
-  background: 'var(--bg)',
-  border: '1px solid var(--rule-strong)',
-  color: 'var(--ink)',
-  fontFamily: 'var(--mono)',
-  fontSize: 12,
-  letterSpacing: '0.04em',
-};
-
-const packHintStyle: React.CSSProperties = {
-  fontFamily: 'var(--mono)',
-  fontSize: 10,
-  color: 'var(--ink-mute)',
-  letterSpacing: '0.04em',
-  marginTop: 6,
-  lineHeight: 1.6,
-};
 
 /** Single-line truncation used by the project-home features panel. */
 function truncate(s: string, max: number): string {

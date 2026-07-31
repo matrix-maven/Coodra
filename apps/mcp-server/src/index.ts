@@ -20,7 +20,6 @@ import { ToolRegistry } from './framework/tool-registry.js';
 import { createAuthClient } from './lib/auth.js';
 import { createContextPackStore } from './lib/context-pack.js';
 import { createDbClient } from './lib/db.js';
-import { createFeaturePackStore } from './lib/feature-pack.js';
 import { createMcpLogger } from './lib/logger.js';
 import { createMcpDispatchHandler } from './lib/outbox-dispatch.js';
 import { createPolicyClient } from './lib/policy.js';
@@ -42,7 +41,7 @@ const SERVER_VERSION = '0.0.0' as const;
  *   - `ping` tool only (S8–S15 ship the eight real tools).
  *   - Full `ContextDeps` bag wired from `src/lib/*` factories, even
  *     though only `policy` is consumed at call time in S7a. The
- *     remaining lib clients (db, auth, featurePack, contextPack,
+ *     remaining lib clients (db, auth, contextPack,
  *     runRecorder) existed as throwing stubs — their bodies filled
  *     in across S7b/c.
  *     Wiring them now locks the boot-order contract so S7b/c are
@@ -118,7 +117,6 @@ async function main(): Promise<void> {
 
   const auth = createAuthClient(env);
   const policy = createPolicyClient({ db: dbHandle });
-  const featurePack = createFeaturePackStore({ db: dbHandle });
   const contextPack = createContextPackStore({
     db: dbHandle,
     ...(env.COODRA_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.COODRA_CONTEXT_PACKS_ROOT } : {}),
@@ -136,15 +134,11 @@ async function main(): Promise<void> {
   const runRecorder = createRunRecorder({ db: dbHandle, kick: () => outboxWorker.kick() });
   outboxWorker.start();
   bootLogger.info({ event: 'outbox_worker_started' }, 'OutboxWorker started; pending_jobs draining');
-  // Module 05 reshape (2026-05-08): no sqliteVec wiring — agent-driven NL
-  // assembly replaces the embedding pipeline. See
-  // docs/feature-packs/05-agent-driven-nl-assembly/spec.md.
   const deps: ContextDeps = Object.freeze({
     db: dbClient.client,
     logger: sharedLogger,
     auth,
     policy,
-    featurePack,
     contextPack,
     runRecorder,
   });

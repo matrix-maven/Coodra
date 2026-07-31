@@ -103,10 +103,6 @@ describe('project-store manifest — classifyGeneratedPath', () => {
       ['AGENTS.md', { owner: 'agent:codex', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
       ['CLAUDE.md', { owner: 'agent:claude', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
       ['.windsurfrules', { owner: 'agent:windsurf', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
-      [
-        'docs/feature-packs/x/spec.md',
-        { owner: 'coodra', kind: 'feature-pack', cleanup: 'preserve', scope: 'project' },
-      ],
     ];
     for (const [rel, expected] of cases) {
       const e = classifyGeneratedPath(join(root, rel), root, 'coodra init');

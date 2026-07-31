@@ -66,7 +66,7 @@ interface MetricsReport {
     readonly contextPacks: number;
     readonly agentPacks: number;
     readonly decisions: number;
-    readonly featurePacks: number;
+    readonly workPacks: number;
     readonly features: number;
     readonly wikiPages: number;
     readonly reuseReads: number;
@@ -117,7 +117,7 @@ export async function runMetricsCommand(options: MetricsOptions, ioOverride?: Me
     const contextPacks = one('SELECT COUNT(*) AS n FROM context_packs');
     const agentPacks = one("SELECT COUNT(*) AS n FROM context_packs WHERE source = 'agent'");
     const decisions = one('SELECT COUNT(*) AS n FROM decisions');
-    const featurePacks = one('SELECT COUNT(*) AS n FROM feature_packs');
+    const workPacks = one('SELECT COUNT(*) AS n FROM work_packs');
     const features = one('SELECT COUNT(*) AS n FROM features');
     const wikiPages = one("SELECT COUNT(*) AS n FROM wiki_pages WHERE state = 'authored'");
     const reuseReads = one(
@@ -172,7 +172,7 @@ export async function runMetricsCommand(options: MetricsOptions, ioOverride?: Me
         contextPacks,
         agentPacks,
         decisions,
-        featurePacks,
+        workPacks,
         features,
         wikiPages,
         reuseReads,
@@ -276,8 +276,8 @@ function formatHuman(r: MetricsReport): string {
         },
         { key: 'decisions', value: fmtInt(r.measured.decisions) },
         {
-          key: 'feature packs',
-          value: fmtInt(r.measured.featurePacks),
+          key: 'work packs',
+          value: fmtInt(r.measured.workPacks),
           meta: `· ${fmtInt(r.measured.features)} features`,
         },
         { key: 'wiki pages', value: fmtInt(r.measured.wikiPages) },

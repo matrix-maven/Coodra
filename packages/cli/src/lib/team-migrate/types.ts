@@ -53,7 +53,6 @@ export interface MigrationCounts {
   readonly decisions: number;
   readonly policies: number;
   readonly killSwitches: number;
-  readonly featurePacks: number;
   readonly runDiffs: number;
 }
 
@@ -65,7 +64,6 @@ export const ZERO_COUNTS: MigrationCounts = Object.freeze({
   decisions: 0,
   policies: 0,
   killSwitches: 0,
-  featurePacks: 0,
   runDiffs: 0,
 });
 

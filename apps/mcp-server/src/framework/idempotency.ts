@@ -15,7 +15,7 @@ import type { IdempotencyKey } from '@coodra/shared';
  * The tool-registration framework takes that "deterministic way"
  * as an object of this shape. It is **required** at registration
  * time: no handler is allowed to run without one. Read-only tools
- * (e.g. `get_feature_pack`, `ping`) opt out of durable writes by
+ * (e.g. `ping`) opt out of durable writes by
  * returning a key that starts with the literal prefix `'readonly:'`;
  * the registration framework recognises that prefix and skips the
  * database-backed dedupe path. It does NOT skip the builder itself —

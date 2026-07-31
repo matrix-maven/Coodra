@@ -80,8 +80,6 @@ let cloud: PostgresHandle;
       // Phase F.1 — features rows must clear too; otherwise prior-test
       // cloud rows leak into the next test's "cloud-empty" assertion.
       await cloud.raw.unsafe('DELETE FROM features');
-      // Phase F.2 — same for feature_packs.
-      await cloud.raw.unsafe('DELETE FROM feature_packs');
       await cloud.raw.unsafe('DELETE FROM runs');
       await cloud.raw.unsafe(`DELETE FROM projects WHERE id <> '__global__'`);
     }
@@ -272,8 +270,6 @@ let cloud: PostgresHandle;
       expect(summary.runEvents).toBe(0);
       // Phase F.1 — features field exists on the summary.
       expect(summary.features).toBe(0);
-      // Phase F.2 — feature_packs pull integrated into the same tick.
-      expect(summary.featurePacks).toBe(0);
     } finally {
       await puller.stop();
     }

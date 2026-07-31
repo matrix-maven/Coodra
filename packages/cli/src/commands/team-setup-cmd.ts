@@ -222,10 +222,10 @@ export async function runTeamSetupCommand(
       'policies',
       'policy_rules',
       'policy_decisions',
-      'feature_packs',
       'decisions',
       'kill_switches',
       'run_diffs',
+      'work_packs',
       '_migration_attempts',
       '_migration_map',
     ];

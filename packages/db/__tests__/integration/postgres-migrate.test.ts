@@ -23,14 +23,24 @@ const isEnabled = typeof databaseUrl === 'string' && databaseUrl.length > 0;
 const SCHEMA_TABLES = [
   'context_packs',
   'decisions',
-  'feature_packs',
+  'external_work_items',
+  'features',
+  'integration_connections',
   'pending_jobs',
   'policies',
   'policy_decisions',
   'policy_rules',
   'projects',
   'run_events',
+  'run_diffs',
   'runs',
+  'sync_events',
+  'team_invites',
+  'wiki_pages',
+  'wikis',
+  'work_pack_external_links',
+  'work_pack_relationships',
+  'work_packs',
 ] as const;
 
 (isEnabled ? describe : describe.skip)('postgres migrations apply cleanly', () => {

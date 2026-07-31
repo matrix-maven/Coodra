@@ -54,6 +54,7 @@ export interface CatalogCategory {
  */
 const CATEGORY_OF: Readonly<Record<string, string>> = {
   init: 'lifecycle',
+  install: 'lifecycle',
   start: 'lifecycle',
   stop: 'lifecycle',
   upgrade: 'lifecycle',
@@ -70,7 +71,7 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   policy: 'policy',
   project: 'projects',
   files: 'projects',
-  pack: 'packs',
+  work: 'work',
   skill: 'skills',
   wiki: 'wiki',
   graphify: 'integrations',
@@ -99,7 +100,7 @@ const CATEGORIES: ReadonlyArray<{ readonly title: string; readonly key: string }
   { title: 'runs & audit', key: 'runs' },
   { title: 'policy', key: 'policy' },
   { title: 'projects', key: 'projects' },
-  { title: 'feature packs', key: 'packs' },
+  { title: 'work packs', key: 'work' },
   { title: 'skills', key: 'skills' },
   { title: 'deep wiki', key: 'wiki' },
   { title: 'integrations', key: 'integrations' },

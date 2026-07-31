@@ -11,7 +11,7 @@ import type { DispatchHookEvent, HookDispatchResult } from '../app.js';
  * Routing rules:
  *   - `eventPhase === 'pre'`           → preToolUseHandler (real policy eval).
  *   - `eventPhase === 'post'`          → postToolUseHandler (RunRecorder).
- *   - `eventPhase === 'session_start'` → sessionStartHandler (Feature Pack inject).
+ *   - `eventPhase === 'session_start'` → sessionStartHandler.
  *   - `eventPhase === 'session_end'`   → sessionEndHandler (auto-Context-Pack save + close runs).
  *   - `eventPhase === 'turn_end'`      → ack-only. Phase 3 Fix A
  *     (2026-05-02): Claude Code's Stop event lands here so the

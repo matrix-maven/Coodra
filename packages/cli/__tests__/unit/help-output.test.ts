@@ -25,7 +25,7 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   (~/.coodra, data.db, runtime env).
         init [options]            Initialise Coodra in the current project (writes
                                   project-local .coodra/ config, manifest,
-                                  skill-packs, graphify, and wiki dirs).
+                                  skill-packs, graphify, wiki, and work-packs dirs).
         start [options]           Start MCP Server + Hooks Bridge + Web Dashboard (+
                                   Sync Daemon in team mode) as background daemons.
         stop [options]            Stop Coodra daemons. Idempotent.
@@ -46,13 +46,14 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   structural-query tool) into your agent config
                                   (Claude Code / Cursor / Windsurf / Codex). Option C
                                   per ADR-010 / ADR-015 — Coodra consumes Graphify by
-                                  configuration, not code, and mints no Feature Packs
-                                  from it.
+                                  configuration, not code, and does not mint Work
+                                  Packs from it.
         wiki                      Generate a DeepWiki-style, hierarchical/mind-map
                                   explanation of this codebase. Your coding agent
                                   (Claude Code / Codex / Cursor) is the model; Coodra
                                   ships the grounding, the MCP persistence tools, and
                                   the web render.
+        work                      Manage Coodra Work Packs under .coodra/work-packs/.
         jira                      Wire Atlassian's Jira (Rovo) remote MCP server into
                                   your agent config (Claude Code / Cursor / Windsurf /
                                   Codex). Direct per ADR-016 — Coodra consumes Jira by
@@ -87,9 +88,8 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   policy_decisions audit trail by default;
                                   --include-audit opts in. JSON always includes the
                                   audit.
-        template                  Manage feature-pack templates (bundled +
+        template                  Manage reusable Coodra templates (bundled +
                                   user-installed).
-        pack                      Manage docs/feature-packs/<slug>/ directories.
         skill|feature             Manage docs/skills/<slug>/ — skill-style knowledge
                                   units the agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
@@ -97,9 +97,8 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   units (mcp-server, hooks-bridge, sync-daemon, web),
                                   strip Coodra entries from ~/.claude/settings.json +
                                   .mcp.json + per-agent files. Default-safe (preserves
-                                  data + config + feature/context packs);
-                                  --remove-data drops the SQLite store; --purge
-                                  removes ~/.coodra/.
+                                  data + config + project work); --remove-data drops
+                                  the SQLite store; --purge removes ~/.coodra/.
         upgrade [options]         Check for a newer @coodra/cli on npm. Does NOT
                                   self-update — prints the install command. After
                                   install, re-run to apply migrations + restart

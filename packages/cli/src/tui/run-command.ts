@@ -96,7 +96,6 @@ export async function runCommandInProcess(argv: readonly string[]): Promise<Comm
     projectIO: captureIo,
     runIO: captureIo,
     exportIO: captureIo,
-    packIO: captureIo,
     templateIO: captureIo,
     featureIO: captureIo,
     // The 2026-07-24 QA sweep found these eight missing: their default IO

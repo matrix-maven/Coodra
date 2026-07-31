@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { buildAgentReports, runAgentsCommand } from '../../../src/commands/agents.js';
+import { VERSION } from '../../../src/version.js';
 
 /**
  * Locks the 0.2.0-beta.1 `coodra agents` read-only status surface.
@@ -19,7 +20,7 @@ describe('buildAgentReports', () => {
   let cwd: string;
 
   function claudePluginRoot(): string {
-    return join(userHome, '.claude', 'plugins', 'cache', 'coodra', 'coodra', '0.2.0-beta.28');
+    return join(userHome, '.claude', 'plugins', 'cache', 'coodra', 'coodra', VERSION);
   }
 
   beforeEach(async () => {

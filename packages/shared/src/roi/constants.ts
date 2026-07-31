@@ -40,7 +40,6 @@
  */
 export const REUSE_READ_TOOL_NAMES = [
   'coodra__search_packs_nl',
-  'coodra__get_feature_pack',
   'coodra__list_context_packs',
   'coodra__get_feature',
   'coodra__query_run_history',

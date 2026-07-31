@@ -199,7 +199,7 @@ describe('placeholder guard', () => {
 
   it('findPlaceholderToken detects required + optional positionals; returns null for real values', () => {
     expect(findPlaceholderToken(['export', '<runId>'])).toBe('<runId>');
-    expect(findPlaceholderToken(['pack', 'new', '<slug>'])).toBe('<slug>');
+    expect(findPlaceholderToken(['work', 'import-jira', '<issueKey>'])).toBe('<issueKey>');
     expect(findPlaceholderToken(['logs', '[service]'])).toBe('[service]');
     expect(findPlaceholderToken(['export', 'run_abc123'])).toBeNull();
     expect(findPlaceholderToken(['status'])).toBeNull();

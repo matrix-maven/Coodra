@@ -9,7 +9,7 @@ import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqli
  *     projects, runs, run_events, context_packs, pending_jobs
  *   - Module-02 additions:
  *     policies, policy_rules, policy_decisions (append-only),
- *     feature_packs, decisions (append-only, idempotent on
+ *     decisions (append-only, idempotent on
  *     `dec:{runId}:{sha256(description)}`)
  *
  * Every timestamp column uses `integer({ mode: 'timestamp' })` so Drizzle
@@ -37,12 +37,9 @@ export const projects = sqliteTable('projects', {
   slug: text('slug').notNull().unique(),
   orgId: text('org_id').notNull(),
   name: text('name').notNull(),
-  // Absolute filesystem path of the project root (where .coodra.json lives).
+  // Absolute filesystem path of the project root (where .coodra/config.json lives).
   // Recorded by the bridge on first SessionStart from a registered cwd, and by
-  // the CLI's `init` command. Nullable for back-compat — pre-2026-05-08 rows
-  // have no recorded cwd; consumers must fall back to process.cwd() in that
-  // case. Used by the web app's pack uploader to write into the project's own
-  // `<cwd>/docs/feature-packs/<slug>/` instead of the web-v2 server's cwd.
+  // the CLI's `init` command. Nullable for older rows with no recorded cwd.
   cwd: text('cwd'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
@@ -242,41 +239,6 @@ export const policyDecisions = sqliteTable(
   (t) => [index('policy_decisions_session_idx').on(t.sessionId, t.createdAt)],
 );
 
-export const featurePacks = sqliteTable('feature_packs', {
-  id: text('id').primaryKey(),
-  slug: text('slug').notNull().unique(),
-  parentSlug: text('parent_slug'),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  checksum: text('checksum').notNull(),
-  // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
-  // admin who pushed the latest revision via the web pack uploader.
-  // NULL when the pack landed via git (filesystem-walked) or solo mode.
-  createdByUserId: text('created_by_user_id'),
-  // Phase F.2 (2026-05-11) — JSON envelope of the four canonical pack
-  // files so cloud Postgres carries the pack content across teammate
-  // machines. Shape:
-  //   { spec: string, implementation: string, techstack: string,
-  //     meta: <meta.json parsed>, sourceFiles: string[] }
-  // Nullable for backwards compat: pre-Phase-F rows landed via the
-  // filesystem walker have content on disk only and this column NULL.
-  // The sync-daemon's syncFeaturePacks dispatch case populates this
-  // on every web/CLI publish; team-rows-puller renders it back to
-  // disk on remote machines.
-  contentJson: text('content_json'),
-  // Phase F.2 — draft/published lifecycle. 'published' = agent-visible
-  // (MCP `get_feature_pack` returns it). 'draft' = web-author-visible
-  // only. Default 'published' preserves pre-Phase-F semantics where
-  // every pack was reachable by the agent.
-  status: text('status').notNull().default('published'),
-  // Phase G slice G.9 — multi-tenancy column. Local SQLite is single-
-  // tenant per laptop (one ~/.coodra = one active org) so this is
-  // informational on the laptop side. The cloud sync includes it for
-  // org-scoped reads. Nullable for backward compat; Phase G+1 tightens.
-  // See packages/db/drizzle/sqlite/0016_feature_packs_org_id.sql.
-  orgId: text('org_id'),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
-});
-
 /**
  * Phase F.1 — features (2026-05-11).
  *
@@ -284,7 +246,7 @@ export const featurePacks = sqliteTable('feature_packs', {
  * lists frontmatter via `coodra__list_features` at SessionStart and
  * pulls the full body via `coodra__get_feature` ONLY when a user
  * prompt matches the trigger. This is the pull-on-trigger layer that
- * complements feature_packs' push-at-SessionStart module blueprints.
+ * complements Work Packs' issue-bound implementation records.
  *
  * Solo mode: `docs/features/<slug>/feature.md` on disk is canonical.
  * Team mode: cloud Postgres is the distribution channel; sync-daemon
@@ -343,9 +305,8 @@ export const features = sqliteTable(
 /**
  * COOD-12 — Work Packs and agent-mediated external planning sync.
  *
- * Work Packs are the repo-local implementation-work artifact that replaces
- * the old product language of "Feature Packs" for new Jira/Atlassian-driven
- * flows. Atlassian remains the owner of auth and issue reads/writes; Coodra
+ * Work Packs are the repo-local implementation-work artifact for Jira/
+ * Atlassian-driven flows. Atlassian remains the owner of auth and issue reads/writes; Coodra
  * stores only local sync state, links, relationship summaries, and generated
  * pack content under `.coodra/work-packs/<slug>/`.
  */
@@ -677,8 +638,6 @@ export type PolicyRule = typeof policyRules.$inferSelect;
 export type NewPolicyRule = typeof policyRules.$inferInsert;
 export type PolicyDecision = typeof policyDecisions.$inferSelect;
 export type NewPolicyDecision = typeof policyDecisions.$inferInsert;
-export type FeaturePack = typeof featurePacks.$inferSelect;
-export type NewFeaturePack = typeof featurePacks.$inferInsert;
 export type Feature = typeof features.$inferSelect;
 export type NewFeature = typeof features.$inferInsert;
 export type IntegrationConnection = typeof integrationConnections.$inferSelect;
@@ -813,7 +772,7 @@ export type NewTeamInvite = typeof teamInvites.$inferInsert;
  * DELETE SET NULL — the wiki outlives its originating session, like
  * decisions). `created_by_user_id` / `org_id` carry team attribution +
  * multi-tenancy (NULL on solo; populated from the verified Clerk JWT in
- * team mode), mirroring `feature_packs`.
+ * team mode), matching the attribution columns used by shared project knowledge.
  */
 export const wikis = sqliteTable(
   'wikis',

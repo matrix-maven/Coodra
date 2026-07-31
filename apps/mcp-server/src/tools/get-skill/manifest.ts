@@ -22,7 +22,7 @@ export function createGetSkillToolRegistration(
     description:
       "Call when the user's prompt matches a skill's trigger description from `list_skills` — never blindly " +
       'pre-load. Skills are pull-based recipes (single markdown + frontmatter + optional supporting files), ' +
-      'distinct from Feature Packs which are MODULE blueprints (push, via `get_feature_pack`). Returns { ok: true, ' +
+      'distinct from Work Packs, which are issue-bound implementation records. Returns { ok: true, ' +
       'slug, frontmatter, body, files: [{path, bytes, modifiedAt}] } where `body` is the full skill markdown ' +
       '(expect 1-30 KB). Supporting file CONTENTS are NOT inlined — call `get_skill_file(slug, path)` ' +
       'per file. Soft-failures: project_not_found / project_cwd_unknown / feature_not_found, each with howToFix. ' +

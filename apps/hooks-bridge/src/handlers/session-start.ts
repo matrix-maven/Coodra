@@ -5,7 +5,6 @@ import type { HookEvent } from '@coodra/shared/hooks';
 import type { HookDispatchResult } from '../app.js';
 import { abandonStaleInProgressRuns } from '../lib/abandon-stale-runs.js';
 import { captureBaseSha } from '../lib/capture-base-sha.js';
-import { loadFeaturePackForSession } from '../lib/feature-pack-loader.js';
 import { loadFeaturesIndexForSession } from '../lib/features-index-loader.js';
 import { loadRecentDecisionsForSession } from '../lib/recent-decisions.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
@@ -34,28 +33,14 @@ const M05_SESSION_CONTRACT = [
 
 /**
  * `apps/hooks-bridge/src/handlers/session-start` — opens the `runs`
- * row AND injects the project-level Feature Pack into the agent's
- * turn-zero context via Claude Code's `additionalContext` field.
+ * row and injects compact run guidance into the agent's turn-zero
+ * context via Claude Code's `additionalContext` field.
  *
- * Decision dec_83ba10c1 (2026-05-02 — Bridge-mediated autonomous
- * coordination defaults, system-architecture §16 Pattern 20). Pre-
- * decision the SessionStart handler returned only `permissionDecision:
- * 'allow'` and the agent had to remember to call `coodra__
- * get_feature_pack` itself. With this change, every Claude Code
- * SessionStart hook ships the pack body inline — no agent action
- * required.
- *
- * Failure modes (all return allow + log):
- *   - projectSlug not resolved (no `.coodra.json` in cwd) → no
- *     additionalContext, log `session_start_no_project_slug`.
- *   - Feature Pack files absent on disk → no additionalContext, log
- *     `session_start_pack_not_found`. Agents fall through to the
- *     §24 MCP tool path if they need it mid-session.
- *
- * Audit (run_events / runs row) is fire-and-forget per §16 pattern
- * 3 outbox. Pack injection is awaited because the response shape
- * carries it; latency is bounded by the three Promise.all reads
- * against `<cwd>/docs/feature-packs/<slug>/*.md` (~1ms typical).
+ * Audit (run_events / runs row) is fire-and-forget per §16 pattern 3
+ * outbox. Context injection is limited to current agent-operational
+ * surfaces: the skills index, the session contract, and recent
+ * decisions. Legacy Feature Pack autoload was retired when Work Packs
+ * became the issue-bound planning artifact.
  */
 
 const sessionStartLogger = createLogger('hooks-bridge.session-start');
@@ -146,16 +131,9 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
       });
     }
 
-    // M05 §6.C + §7: assemble the additionalContext from three blocks,
-    // separated by horizontal rules. Order matters — feature pack first
-    // (the project body), session contract second (priming), recent
-    // decisions last (situational awareness):
-    //   1. Feature Pack content (existing — Pattern 20 from M04)
-    //   2. Session Contract (M05 §6.C — compliance reminder, always)
-    //   3. Recent decisions (M05 §7 — cross-developer awareness)
-    // Each block independently fail-opens; the contract is static so
-    // it always renders.
-    let featurePackBlock: string | null = null;
+    // M05 §6.C + §7: assemble the additionalContext from independent
+    // blocks separated by horizontal rules. The contract is static so it
+    // always renders; dynamic blocks fail-open.
     let featuresIndexBlock: string | null = null;
     let recentDecisionsBlock: string | null = null;
     const slugValue = typeof slug === 'string' && slug.length > 0 ? slug : null;
@@ -163,22 +141,6 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     if (slugValue !== null && cwdValue !== null) {
       const projectSlug: string = slugValue;
       const cwd: string = cwdValue;
-      try {
-        const loaded = await loadFeaturePackForSession({ cwd, projectSlug });
-        if (loaded !== null) {
-          featurePackBlock = loaded.content;
-        }
-      } catch (err) {
-        sessionStartLogger.warn(
-          {
-            event: 'session_start_feature_pack_load_failed',
-            sessionId: event.sessionId,
-            projectSlug,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          'feature-pack load threw; SessionStart proceeding without feature-pack block',
-        );
-      }
       // 2026-05-08 — features index injection (Phase C of the skill-style
       // features rollout). Independently fail-opens; if `docs/features/`
       // doesn't exist or the index is unreadable, this returns null and
@@ -241,15 +203,12 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
       );
     }
 
-    // Block ordering (load-bearing — mirrors the M05 design ordering doc
-    // with the new features-index slot appended after the pack):
-    //   1. Feature Pack body          — global project conventions
-    //   2. Features index             — skill-style "what's available"
-    //   3. Session Contract           — compliance reminder (always)
-    //   4. Recent decisions           — situational awareness
+    // Block ordering:
+    //   1. Skills index       — skill-style "what's available"
+    //   2. Session Contract   — compliance reminder (always)
+    //   3. Recent decisions   — situational awareness
     // Each block is independent: any missing block just doesn't surface.
     const blocks: string[] = [];
-    if (featurePackBlock !== null) blocks.push(featurePackBlock);
     if (featuresIndexBlock !== null) blocks.push(featuresIndexBlock);
     blocks.push(M05_SESSION_CONTRACT);
     if (recentDecisionsBlock !== null) blocks.push(recentDecisionsBlock);

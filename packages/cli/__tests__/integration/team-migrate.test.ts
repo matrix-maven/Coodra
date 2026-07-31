@@ -89,7 +89,6 @@ let cloud: PostgresHandle;
       await cloud.raw.unsafe('DELETE FROM run_diffs');
       await cloud.raw.unsafe('DELETE FROM runs');
       await cloud.raw.unsafe('DELETE FROM policies');
-      await cloud.raw.unsafe('DELETE FROM feature_packs');
       await cloud.raw.unsafe(`DELETE FROM projects WHERE id <> '__global__'`);
     }
   });

@@ -96,8 +96,8 @@ export default async function SettingsPage() {
               <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
                 Defaults
               </h3>
-              <ToggleRow title="Auto-pack on SessionEnd" sub="FIRES PATTERN-20 INJECTOR" on />
-              <ToggleRow title="Inject feature packs at SessionStart" sub="PROJECT-SCOPED · PARENT CHAIN" on />
+              <ToggleRow title="Auto-pack on SessionEnd" sub="CAPTURES RUN CONTEXT" on />
+              <ToggleRow title="Load project context at SessionStart" sub="SKILLS · DECISIONS · CONTRACT" on />
               <ToggleRow title="Telemetry" sub="NONE · BY DESIGN" />
               <ToggleRow title="Doctor · auto-fix on init" sub="SAFE FIXES ONLY" />
             </div>

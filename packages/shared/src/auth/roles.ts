@@ -149,13 +149,13 @@ export function assertCanResumeKillSwitch(
 
 /**
  * Phase F.3 — knowledge-layer authoring gate. An actor may CREATE or
- * EDIT (when also owner) a feature / feature_pack iff they are `admin`
+ * EDIT (when also owner) shared project knowledge iff they are `admin`
  * or `member`. Viewers are explicitly excluded — the viewer role is
  * read-only by definition and authoring a draft would violate that
  * contract regardless of subsequent publish gating.
  *
- * The `member` floor is intentional: features and feature packs ARE
- * the team's shared knowledge — every team member should be able to
+ * The `member` floor is intentional: skills, Work Packs, wiki pages,
+ * and context packs are shared knowledge — every team member should be able to
  * contribute. The publish step (separately gated by ownership +
  * admin override via `assertCanEditKnowledge`) is where review-style
  * gates would normally land, but Phase F.3 ships with auto-publish
@@ -166,23 +166,21 @@ export function assertCanResumeKillSwitch(
  */
 export function assertCanAuthorKnowledge(actor: Actor): void {
   if (hasRole(actor, 'member')) return;
-  throw new ForbiddenError(
-    `Requires role 'member' or higher to author features or feature packs; actor has '${actor.role}'.`,
-  );
+  throw new ForbiddenError(`Requires role 'member' or higher to author project knowledge; actor has '${actor.role}'.`);
 }
 
 /**
  * Phase F.3 — knowledge-layer edit gate. Mirrors `assertCanEdit` with
  * a knowledge-tailored rationale:
  *
- *   - admin       → can edit ANY feature / feature_pack
- *   - member      → can edit OWN feature / feature_pack (createdByUserId
+ *   - admin       → can edit ANY shared knowledge row
+ *   - member      → can edit OWN shared knowledge row (createdByUserId
  *                   matches actor.userId)
  *   - viewer      → never
  *   - null owner  → admin-only (unattributed rows have no ownership claim)
  *
- * Use this from web server actions that mutate `features` / `feature_packs`
- * rows and from the MCP / sync-daemon layers that would expose a
+ * Use this from web server actions that mutate shared knowledge rows and
+ * from the MCP / sync-daemon layers that would expose a
  * cross-user write surface in future iterations. The default
  * `allowOwner: true` reflects "Phase F.3 RBAC table" defaults — opt
  * back to admin-only by passing `{ allowOwner: false }` for surgical

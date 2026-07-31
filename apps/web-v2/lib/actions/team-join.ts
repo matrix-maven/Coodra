@@ -56,10 +56,10 @@ const REQUIRED_TABLES: ReadonlyArray<string> = [
   'policies',
   'policy_rules',
   'policy_decisions',
-  'feature_packs',
   'decisions',
   'kill_switches',
   'run_diffs',
+  'work_packs',
 ];
 
 export async function joinExistingTeamAction(formData: FormData): Promise<void> {

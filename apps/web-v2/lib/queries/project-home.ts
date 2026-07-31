@@ -2,7 +2,6 @@ import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra
 import { and, count, desc, eq, gt } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
-import { listPacks, type PackListRow, packsRoot } from '@/lib/queries/packs';
 
 /**
  * `apps/web/lib/queries/project-home.ts` — server-only aggregator for
@@ -24,17 +23,9 @@ export interface ProjectHomeEvent {
   readonly createdAt: string; // ISO
 }
 
-export interface ProjectHomePackInfo {
-  /** Pack whose slug == projectSlug. The bridge auto-injects this on SessionStart. */
-  readonly primary: PackListRow | null;
-  /** Ancestors via meta.json:parentSlug, root-first. Resolved on the MCP side at get_feature_pack time. */
-  readonly chain: ReadonlyArray<PackListRow>;
-  /** True if walking the parent chain hit a slug already visited (cycle in meta.json). */
-  readonly cycleDetected: boolean;
-  /** Slug referenced as parent but missing from disk; null if the chain resolves cleanly. */
-  readonly missingAncestor: string | null;
-  /** Resolved <repo>/docs/feature-packs root for the panel's metadata strip. */
-  readonly packsRoot: string;
+export interface ProjectHomeWorkPackInfo {
+  readonly total: number;
+  readonly active: number;
 }
 
 export interface ProjectHomeSnapshot {
@@ -46,32 +37,28 @@ export interface ProjectHomeSnapshot {
   readonly latestEvents: ReadonlyArray<ProjectHomeEvent>;
   readonly mode: 'solo' | 'team';
   readonly fetchedAt: string;
-  readonly pack: ProjectHomePackInfo;
+  readonly workPacks: ProjectHomeWorkPackInfo;
 }
 
 export async function fetchProjectHomeSnapshot(args: {
   readonly projectId: string;
   readonly projectSlug: string;
   /**
-   * Absolute path of the project root from `projects.cwd`. When supplied,
-   * pack lookups read from `<projectCwd>/docs/feature-packs/<slug>/`. Null
-   * for pre-2026-05-08 rows where the bridge / CLI never recorded the cwd
-   * — the panel falls back to web-v2's process.cwd() so it still renders
-   * something, but uploads should not be encouraged in that state.
+   * Absolute path of the project root from `projects.cwd`. Null for rows
+   * created before cwd capture shipped.
    */
   readonly projectCwd?: string | null;
 }): Promise<ProjectHomeSnapshot> {
   const handle = createWebDb();
   const mode = (process.env.COODRA_MODE === 'team' ? 'team' : 'solo') as 'solo' | 'team';
 
-  const [activeRunsCount, denials24hCount, activeKillSwitches, latestEvents] = await Promise.all([
+  const [activeRunsCount, denials24hCount, activeKillSwitches, latestEvents, workPacks] = await Promise.all([
     countActiveRunsForProject(handle, args.projectId),
     countDenialsLast24hForProject(handle, args.projectId),
     countKillSwitchesForProjectSlug(handle, args.projectSlug),
     fetchLatestEventsForProject(handle, args.projectId),
+    countWorkPacksForProject(handle, args.projectId),
   ]);
-  // Pack info is filesystem-only — no DB hit, no Promise.all entry.
-  const pack = await fetchProjectPackInfo(args.projectSlug, args.projectCwd ?? process.cwd());
 
   return {
     projectId: args.projectId,
@@ -82,62 +69,7 @@ export async function fetchProjectHomeSnapshot(args: {
     latestEvents,
     mode,
     fetchedAt: new Date().toISOString(),
-    pack,
-  };
-}
-
-/**
- * Resolve the project's feature-pack situation purely from the filesystem.
- *
- * - "Primary" = the pack whose slug equals the project's slug. This is the
- *   one the bridge auto-injects on SessionStart (see
- *   `apps/hooks-bridge/src/lib/feature-pack-loader.ts:72-74`).
- * - "Chain" = root-first walk of `meta.json:parentSlug` ancestors. Only the
- *   MCP-side `get_feature_pack` walks this at runtime
- *   (`apps/mcp-server/src/lib/feature-pack.ts:330-357`); we mirror the
- *   algorithm here so the project home can preview what the agent sees.
- *
- * Async since Phase F.6+ — `listPacks()` is async now so it can query
- * the cloud Postgres in team-hosted mode + the local SQLite mirror.
- */
-export async function fetchProjectPackInfo(
-  projectSlug: string,
-  cwd: string = process.cwd(),
-): Promise<ProjectHomePackInfo> {
-  const allPacks = await listPacks(cwd);
-  const bySlug = new Map(allPacks.map((p) => [p.slug, p]));
-  const primary = bySlug.get(projectSlug) ?? null;
-
-  const chain: PackListRow[] = [];
-  let cycleDetected = false;
-  let missingAncestor: string | null = null;
-
-  if (primary !== null && primary.parentSlug !== null) {
-    const visited = new Set<string>([primary.slug]);
-    let cursor: string | null = primary.parentSlug;
-    while (cursor !== null) {
-      if (visited.has(cursor)) {
-        cycleDetected = true;
-        break;
-      }
-      visited.add(cursor);
-      const parent = bySlug.get(cursor);
-      if (parent === undefined) {
-        missingAncestor = cursor;
-        break;
-      }
-      chain.push(parent);
-      cursor = parent.parentSlug;
-    }
-    chain.reverse(); // root-first to mirror walkAncestors output
-  }
-
-  return {
-    primary,
-    chain,
-    cycleDetected,
-    missingAncestor,
-    packsRoot: packsRoot(cwd),
+    workPacks,
   };
 }
 
@@ -156,6 +88,32 @@ async function countActiveRunsForProject(handle: ReturnType<typeof createWebDb>,
     .from(t)
     .where(and(eq(t.status, 'in_progress'), eq(t.projectId, projectId)));
   return Number(rows[0]?.n ?? 0);
+}
+
+async function countWorkPacksForProject(
+  handle: ReturnType<typeof createWebDb>,
+  projectId: string,
+): Promise<ProjectHomeWorkPackInfo> {
+  if (handle.kind === 'sqlite') {
+    const t = sqliteSchema.workPacks;
+    const [totalRows, activeRows] = await Promise.all([
+      handle.db.select({ n: count() }).from(t).where(eq(t.projectId, projectId)),
+      handle.db
+        .select({ n: count() })
+        .from(t)
+        .where(and(eq(t.projectId, projectId), eq(t.status, 'active'))),
+    ]);
+    return { total: Number(totalRows[0]?.n ?? 0), active: Number(activeRows[0]?.n ?? 0) };
+  }
+  const t = postgresSchema.workPacks;
+  const [totalRows, activeRows] = await Promise.all([
+    handle.db.select({ n: count() }).from(t).where(eq(t.projectId, projectId)),
+    handle.db
+      .select({ n: count() })
+      .from(t)
+      .where(and(eq(t.projectId, projectId), eq(t.status, 'active'))),
+  ]);
+  return { total: Number(totalRows[0]?.n ?? 0), active: Number(activeRows[0]?.n ?? 0) };
 }
 
 async function countDenialsLast24hForProject(

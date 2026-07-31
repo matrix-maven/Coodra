@@ -28,7 +28,7 @@ import type {
  *   5. projects    — INSERT projects rows (with conflict-resolved slugs)
  *   6. runs        — INSERT runs rows (project_id rewritten via map)
  *   7. children    — INSERT run_events, decisions, context_packs, run_diffs
- *   8. org_scoped  — INSERT policies, feature_packs (kill_switches discarded)
+ *   8. org_scoped  — INSERT policies (kill_switches discarded)
  *   9. verify      — row-count parity check local vs cloud
  *  10. rewrite_local — UPDATE local SQLite project_id columns to match cloud
  *                     (so subsequent local writes target the team rows)
@@ -66,7 +66,6 @@ export async function executeMigration(input: ExecuteMigrationInput): Promise<Mi
     decisions: number;
     policies: number;
     killSwitches: number;
-    featurePacks: number;
     runDiffs: number;
   } = {
     projects: 0,
@@ -76,7 +75,6 @@ export async function executeMigration(input: ExecuteMigrationInput): Promise<Mi
     decisions: 0,
     policies: 0,
     killSwitches: 0,
-    featurePacks: 0,
     runDiffs: 0,
   };
 
@@ -121,7 +119,6 @@ export async function executeMigration(input: ExecuteMigrationInput): Promise<Mi
     await runPhase('org_scoped', progress, async () => {
       const c = await migrateOrgScoped(input, attemptId);
       counts.policies = c.policies;
-      counts.featurePacks = c.featurePacks;
     });
 
     await runPhase('verify', progress, async () => {
@@ -411,12 +408,11 @@ async function migrateChildren(input: ExecuteMigrationInput, attemptId: string):
 }
 
 // ---------------------------------------------------------------------------
-// Phase 8 — Org-scoped (policies, feature_packs)
+// Phase 8 — Org-scoped (policies)
 // ---------------------------------------------------------------------------
 
 interface OrgScopedCounts {
   readonly policies: number;
-  readonly featurePacks: number;
 }
 
 async function migrateOrgScoped(input: ExecuteMigrationInput, attemptId: string): Promise<OrgScopedCounts> {
@@ -448,27 +444,7 @@ async function migrateOrgScoped(input: ExecuteMigrationInput, attemptId: string)
     policies += 1;
   }
 
-  // feature_packs: slug-keyed at cloud level. Local pack landing in
-  // cloud uses ON CONFLICT (slug) DO NOTHING — first-write-wins.
-  let featurePacks = 0;
-  const localPacks = await input.local.db.select().from(sqliteSchema.featurePacks);
-  for (const p of localPacks) {
-    await input.cloud.db
-      .insert(postgresSchema.featurePacks)
-      .values({
-        id: p.id,
-        slug: p.slug,
-        parentSlug: p.parentSlug,
-        isActive: p.isActive,
-        checksum: p.checksum,
-        createdByUserId: p.createdByUserId ?? input.plan.clerkUserId,
-        updatedAt: p.updatedAt,
-      })
-      .onConflictDoNothing({ target: postgresSchema.featurePacks.slug });
-    featurePacks += 1;
-  }
-
-  return { policies, featurePacks };
+  return { policies };
 }
 
 // ---------------------------------------------------------------------------

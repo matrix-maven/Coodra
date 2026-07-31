@@ -6,7 +6,6 @@ import type {
   ContextDeps,
   ContextPackStore,
   DbClient,
-  FeaturePackStore,
   Identity,
   PolicyClient,
   RunRecorder,
@@ -38,7 +37,6 @@ export interface MakeFakeDepsOptions {
   readonly policy?: PolicyClient;
   readonly auth?: AuthClient;
   readonly db?: DbClient;
-  readonly featurePack?: FeaturePackStore;
   readonly contextPack?: ContextPackStore;
   readonly runRecorder?: RunRecorder;
 }
@@ -118,7 +116,6 @@ export function makeFakeDeps(overrides: MakeFakeDepsOptions = {}): ContextDeps {
     logger: createLogger('mcp-server.test'),
     auth: overrides.auth ?? fakeAuth(),
     policy,
-    featurePack: overrides.featurePack ?? notImpl<FeaturePackStore>('featurePack'),
     contextPack: overrides.contextPack ?? notImpl<ContextPackStore>('contextPack'),
     runRecorder: overrides.runRecorder ?? noopRunRecorder(),
   }) satisfies ContextDeps;

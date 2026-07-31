@@ -87,7 +87,7 @@ const isEnabled = typeof databaseUrl === 'string' && databaseUrl.length > 0;
       expect.arrayContaining([
         'context_packs',
         'decisions',
-        'feature_packs',
+        'work_packs',
         'pending_jobs',
         'policies',
         'policy_decisions',

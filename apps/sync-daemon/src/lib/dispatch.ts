@@ -81,11 +81,6 @@ const SYNC_TABLES = [
   // Closes the "knowledge artifacts are git-distributed not Coodra-
   // distributed" gap from Phase E's demo audit.
   'features',
-  // Phase F.2 (2026-05-11) — module blueprint cloud sync. Same idea
-  // as features, applied to the heavier feature_packs layer (spec.md
-  // + implementation.md + techstack.md + meta.json bundled into the
-  // `content_json` column added by migration 0015/0016).
-  'feature_packs',
   // Module 10 (Deep Wiki, 2026-06-06) — wikis (the structure envelope) +
   // wiki_pages (per-page content) so a wiki authored on the admin's
   // machine reaches cloud and renders cross-machine. Both mutable →
@@ -207,8 +202,6 @@ async function syncOne(args: SyncOneArgs): Promise<boolean> {
       return syncKillSwitches(args);
     case 'features':
       return syncFeatures(args);
-    case 'feature_packs':
-      return syncFeaturePacks(args);
     case 'wikis':
       return syncWikis(args);
     case 'wiki_pages':
@@ -227,7 +220,7 @@ const LOCAL_ONLY_ORGS: ReadonlySet<string> = new Set(['__solo__', '__global__'])
 
 /**
  * Phase H.1 (2026-05-12) — ensure the parent `projects` row is in cloud
- * before a dependent feature/feature_packs row tries to FK to it. Mirrors
+ * before a dependent feature row tries to FK to it. Mirrors
  * `ensureRunAndProjectInCloud` but scoped to the project (no runs row).
  *
  * Used by `syncFeatures` because the order in which projects-vs-features
@@ -269,7 +262,7 @@ async function ensureProjectInCloud(
   }
   helperLog.info(
     { event: 'ensure_project_pushing', projectId, slug: localProject.slug },
-    'pushing parent project to cloud (features/feature_packs guard)',
+    'pushing parent project to cloud (features guard)',
   );
   await cloudDb.db
     .insert(postgresSchema.projects)
@@ -730,71 +723,6 @@ async function syncFeatures({ localDb, cloudDb, lookup, log, jobId }: SyncOneArg
   log.debug(
     { event: 'sync_features_pushed', jobId, featureId: row.id, slug: row.slug, status: row.status },
     'features row pushed to cloud',
-  );
-  return true;
-}
-
-/**
- * Phase F.2 — feature_packs push.
- *
- * Mirrors `syncFeatures` for the module-blueprint layer. Lookup is by
- * `slug` (or `id`) since `feature_packs` is project-agnostic — slug is
- * globally unique by design (see `feature-pack.ts` comment). Pushes the
- * full `content_json` envelope so the cloud row carries the spec.md +
- * implementation.md + techstack.md + meta.json bundle in one place.
- *
- * ON CONFLICT (slug) DO UPDATE — re-publishing the same slug is an
- * idempotent update, not a duplicate. Same conflict-resolution pattern
- * as features: last-write-wins by `updated_at`; the puller's filesystem
- * writeback handles the local-mtime-vs-cloud-updated_at sidecar logic.
- *
- * No FK satisfaction needed — feature_packs doesn't reference projects.
- * (The "scope by project" question is open per the existing
- * `apps/mcp-server/src/lib/feature-pack.ts` comment; until that lands,
- * cloud sync is unscoped too.)
- */
-async function syncFeaturePacks({ localDb, cloudDb, lookup, log, jobId }: SyncOneArgs): Promise<boolean> {
-  const lt = sqliteSchema.featurePacks;
-  let row: typeof lt.$inferSelect | undefined;
-  if (lookup.kind === 'id') {
-    row = (await localDb.db.select().from(lt).where(eq(lt.id, lookup.value)).limit(1))[0];
-  } else if (lookup.kind === 'idempotency_key') {
-    // The CLI/web enqueue uses lookup={ kind: 'idempotency_key', value: slug }
-    // because the slug IS the natural idempotent key for feature_packs.
-    row = (await localDb.db.select().from(lt).where(eq(lt.slug, lookup.value)).limit(1))[0];
-  } else {
-    return false;
-  }
-  if (!row) return false;
-  const ct = postgresSchema.featurePacks;
-  await cloudDb.db
-    .insert(ct)
-    .values({
-      id: row.id,
-      slug: row.slug,
-      parentSlug: row.parentSlug,
-      isActive: row.isActive,
-      checksum: row.checksum,
-      createdByUserId: row.createdByUserId,
-      contentJson: row.contentJson,
-      status: row.status,
-      updatedAt: row.updatedAt,
-    })
-    .onConflictDoUpdate({
-      target: [ct.slug],
-      set: {
-        parentSlug: row.parentSlug,
-        isActive: row.isActive,
-        checksum: row.checksum,
-        contentJson: row.contentJson,
-        status: row.status,
-        createdByUserId: row.createdByUserId,
-        updatedAt: row.updatedAt,
-      },
-    });
-  log.debug(
-    { event: 'sync_feature_packs_pushed', jobId, featurePackId: row.id, slug: row.slug, status: row.status },
-    'feature_packs row pushed to cloud',
   );
   return true;
 }

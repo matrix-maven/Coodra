@@ -72,19 +72,6 @@ import {
   runOrgStatusCommand,
   runOrgSwitchCommand,
 } from './commands/org.js';
-import {
-  type PackDeleteOptions,
-  type PackIO,
-  type PackListOptions,
-  type PackNewOptions,
-  type PackRegenerateOptions,
-  type PackShowOptions,
-  runPackDeleteCommand,
-  runPackListCommand,
-  runPackNewCommand,
-  runPackRegenerateCommand,
-  runPackShowCommand,
-} from './commands/pack.js';
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
 import {
   type PolicyAddOptions,
@@ -294,12 +281,6 @@ interface BuildProgramOptions {
   readonly runRunCancel?: (runId: string, options: RunCancelOptions, io?: RunIO) => Promise<unknown>;
   readonly exportIO?: ExportIO;
   readonly runExport?: (runId: string, options: ExportOptions, io?: ExportIO) => Promise<unknown>;
-  readonly packIO?: PackIO;
-  readonly runPackNew?: (slug: string, options: PackNewOptions, io?: PackIO) => Promise<unknown>;
-  readonly runPackList?: (options: PackListOptions, io?: PackIO) => Promise<unknown>;
-  readonly runPackShow?: (slug: string, options: PackShowOptions, io?: PackIO) => Promise<unknown>;
-  readonly runPackRegenerate?: (slug: string, options: PackRegenerateOptions, io?: PackIO) => Promise<unknown>;
-  readonly runPackDelete?: (slug: string, options: PackDeleteOptions, io?: PackIO) => Promise<unknown>;
   readonly templateIO?: TemplateIO;
   readonly runTemplateList?: (options: TemplateListOptions, io?: TemplateIO) => Promise<unknown>;
   readonly runTemplateInstall?: (source: string, options: TemplateInstallOptions, io?: TemplateIO) => Promise<unknown>;
@@ -318,7 +299,7 @@ interface BuildProgramOptions {
  * file — bodies are stubbed to exit 99 in S1 and replaced slice-by-slice
  * (`init` in S5, `doctor` in S3, `start`/`stop` in S7, `status` + team
  * `login`/`logout` in S8). The slice each stub names matches
- * `docs/feature-packs/08a-cli/implementation.md`.
+ * the module implementation docs.
  */
 export function buildProgram(options: BuildProgramOptions = {}): Command {
   // writeStderr is reserved for future stub commands. Currently every
@@ -511,7 +492,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       "Wire Graphify's codebase-graph MCP server (a structural-query tool) into your agent config " +
         '(Claude Code / Cursor / Windsurf / Codex). Option C per ADR-010 / ADR-015 — Coodra consumes Graphify ' +
-        'by configuration, not code, and mints no Feature Packs from it.',
+        'by configuration, not code, and does not mint Work Packs from it.',
     );
   graphify
     .command('enable')
@@ -1061,7 +1042,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   // Module 08b S17 — template admin (list, install).
-  const tmpl = program.command('template').description('Manage feature-pack templates (bundled + user-installed).');
+  const tmpl = program.command('template').description('Manage reusable Coodra templates (bundled + user-installed).');
   const templateListRunner = options.runTemplateList ?? runTemplateListCommand;
   tmpl
     .command('list')
@@ -1081,65 +1062,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (source: string, opts: TemplateInstallOptions) => {
       await templateInstallRunner(source, opts, options.templateIO);
-    });
-
-  // Module 08b S16 — pack admin (new, list, show, regenerate, delete).
-  const pack = program.command('pack').description('Manage docs/feature-packs/<slug>/ directories.');
-  const packNewRunner = options.runPackNew ?? runPackNewCommand;
-  pack
-    .command('new <slug>')
-    .description('Create a new feature pack folder + 4-file scaffold from a template.')
-    .option('--template <name|path>', 'Bundled template name OR a path to a local template dir.')
-    .option('--parent <slug>', 'parentSlug for inheritance (recorded in meta.json#parentSlug).')
-    .option('--mode <mode>', 'minimal | default | auto (auto detects template + populates @auto sections).')
-    .option('--force', 'Overwrite an existing pack at this slug.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (slug: string, opts: PackNewOptions) => {
-      await packNewRunner(slug, opts, options.packIO);
-    });
-  const packListRunner = options.runPackList ?? runPackListCommand;
-  pack
-    .command('list')
-    .description(
-      'List every feature pack under docs/feature-packs/, with isActive + parentSlug + missing-file warnings.',
-    )
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: PackListOptions) => {
-      await packListRunner(opts, options.packIO);
-    });
-  const packShowRunner = options.runPackShow ?? runPackShowCommand;
-  pack
-    .command('show <slug>')
-    .description('Print one pack: meta.json + first 2KB excerpt of each markdown file + missing-file flags.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (slug: string, opts: PackShowOptions) => {
-      await packShowRunner(slug, opts, options.packIO);
-    });
-  const packRegenerateRunner = options.runPackRegenerate ?? runPackRegenerateCommand;
-  pack
-    .command('regenerate <slug>')
-    .description(
-      'Refresh @auto sections in spec/implementation/techstack from project shape. Preserves all user-edited content outside markers.',
-    )
-    .option(
-      '--mode <mode>',
-      'auto (default) | minimal — auto repopulates from project shape; minimal leaves placeholders.',
-    )
-    .option('--dry-run', 'Print which files would change without writing.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (slug: string, opts: PackRegenerateOptions) => {
-      await packRegenerateRunner(slug, opts, options.packIO);
-    });
-  const packDeleteRunner = options.runPackDelete ?? runPackDeleteCommand;
-  pack
-    .command('delete <slug>')
-    .description(
-      'Remove docs/feature-packs/<slug>/ from disk + flip feature_packs.is_active to false (row preserved per ADR-007). Refuses without --force.',
-    )
-    .option('--force', 'Confirm the destructive delete (required).')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (slug: string, opts: PackDeleteOptions) => {
-      await packDeleteRunner(slug, opts, options.packIO);
     });
 
   // 2026-05-08 — skills admin (skill-style knowledge units under
@@ -1272,7 +1194,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('uninstall')
     .description(
-      'Reverse `coodra init`: stop + remove the daemon units (mcp-server, hooks-bridge, sync-daemon, web), strip Coodra entries from ~/.claude/settings.json + .mcp.json + per-agent files. Default-safe (preserves data + config + feature/context packs); --remove-data drops the SQLite store; --purge removes ~/.coodra/.',
+      'Reverse `coodra init`: stop + remove the daemon units (mcp-server, hooks-bridge, sync-daemon, web), strip Coodra entries from ~/.claude/settings.json + .mcp.json + per-agent files. Default-safe (preserves data + config + project work); --remove-data drops the SQLite store; --purge removes ~/.coodra/.',
     )
     .option('--remove-data', 'Delete ~/.coodra/data.db (+ -wal/-shm) but keep config + packs.')
     .option('--purge', 'Remove ~/.coodra/ as well (data + config + logs + pids).')

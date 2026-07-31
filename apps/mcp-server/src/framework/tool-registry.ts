@@ -499,7 +499,7 @@ export class ToolRegistry {
     //   - If the tool's input has a non-empty `runId` field, record with
     //     that runId and `phase: 'mcp_call'`. This catches the high-value
     //     cases (record_decision, save_context_pack, etc.).
-    //   - If no runId is available (ping, get_run_id itself, get_feature_pack
+    //   - If no runId is available (ping, get_run_id itself
     //     called pre-runId), skip — the row would have null run_id and
     //     end up in the orphan-events bucket.
     //   - Fire-and-forget; failure is logged but never blocks the

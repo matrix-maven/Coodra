@@ -116,7 +116,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(block).toContain('the-slug');
     for (const tool of [
       'coodra__get_run_id',
-      'coodra__get_feature_pack',
+      'coodra__work_pack_status',
       'coodra__check_policy',
       'coodra__record_decision',
       'coodra__save_context_pack',

@@ -46,7 +46,6 @@ const tablePairs = [
   ['policies', sq.policies, pg.policies],
   ['policy_rules', sq.policyRules, pg.policyRules],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
-  ['feature_packs', sq.featurePacks, pg.featurePacks],
   ['integration_connections', sq.integrationConnections, pg.integrationConnections],
   ['external_work_items', sq.externalWorkItems, pg.externalWorkItems],
   ['work_packs', sq.workPacks, pg.workPacks],
@@ -89,7 +88,6 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(sq.policies).toBeDefined();
     expect(sq.policyRules).toBeDefined();
     expect(sq.policyDecisions).toBeDefined();
-    expect(sq.featurePacks).toBeDefined();
     expect(sq.decisions).toBeDefined();
     expect(sq.killSwitches).toBeDefined();
     expect(sq.runDiffs).toBeDefined();
@@ -114,7 +112,6 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(pg.policies).toBeDefined();
     expect(pg.policyRules).toBeDefined();
     expect(pg.policyDecisions).toBeDefined();
-    expect(pg.featurePacks).toBeDefined();
     expect(pg.decisions).toBeDefined();
     expect(pg.killSwitches).toBeDefined();
     expect(pg.runDiffs).toBeDefined();

@@ -24,7 +24,7 @@ import { refuseInTeamHosted } from '@/lib/action-guards';
  * Both wrap the 9·Core writers from `@coodra/cli` — the same idempotent,
  * never-clobber code the CLI's `coodra graphify` command runs. They
  * autodetect IDEs exactly like `coodra graphify enable` with no `--ide`.
- * Coodra mints no Feature Packs from the graph (ADR-015) — the agent
+ * Coodra mints no Work Packs from the graph — the agent
  * calls Graphify's query tools directly.
  *
  * Deployment gate: `refuseInTeamHosted`. A deployed (team-hosted) web

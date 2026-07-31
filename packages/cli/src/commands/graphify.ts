@@ -38,13 +38,8 @@ import { recordArtifactsInManifest, renderScan } from './graphify-artifacts.js';
  * command adds a `graphify` entry next to the `coodra` entry in each
  * agent's config, and the agent calls Graphify's query tools directly.
  *
- * Coodra mints NO Feature Packs from the graph. The
- * `seed_feature_packs_from_graph` + `build_codebase_graph` tools and the
- * `graphify-seed-packs` recipe were retired 2026-05-23 (ADR-015): a
- * 1-community-1-pack dump produced hundreds of un-injectable shells (73%
- * single-file noise on a real repo) and the resolution layer never
- * surfaced them. Feature Packs stay human/agent-authored at module
- * granularity; Graphify's value is its query layer.
+ * Coodra mints NO Work Packs from the graph. Graphify stays structural
+ * context; Work Packs stay issue-bound records imported from planning tools.
  *
  * The per-IDE wiring is delegated to `lib/init/graphify-wire.ts`, which
  * sits on the 9·Core substrate: `external-mcp-merge.ts` for the JSON

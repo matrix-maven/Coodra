@@ -173,7 +173,6 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
               { href: '/features', label: 'Skills', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
@@ -210,7 +209,6 @@ export function Sidebar({
             label: 'Knowledge',
             items: [
               { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/packs', label: 'Feature packs', icon: <IconPack /> },
               { href: '/features', label: 'Skills', icon: <IconLedger /> },
               { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
               { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },

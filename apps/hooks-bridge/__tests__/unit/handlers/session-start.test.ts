@@ -10,24 +10,21 @@ import type { ProjectSlugResolver } from '../../../src/lib/resolve-project-slug.
 import type { RunRecorder } from '../../../src/lib/run-recorder.js';
 
 /**
- * Locks the dec_83ba10c1 (2026-05-02) SessionStart auto-inject
- * contract — system-architecture §16 Pattern 20:
+ * Locks the SessionStart context contract:
  *
- *   1. With a resolved projectSlug AND feature-pack files on disk,
+ *   1. With a resolved projectSlug AND skills index on disk,
  *      the handler returns `permissionDecision: 'allow'` AND
- *      `additionalContext` containing the project Feature Pack
- *      body (spec.md, implementation.md, techstack.md).
+ *      `additionalContext` containing the skills index.
  *
- *   2. With a resolved projectSlug but NO feature-pack files,
- *      the handler still returns 'allow' but skips additionalContext.
+ *   2. With a resolved projectSlug but no optional context files,
+ *      the handler still returns 'allow' plus the session contract.
  *
  *   3. Without a resolved projectSlug (no `.coodra.json`), the
- *      handler returns 'allow' with no additionalContext and logs
+ *      handler returns 'allow' with contract-only additionalContext and logs
  *      `session_start_no_project_slug`.
  *
  *   4. The runs row audit (`runRecorder.recordSessionStart`) is
- *      always scheduled — Feature Pack absence does NOT disable
- *      audit.
+ *      always scheduled.
  */
 
 function makeEvent(overrides: Partial<HookEvent> = {}): HookEvent {
@@ -53,7 +50,7 @@ const stubRecorder: RunRecorder = {
 
 const fakeDb = { kind: 'sqlite', db: {}, raw: {}, close: () => {} } as unknown as DbHandle;
 
-describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
+describe('createSessionStartHandler — SessionStart context', () => {
   let cwd: string;
 
   beforeEach(async () => {
@@ -64,13 +61,26 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     /* tmp cleaned by OS */
   });
 
-  it('injects additionalContext with the Feature Pack body when slug + files resolve', async () => {
+  it('injects additionalContext with the skills index when slug + index resolve', async () => {
     const slug = 'auto-inject-target';
-    const packDir = join(cwd, 'docs', 'feature-packs', slug);
-    await mkdir(packDir, { recursive: true });
-    await writeFile(join(packDir, 'spec.md'), '# spec body line', 'utf8');
-    await writeFile(join(packDir, 'implementation.md'), '# impl body line', 'utf8');
-    await writeFile(join(packDir, 'techstack.md'), '# tech body line', 'utf8');
+    const skillsDir = join(cwd, 'docs', 'skills');
+    await mkdir(skillsDir, { recursive: true });
+    await mkdir(join(skillsDir, 'ship-cleanly'), { recursive: true });
+    await writeFile(
+      join(skillsDir, 'ship-cleanly', 'feature.md'),
+      [
+        '---',
+        'name: ship-cleanly',
+        'description: Use this when preparing Coodra release checks for `packages/cli`.',
+        'maturity: stable',
+        'tags:',
+        '  - release',
+        '---',
+        '',
+        '# Ship Cleanly',
+      ].join('\n'),
+      'utf8',
+    );
 
     // M04 Phase 2 S1 (F3): handler now calls resolveAndEnsure on the
     // audit path. Mock both to keep the test intent unchanged.
@@ -89,23 +99,22 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
 
     expect(result.permissionDecision).toBe('allow');
     expect(typeof result.additionalContext).toBe('string');
-    expect(result.additionalContext ?? '').toContain('# Coodra Feature Pack — auto-inject-target');
-    expect(result.additionalContext ?? '').toContain('# spec body line');
-    expect(result.additionalContext ?? '').toContain('# impl body line');
-    expect(result.additionalContext ?? '').toContain('# tech body line');
+    expect(result.additionalContext ?? '').toContain('Available features');
+    expect(result.additionalContext ?? '').toContain('ship-cleanly');
+    expect(result.additionalContext ?? '').toContain('Session contract');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
-  it('returns allow + contract-only additionalContext when feature-pack files are missing (M05 contract block always renders)', async () => {
+  it('returns allow + contract-only additionalContext when optional files are missing', async () => {
     // M05 reshape (2026-05-08): the SessionStart handler ALWAYS pushes
     // the session-contract block onto `additionalContext` so every
     // Claude Code session is reminded of `record_decision` /
     // `save_context_pack` discipline regardless of whether a feature
-    // pack / features index / recent decisions block is available.
+    // skills index / recent decisions block is available.
     // Pre-M05 this test asserted `additionalContext === undefined`;
     // that expectation was stale — the contract block is intentional.
     // The test now verifies the contract surfaces AND the optional
-    // pack-body block does NOT (since feature-pack files are missing).
+    // optional dynamic blocks do NOT.
     const stubResolver: ProjectSlugResolver = {
       resolve: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
       resolveAndEnsure: vi.fn().mockResolvedValue({ slug: 'no-files-here', projectId: 'proj_y' }),
@@ -124,9 +133,7 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     // Contract block is present.
     expect(result.additionalContext ?? '').toContain('Session contract');
     expect(result.additionalContext ?? '').toContain('save_context_pack');
-    // Pack body is absent — there were no feature-pack files on disk.
-    expect(result.additionalContext ?? '').not.toContain('# spec body');
-    expect(result.additionalContext ?? '').not.toContain('# impl body');
+    expect(result.additionalContext ?? '').not.toContain('Available features');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 
@@ -153,9 +160,9 @@ describe('createSessionStartHandler — Pattern 20 auto-inject', () => {
     expect(result.permissionDecision).toBe('allow');
     expect(typeof result.additionalContext).toBe('string');
     expect(result.additionalContext ?? '').toContain('Session contract');
-    // Pack + features blocks not present.
+    // Skills block not present.
     expect(result.additionalContext ?? '').not.toContain('Available features');
-    expect(result.additionalContext ?? '').not.toContain('# spec body');
+    expect(result.additionalContext ?? '').not.toContain('Available skills');
     expect(stubRecorder.recordSessionStart).toHaveBeenCalledTimes(1);
   });
 

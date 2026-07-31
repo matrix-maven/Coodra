@@ -276,7 +276,7 @@ function Header({ snap, base }: { snap: RoiSnapshot; base: RoiResult }) {
           {fmtInt(
             snap.knowledge.contextPacks +
               snap.knowledge.decisions +
-              snap.knowledge.featurePacks +
+              snap.knowledge.workPacks +
               snap.knowledge.features,
           )}{' '}
           knowledge assets
@@ -427,7 +427,7 @@ function LeadingRow({ snap }: { snap: RoiSnapshot }) {
       />
       <Tile
         label="Knowledge assets"
-        value={fmtInt(k.contextPacks + k.decisions + k.featurePacks + k.features)}
+        value={fmtInt(k.contextPacks + k.decisions + k.workPacks + k.features)}
         sub={`${fmtInt(k.contextPacks)} packs · ${fmtInt(k.decisions)} decisions`}
         tone="accent"
         chip="measured"
@@ -615,9 +615,9 @@ function KnowledgeSection({ snap }: { snap: RoiSnapshot }) {
               sub={`${fmtPct(k.decisionCompletenessPct)} complete (DIQ)`}
             />
             <Tile
-              label="Feature packs · features"
-              value={`${fmtInt(k.featurePacks)} · ${fmtInt(k.features)}`}
-              sub="module blueprints · skills"
+              label="Work Packs · skills"
+              value={`${fmtInt(k.workPacks)} · ${fmtInt(k.features)}`}
+              sub="issue work · agent skills"
             />
             <Tile
               label="Wiki pages"
@@ -638,7 +638,7 @@ function KnowledgeSection({ snap }: { snap: RoiSnapshot }) {
                 <strong style={{ color: 'var(--ink)' }}>0</strong> reuse-reads recorded yet. Capture is{' '}
                 <strong style={{ color: 'var(--accent)' }}>armed</strong>: when an agent passes its{' '}
                 <code style={inlineMono}>runId</code> to <code style={inlineMono}>search_packs_nl</code>,{' '}
-                <code style={inlineMono}>get_feature_pack</code>, <code style={inlineMono}>query_run_history</code> or
+                <code style={inlineMono}>query_run_history</code>, <code style={inlineMono}>list_context_packs</code> or
                 peers (per the trigger contract), each consultation lands as an <code style={inlineMono}>mcp_call</code>{' '}
                 event and accrues here — proving the agent consulted prior work instead of re-deriving it.
               </p>

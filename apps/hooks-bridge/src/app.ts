@@ -46,7 +46,7 @@ export interface HookDispatchResult {
    * Optional Markdown blob the bridge wants Claude Code to fold into
    * the agent's turn-zero context (decision dec_83ba10c1, 2026-05-02
    * — system-architecture §16 Pattern 20). Currently emitted only by
-   * the SessionStart handler with the project's Feature Pack body.
+   * the SessionStart handler with the project's context primer.
    * The Claude Code adapter forwards this verbatim to
    * `hookSpecificOutput.additionalContext`. Cursor and Windsurf
    * adapters ignore the field — neither's hook envelope has a first-

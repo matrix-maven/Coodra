@@ -88,7 +88,7 @@ const featuresDirMissingBranch = z
 // Plain union (not discriminatedUnion) because Zod requires unique
 // discriminator values per branch; here the three soft-failure
 // branches all share `ok: z.literal(false)` and discriminate on
-// `error`. The `get_feature_pack` tool uses the same `z.union` shape
+// `error`. The skill read tools use the same `z.union` shape
 // for the same reason — see its schema.ts for the established pattern.
 export const listFeaturesOutputSchema = z.union([
   successBranch,

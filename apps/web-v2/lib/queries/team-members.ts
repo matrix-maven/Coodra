@@ -10,8 +10,8 @@ import { createWebDb } from '@/lib/db';
  * Clerk userId appears in the local row store. Cheaper than a Clerk SDK
  * call and works offline.
  *
- * The query unions the five tables that carry `created_by_user_id`:
- * runs, decisions, context_packs, policies, feature_packs. We pull
+ * The query unions tables that carry `created_by_user_id`: runs,
+ * decisions, context_packs, policies, and work_packs. We pull
  * the distinct user-id set + a per-user activity count and most-recent
  * timestamp. The web app renders these as "team members observed
  * locally" — Clerk is the system of record for org membership, but
@@ -34,13 +34,10 @@ export interface TeamMemberRow {
     readonly decisions: number;
     readonly contextPacks: number;
     readonly policies: number;
-    readonly featurePacks: number;
+    readonly workPacks: number;
   };
 }
 
-// `feature_packs` carries `updated_at` but no `created_at` — see
-// packages/db/src/schema/{sqlite,postgres}.ts. Aliasing it with
-// `AS ts` keeps the UNION ALL column names consistent.
 const SQL_LITE_UNION = sql`
   SELECT created_by_user_id AS user_id, 'runs' AS source, started_at AS ts FROM runs
     WHERE created_by_user_id IS NOT NULL AND created_by_user_id <> '__solo__'
@@ -54,7 +51,7 @@ const SQL_LITE_UNION = sql`
   SELECT created_by_user_id, 'policies', created_at FROM policies
     WHERE created_by_user_id IS NOT NULL AND created_by_user_id <> '__solo__'
   UNION ALL
-  SELECT created_by_user_id, 'feature_packs', updated_at FROM feature_packs
+  SELECT created_by_user_id, 'work_packs', updated_at FROM work_packs
     WHERE created_by_user_id IS NOT NULL AND created_by_user_id <> '__solo__'
 `;
 
@@ -71,7 +68,7 @@ const PG_UNION = sql`
   SELECT created_by_user_id, 'policies', created_at FROM policies
     WHERE created_by_user_id IS NOT NULL AND created_by_user_id <> '__solo__'
   UNION ALL
-  SELECT created_by_user_id, 'feature_packs', updated_at FROM feature_packs
+  SELECT created_by_user_id, 'work_packs', updated_at FROM work_packs
     WHERE created_by_user_id IS NOT NULL AND created_by_user_id <> '__solo__'
 `;
 
@@ -88,7 +85,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
       decisions: number;
       context_packs: number;
       policies: number;
-      feature_packs: number;
+      work_packs: number;
       total: number;
       last_seen: number;
     }>(sql`
@@ -99,7 +96,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
         SUM(CASE WHEN source = 'decisions' THEN 1 ELSE 0 END) AS decisions,
         SUM(CASE WHEN source = 'context_packs' THEN 1 ELSE 0 END) AS context_packs,
         SUM(CASE WHEN source = 'policies' THEN 1 ELSE 0 END) AS policies,
-        SUM(CASE WHEN source = 'feature_packs' THEN 1 ELSE 0 END) AS feature_packs,
+        SUM(CASE WHEN source = 'work_packs' THEN 1 ELSE 0 END) AS work_packs,
         COUNT(*) AS total,
         MAX(ts) AS last_seen
       FROM events
@@ -116,7 +113,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
         decisions: r.decisions,
         contextPacks: r.context_packs,
         policies: r.policies,
-        featurePacks: r.feature_packs,
+        workPacks: r.work_packs,
       },
     }));
   }
@@ -128,7 +125,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
     decisions: string;
     context_packs: string;
     policies: string;
-    feature_packs: string;
+    work_packs: string;
     total: string;
     last_seen: Date;
   }>(sql`
@@ -139,7 +136,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
       SUM(CASE WHEN source = 'decisions' THEN 1 ELSE 0 END)::text AS decisions,
       SUM(CASE WHEN source = 'context_packs' THEN 1 ELSE 0 END)::text AS context_packs,
       SUM(CASE WHEN source = 'policies' THEN 1 ELSE 0 END)::text AS policies,
-      SUM(CASE WHEN source = 'feature_packs' THEN 1 ELSE 0 END)::text AS feature_packs,
+      SUM(CASE WHEN source = 'work_packs' THEN 1 ELSE 0 END)::text AS work_packs,
       COUNT(*)::text AS total,
       MAX(ts) AS last_seen
     FROM events
@@ -153,7 +150,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
       decisions: string;
       context_packs: string;
       policies: string;
-      feature_packs: string;
+      work_packs: string;
       total: string;
       last_seen: Date;
     }>
@@ -166,7 +163,7 @@ export async function listTeamMembers(): Promise<ReadonlyArray<TeamMemberRow>> {
       decisions: Number(r.decisions),
       contextPacks: Number(r.context_packs),
       policies: Number(r.policies),
-      featurePacks: Number(r.feature_packs),
+      workPacks: Number(r.work_packs),
     },
   }));
 }

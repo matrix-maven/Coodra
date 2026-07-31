@@ -45,7 +45,7 @@ export async function rollbackMigration(input: RollbackInput): Promise<RollbackR
     .from(postgresSchema.migrationMap)
     .where(eq(postgresSchema.migrationMap.attemptId, input.attemptId));
 
-  // Delete rows in reverse FK order. children → runs → projects → policies/feature_packs.
+  // Delete rows in reverse FK order. children → runs → projects → policies.
   let deleted = 0;
   // Group by table for batched DELETEs.
   const byTable = new Map<string, string[]>();

@@ -29,10 +29,6 @@ import type { SaveContextPackInput, SaveContextPackOutput } from './schema.js';
  *      "returns the existing pack (idempotent)").
  *   4. Return `{ ok: true, contextPackId, savedAt, contentExcerpt }`.
  *
- * `featurePackId` is accepted from the caller and passed through to
- * the store, which currently discards it (no FK column on
- * `context_packs`). Retained for M05/M07 schema growth.
- *
  * No policy-decision audit write — S14 (`check_policy`) remains the
  * first caller of `recordPolicyDecision`.
  */
@@ -129,7 +125,6 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         projectId,
         title: input.title,
         content: input.content,
-        ...(input.featurePackId !== undefined ? { featurePackId: input.featurePackId } : {}),
       },
       {
         source: 'agent',

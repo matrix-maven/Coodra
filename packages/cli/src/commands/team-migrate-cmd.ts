@@ -120,7 +120,6 @@ function fmtCounts(c: MigrationCounts): string {
     `${c.contextPacks} context_packs`,
     `${c.decisions} decisions`,
     `${c.policies} policies`,
-    `${c.featurePacks} feature_packs`,
     `${c.runDiffs} run_diffs`,
   ].join(' · ');
 }
