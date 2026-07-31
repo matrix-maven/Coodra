@@ -4,7 +4,7 @@ import type { WikiMode } from '@coodra/shared/wiki';
  * `lib/wiki/recipe.ts` — the Deep Wiki authoring recipe (Module 10).
  *
  * Coodra runs no LLM. The user's coding agent (Claude Code / Codex /
- * Cursor) is the model. `coodra wiki generate` writes this recipe so the
+ * Cursor) is the model. `coodra wiki build` writes this recipe so the
  * agent knows exactly how to run the DeepWiki-style two-pass flow against
  * Coodra's MCP tools:
  *
@@ -13,7 +13,7 @@ import type { WikiMode } from '@coodra/shared/wiki';
  *   PASS 2 — author each pending page's Markdown (with Mermaid + code
  *            citations) via `wiki_save_page`; resume via `wiki_status`.
  *
- * The same recipe text backs both the per-run `.coodra/wiki-job.md`
+ * The same recipe text backs both the per-run `.coodra/wiki/job.md`
  * (self-contained, read by any agent) and the bundled `deep-wiki-author`
  * Feature (pulled on trigger when the user asks to "generate the wiki").
  */
@@ -39,23 +39,58 @@ export function buildWikiJob(args: {
 function structureBlock(mode: WikiMode): string {
   const coverageTarget =
     mode === 'comprehensive'
-      ? `Coverage target (comprehensive mode): derive the page count from the
-REPO, not from a default number. Rule of thumb — one page per major
-module / service / package in the grounding's directory rollup, cross-checked
-against the Graphify communities the grounding lists (they cluster the code
-that actually references itself), PLUS Overview, Architecture, Configuration,
-Data Model, Testing, and Operations/Deployment pages where the code warrants
-them. Give the god nodes from the grounding their own high-importance pages.
-A real codebase typically lands at 12–30 pages; **under-covering is the
-common failure mode — when in doubt, ADD the page.** Group pages into sections
-so the result reads like a hierarchical mind-map (Overview → Architecture →
-per-module pages → Operations), not a flat dump.`
-      : `Coverage target (concise mode): 6–12 focused pages, flat
-(\`sections: []\`). Cover Overview, Architecture, the 3–6 most important
-modules, and Operations. Depth over breadth — but never merge two
-unrelated subsystems into one page.`;
+      ? `Coverage target (comprehensive mode): build the smallest structure that
+accurately explains THIS REPO, and let the repo earn every section/page. A real
+codebase often lands around 12–30 pages, but that is a range, not a target:
+small focused repos may need fewer; broad monorepos/platforms may need more.
+**Under-covering is the common failure mode — when in doubt, ADD the page or
+record the deferred area in a page description.**`
+      : `Coverage target (concise mode): derive 6–12 focused pages from THIS
+REPO's actual domains/workflows, with \`sections: []\`. Cover the most important
+user/developer workflows and modules; do not force generic Overview /
+Architecture / Configuration headings when the repo calls for a different
+shape. Depth over breadth — but never merge two unrelated subsystems into one
+page.`;
 
-  return `Plan a \`WikiStructure\` (this exact shape — Coodra validates it):
+  return `Before constructing JSON, make an OpenWiki-style discovery plan. Do
+not write the plan to disk; encode it into the \`WikiStructure\` you save.
+
+Discovery plan checklist:
+
+1. Identify the repo shape from evidence, not from a canned taxonomy. Inspect
+   the grounding's README, manifests, directory rollup, entrypoints, routing
+   files, schema/model files, tests, deployment/config files, existing docs,
+   Graphify communities, god nodes, and prior Coodra decisions/context.
+2. List the major domains/workflows/subsystems the repo actually has. Include
+   both technical domains and product/business workflows when the source shows
+   them.
+3. For each candidate page, write down: purpose, source evidence, important
+   relationships to other concepts, and whether a diagram would clarify the
+   runtime/data/control flow.
+4. Model relationships before page creation: source concept -> relationship
+   meaning -> target concept. Turn those into \`relatedPageIds\` and meaningful
+   prose links later; do not add links solely for graph density.
+5. Decide section boundaries only after the page candidates exist. A section
+   must represent a real documentation area, not a generic bucket.
+
+Section/page quality rules:
+
+- Do NOT use a fixed Coodra/SaaS/OpenWiki/DeepWiki template. Generic labels
+  such as Overview, Architecture, Configuration, Data Model, Integrations,
+  Testing, and Operations are allowed only when this repository earns them.
+- Prefer broader pages with headings over thin pages. If a page would be mostly
+  a stub, source map, or short note, merge it into a broader page.
+- A section should usually contain multiple substantive pages. A single-page
+  section is acceptable only when that page has a strong domain boundary and is
+  likely to grow.
+- Every substantive page should connect to at least one other substantive page
+  through \`parentId\` or \`relatedPageIds\`; if it is isolated, merge it or make
+  the standalone reason explicit in its description.
+- Cross-check the directory rollup against Graphify communities. Communities are
+  candidate domains, not automatic pages. God nodes deserve high-importance
+  pages only when they are real architectural centers.
+
+Plan a \`WikiStructure\` (this exact shape — Coodra validates it):
 
 \`\`\`jsonc
 {
@@ -91,7 +126,7 @@ ${coverageTarget}`;
 
 /**
  * Render the full authoring recipe. `includeJobHeader` adds the
- * per-run slug/mode/grounding header (used for `.coodra/wiki-job.md`);
+ * per-run slug/mode/grounding header (used for `.coodra/wiki/job.md`);
  * the Feature body omits it and tells the agent to read the job file.
  */
 export function renderWikiRecipe(args: {
@@ -113,6 +148,7 @@ export function renderWikiRecipe(args: {
     lines.push(`| wiki slug | \`${slug}\` |`);
     lines.push(`| mode | \`${mode}\` |`);
     lines.push(`| grounding | \`${groundingPath}\` |`);
+    lines.push(`| markdown mirror | \`.coodra/wiki/${slug}/\` |`);
     lines.push('');
     lines.push(
       'You (the coding agent) generate this wiki. Coodra runs no model — you are the model; Coodra stores the result and renders it in its web app. Follow the two passes below exactly.',
@@ -120,10 +156,10 @@ export function renderWikiRecipe(args: {
     lines.push('');
   }
 
-  lines.push('## ⚠ Critical — the ONLY way this works');
+  lines.push('## ⚠ Critical — source of truth + Markdown mirror');
   lines.push('');
   lines.push(
-    "The wiki exists **only** in Coodra's store, written through the MCP tools. **Do NOT create files** — no `DEEP_WIKI.md`, no `WIKI_INDEX.md`, no `.coodra/wiki-structure.json`, no `docs/wiki/*`. Writing Markdown/JSON to disk does **nothing**: it will NOT appear in `coodra wiki status` or the `/wiki` web page. The only things that count are these MCP calls:",
+    `The canonical wiki exists in Coodra's store, written through the MCP tools. Also maintain a repo-local Markdown mirror under \`.coodra/wiki/${slug}/\` for review, portability, and OKF export. Do NOT write root-level \`DEEP_WIKI.md\`, \`WIKI_INDEX.md\`, \`.coodra/wiki-structure.json\`, \`docs/wiki/*\`, or \`openwiki/\` output. Files are useful as a mirror only; the MCP saves are what make \`coodra wiki status\` and \`/wiki\` work.`,
   );
   lines.push('');
   lines.push('- `coodra__get_run_id`  → bind a run');
@@ -164,6 +200,10 @@ export function renderWikiRecipe(args: {
     `Then persist it: \`coodra__wiki_save_structure({ runId, slug: "${slug}", structure })\`. It returns \`{ wikiId, pendingPageIds, pageCount }\`. **Keep the \`wikiId\`** — every later call needs it. If a wiki with AUTHORED pages already exists under this slug, the call soft-fails with \`wiki_exists\` — deliberately, so one agent cannot silently wipe another's authored wiki. Re-call with \`replace: true\` ONLY when the user explicitly asked for a re-plan/refresh; otherwise pick a different slug or resume the existing wiki via \`wiki_status\`.`,
   );
   lines.push('');
+  lines.push(
+    `After \`wiki_save_structure\` succeeds, mirror the exact structure JSON to \`.coodra/wiki/${slug}/structure.json\`. This mirror must match the saved structure; do not create it before the MCP save succeeds.`,
+  );
+  lines.push('');
 
   lines.push('## Pass 2 — author every page');
   lines.push('');
@@ -185,6 +225,10 @@ export function renderWikiRecipe(args: {
   lines.push('  }');
   lines.push('})');
   lines.push('```');
+  lines.push('');
+  lines.push(
+    `4. After \`wiki_save_page\` returns \`ok: true\`, mirror the exact Markdown body to \`.coodra/wiki/${slug}/<pageId>.md\`. Include a short frontmatter block with \`pageId\`, \`wikiId\`, \`title\`, \`state: authored\`, and \`updatedAt\`, then the same Markdown sent to the MCP tool. Do not write or update the mirror file when the MCP save returns an error.`,
+  );
   lines.push('');
   lines.push('### Mermaid rules — the server lint-gates every diagram');
   lines.push('');
@@ -235,7 +279,7 @@ export function deepWikiFeatureFrontmatter(): {
   return {
     name: 'deep-wiki-author',
     description:
-      'Use this when the user asks to generate, build, refresh, or update the Deep Wiki / codebase wiki / architecture docs for this project (e.g. "generate the deep wiki", "build the wiki", "document the architecture"). Drives the two-pass DeepWiki flow: plan a hierarchical WikiStructure, then author each page (Markdown + Mermaid) via Coodra’s wiki_save_structure / wiki_save_page / wiki_status MCP tools, reading the latest job at .coodra/wiki-job.md.',
+      'Use this when the user asks to generate, build, refresh, or update the Deep Wiki / codebase wiki / architecture docs for this project (e.g. "generate the deep wiki", "build the wiki", "document the architecture"). Drives the two-pass Coodra Wiki flow: plan a hierarchical WikiStructure, then author each page (Markdown + Mermaid) via Coodra’s wiki_save_structure / wiki_save_page / wiki_status MCP tools, reading the latest job at .coodra/wiki/job.md.',
     whenNotToUse:
       'Don’t use for editing a single existing doc, for Feature Packs (module blueprints), or for Context Packs (session recaps). Those are separate surfaces.',
     maturity: 'stable',
@@ -246,9 +290,9 @@ export function deepWikiFeatureFrontmatter(): {
 export function renderDeepWikiFeatureBody(): string {
   const recipe = renderWikiRecipe({
     projectSlug: '<this project>',
-    slug: '<see .coodra/wiki-job.md>',
+    slug: '<see .coodra/wiki/job.md>',
     mode: 'comprehensive',
-    groundingPath: '.coodra/wiki-grounding.md',
+    groundingPath: '.coodra/wiki/grounding.md',
     includeJobHeader: false,
   });
   return [
@@ -256,7 +300,7 @@ export function renderDeepWikiFeatureBody(): string {
     '',
     'Generate a DeepWiki-style, hierarchical/mind-map explanation of this codebase. **You are the model** — Coodra stores the result and renders it in its web app; it runs no LLM of its own.',
     '',
-    'The user runs `coodra wiki generate` first, which writes the per-run job (`.coodra/wiki-job.md` — read it for the exact `slug` and `mode`) and the grounding snapshot (`.coodra/wiki-grounding.md`). Then follow the recipe below.',
+    'The user runs `coodra wiki build` first, which writes the per-run job (`.coodra/wiki/job.md` — read it for the exact `slug` and `mode`) and the grounding snapshot (`.coodra/wiki/grounding.md`). `coodra wiki generate` is a deprecated alias. Then follow the recipe below.',
     '',
     recipe.trimEnd(),
     '',

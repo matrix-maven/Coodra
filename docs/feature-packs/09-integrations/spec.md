@@ -85,10 +85,13 @@ server-side/headless Jira access or Jira→Coodra webhook (push) events.
 Graphify is consumed via its own stdio MCP server. **Query-only** — Coodra mints
 no Feature Packs from the graph.
 
-- **Wiring (DONE, G3).** `coodra graphify enable` writes a `graphify` stdio MCP
-  entry (`python -m graphify.serve graphify-out/graph.json`) into the agent
-  config. The agent queries `query_graph` / `get_node` / `get_neighbors` /
-  `shortest_path` directly.
+- **Wiring (DONE, G3; packaged by COOD-10).** `coodra graphify enable` writes a
+  `graphify` stdio MCP entry into legacy/project agent config files. Native
+  Coodra plugins for Codex and Claude now include the same capability by
+  default, using the shared Coodra-home runtime installed under
+  `~/.coodra/graphify-mcp/.venv` and pointed at the Coodra-managed graph path
+  `.coodra/graphify/out/graph.json`. The agent queries `query_graph` /
+  `get_node` / `get_neighbors` / `shortest_path` directly.
 - **Retired (G1, ADR-010 rewrite).** `query_codebase_graph` +
   `apps/mcp-server/src/lib/graphify.ts` — a dead reader of a path nothing wrote.
 - **Retired (ADR-015).** `seed_feature_packs_from_graph`, `build_codebase_graph`,

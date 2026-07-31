@@ -114,14 +114,40 @@ describe('Claude Code native plugin installer', () => {
     });
 
     const mcp = JSON.parse(await readFile(paths.mcpPath, 'utf8')) as {
-      mcpServers?: { coodra?: { env?: Record<string, string> } };
+      mcpServers?: {
+        coodra?: { env?: Record<string, string> };
+        graphify?: { command?: string; args?: string[] };
+      };
     };
     expect(mcp.mcpServers?.coodra?.env?.COODRA_AGENT_TYPE).toBe('claude_code');
     expect(mcp.mcpServers?.coodra?.env?.COODRA_HOME).toBe(coodraHome);
+    expect(mcp.mcpServers?.graphify).toEqual({
+      command: join(coodraHome, 'graphify-mcp', '.venv', 'bin', 'python'),
+      args: ['-m', 'graphify.serve', '.coodra/graphify/out/graph.json'],
+    });
     const cachedMcp = JSON.parse(await readFile(paths.cacheMcpPath, 'utf8')) as {
-      mcpServers?: { coodra?: { env?: Record<string, string> } };
+      mcpServers?: {
+        coodra?: { env?: Record<string, string> };
+        graphify?: { command?: string; args?: string[] };
+      };
     };
     expect(cachedMcp.mcpServers?.coodra?.env?.COODRA_AGENT_TYPE).toBe('claude_code');
+    expect(cachedMcp.mcpServers?.graphify).toEqual({
+      command: join(coodraHome, 'graphify-mcp', '.venv', 'bin', 'python'),
+      args: ['-m', 'graphify.serve', '.coodra/graphify/out/graph.json'],
+    });
+    const wikiSkill = await readFile(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'utf8');
+    expect(wikiSkill).toContain('wiki_save_structure');
+    expect(wikiSkill).toContain('.coodra/wiki/job.md');
+    expect(wikiSkill).toContain('.coodra/wiki/<slug>/structure.json');
+    expect(wikiSkill).toContain('rather than a fixed template');
+    const deepWikiSkill = await readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
+    expect(deepWikiSkill).toContain('name: deep-wiki-author');
+    expect(deepWikiSkill).toContain('coodra__wiki_save_structure');
+    expect(deepWikiSkill).toContain('coodra__wiki_save_page');
+    expect(deepWikiSkill).toContain('Markdown mirror');
+    const cachedDeepWikiSkill = await readFile(join(paths.cacheSkillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
+    expect(cachedDeepWikiSkill).toContain('coodra__wiki_status');
 
     const hooks = await readFile(paths.hooksPath, 'utf8');
     expect(hooks).toContain('"type": "mcp_tool"');
@@ -237,9 +263,7 @@ describe('Claude Code native plugin installer', () => {
       noCliRunner(),
     );
     expect(result.outcomes.some((o) => o.path === paths.marketplaceRoot && o.action === 'merged')).toBe(true);
-    expect(result.outcomes.some((o) => o.path === dirname(paths.cachePluginRoot) && o.action === 'merged')).toBe(
-      true,
-    );
+    expect(result.outcomes.some((o) => o.path === dirname(paths.cachePluginRoot) && o.action === 'merged')).toBe(true);
 
     const settings = JSON.parse(await readFile(paths.settingsPath, 'utf8')) as {
       enabledPlugins?: Record<string, boolean>;
@@ -314,7 +338,7 @@ describe('Claude Code native plugin installer', () => {
 
       expect(installMarketplaceAndPlugin).toHaveBeenCalledWith('/usr/local/bin/claude', paths.marketplaceRoot);
       const settingsOutcome = result.outcomes.find((o) => o.path === paths.settingsPath);
-      expect(settingsOutcome?.notes).toContain("claude plugin install --scope user");
+      expect(settingsOutcome?.notes).toContain('claude plugin install --scope user');
       // The hand-written cache mirror and known_marketplaces.json are only
       // written on the fallback path — the CLI owns them when it succeeds.
       expect(existsSync(paths.cacheManifestPath)).toBe(false);

@@ -73,7 +73,7 @@ function parseAlternatives(raw: string | null): string[] {
  * Read the project's recorded decisions + context packs for the wiki grounding.
  *
  * Returns null when the project isn't registered in the store — a legitimate
- * state (`coodra wiki generate` works before the first `coodra init`), not an
+ * state (`coodra wiki build` works before the first `coodra init`), not an
  * error. The caller degrades to a code-only grounding.
  */
 export async function assembleKnowledgeGrounding(

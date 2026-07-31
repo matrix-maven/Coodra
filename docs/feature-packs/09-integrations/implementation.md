@@ -30,6 +30,13 @@ shipped first and built the substrate; 9A Jira reuses it. Reflects ADR-015
 - **G3 — Wiring + CLI.** ✅ The 9·Core writers + `coodra graphify
   enable | disable | status` + the `coodra init` Graphify step. (The
   `graphify-seed-packs` recipe was also retired by ADR-015.)
+- **COOD-10 — Native plugin packaging.** ✅ Codex and Claude native Coodra
+  plugins bundle a default `graphify` MCP entry alongside `coodra`, using a
+  shared Coodra-home Graphify MCP runtime (`~/.coodra/graphify-mcp/.venv`) and
+  the project-local `.coodra/graphify/out/graph.json` path. `coodra install`
+  ensures `graphifyy[mcp]` exists there via `uv` or Python venv + pip; `coodra
+  graphify enable` remains the explicit repair/customization path for
+  non-plugin agents and pinned interpreter/path setups.
 - **G4 — Web UX.** ✅ The `/settings/integrations` Graphify card + wizard step.
 
 ## Track 9A — Jira (Direct; ADR-016)

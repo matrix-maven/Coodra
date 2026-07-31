@@ -42,6 +42,43 @@ describe('Codex native plugin installer', () => {
     };
   }
 
+  it('writes a native plugin bundle with Coodra and managed Graphify MCP servers', async () => {
+    const paths = codexPluginPaths(userHome);
+    const result = await installCodexPlugin(ctx());
+
+    expect(result.outcomes.map((o) => o.path)).toContain(paths.mcpPath);
+
+    const mcp = JSON.parse(await readFile(paths.mcpPath, 'utf8')) as {
+      mcpServers?: {
+        coodra?: { env?: Record<string, string> };
+        graphify?: { command?: string; args?: string[] };
+      };
+    };
+    expect(mcp.mcpServers?.coodra?.env?.COODRA_AGENT_TYPE).toBe('codex');
+    expect(mcp.mcpServers?.graphify).toEqual({
+      command: join(coodraHome, 'graphify-mcp', '.venv', 'bin', 'python'),
+      args: ['-m', 'graphify.serve', '.coodra/graphify/out/graph.json'],
+    });
+    const wikiSkill = await readFile(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'utf8');
+    expect(wikiSkill).toContain('wiki_save_structure');
+    expect(wikiSkill).toContain('.coodra/wiki/job.md');
+    expect(wikiSkill).toContain('.coodra/wiki/<slug>/structure.json');
+    expect(wikiSkill).toContain('rather than a fixed template');
+    const deepWikiSkill = await readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
+    expect(deepWikiSkill).toContain('name: deep-wiki-author');
+    expect(deepWikiSkill).toContain('coodra__wiki_save_structure');
+    expect(deepWikiSkill).toContain('coodra__wiki_save_page');
+    expect(deepWikiSkill).toContain('Markdown mirror');
+
+    expect(await probeCodexPlugin({ cwd, userHome })).toMatchObject({
+      manifest: true,
+      marketplace: true,
+      mcp: true,
+      hooks: true,
+      skills: true,
+    });
+  });
+
   it('removes marketplace entry and plugin bundle', async () => {
     const paths = codexPluginPaths(userHome);
     await installCodexPlugin(ctx());

@@ -90,7 +90,7 @@ describe('assembleKnowledgeGrounding', () => {
     expect(k.contextPacks[0]?.excerpt).toBe('wired graphify + jira via config');
   });
 
-  it('returns null for an unregistered project (pre-init wiki generate is legitimate)', async () => {
+  it('returns null for an unregistered project (pre-init wiki build is legitimate)', async () => {
     expect(await assembleKnowledgeGrounding(handle, 'never-registered')).toBeNull();
   });
 

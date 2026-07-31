@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runInstallCommand } from '../../src/commands/install.js';
+import type { InstallCommandRunner } from '../../src/lib/init/graphify-install.js';
 
 function makeIO(): {
   io: { writeStdout(c: string): void; writeStderr(c: string): void; exit(code: number): never };
@@ -26,8 +27,21 @@ describe('runInstallCommand — integration', () => {
     const home = await mkdtemp(join(tmpdir(), 'coodra-install-home-'));
     const userHome = await mkdtemp(join(tmpdir(), 'coodra-install-userhome-'));
     const { io, stdout } = makeIO();
+    const graphifyRunner: InstallCommandRunner = async () => ({ ok: true });
 
-    await expect(runInstallCommand({ home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
+    await expect(
+      runInstallCommand(
+        {
+          home,
+          userHome,
+          env: {},
+          graphifyRunner,
+          graphifyProbeUv: async () => true,
+          graphifyVerify: async () => ({ ok: true }),
+        },
+        io,
+      ),
+    ).rejects.toThrow('__exit__:0');
 
     expect((await stat(join(home, 'data.db'))).isFile()).toBe(true);
     expect((await stat(join(home, 'logs'))).isDirectory()).toBe(true);
@@ -43,10 +57,12 @@ describe('runInstallCommand — integration', () => {
         expect.objectContaining({ path: 'logs', scope: 'machine', kind: 'logs-dir' }),
         expect.objectContaining({ path: 'pids', scope: 'machine', kind: 'pids-dir' }),
         expect.objectContaining({ path: 'manifest.json', scope: 'machine', kind: 'machine-manifest' }),
+        expect.objectContaining({ path: 'graphify-mcp', scope: 'machine', kind: 'managed-mcp-runtime' }),
       ]),
     );
     expect(manifest.agents).toEqual([]);
     expect(stdout.join('')).toContain('Machine manifest');
+    expect(stdout.join('')).toContain('Graphify MCP runtime');
   });
 
   it('records detected but not installed agents in the machine manifest', async () => {
@@ -54,8 +70,21 @@ describe('runInstallCommand — integration', () => {
     const userHome = await mkdtemp(join(tmpdir(), 'coodra-install-userhome-'));
     await mkdir(join(userHome, '.codex'), { recursive: true });
     const { io } = makeIO();
+    const graphifyRunner: InstallCommandRunner = async () => ({ ok: true });
 
-    await expect(runInstallCommand({ home, userHome, env: {} }, io)).rejects.toThrow('__exit__:0');
+    await expect(
+      runInstallCommand(
+        {
+          home,
+          userHome,
+          env: {},
+          graphifyRunner,
+          graphifyProbeUv: async () => false,
+          graphifyVerify: async () => ({ ok: true }),
+        },
+        io,
+      ),
+    ).rejects.toThrow('__exit__:0');
 
     const manifest = JSON.parse(await readFile(join(home, 'manifest.json'), 'utf8'));
     expect(manifest.agents).toEqual([expect.objectContaining({ id: 'codex', status: 'detected', installed: false })]);

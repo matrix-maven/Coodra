@@ -212,14 +212,14 @@ describe('wiki recipe', () => {
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
     });
     expect(job).toEqual({
       v: 1,
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
     });
   });
 
@@ -228,7 +228,7 @@ describe('wiki recipe', () => {
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: true,
     });
     expect(md).toContain('coodra__get_run_id');
@@ -239,30 +239,34 @@ describe('wiki recipe', () => {
     expect(md).toContain('mermaid');
   });
 
-  it('the recipe forbids free-writing standalone files (the #1 failure mode)', () => {
+  it('the recipe requires MCP saves before writing the markdown mirror', () => {
     const md = renderWikiRecipe({
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: true,
     });
-    expect(md).toContain('Do NOT create files');
+    expect(md).toContain('source of truth + Markdown mirror');
+    expect(md).toContain('.coodra/wiki/demo/structure.json');
+    expect(md).toContain('.coodra/wiki/demo/<pageId>.md');
     expect(md).toContain('DEEP_WIKI.md');
+    expect(md).toContain('docs/wiki/*');
     expect(md).toContain('Preflight');
   });
 
-  // 2026-07-12: the structure block is mode-aware — comprehensive derives
-  // the page count from the repo (under-covering is the failure mode);
-  // concise pins a small flat page budget.
-  it('comprehensive mode targets 12–30 pages and biases toward adding pages', () => {
+  it('comprehensive mode uses discovery planning instead of a fixed template', () => {
     const md = renderWikiRecipe({
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: false,
     });
+    expect(md).toContain('OpenWiki-style discovery plan');
+    expect(md).toContain('Model relationships before page creation');
+    expect(md).toContain('Do NOT use a fixed Coodra/SaaS/OpenWiki/DeepWiki template');
+    expect(md).toContain('A section should usually contain multiple substantive pages');
     expect(md).toContain('Coverage target (comprehensive mode)');
     expect(md).toContain('12–30 pages');
     expect(md).toContain('when in doubt, ADD the page');
@@ -274,7 +278,7 @@ describe('wiki recipe', () => {
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'concise',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: false,
     });
     expect(md).toContain('Coverage target (concise mode)');
@@ -288,7 +292,7 @@ describe('wiki recipe', () => {
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: true,
     });
     expect(md).toContain('wiki_exists');
@@ -300,7 +304,7 @@ describe('wiki recipe', () => {
       projectSlug: 'demo',
       slug: 'demo',
       mode: 'comprehensive',
-      groundingPath: '.coodra/wiki-grounding.md',
+      groundingPath: '.coodra/wiki/grounding.md',
       includeJobHeader: true,
     });
     expect(md).toContain('SPLIT them into two pages');
@@ -315,7 +319,7 @@ describe('wiki recipe', () => {
   });
 });
 
-describe('coodra wiki generate', () => {
+describe('coodra wiki build/generate', () => {
   let dir: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'wiki-gen-'));
@@ -327,23 +331,50 @@ describe('coodra wiki generate', () => {
     const cap = captureIO();
     await run(() => runWikiGenerateCommand({ cwd: dir, slug: 'my-wiki', mode: 'concise', json: true }, cap.io));
     expect(cap.code()).toBe(0);
-    const report = JSON.parse(cap.out()) as { ok: boolean; slug: string; mode: string; featureScaffolded: boolean };
+    const report = JSON.parse(cap.out()) as {
+      ok: boolean;
+      slug: string;
+      mode: string;
+      featureScaffolded: boolean;
+      grounding: { path: string };
+      job: string;
+      recipe: string;
+      markdownMirror: string;
+    };
     expect(report.ok).toBe(true);
     expect(report.slug).toBe('my-wiki');
     expect(report.mode).toBe('concise');
     expect(report.featureScaffolded).toBe(true);
-    expect(existsSync(join(dir, '.coodra', 'wiki-grounding.md'))).toBe(true);
-    expect(existsSync(join(dir, '.coodra', 'wiki-job.json'))).toBe(true);
-    expect(existsSync(join(dir, '.coodra', 'wiki-job.md'))).toBe(true);
+    expect(report.grounding.path).toBe('.coodra/wiki/grounding.md');
+    expect(report.job).toBe('.coodra/wiki/job.json');
+    expect(report.recipe).toBe('.coodra/wiki/job.md');
+    expect(report.markdownMirror).toBe('.coodra/wiki/my-wiki');
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'grounding.md'))).toBe(true);
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'job.json'))).toBe(true);
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'job.md'))).toBe(true);
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'my-wiki'))).toBe(true);
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'okf'))).toBe(true);
     // Phase 5: the scaffold now lands under docs/skills/ (greenfield resolves
     // there via skillsRoot); a legacy docs/features/ project would keep it there.
     const feature = readFileSync(join(dir, 'docs', 'skills', 'deep-wiki-author', 'feature.md'), 'utf8');
     expect(feature).toContain('deep-wiki-author');
-    const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki-job.json'), 'utf8')) as {
+    const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki', 'job.json'), 'utf8')) as {
       slug: string;
       mode: string;
     };
     expect(job).toMatchObject({ slug: 'my-wiki', mode: 'concise' });
+    const manifest = JSON.parse(readFileSync(join(dir, '.coodra', 'manifest.json'), 'utf8')) as {
+      entries: Array<{ path: string; kind: string; cleanup: string }>;
+    };
+    expect(manifest.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '.coodra/wiki/grounding.md', kind: 'wiki-working-artifact', cleanup: 'safe' }),
+        expect.objectContaining({ path: '.coodra/wiki/job.json', kind: 'wiki-working-artifact', cleanup: 'safe' }),
+        expect.objectContaining({ path: '.coodra/wiki/job.md', kind: 'wiki-working-artifact', cleanup: 'safe' }),
+        expect.objectContaining({ path: '.coodra/wiki/my-wiki', kind: 'wiki-markdown-mirror', cleanup: 'safe' }),
+        expect.objectContaining({ path: '.coodra/wiki/okf', kind: 'wiki-okf-dir', cleanup: 'safe' }),
+      ]),
+    );
   });
 
   it('defaults the slug from the directory basename and uses comprehensive mode', async () => {

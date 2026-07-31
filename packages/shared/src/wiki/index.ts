@@ -20,8 +20,12 @@ export {
 } from './mermaid-lint.js';
 export {
   WIKI_DOCS_DIRNAME,
+  WIKI_GROUNDING_RELPATH,
+  WIKI_JOB_MD_RELPATH,
   WIKI_JOB_RELPATH,
+  WIKI_OKF_DIR_RELPATH,
   WIKI_STRUCTURE_FILENAME,
+  WIKI_WORK_DIRNAME,
   wikiDir,
   wikiDocsRoot,
   wikiJobPath,

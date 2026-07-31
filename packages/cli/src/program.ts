@@ -593,8 +593,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await graphifyStatusRunner(opts, options.graphifyIO);
     });
 
-  // Module 10 (Deep Wiki) — `coodra wiki {generate,status,list,open,clean}`.
-  // Coodra runs no LLM: `generate` writes a grounding snapshot + an authoring
+  // Module 10 (Deep Wiki) — `coodra wiki {build,generate,status,list,open,clean}`.
+  // Coodra runs no LLM: `build` writes a grounding snapshot + an authoring
   // recipe the user's coding agent runs against the wiki_* MCP tools; the
   // result lands in the local store and renders in the web app at /wiki.
   const wikiGenerateRunner = options.runWikiGenerate ?? runWikiGenerateCommand;
@@ -609,11 +609,23 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
         'Code / Codex / Cursor) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
     );
   wiki
-    .command('generate')
+    .command('build')
     .description(
-      'Write the codebase grounding snapshot + authoring recipe (.coodra/wiki-job.md) and scaffold the ' +
-        'deep-wiki-author Skill, then tell your agent to build the wiki. Re-using the slug re-plans the wiki.',
+      'Create/update the grounding snapshot + authoring recipe (.coodra/wiki/job.md) and invoke the native agent wiki workflow.',
     )
+    .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
+    .option(
+      '--mode <mode>',
+      'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
+    )
+    .option('--force', 'Overwrite the deep-wiki-author Skill recipe if it already exists.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: WikiGenerateOptions) => {
+      await wikiGenerateRunner(opts, options.wikiIO);
+    });
+  wiki
+    .command('generate')
+    .description('Deprecated alias for `coodra wiki build`.')
     .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
     .option(
       '--mode <mode>',

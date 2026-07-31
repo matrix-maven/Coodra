@@ -177,6 +177,22 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'wiki-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
+    test: (rel) =>
+      rel === '.coodra/wiki/grounding.md' ||
+      rel === '.coodra/wiki/job.json' ||
+      rel === '.coodra/wiki/job.md' ||
+      rel.startsWith('.coodra/wiki/okf/'),
+    cls: { owner: 'coodra', kind: 'wiki-working-artifact', cleanup: 'safe', safeToDelete: true },
+  },
+  {
+    test: (rel) => rel === '.coodra/wiki/okf',
+    cls: { owner: 'coodra', kind: 'wiki-okf-dir', cleanup: 'safe', safeToDelete: true },
+  },
+  {
+    test: (rel) => rel.startsWith('.coodra/wiki/'),
+    cls: { owner: 'coodra', kind: 'wiki-markdown-mirror', cleanup: 'safe', safeToDelete: true },
+  },
+  {
     test: (_rel, base) => base === '.env',
     cls: { owner: 'coodra', kind: 'env', cleanup: 'preserve', safeToDelete: false },
   },

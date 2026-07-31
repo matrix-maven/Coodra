@@ -5,6 +5,8 @@ import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
+import { deepWikiFeatureFrontmatter, renderDeepWikiFeatureBody } from '../wiki/recipe.js';
+import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
 const execFile = promisify(execFileCallback);
@@ -33,7 +35,10 @@ export const CLAUDE_LEGACY_SKILLS_DIR_PLUGIN_KEY = `${CLAUDE_PLUGIN_NAME}@skills
  */
 export interface ClaudeCliRunner {
   detect(): Promise<string | null>;
-  installMarketplaceAndPlugin(claudeBin: string, marketplaceRoot: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+  installMarketplaceAndPlugin(
+    claudeBin: string,
+    marketplaceRoot: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }>;
   uninstallPlugin(claudeBin: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   /** Best-effort: is `coodra@coodra` visible to `claude plugin list --json`? */
   isInstalled(claudeBin: string): Promise<boolean>;
@@ -169,14 +174,16 @@ export async function probeClaudePlugin(
   readonly paths: ClaudePluginPaths;
 }> {
   const paths = claudePluginPaths(ctx.userHome, undefined, ctx.settingsPath);
-  const [enabled, manifest, marketplace, mcp, hooks, skills] = await Promise.all([
+  const [enabled, manifest, marketplace, mcp, hooks, coodraContextSkill, deepWikiAuthorSkill] = await Promise.all([
     settingsEnablesPlugin(paths.settingsPath, CLAUDE_PLUGIN_KEY),
     fileContains(paths.cacheManifestPath, `"name": "${CLAUDE_PLUGIN_NAME}"`),
     fileContains(paths.knownMarketplacesPath, `"${CLAUDE_MARKETPLACE_NAME}"`),
-    fileContains(paths.cacheMcpPath, `"coodra"`),
+    fileContainsAll(paths.cacheMcpPath, [`"coodra"`, `"graphify"`]),
     fileContains(paths.cacheHooksPath, `"SessionStart"`),
     fileContains(join(paths.cacheSkillsRoot, 'coodra-context', 'SKILL.md'), 'name: coodra-context'),
+    fileContains(join(paths.cacheSkillsRoot, 'deep-wiki-author', 'SKILL.md'), 'name: deep-wiki-author'),
   ]);
+  const skills = coodraContextSkill && deepWikiAuthorSkill;
   // The file-based checks above only see state Coodra wrote by hand — they
   // miss an install that went through `claude plugin install` (which never
   // touches Coodra's own cache mirror; see installClaudePlugin). When the
@@ -200,15 +207,17 @@ export async function installClaudePlugin(
 }> {
   const paths = claudePluginPaths(ctx.userHome, ctx.mcpEntryOptions.coodraHome, ctx.settingsPath);
   const mcpEntry = buildClaudePluginMcpEntry(ctx);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra'));
   const sourceFiles = new Map<string, string>([
     [paths.marketplacePath, marketplaceManifest()],
     [paths.manifestPath, pluginManifest()],
-    [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry } }, null, 2)}\n`],
+    [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],
     [paths.hooksPath, `${JSON.stringify(hooksConfig(), null, 2)}\n`],
     [join(paths.skillsRoot, 'coodra-init', 'SKILL.md'), coodraInitSkill()],
     [join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), coodraContextSkill()],
     [join(paths.skillsRoot, 'coodra-skill', 'SKILL.md'), coodraSkillSkill()],
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
+    [join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), deepWikiAuthorSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
     [paths.readmePath, readme()],
   ]);
@@ -714,11 +723,22 @@ description: Generate, update, inspect, or use the Coodra project wiki stored un
 
 Use this skill when the user asks for wiki generation, architecture documentation, codebase explanations, or wiki-grounded implementation context.
 
-1. Inspect \`.coodra/wiki/\` first.
-2. Use Graphify artifacts under \`.coodra/graphify/\` when they exist.
-3. If the wiki is missing or stale, run the appropriate Coodra wiki command and keep output under \`.coodra/wiki/\`.
-4. Use the wiki as grounding, but verify claims against source files before editing.
+1. Inspect \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` first when generating or refreshing a wiki.
+2. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
+3. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
+4. Use Graphify artifacts under \`.coodra/graphify/out/\` when they exist, and derive the wiki shape from this repo rather than a fixed template.
+5. Use existing wiki records as grounding, but verify claims against source files before editing.
 `;
+}
+
+function deepWikiAuthorSkill(): string {
+  const fm = deepWikiFeatureFrontmatter();
+  return `---
+name: ${fm.name}
+description: ${fm.description}
+---
+
+${renderDeepWikiFeatureBody()}`;
 }
 
 function coodraGraphifySkill(): string {
@@ -748,6 +768,15 @@ Claude Code loads this plugin from the local Coodra marketplace as \`coodra@cood
 async function fileContains(path: string, needle: string): Promise<boolean> {
   try {
     return (await readFile(path, 'utf8')).includes(needle);
+  } catch {
+    return false;
+  }
+}
+
+async function fileContainsAll(path: string, needles: readonly string[]): Promise<boolean> {
+  try {
+    const content = await readFile(path, 'utf8');
+    return needles.every((needle) => content.includes(needle));
   } catch {
     return false;
   }

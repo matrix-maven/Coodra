@@ -18,15 +18,15 @@ describe('wiki paths', () => {
   });
 
   it('computes a per-wiki dir', () => {
-    expect(wikiDir(ROOT, 'coodra')).toBe('/repo/docs/wiki/coodra');
+    expect(wikiDir(ROOT, 'coodra')).toBe('/repo/.coodra/wiki/coodra');
   });
 
   it('computes the structure path', () => {
-    expect(wikiStructurePath(ROOT, 'coodra')).toBe('/repo/docs/wiki/coodra/structure.json');
+    expect(wikiStructurePath(ROOT, 'coodra')).toBe('/repo/.coodra/wiki/coodra/structure.json');
   });
 
   it('computes a page path from a kebab page id', () => {
-    expect(wikiPagePath(ROOT, 'coodra', 'mcp-server')).toBe('/repo/docs/wiki/coodra/mcp-server.md');
+    expect(wikiPagePath(ROOT, 'coodra', 'mcp-server')).toBe('/repo/.coodra/wiki/coodra/mcp-server.md');
   });
 
   it('computes the job path', () => {

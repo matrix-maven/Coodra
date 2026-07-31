@@ -14,10 +14,10 @@ import type { KnowledgeGrounding } from './knowledge.js';
 /**
  * `lib/wiki/grounding.ts` — Module 10 Deep Wiki grounding bundle.
  *
- * `coodra wiki generate` assembles a compact, bounded snapshot of the
+ * `coodra wiki build` assembles a compact, bounded snapshot of the
  * project — directory rollup, a capped file list, the README, package
  * manifests, and (if present) a Graphify graph summary — and writes it
- * to `.coodra/wiki-grounding.md`. The agent reads this in the structure
+ * to `.coodra/wiki/grounding.md`. The agent reads this in the structure
  * pass to plan a grounded WikiStructure (rather than hallucinating an
  * architecture). It is orientation, not the full source: the agent reads
  * the actual files itself when authoring each page.
@@ -321,7 +321,7 @@ export async function assembleGrounding(args: {
   };
 }
 
-/** Render the grounding result as the `.coodra/wiki-grounding.md` document. */
+/** Render the grounding result as the `.coodra/wiki/grounding.md` document. */
 export function renderGroundingMarkdown(g: GroundingResult): string {
   const lines: string[] = [];
   lines.push(`# Deep Wiki grounding — ${g.projectSlug}`);

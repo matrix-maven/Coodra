@@ -1,16 +1,25 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import { lookupProjectBySlug, sqliteSchema } from '@coodra/db';
 import { generateFeaturesIndex, renderFeatureMd, skillsRoot } from '@coodra/shared/features';
-import { WIKI_ID_RE, WIKI_JOB_RELPATH, type WikiMode, wikiModeSchema } from '@coodra/shared/wiki';
+import {
+  WIKI_GROUNDING_RELPATH,
+  WIKI_ID_RE,
+  WIKI_JOB_MD_RELPATH,
+  WIKI_JOB_RELPATH,
+  WIKI_OKF_DIR_RELPATH,
+  type WikiMode,
+  wikiDir,
+  wikiModeSchema,
+} from '@coodra/shared/wiki';
 import { and, desc, eq } from 'drizzle-orm';
 
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { openBrowser } from '../lib/browser-handoff.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
-import { readProjectConfig } from '../lib/project-store/index.js';
+import { classifyGeneratedPath, readProjectConfig, recordManifestEntries } from '../lib/project-store/index.js';
 import { assembleGrounding, renderGroundingMarkdown } from '../lib/wiki/grounding.js';
 import { assembleKnowledgeGrounding, type KnowledgeGrounding } from '../lib/wiki/knowledge.js';
 import {
@@ -23,7 +32,7 @@ import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
 
 /**
- * `coodra wiki {generate,status,list,open,clean}` — Module 10 Deep Wiki.
+ * `coodra wiki {build,generate,status,list,open,clean}` — Module 10 Deep Wiki.
  *
  * Coodra runs no LLM. `generate` writes a grounding snapshot + an
  * authoring recipe that the user's coding agent (Claude Code / Codex /
@@ -32,9 +41,6 @@ import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
  * the web app at `/wiki`. `status` / `list` read that store; `clean`
  * deletes a wiki; `open` opens the web view.
  */
-
-const WIKI_GROUNDING_RELPATH = '.coodra/wiki-grounding.md';
-const WIKI_JOB_MD_RELPATH = '.coodra/wiki-job.md';
 
 export interface WikiIO {
   readonly writeStdout: (chunk: string) => void;
@@ -78,7 +84,7 @@ function toWikiSlug(input: string): string {
 /**
  * Read the project's recorded decisions + context packs for the grounding.
  * Best-effort: any failure (store missing, project unregistered, read error)
- * returns null so `wiki generate` still produces a code-only grounding rather
+ * returns null so `wiki build` still produces a code-only grounding rather
  * than aborting. The knowledge layer is an enrichment, never a gate.
  */
 async function readKnowledgeGrounding(projectSlug: string): Promise<KnowledgeGrounding | null> {
@@ -155,6 +161,9 @@ export async function runWikiGenerateCommand(
     renderWikiRecipe({ projectSlug, slug, mode, groundingPath: WIKI_GROUNDING_RELPATH, includeJobHeader: true }),
     'utf8',
   );
+  const mirrorDir = wikiDir(cwd, slug);
+  mkdirSync(mirrorDir, { recursive: true });
+  mkdirSync(join(cwd, WIKI_OKF_DIR_RELPATH), { recursive: true });
 
   // 3. Scaffold the `deep-wiki-author` skill (pulled on trigger). Idempotent
   //    unless --force: a feature.md the user has edited is preserved. MUST use
@@ -186,16 +195,30 @@ export async function runWikiGenerateCommand(
     try {
       generateFeaturesIndex({ projectCwd: cwd, projectSlug });
     } catch {
-      // Non-fatal: the recipe still works via .coodra/wiki-job.md.
+      // Non-fatal: the recipe still works via .coodra/wiki/job.md.
     }
   }
+
+  await recordManifestEntries({
+    root: cwd,
+    projectSlug,
+    dryRun: false,
+    entries: [
+      classifyGeneratedPath(groundingPath, cwd, 'coodra wiki build'),
+      classifyGeneratedPath(jobJsonPath, cwd, 'coodra wiki build'),
+      classifyGeneratedPath(jobMdPath, cwd, 'coodra wiki build'),
+      classifyGeneratedPath(mirrorDir, cwd, 'coodra wiki build'),
+      classifyGeneratedPath(join(cwd, WIKI_OKF_DIR_RELPATH), cwd, 'coodra wiki build'),
+      ...(featureWritten ? [classifyGeneratedPath(featurePath, cwd, 'coodra wiki build')] : []),
+    ],
+  });
 
   if (json) {
     io.writeStdout(
       `${JSON.stringify(
         {
           ok: true,
-          command: 'wiki generate',
+          command: 'wiki build',
           projectSlug,
           slug,
           mode,
@@ -207,6 +230,7 @@ export async function runWikiGenerateCommand(
           },
           job: WIKI_JOB_RELPATH,
           recipe: WIKI_JOB_MD_RELPATH,
+          markdownMirror: relative(cwd, mirrorDir).split(sep).join('/'),
           featureScaffolded: featureWritten,
         },
         null,
@@ -216,7 +240,7 @@ export async function runWikiGenerateCommand(
     return io.exit(EXIT_OK);
   }
 
-  io.writeStdout(`${commandTitle('Deep Wiki', 'generate', { width: terminalWidth(), indent: 0 })}\n\n`);
+  io.writeStdout(`${commandTitle('Deep Wiki', 'build', { width: terminalWidth(), indent: 0 })}\n\n`);
   io.writeStdout(
     `  ${pc.green('✓')} Grounding   ${pc.gray(`${WIKI_GROUNDING_RELPATH} — ${grounding.fileCount} files${grounding.graphify ? ', graphify graph found' : ''}`)}\n`,
   );
@@ -230,17 +254,17 @@ export async function runWikiGenerateCommand(
       : `  ${pc.yellow('◌')} Skill       ${pc.gray(`${featureRel} already exists (use --force to refresh)`)}\n`,
   );
   io.writeStdout('\n');
-  io.writeStdout(`  ${pc.bold('Next:')} open your coding agent in this project and paste this prompt:\n`);
+  io.writeStdout(`  ${pc.bold('Next:')} open your coding agent in this project and invoke the bundled wiki skill:\n`);
   io.writeStdout('\n');
-  io.writeStdout(`      ${pc.cyan('Read .coodra/wiki-job.md and follow it exactly. Build the deep wiki by')}\n`);
+  io.writeStdout(`      ${pc.cyan('Use deep-wiki-author. Read .coodra/wiki/job.md and build the deep wiki by')}\n`);
   io.writeStdout(`      ${pc.cyan('calling the coodra__wiki_save_structure and coodra__wiki_save_page MCP tools.')}\n`);
-  io.writeStdout(`      ${pc.cyan('Do NOT write any markdown/JSON files — persist only via the MCP tools.')}\n`);
+  io.writeStdout(`      ${pc.cyan(`Mirror successful saves under .coodra/wiki/${slug}/ after the MCP calls.`)}\n`);
   io.writeStdout('\n');
   io.writeStdout(
-    `${hintLine('  (A vague "generate the deep wiki" makes some agents free-write DEEP_WIKI.md instead of')}\n`,
+    `${hintLine('  (A vague "generate the deep wiki" can make agents free-write root files instead of')}\n`,
   );
   io.writeStdout(
-    `${hintLine('  calling the tools — those files never reach ')}${pc.cyan('coodra wiki status')}${pc.gray(' or the web app.)')}\n`,
+    `${hintLine('  calling the tools — only MCP saves reach ')}${pc.cyan('coodra wiki status')}${pc.gray(' or the web app.)')}\n`,
   );
   io.writeStdout('\n');
   io.writeStdout(
@@ -340,7 +364,7 @@ export async function runWikiStatusCommand(
   if (!wiki) {
     io.writeStdout(`  ${pc.yellow('◌')} ${pc.gray('No wiki yet for this project.')}\n\n`);
     io.writeStdout(
-      `${hintLine('  Run ')}${pc.cyan('coodra wiki generate')}${pc.gray(' then ask your agent to build it.')}\n\n`,
+      `${hintLine('  Run ')}${pc.cyan('coodra wiki build')}${pc.gray(' then ask your agent to build it.')}\n\n`,
     );
     return io.exit(EXIT_OK);
   }
@@ -382,7 +406,7 @@ export async function runWikiListCommand(options: WikiListOptions = {}, io: Wiki
 
   io.writeStdout(`${commandTitle('Deep Wiki', `list — ${projectSlug}`, { width: terminalWidth(), indent: 0 })}\n\n`);
   if (wikis.length === 0) {
-    io.writeStdout(`  ${pc.gray('No wikis yet. Run ')}${pc.cyan('coodra wiki generate')}${pc.gray('.')}\n\n`);
+    io.writeStdout(`  ${pc.gray('No wikis yet. Run ')}${pc.cyan('coodra wiki build')}${pc.gray('.')}\n\n`);
     return io.exit(EXIT_OK);
   }
   for (const w of wikis) {

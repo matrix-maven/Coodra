@@ -7,6 +7,14 @@ import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import { detectIDE, IDE_DISPLAY } from '../lib/detect.js';
 import {
+  ensureManagedGraphifyRuntime,
+  type ManagedGraphifyRuntimeResult,
+  managedGraphifyPythonPath,
+  managedGraphifyRuntimeRoot,
+} from '../lib/graphify/managed-runtime.js';
+import type { InstallCommandRunner } from '../lib/init/graphify-install.js';
+import type { VerifyResult } from '../lib/init/graphify-python.js';
+import {
   classifyMachineRuntimePath,
   machineManifestPath,
   recordMachineManifest,
@@ -22,6 +30,10 @@ export interface InstallOptions {
   readonly home?: string;
   readonly userHome?: string;
   readonly env?: NodeJS.ProcessEnv;
+  readonly graphifyRunner?: InstallCommandRunner;
+  readonly graphifyProbeUv?: () => Promise<boolean>;
+  readonly graphifyVerify?: (pythonPath: string) => Promise<VerifyResult>;
+  readonly platform?: NodeJS.Platform;
 }
 
 export interface InstallIO {
@@ -78,10 +90,19 @@ export async function runInstallCommand(
   const logsDir = resolveCoodraLogsDir(coodraHome);
   const pidsDir = resolveCoodraPidsDir(coodraHome);
   const manifestPath = machineManifestPath(coodraHome);
+  const graphifyRuntimeRoot = managedGraphifyRuntimeRoot(coodraHome);
 
   if (options.json !== true) {
     io.writeStdout(`${commandTitle('Install', 'Coodra runtime', { width: terminalWidth(), indent: 0 })}\n`);
   }
+
+  let graphifyRuntime: ManagedGraphifyRuntimeResult = {
+    ok: true,
+    python: managedGraphifyPythonPath(coodraHome, options.platform),
+    runtimeRoot: graphifyRuntimeRoot,
+    installed: false,
+    tool: 'existing',
+  };
 
   if (!dryRun) {
     await mkdir(coodraHome, { recursive: true, mode: 0o700 });
@@ -110,13 +131,34 @@ export async function runInstallCommand(
     } finally {
       handle.close();
     }
+
+    graphifyRuntime = await ensureManagedGraphifyRuntime({
+      coodraHome,
+      dryRun,
+      ...(options.graphifyRunner !== undefined ? { runner: options.graphifyRunner } : {}),
+      ...(options.graphifyProbeUv !== undefined ? { probeUv: options.graphifyProbeUv } : {}),
+      ...(options.graphifyVerify !== undefined ? { verify: options.graphifyVerify } : {}),
+      ...(options.json === true ? {} : { writeStdout: io.writeStdout }),
+      ...(options.platform !== undefined ? { platform: options.platform } : {}),
+    });
   }
 
   const manifest = await recordMachineManifest({
     home: coodraHome,
-    entries: [machineConfigPath, homeEnvPath, dataDbPath, logsDir, pidsDir, manifestPath].map((path) =>
-      classifyMachineRuntimePath(coodraHome, path, 'coodra install'),
-    ),
+    entries: [
+      ...[machineConfigPath, homeEnvPath, dataDbPath, logsDir, pidsDir, manifestPath].map((path) =>
+        classifyMachineRuntimePath(coodraHome, path, 'coodra install'),
+      ),
+      {
+        path: 'graphify-mcp',
+        scope: 'machine' as const,
+        owner: 'graphify',
+        kind: 'managed-mcp-runtime',
+        createdBy: 'coodra install',
+        cleanup: 'ask' as const,
+        safeToDelete: true,
+      },
+    ],
     detectedAgents: detected,
     dryRun,
   });
@@ -138,6 +180,7 @@ export async function runInstallCommand(
             entries: manifest.entries.length,
             agents: manifest.agents,
           },
+          graphifyRuntime,
           detectedAgents: detected,
           pluginInstallers: 'pending-native-agent-features',
         },
@@ -152,6 +195,13 @@ export async function runInstallCommand(
   io.writeStdout(`${pc.green('✓')} Runtime directories: logs, pids\n`);
   io.writeStdout(`${pc.green('✓')} Local SQLite store: data.db + migrations + __global__ sentinel\n`);
   io.writeStdout(`${pc.green('✓')} Runtime env: LOCAL_HOOK_SECRET, MCP_SERVER_PORT, HOOKS_BRIDGE_PORT\n`);
+  if (graphifyRuntime.ok) {
+    io.writeStdout(
+      `${pc.green('✓')} Graphify MCP runtime: ${graphifyRuntime.python}${graphifyRuntime.installed ? pc.gray(` (${graphifyRuntime.tool})`) : ''}\n`,
+    );
+  } else {
+    io.writeStdout(`${pc.yellow('◌')} Graphify MCP runtime: ${graphifyRuntime.error}\n`);
+  }
   io.writeStdout(`${pc.green('✓')} Machine manifest: ${manifestPath}\n`);
 
   if (detected.length > 0) {

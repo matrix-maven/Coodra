@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
+import { deepWikiFeatureFrontmatter, renderDeepWikiFeatureBody } from '../wiki/recipe.js';
+import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
 export const CODEX_PLUGIN_NAME = 'coodra' as const;
@@ -47,13 +49,15 @@ export async function probeCodexPlugin(ctx: AgentPathContext): Promise<{
   readonly paths: CodexPluginPaths;
 }> {
   const paths = codexPluginPaths(ctx.userHome);
-  const [manifest, marketplace, mcp, hooks, skills] = await Promise.all([
+  const [manifest, marketplace, mcp, hooks, coodraContextSkill, deepWikiAuthorSkill] = await Promise.all([
     fileContains(paths.manifestPath, `"name": "${CODEX_PLUGIN_NAME}"`),
     fileContains(paths.marketplacePath, `"name": "${CODEX_PLUGIN_NAME}"`),
-    fileContains(paths.mcpPath, `"coodra"`),
+    fileContainsAll(paths.mcpPath, [`"coodra"`, `"graphify"`]),
     fileContains(paths.hooksPath, `"SessionStart"`),
     fileContains(join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), 'name: coodra-context'),
+    fileContains(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'name: deep-wiki-author'),
   ]);
+  const skills = coodraContextSkill && deepWikiAuthorSkill;
   return { manifest, marketplace, mcp, hooks, skills, paths };
 }
 
@@ -63,15 +67,17 @@ export async function installCodexPlugin(ctx: AgentContext): Promise<{
 }> {
   const paths = codexPluginPaths(ctx.userHome);
   const mcpEntry = buildCodexPluginMcpEntry(ctx);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra'));
   const files = new Map<string, string>([
     [paths.manifestPath, pluginManifest()],
-    [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry } }, null, 2)}\n`],
+    [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],
     [paths.hooksPath, `${JSON.stringify(hooksConfig(), null, 2)}\n`],
     [paths.hookRunnerPath, hookRunner()],
     [join(paths.skillsRoot, 'coodra-init', 'SKILL.md'), coodraInitSkill()],
     [join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), coodraContextSkill()],
     [join(paths.skillsRoot, 'coodra-skill', 'SKILL.md'), coodraSkillSkill()],
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
+    [join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), deepWikiAuthorSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
     [paths.marketplacePath, await marketplaceJson(paths.marketplacePath)],
   ]);
@@ -522,11 +528,22 @@ description: Generate, update, inspect, or use the Coodra project wiki stored un
 
 Use this skill when the user asks for wiki generation, architecture documentation, codebase explanations, or wiki-grounded implementation context.
 
-1. Inspect \`.coodra/wiki/\` first.
-2. Use Graphify artifacts under \`.coodra/graphify/\` when they exist.
-3. If the wiki is missing or stale, run the appropriate Coodra wiki command and keep output under \`.coodra/wiki/\`.
-4. Use the wiki as grounding, but verify claims against source files before editing.
+1. Inspect \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` first when generating or refreshing a wiki.
+2. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
+3. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
+4. Use Graphify artifacts under \`.coodra/graphify/out/\` when they exist, and derive the wiki shape from this repo rather than a fixed template.
+5. Use existing wiki records as grounding, but verify claims against source files before editing.
 `;
+}
+
+function deepWikiAuthorSkill(): string {
+  const fm = deepWikiFeatureFrontmatter();
+  return `---
+name: ${fm.name}
+description: ${fm.description}
+---
+
+${renderDeepWikiFeatureBody()}`;
 }
 
 function coodraGraphifySkill(): string {
@@ -547,6 +564,15 @@ Use this skill when the user asks to graphify a repository, use the code graph, 
 async function fileContains(path: string, needle: string): Promise<boolean> {
   try {
     return (await readFile(path, 'utf8')).includes(needle);
+  } catch {
+    return false;
+  }
+}
+
+async function fileContainsAll(path: string, needles: readonly string[]): Promise<boolean> {
+  try {
+    const content = await readFile(path, 'utf8');
+    return needles.every((needle) => content.includes(needle));
   } catch {
     return false;
   }
