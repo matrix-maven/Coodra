@@ -1,5 +1,5 @@
 import type { DbHandle } from '@coodra/db';
-import { createLogger } from '@coodra/shared';
+import { createLogger, readCoodraProjectConfig, renderWorkflowPolicyContext } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 
 import type { HookDispatchResult } from '../app.js';
@@ -136,11 +136,26 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // always renders; dynamic blocks fail-open.
     let featuresIndexBlock: string | null = null;
     let recentDecisionsBlock: string | null = null;
+    let workflowPolicyBlock: string | null = null;
     const slugValue = typeof slug === 'string' && slug.length > 0 ? slug : null;
     const cwdValue = typeof event.cwd === 'string' && event.cwd.length > 0 ? event.cwd : null;
     if (slugValue !== null && cwdValue !== null) {
       const projectSlug: string = slugValue;
       const cwd: string = cwdValue;
+      try {
+        const cfg = await readCoodraProjectConfig(cwd);
+        workflowPolicyBlock = cfg !== null ? renderWorkflowPolicyContext(cfg.workflowPolicy, { projectSlug }) : null;
+      } catch (err) {
+        sessionStartLogger.warn(
+          {
+            event: 'session_start_workflow_policy_failed',
+            sessionId: event.sessionId,
+            projectSlug,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'workflow-policy load threw; SessionStart proceeding without workflow policy block',
+        );
+      }
       // 2026-05-08 — features index injection (Phase C of the skill-style
       // features rollout). Independently fail-opens; if `docs/features/`
       // doesn't exist or the index is unreadable, this returns null and
@@ -206,11 +221,13 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // Block ordering:
     //   1. Skills index       — skill-style "what's available"
     //   2. Session Contract   — compliance reminder (always)
-    //   3. Recent decisions   — situational awareness
+    //   3. Workflow policy    — repo governance from .coodra/config.json
+    //   4. Recent decisions   — situational awareness
     // Each block is independent: any missing block just doesn't surface.
     const blocks: string[] = [];
     if (featuresIndexBlock !== null) blocks.push(featuresIndexBlock);
     blocks.push(M05_SESSION_CONTRACT);
+    if (workflowPolicyBlock !== null) blocks.push(workflowPolicyBlock);
     if (recentDecisionsBlock !== null) blocks.push(recentDecisionsBlock);
     const additionalContext = blocks.length > 0 ? blocks.join('\n\n---\n\n') : undefined;
 

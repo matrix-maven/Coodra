@@ -42,6 +42,13 @@ describe('project-store config', () => {
       version: 1,
       projectSlug: 'demo',
       mode: 'solo',
+      workflowPolicy: {
+        enabled: true,
+        profile: 'solo',
+        requireBranch: true,
+        requirePush: true,
+        allowAutoMerge: true,
+      },
       createdAt: CLOCK(),
       updatedAt: CLOCK(),
     });
@@ -99,6 +106,7 @@ describe('project-store config', () => {
     expect(cfg.updatedAt).toBe(CLOCK()); // bumped
     expect(cfg.projectId).toBe('proj_keepme'); // unknown field retained
     expect(cfg.mode).toBe('team');
+    expect(cfg.workflowPolicy).toMatchObject({ profile: 'team', requirePrLink: true, allowAutoMerge: false });
   });
 
   it('does NOT overwrite a user-edited slug without --force (drift preserved)', async () => {

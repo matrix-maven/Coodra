@@ -24,6 +24,7 @@ export {
   runKeySegmentSchema,
 } from './idempotency.js';
 export { createLogger, type Logger, type LoggerOptions, logger } from './logger.js';
+export { type CoodraProjectConfig, readCoodraProjectConfig } from './project-config.js';
 export {
   MAX_FILES_PER_DIFF,
   MAX_UNIFIED_DIFF_BYTES,
@@ -38,7 +39,16 @@ export {
   truncateUnifiedDiff,
 } from './run-diff.js';
 export {
+  type JiraWorkIntent,
   parseJiraWorkIntent,
   renderJiraWorkModeContext,
-  type JiraWorkIntent,
 } from './work-intent.js';
+export {
+  defaultWorkflowPolicy,
+  parseWorkflowPolicy,
+  renderWorkflowPolicyContext,
+  type WorkflowPolicy,
+  type WorkflowPolicyProfile,
+  workflowPolicyProfileSchema,
+  workflowPolicySchema,
+} from './workflow-policy.js';

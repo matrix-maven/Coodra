@@ -114,6 +114,8 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   it('buildInstructionBlock embeds the slug and the core trigger-contract tools', async () => {
     const block = buildInstructionBlock('the-slug', 'AGENTS.md');
     expect(block).toContain('the-slug');
+    expect(block).toContain('## Coodra Workflow Policy');
+    expect(block).toContain('Instruction files such as `AGENTS.md` and `CLAUDE.md` are render targets');
     for (const tool of [
       'coodra__get_run_id',
       'coodra__work_pack_status',
@@ -158,6 +160,25 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(buildInstructionBlock('s', 'AGENTS.md')).not.toContain('agentSessionId');
     expect(buildInstructionBlock('s', '.cursorrules')).not.toContain('agentSessionId');
     expect(buildInstructionBlock('s', '.windsurfrules')).not.toContain('agentSessionId');
+  });
+
+  it('renders team workflow policy into managed instruction blocks', () => {
+    const block = buildInstructionBlock('team-project', 'CLAUDE.md', {
+      enabled: true,
+      profile: 'team',
+      requireBranch: true,
+      requireDecisionLog: true,
+      requireContextPack: true,
+      requireTests: true,
+      requireCommit: true,
+      requirePush: true,
+      requirePrLink: true,
+      allowAutoMerge: false,
+      updateWorkPackOnCompletion: true,
+    });
+    expect(block).toContain('Team mode: create a branch, push it, open a PR for review, and do not auto-merge.');
+    expect(block).toContain('- Link or create a PR before completion: yes');
+    expect(block).toContain('- Auto-merge permitted after passing tests: no');
   });
 
   // 0.2.0-beta.1: CLAUDE.md + .cursorrules added to InstructionFileName.

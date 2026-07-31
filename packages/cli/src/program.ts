@@ -86,6 +86,11 @@ import {
   runPolicyShowCommand,
 } from './commands/policy.js';
 import {
+  type PolicyWorkflowIO,
+  type PolicyWorkflowRenderOptions,
+  runPolicyWorkflowRenderCommand,
+} from './commands/policy-workflow.js';
+import {
   type ProjectDemoteOptions,
   type ProjectIO,
   type ProjectListOptions,
@@ -151,8 +156,8 @@ import {
   runWorkShowCommand,
   runWorkStatusCommand,
   type WorkBaseOptions,
-  type WorkIO,
   type WorkImportOptions,
+  type WorkIO,
 } from './commands/work.js';
 import { VERSION } from './version.js';
 
@@ -248,6 +253,7 @@ interface BuildProgramOptions {
   readonly uninstallIO?: UninstallIO;
   readonly runUninstall?: (options: UninstallOptions, io?: UninstallIO) => Promise<unknown>;
   readonly policyIO?: PolicyIO;
+  readonly policyWorkflowIO?: PolicyWorkflowIO;
   readonly runPolicyList?: (options: PolicyListOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyShow?: (identifier: string, options: PolicyShowOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyAdd?: (options: PolicyAddOptions, io?: PolicyIO) => Promise<unknown>;
@@ -261,6 +267,7 @@ interface BuildProgramOptions {
     options: PolicyEnableDisableOptions,
     io?: PolicyIO,
   ) => Promise<unknown>;
+  readonly runPolicyWorkflowRender?: (options: PolicyWorkflowRenderOptions, io?: PolicyWorkflowIO) => Promise<unknown>;
   readonly projectIO?: ProjectIO;
   readonly runProjectList?: (options: ProjectListOptions, io?: ProjectIO) => Promise<unknown>;
   readonly runProjectShow?: (identifier: string, options: ProjectShowOptions, io?: ProjectIO) => Promise<unknown>;
@@ -962,6 +969,20 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
       await policyDisableRunner(identifier, opts, options.policyIO);
+    });
+  const policyWorkflow = policy
+    .command('workflow')
+    .description('Manage workflow policy rendered from .coodra/config.json.');
+  const policyWorkflowRenderRunner = options.runPolicyWorkflowRender ?? runPolicyWorkflowRenderCommand;
+  policyWorkflow
+    .command('render')
+    .description('Render workflow policy into managed AGENTS.md / CLAUDE.md blocks.')
+    .option('--agents <list>', 'Comma-separated agents to render: codex,claude (default: codex,claude).')
+    .option('--cwd <path>', 'Project root containing .coodra/config.json (default: current directory).')
+    .option('--dry-run', 'Report planned writes without changing files.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicyWorkflowRenderOptions) => {
+      await policyWorkflowRenderRunner(opts, options.policyWorkflowIO);
     });
 
   // Module 08b S10 — project admin (list, show, reset).
