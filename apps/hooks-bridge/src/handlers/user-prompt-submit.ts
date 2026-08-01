@@ -1,12 +1,8 @@
 import type { DbHandle } from '@coodra/db';
-import {
-  createLogger,
-  parseJiraWorkIntent,
-  readCoodraProjectConfig,
-  renderJiraWorkModeContext,
-  renderWorkflowPolicyContext,
-} from '@coodra/shared';
+import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { HookDispatchResult } from '../app.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';

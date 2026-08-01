@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { defaultWorkflowPolicy, parseWorkflowPolicy, workflowPolicySchema } from '@coodra/shared';
+import { defaultWorkflowPolicy, parseWorkflowPolicy, workflowPolicySchema } from '@coodra/shared/workflow-policy';
 import { z } from 'zod';
 import type { WriteOutcome } from '../init/types.js';
 

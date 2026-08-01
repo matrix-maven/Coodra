@@ -1,11 +1,5 @@
 import type { DbHandle } from '@coodra/db';
-import {
-  createLogger,
-  parseJiraWorkIntent,
-  readCoodraProjectConfig,
-  renderJiraWorkModeContext,
-  renderWorkflowPolicyContext,
-} from '@coodra/shared';
+import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import {
   adaptClaudeCode,
   adaptCodex,
@@ -13,6 +7,8 @@ import {
   CodexHookPayloadSchema,
   type HookEvent,
 } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';

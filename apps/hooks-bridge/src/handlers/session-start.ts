@@ -1,6 +1,8 @@
 import type { DbHandle } from '@coodra/db';
-import { createLogger, readCoodraProjectConfig, renderWorkflowPolicyContext } from '@coodra/shared';
+import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { HookDispatchResult } from '../app.js';
 import { abandonStaleInProgressRuns } from '../lib/abandon-stale-runs.js';

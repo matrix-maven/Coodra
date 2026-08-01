@@ -1,9 +1,10 @@
 import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
-import { addRuleAction, deleteRuleAction, setActiveAction } from '@/lib/actions/policies';
+import { addRuleAction, deleteRuleAction, saveWorkflowPolicyAction, setActiveAction } from '@/lib/actions/policies';
 import { listPolicies } from '@/lib/queries/policies';
 import { getProject, listProjects } from '@/lib/queries/projects';
+import { listWorkflowPolicies } from '@/lib/queries/workflow-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,7 @@ export default async function PoliciesPage({
   const projects = await listProjects();
   const scopedProject = sp.project !== undefined && sp.project !== '' ? await getProject(sp.project) : null;
   const policies = await listPolicies(scopedProject?.id ?? null);
+  const workflowPolicies = await listWorkflowPolicies(scopedProject !== null ? [scopedProject] : projects);
   // Map projectId → slug for the chip list when grouping.
   const projectSlugById = new Map(projects.map((p) => [p.id, p.slug]));
   // Flatten into rows: each rule is a row, with policy + project context.
@@ -111,6 +113,107 @@ export default async function PoliciesPage({
         {sp.toggled !== undefined ? <Banner tone="ok">Policy {sp.toggled}</Banner> : null}
         {sp.deleted !== undefined ? <Banner tone="ok">Rule deleted · {sp.deleted}</Banner> : null}
         {sp.error !== undefined ? <Banner tone="warn">Error: {sp.error}</Banner> : null}
+
+        <div style={{ marginBottom: 24 }}>
+          <div className="card__head" style={{ marginBottom: 14 }}>
+            <h2 className="card__title">
+              Workflow <em>policy</em>
+            </h2>
+            <span className="card__role">agent governance · .coodra/config.json</span>
+          </div>
+          <div className="dash-grid">
+            {workflowPolicies.map((item) => (
+              <form
+                key={item.projectId}
+                action={saveWorkflowPolicyAction}
+                className="aside-card"
+                style={{ margin: 0, minWidth: 0 }}
+              >
+                <input type="hidden" name="projectSlug" value={item.projectSlug} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 16 }}>
+                  <div>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: 22 }}>{item.projectSlug}</div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--mono)',
+                        fontSize: 10,
+                        color: item.exists ? 'var(--accent)' : 'var(--warn)',
+                        letterSpacing: '0.06em',
+                        marginTop: 4,
+                      }}
+                    >
+                      {item.exists ? item.policy.profile : 'config missing'}
+                    </div>
+                  </div>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontFamily: 'var(--mono)',
+                      fontSize: 10,
+                      color: 'var(--ink-dim)',
+                    }}
+                  >
+                    <input type="checkbox" name="enabled" defaultChecked={item.policy.enabled} />
+                    enabled
+                  </label>
+                </div>
+
+                {item.error !== null ? (
+                  <div style={{ marginTop: 12, color: 'var(--warn)', fontSize: 12 }}>{item.error}</div>
+                ) : null}
+
+                <div className="field" style={{ marginTop: 18, marginBottom: 14 }}>
+                  <label
+                    htmlFor={`workflow-profile-${item.projectId}`}
+                    className="field__label"
+                    style={fieldLabelStyle}
+                  >
+                    Profile
+                  </label>
+                  <select
+                    id={`workflow-profile-${item.projectId}`}
+                    name="profile"
+                    defaultValue={item.policy.profile}
+                    style={fieldInputStyle}
+                  >
+                    <option value="solo">solo</option>
+                    <option value="team">team</option>
+                    <option value="manual">manual</option>
+                  </select>
+                </div>
+
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: 10,
+                    marginBottom: 18,
+                  }}
+                >
+                  <Check name="requireBranch" label="branch first" checked={item.policy.requireBranch} />
+                  <Check name="requireDecisionLog" label="decision log" checked={item.policy.requireDecisionLog} />
+                  <Check name="requireContextPack" label="context pack" checked={item.policy.requireContextPack} />
+                  <Check name="requireTests" label="tests" checked={item.policy.requireTests} />
+                  <Check name="requireCommit" label="commit" checked={item.policy.requireCommit} />
+                  <Check name="requirePush" label="push" checked={item.policy.requirePush} />
+                  <Check name="requirePrLink" label="PR link" checked={item.policy.requirePrLink} />
+                  <Check name="allowAutoMerge" label="auto-merge" checked={item.policy.allowAutoMerge} />
+                  <Check
+                    name="updateWorkPackOnCompletion"
+                    label="update work pack"
+                    checked={item.policy.updateWorkPackOnCompletion}
+                  />
+                </div>
+
+                <button className="btn btn--accent" type="submit">
+                  Save workflow policy
+                </button>
+              </form>
+            ))}
+          </div>
+        </div>
 
         <div className="card" style={{ padding: 28, marginBottom: 24 }}>
           <div className="card__head">
@@ -423,6 +526,27 @@ function SelectField({ label, name, options }: { label: string; name: string; op
         ))}
       </select>
     </div>
+  );
+}
+
+function Check({ name, label, checked }: { name: string; label: string; checked: boolean }) {
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        minHeight: 32,
+        fontFamily: 'var(--mono)',
+        fontSize: 11,
+        color: 'var(--ink-dim)',
+        border: '1px solid var(--rule)',
+        padding: '6px 8px',
+      }}
+    >
+      <input type="checkbox" name={name} defaultChecked={checked} />
+      {label}
+    </label>
   );
 }
 

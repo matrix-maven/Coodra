@@ -1,6 +1,10 @@
 import { access, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { defaultWorkflowPolicy, renderWorkflowPolicyContext, type WorkflowPolicy } from '@coodra/shared';
+import {
+  defaultWorkflowPolicy,
+  renderWorkflowPolicyContext,
+  type WorkflowPolicy,
+} from '@coodra/shared/workflow-policy';
 import type { WriteOutcome } from './types.js';
 
 /**
