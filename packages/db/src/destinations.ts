@@ -25,6 +25,8 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 
 export interface InsertRunEventRow {
   readonly id: string;
+  readonly orgId?: string | null;
+  readonly projectId?: string | null;
   readonly runId: string | null;
   readonly phase: string;
   readonly toolName: string;
@@ -43,6 +45,7 @@ export async function insertRunEvent(db: DbHandle, row: InsertRunEventRow): Prom
 
 export interface InsertRunRow {
   readonly id: string;
+  readonly orgId?: string | null;
   readonly projectId: string;
   readonly sessionId: string;
   readonly agentType: string;

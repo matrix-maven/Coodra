@@ -79,23 +79,23 @@ interface RunRow {
 async function resolveProjectId(
   deps: GetRunIdHandlerDeps,
   projectSlug: string,
-): Promise<{ readonly kind: 'found'; readonly projectId: string } | { readonly kind: 'missing' }> {
+): Promise<{ readonly kind: 'found'; readonly projectId: string; readonly orgId: string } | { readonly kind: 'missing' }> {
   if (deps.db.kind === 'sqlite') {
     const rows = await deps.db.db
-      .select({ id: sqliteSchema.projects.id })
+      .select({ id: sqliteSchema.projects.id, orgId: sqliteSchema.projects.orgId })
       .from(sqliteSchema.projects)
       .where(eq(sqliteSchema.projects.slug, projectSlug))
       .limit(1);
     const found = rows[0];
-    return found ? { kind: 'found', projectId: found.id } : { kind: 'missing' };
+    return found ? { kind: 'found', projectId: found.id, orgId: found.orgId } : { kind: 'missing' };
   }
   const rows = await deps.db.db
-    .select({ id: postgresSchema.projects.id })
+    .select({ id: postgresSchema.projects.id, orgId: postgresSchema.projects.orgId })
     .from(postgresSchema.projects)
     .where(eq(postgresSchema.projects.slug, projectSlug))
     .limit(1);
   const found = rows[0];
-  return found ? { kind: 'found', projectId: found.id } : { kind: 'missing' };
+  return found ? { kind: 'found', projectId: found.id, orgId: found.orgId } : { kind: 'missing' };
 }
 
 async function autoCreateProject(deps: GetRunIdHandlerDeps, projectSlug: string): Promise<string> {
@@ -203,6 +203,7 @@ async function insertRun(
   deps: GetRunIdHandlerDeps,
   row: {
     readonly id: string;
+    readonly orgId: string;
     readonly projectId: string;
     readonly sessionId: string;
     readonly agentType: string;
@@ -214,6 +215,7 @@ async function insertRun(
       .insert(sqliteSchema.runs)
       .values({
         id: row.id,
+        orgId: row.orgId,
         projectId: row.projectId,
         sessionId: row.sessionId,
         agentType: row.agentType,
@@ -232,6 +234,7 @@ async function insertRun(
     .insert(postgresSchema.runs)
     .values({
       id: row.id,
+      orgId: row.orgId,
       projectId: row.projectId,
       sessionId: row.sessionId,
       agentType: row.agentType,
@@ -278,10 +281,14 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
     const resolved = await resolveProjectId(deps, input.projectSlug);
 
     let projectId: string;
+    let orgId: string;
     if (resolved.kind === 'found') {
       projectId = resolved.projectId;
+      orgId = resolved.orgId;
     } else if (deps.mode === 'solo') {
       projectId = await autoCreateProject(deps, input.projectSlug);
+      const createdProject = await resolveProjectId(deps, input.projectSlug);
+      orgId = createdProject.kind === 'found' ? createdProject.orgId : (SOLO_IDENTITY.orgId ?? 'org_dev_local');
     } else {
       handlerLogger.info(
         {
@@ -324,6 +331,7 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
     const newId = generateRunKey({ projectId, sessionId: effectiveSessionId });
     const inserted = await insertRun(deps, {
       id: newId,
+      orgId,
       projectId,
       sessionId: effectiveSessionId,
       agentType: effectiveAgentType,

@@ -55,6 +55,7 @@ const tablePairs = [
   ['decisions', sq.decisions, pg.decisions],
   ['kill_switches', sq.killSwitches, pg.killSwitches],
   ['run_diffs', sq.runDiffs, pg.runDiffs],
+  ['audit_events', sq.auditEvents, pg.auditEvents],
   // M04 Phase 2 — team_invites (2026-05-11). Postgres-only at runtime
   // but dual-dialect for structural parity (see schema header comments).
   ['team_invites', sq.teamInvites, pg.teamInvites],
@@ -188,5 +189,38 @@ describe('architected dialect drift', () => {
     // drizzle's pg vector column reports dataType 'array' — assert it's not 'string'
     // so silent regressions to plain text are caught.
     expect(pgCols.summaryEmbedding?.dataType).not.toBe('string');
+  });
+});
+
+describe('schema conventions for audit-ready mutable tables', () => {
+  const mutableTables = [
+    ['projects', sq.projects],
+    ['policies', sq.policies],
+    ['policy_rules', sq.policyRules],
+    ['features', sq.features],
+    ['integration_connections', sq.integrationConnections],
+    ['work_packs', sq.workPacks],
+    ['work_pack_external_links', sq.workPackExternalLinks],
+    ['work_pack_relationships', sq.workPackRelationships],
+    ['wikis', sq.wikis],
+    ['wiki_pages', sq.wikiPages],
+  ] as const;
+
+  const systemMutableTables = new Set(['projects', 'external_work_items']);
+
+  for (const [name, table] of mutableTables) {
+    it(`${name}: updated_at has actor attribution unless system-owned`, () => {
+      const cols = columnsOf(table);
+      expect(cols.updatedAt).toBeDefined();
+      if (!systemMutableTables.has(name)) {
+        expect(cols.updatedByUserId).toBeDefined();
+      }
+    });
+  }
+
+  it('audit_events is append-only shaped', () => {
+    const cols = columnsOf(sq.auditEvents);
+    expect(cols.createdAt).toBeDefined();
+    expect(cols.updatedAt).toBeUndefined();
   });
 });

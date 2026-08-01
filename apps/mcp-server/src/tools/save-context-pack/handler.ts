@@ -167,7 +167,7 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       {
         source: 'agent',
         ...(input.meta !== undefined ? { meta: input.meta } : {}),
-        ...(actor !== null ? { createdByUserId: actor.userId } : {}),
+        ...(actor !== null ? { createdByUserId: actor.userId, orgId: actor.orgId } : {}),
         ...(workPackId !== null ? { workPackId } : {}),
       },
     )) as ContextPackWriteResult;

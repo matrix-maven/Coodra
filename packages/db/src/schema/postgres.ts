@@ -47,6 +47,7 @@ export const runs = pgTable(
   'runs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -73,6 +74,8 @@ export const runEvents = pgTable(
   'run_events',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     // run_id is nullable + ON DELETE SET NULL: the `RunRecorder.record()`
     // contract (see apps/mcp-server/src/framework/tool-context.ts) accepts
     // `runId: string | null` so PreToolUse events that fire before a
@@ -94,6 +97,7 @@ export const contextPacks = pgTable(
   'context_packs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     runId: text('run_id')
       .notNull()
       .references(() => runs.id),
@@ -128,6 +132,9 @@ export const pendingJobs = pgTable(
   'pending_jobs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id'),
+    runId: text('run_id'),
     queue: text('queue').notNull(),
     payload: text('payload').notNull(),
     attempts: integer('attempts').notNull().default(0),
@@ -155,6 +162,7 @@ export const pendingJobs = pgTable(
 
 export const policies = pgTable('policies', {
   id: text('id').primaryKey(),
+  orgId: text('org_id'),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id),
@@ -163,6 +171,7 @@ export const policies = pgTable('policies', {
   isActive: boolean('is_active').notNull().default(true),
   // Module 04 Phase 4 — see ./sqlite.ts::policies.createdByUserId.
   createdByUserId: text('created_by_user_id'),
+  updatedByUserId: text('updated_by_user_id'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
 });
@@ -171,6 +180,8 @@ export const policyRules = pgTable(
   'policy_rules',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     policyId: text('policy_id')
       .notNull()
       .references(() => policies.id),
@@ -181,7 +192,10 @@ export const policyRules = pgTable(
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
     reason: text('reason').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }),
   },
   (t) => [
     index('policy_rules_policy_priority_idx').on(t.policyId, t.priority),
@@ -197,6 +211,7 @@ export const policyDecisions = pgTable(
   'policy_decisions',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     idempotencyKey: text('idempotency_key').notNull().unique(),
     runId: text('run_id').references(() => runs.id),
     sessionId: text('session_id').notNull(),
@@ -239,6 +254,7 @@ export const features = pgTable(
   'features',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -248,6 +264,7 @@ export const features = pgTable(
     checksum: text('checksum').notNull(),
     status: text('status').notNull().default('draft'),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -268,6 +285,7 @@ export const integrationConnections = pgTable(
   'integration_connections',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -278,6 +296,7 @@ export const integrationConnections = pgTable(
     boardId: text('board_id'),
     enabledCapabilitiesJson: text('enabled_capabilities_json').notNull().default('{}'),
     createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -296,6 +315,7 @@ export const externalWorkItems = pgTable(
   'external_work_items',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -334,6 +354,7 @@ export const workPacks = pgTable(
     createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
     orgId: text('org_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -348,6 +369,8 @@ export const workPackExternalLinks = pgTable(
   'work_pack_external_links',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     workPackId: text('work_pack_id')
       .notNull()
       .references(() => workPacks.id, { onDelete: 'cascade' }),
@@ -358,6 +381,7 @@ export const workPackExternalLinks = pgTable(
     syncState: text('sync_state').notNull().default('synced'),
     lastSyncedHash: text('last_synced_hash'),
     conflictState: text('conflict_state'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -371,6 +395,7 @@ export const workPackRelationships = pgTable(
   'work_pack_relationships',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -381,6 +406,7 @@ export const workPackRelationships = pgTable(
     relationshipType: text('relationship_type').notNull(),
     syncLevel: text('sync_level').notNull().default('summary'),
     metadataJson: text('metadata_json').notNull().default('{}'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
@@ -394,6 +420,7 @@ export const syncEvents = pgTable(
   'sync_events',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -418,6 +445,8 @@ export const decisions = pgTable(
   'decisions',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     // idempotency_key = `dec:{runId}:{sha256(description).slice(0,32)}`. Two
     // calls with the same runId + identical description collide on this
     // unique index and the second returns the first row's id — see
@@ -459,6 +488,9 @@ export const killSwitches = pgTable(
   'kill_switches',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
     scope: text('scope').notNull(),
     target: text('target'),
     mode: text('mode').notNull().default('hard'),
@@ -489,6 +521,8 @@ export const killSwitches = pgTable(
 export const runDiffs = pgTable(
   'run_diffs',
   {
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     runId: text('run_id')
       .primaryKey()
       .references(() => runs.id, { onDelete: 'cascade' }),
@@ -501,6 +535,35 @@ export const runDiffs = pgTable(
     generatedAt: timestamp('generated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [index('run_diffs_generated_at_idx').on(t.generatedAt)],
+);
+
+export const auditEvents = pgTable(
+  'audit_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    actorUserId: text('actor_user_id'),
+    actorRunId: text('actor_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    eventType: text('event_type').notNull(),
+    subjectTable: text('subject_table').notNull(),
+    subjectId: text('subject_id').notNull(),
+    action: text('action').notNull(),
+    result: text('result').notNull().default('success'),
+    reason: text('reason'),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    beforeHash: text('before_hash'),
+    afterHash: text('after_hash'),
+    prevHash: text('prev_hash'),
+    hash: text('hash'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('audit_events_org_created_idx').on(t.orgId, t.createdAt),
+    index('audit_events_project_created_idx').on(t.projectId, t.createdAt),
+    index('audit_events_subject_idx').on(t.subjectTable, t.subjectId, t.createdAt),
+  ],
 );
 
 /**
@@ -572,6 +635,8 @@ export type KillSwitch = typeof killSwitches.$inferSelect;
 export type NewKillSwitch = typeof killSwitches.$inferInsert;
 export type RunDiff = typeof runDiffs.$inferSelect;
 export type NewRunDiff = typeof runDiffs.$inferInsert;
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type NewAuditEvent = typeof auditEvents.$inferInsert;
 export type TeamInvite = typeof teamInvites.$inferSelect;
 export type NewTeamInvite = typeof teamInvites.$inferInsert;
 
@@ -666,6 +731,7 @@ export const wikis = pgTable(
     structureJson: text('structure_json').notNull(),
     generatedByRunId: text('generated_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     orgId: text('org_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -686,6 +752,7 @@ export const wikiPages = pgTable(
   'wiki_pages',
   {
     id: text('id').primaryKey(),
+    projectId: text('project_id').references(() => projects.id),
     wikiId: text('wiki_id')
       .notNull()
       .references(() => wikis.id, { onDelete: 'cascade' }),
@@ -695,6 +762,7 @@ export const wikiPages = pgTable(
     citations: text('citations').notNull().default('[]'),
     authoredByRunId: text('authored_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     orgId: text('org_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),

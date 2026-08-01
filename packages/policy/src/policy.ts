@@ -471,6 +471,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
 // ---------------------------------------------------------------------------
 
 export interface RecordPolicyDecisionArgs {
+  readonly orgId?: string | null;
   /** NOT NULL FK to `projects.id`. Caller must supply. */
   readonly projectId: string;
   readonly sessionId: string;
@@ -525,6 +526,7 @@ export async function recordPolicyDecision(
 
   const row = {
     id,
+    orgId: args.orgId ?? null,
     idempotencyKey,
     runId: args.runId,
     sessionId: args.sessionId,

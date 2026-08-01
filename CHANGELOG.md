@@ -4,6 +4,10 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- **2026-08-01 — COOD-25 — Added the audit-ready tenant attribution schema foundation.** SQLite and Postgres now carry org/project attribution across audit-relevant tables, retain `decisions.run_id` while adding `decisions.project_id` and `decisions.org_id`, and include `updated_by_user_id` on mutable user-owned records that already expose `updated_at`. A new append-only `audit_events` table records actor, subject, action/result, metadata, and hash-chain fields for the future EE audit trail. Core write paths now stamp attribution where it is reliably available today, covering run creation, run events, context packs, decisions, and policy decision recording; schema parity tests and migration-lock coverage were updated alongside the new migrations.
+
 ## [0.3.0] — 2026-07-31
 
 ### Added

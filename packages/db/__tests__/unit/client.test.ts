@@ -170,6 +170,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         .all() as Array<{ name: string }>;
       const tables = rows.map((r) => r.name);
       expect(tables).toEqual([
+        'audit_events',
         'context_packs',
         'context_packs_vec',
         'decisions',
@@ -223,8 +224,8 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND substr(name, 1, 18) <> 'context_packs_vec_'`,
         )
         .get() as { n: number };
-      // 21 schema tables + context_packs_vec virtual table = 22.
-      expect(rows.n).toBe(22);
+      // 22 schema tables + context_packs_vec virtual table = 23.
+      expect(rows.n).toBe(23);
     } finally {
       first.close();
     }
