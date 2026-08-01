@@ -203,6 +203,64 @@ describe('coodra uninstall integration', () => {
     expect(existsSync(homePath)).toBe(false);
   });
 
+  it('Fixture 4b — --purge removes Coodra project dirs from every registered project cwd', async () => {
+    const otherProject = join(cwd, 'docling-advanced');
+    mkdirSync(join(projectCwd, '.coodra', 'work-packs'), { recursive: true });
+    mkdirSync(join(projectCwd, 'docs', 'context-packs'), { recursive: true });
+    mkdirSync(join(otherProject, '.coodra', 'work-packs'), { recursive: true });
+    mkdirSync(join(otherProject, 'docs', 'context-packs'), { recursive: true });
+    rmSync(join(homePath, 'data.db'), { force: true });
+
+    // Build a tiny SQLite store with only the projects table shape listProjects
+    // reads. This keeps the fixture focused on registered cwd cleanup rather
+    // than full migration boot.
+    const { createSqliteDb } = await import('@coodra/db');
+    const handle = createSqliteDb({ path: join(homePath, 'data.db'), loadVecExtension: false });
+    try {
+      handle.raw.exec(`
+        CREATE TABLE projects (
+          id text PRIMARY KEY,
+          slug text NOT NULL,
+          org_id text NOT NULL DEFAULT '__solo__',
+          name text NOT NULL,
+          cwd text,
+          created_at integer NOT NULL DEFAULT (unixepoch() * 1000),
+          updated_at integer NOT NULL DEFAULT (unixepoch() * 1000)
+        );
+        CREATE TABLE runs (
+          id text PRIMARY KEY,
+          project_id text,
+          started_at integer NOT NULL
+        );
+      `);
+      const stmt = handle.raw.prepare(
+        'INSERT INTO projects (id, slug, org_id, name, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      );
+      stmt.run('current', 'current', '__solo__', 'Current', projectCwd, Date.now(), Date.now());
+      stmt.run('other', 'docling-advanced', '__solo__', 'Docling Advanced', otherProject, Date.now(), Date.now());
+      stmt.run('__global__', '__global__', '__solo__', 'Global', null, Date.now(), Date.now());
+    } finally {
+      handle.close();
+    }
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ json: true, purge: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+    expect(existsSync(join(projectCwd, '.coodra'))).toBe(false);
+    expect(existsSync(join(projectCwd, 'docs', 'context-packs'))).toBe(false);
+    expect(existsSync(join(otherProject, '.coodra'))).toBe(false);
+    expect(existsSync(join(otherProject, 'docs', 'context-packs'))).toBe(false);
+    expect(existsSync(homePath)).toBe(false);
+
+    const payload = JSON.parse(cap.stdout.join('')) as { steps: Array<{ step: string; action: string }> };
+    expect(payload.steps.find((s) => s.step === 'project-coodra-dir')?.action).toBe('merged');
+    expect(
+      payload.steps.find((s) => s.step.includes('docling-advanced') && s.step.endsWith('project-coodra-dir'))?.action,
+    ).toBe('merged');
+  });
+
   it('Fixture 5 — idempotent: re-running on a clean uninstall is exit 0 with all-unchanged steps', async () => {
     // First run already cleans up; second run should be a no-op.
     const cap1: Capture = { stdout: [], stderr: [], exitCode: null };

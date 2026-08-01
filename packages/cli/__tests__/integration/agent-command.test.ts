@@ -139,6 +139,7 @@ describe('coodra agent add', () => {
     expect(mcp.mcpServers.coodra.env.COODRA_AGENT_TYPE).toBe('codex');
     const hooks = JSON.parse(await readFile(join(pluginRoot, 'hooks', 'hooks.json'), 'utf8'));
     expect(Object.keys(hooks.hooks).sort()).toEqual([
+      'ConfigChange',
       'PostToolUse',
       'PreToolUse',
       'SessionEnd',

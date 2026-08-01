@@ -375,7 +375,16 @@ async function syncPolicyProjectionForAgents(args: {
   if (uniqueAgents.length === 0) return { agents: [], written: [] };
   if (args.dryRun) return { agents: uniqueAgents, written: [], skippedReason: 'dry run' };
 
-  const handle = await openLocalDb(resolveCoodraDataDb(args.resolved.coodraHome));
+  let handle: Awaited<ReturnType<typeof openLocalDb>>;
+  try {
+    handle = await openLocalDb(resolveCoodraDataDb(args.resolved.coodraHome));
+  } catch (err) {
+    return {
+      agents: uniqueAgents,
+      written: [],
+      skippedReason: `local store is not ready; run coodra install/init first (${err instanceof Error ? err.message : String(err)})`,
+    };
+  }
   try {
     const project = await lookupProjectBySlug(handle, args.resolved.projectSlug);
     if (project === null) {
@@ -397,6 +406,12 @@ async function syncPolicyProjectionForAgents(args: {
       });
     }
     return { agents: uniqueAgents, written };
+  } catch (err) {
+    return {
+      agents: uniqueAgents,
+      written: [],
+      skippedReason: `policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`,
+    };
   } finally {
     handle.close();
   }

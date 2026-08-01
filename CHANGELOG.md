@@ -8,6 +8,10 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 - **2026-08-01 — COOD-25 — Added the audit-ready tenant attribution schema foundation.** SQLite and Postgres now carry org/project attribution across audit-relevant tables, retain `decisions.run_id` while adding `decisions.project_id` and `decisions.org_id`, and include `updated_by_user_id` on mutable user-owned records that already expose `updated_at`. A new append-only `audit_events` table records actor, subject, action/result, metadata, and hash-chain fields for the future EE audit trail. Core write paths now stamp attribution where it is reliably available today, covering run creation, run events, context packs, decisions, and policy decision recording; schema parity tests and migration-lock coverage were updated alongside the new migrations.
 
+### Fixed
+
+- **2026-08-01 — `coodra uninstall --purge` now cleans every registered project root, not only the current directory.** The command reads local `projects.cwd` rows before deleting `~/.coodra`, removes Coodra-owned project wiring, and purges `.coodra/` plus legacy `docs/context-packs/` from each registered project root. This fixes the field case where Coodra had been initialized in multiple repos, but running uninstall from `~` only removed machine state and left repo-local Coodra artifacts behind.
+
 ## [0.3.0] — 2026-07-31
 
 ### Added

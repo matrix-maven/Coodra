@@ -1,7 +1,8 @@
 import { rm, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
+import { GLOBAL_PROJECT_ID, listProjects } from '@coodra/db';
 import { EXIT_OK } from '../exit-codes.js';
-import { resolveCoodraHome } from '../lib/coodra-home.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
@@ -10,6 +11,7 @@ import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
 import { removeMcpJson } from '../lib/init/mcp-merge.js';
 import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
+import { openLocalDb } from '../lib/open-local-db.js';
 import { SERVICES } from '../lib/services.js';
 import { pc } from '../ui/index.js';
 
@@ -170,57 +172,46 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     });
   }
 
-  // Step 2: <cwd>/.mcp.json
-  try {
-    const result = await removeMcpJson({ cwd, dryRun });
-    steps.push({ step: 'mcp-json', action: String(result.action), notes: result.notes ?? '' });
-  } catch (err) {
-    steps.push({
-      step: 'mcp-json',
-      action: 'failed',
-      notes: err instanceof Error ? err.message : String(err),
-    });
+  await removeProjectScopedFiles({ root: cwd, prefix: '', dryRun, steps });
+  if (purge) {
+    await purgeProjectDataDirs({ root: cwd, prefix: '', dryRun, steps });
   }
 
-  // Step 2b: reverse the per-agent writes for Codex, Windsurf, Cursor,
-  // and Claude's CLAUDE.md (the `~/.claude/settings.json` reverse runs
-  // in Step 2 above). Each is idempotent: a no-op when the entry/block
-  // isn't present, so running uninstall on a partial install is
-  // harmless. Best-effort per step — one failure doesn't block the
-  // rest (same as every other uninstall step).
-  for (const [step, fn] of [
-    ['claude-md', () => removeInstructionBlock({ cwd, filename: 'CLAUDE.md', dryRun })],
-    ['cursor-mcp', () => removeCursorMcpConfig({ cwd, dryRun })],
-    ['cursor-rules', () => removeInstructionBlock({ cwd, filename: '.cursorrules', dryRun })],
-    ['codex-config', () => removeCodexConfig({ cwd, dryRun })],
-    ['codex-agents-md', () => removeInstructionBlock({ cwd, filename: 'AGENTS.md', dryRun })],
-    ['windsurf-mcp', () => removeWindsurfMcpConfig({ dryRun })],
-    ['windsurf-rules', () => removeInstructionBlock({ cwd, filename: '.windsurfrules', dryRun })],
-  ] as const) {
-    try {
-      const result = await fn();
-      steps.push({ step, action: String(result.action), notes: result.notes ?? '' });
-    } catch (err) {
-      steps.push({ step, action: 'failed', notes: err instanceof Error ? err.message : String(err) });
-    }
+  // Step 2c: reverse global Windsurf MCP config once. Windsurf's MCP file is
+  // user-global, unlike Claude/Cursor/Codex project files, so the registered
+  // project loop below must not repeat it for every project row.
+  try {
+    const result = await removeWindsurfMcpConfig({ dryRun });
+    steps.push({ step: 'windsurf-mcp', action: String(result.action), notes: result.notes ?? '' });
+  } catch (err) {
+    steps.push({ step: 'windsurf-mcp', action: 'failed', notes: err instanceof Error ? err.message : String(err) });
+  }
+
+  if (purge) {
+    await purgeRegisteredProjects({ homePath, currentRoot: cwd, dryRun, steps });
   }
 
   // Step 3: ~/.coodra/ purge (only on --purge)
   if (purge) {
     try {
+      let exists = true;
       try {
         await stat(homePath);
       } catch {
+        exists = false;
+      }
+      if (!exists) {
         steps.push({ step: 'purge-home', action: 'unchanged', notes: `${homePath} does not exist` });
+      } else {
+        if (!dryRun) {
+          await rm(homePath, { recursive: true, force: true });
+        }
+        steps.push({
+          step: 'purge-home',
+          action: dryRun ? 'unchanged' : 'merged',
+          notes: dryRun ? `dry-run: would remove ${homePath}` : `removed ${homePath}`,
+        });
       }
-      if (!dryRun) {
-        await rm(homePath, { recursive: true, force: true });
-      }
-      steps.push({
-        step: 'purge-home',
-        action: dryRun ? 'unchanged' : 'merged',
-        notes: dryRun ? `dry-run: would remove ${homePath}` : `removed ${homePath}`,
-      });
     } catch (err) {
       steps.push({
         step: 'purge-home',
@@ -304,6 +295,122 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
   io.exit(EXIT_OK);
+}
+
+async function purgeRegisteredProjects(args: {
+  readonly homePath: string;
+  readonly currentRoot: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  const dbPath = resolveCoodraDataDb(args.homePath);
+  let handle: Awaited<ReturnType<typeof openLocalDb>> | null = null;
+  try {
+    handle = await openLocalDb(dbPath, { loadVecExtension: false });
+    const projects = await listProjects(handle);
+    const roots = new Set<string>();
+    for (const project of projects) {
+      if (project.id === GLOBAL_PROJECT_ID || project.cwd === null || project.cwd === args.currentRoot) continue;
+      roots.add(project.cwd);
+    }
+    if (roots.size === 0) {
+      args.steps.push({
+        step: 'registered-projects',
+        action: 'unchanged',
+        notes: 'no additional registered project roots with cwd found',
+      });
+      return;
+    }
+    for (const root of [...roots].sort()) {
+      await removeProjectScopedFiles({ root, prefix: `project:${root}:`, dryRun: args.dryRun, steps: args.steps });
+      await purgeProjectDataDirs({ root, prefix: `project:${root}:`, dryRun: args.dryRun, steps: args.steps });
+    }
+  } catch (err) {
+    args.steps.push({
+      step: 'registered-projects',
+      action: 'failed',
+      notes: err instanceof Error ? err.message : String(err),
+    });
+  } finally {
+    handle?.close();
+  }
+}
+
+async function removeProjectScopedFiles(args: {
+  readonly root: string;
+  readonly prefix: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  const { root, prefix, dryRun, steps } = args;
+
+  try {
+    const result = await removeMcpJson({ cwd: root, dryRun });
+    steps.push({ step: `${prefix}mcp-json`, action: String(result.action), notes: result.notes ?? '' });
+  } catch (err) {
+    steps.push({
+      step: `${prefix}mcp-json`,
+      action: 'failed',
+      notes: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  for (const [step, fn] of [
+    ['claude-md', () => removeInstructionBlock({ cwd: root, filename: 'CLAUDE.md', dryRun })],
+    ['cursor-mcp', () => removeCursorMcpConfig({ cwd: root, dryRun })],
+    ['cursor-rules', () => removeInstructionBlock({ cwd: root, filename: '.cursorrules', dryRun })],
+    ['codex-config', () => removeCodexConfig({ cwd: root, dryRun })],
+    ['codex-agents-md', () => removeInstructionBlock({ cwd: root, filename: 'AGENTS.md', dryRun })],
+    ['windsurf-rules', () => removeInstructionBlock({ cwd: root, filename: '.windsurfrules', dryRun })],
+  ] as const) {
+    try {
+      const result = await fn();
+      steps.push({ step: `${prefix}${step}`, action: String(result.action), notes: result.notes ?? '' });
+    } catch (err) {
+      steps.push({
+        step: `${prefix}${step}`,
+        action: 'failed',
+        notes: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
+async function purgeProjectDataDirs(args: {
+  readonly root: string;
+  readonly prefix: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  for (const [step, path] of [
+    ['project-coodra-dir', join(args.root, '.coodra')],
+    ['legacy-context-packs', join(args.root, 'docs', 'context-packs')],
+  ] as const) {
+    let exists = true;
+    try {
+      await stat(path);
+    } catch {
+      exists = false;
+    }
+    if (!exists) {
+      args.steps.push({ step: `${args.prefix}${step}`, action: 'unchanged', notes: `${path} does not exist` });
+      continue;
+    }
+    try {
+      if (!args.dryRun) await rm(path, { recursive: true, force: true });
+      args.steps.push({
+        step: `${args.prefix}${step}`,
+        action: args.dryRun ? 'unchanged' : 'merged',
+        notes: args.dryRun ? `dry-run: would remove ${path}` : `removed ${path}`,
+      });
+    } catch (err) {
+      args.steps.push({
+        step: `${args.prefix}${step}`,
+        action: 'failed',
+        notes: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 /**
