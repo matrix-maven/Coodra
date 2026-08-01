@@ -169,6 +169,13 @@
 			"when": 1785577200000,
 			"tag": "0023_audit_events_and_tenant_columns",
 			"breakpoints": true
+		},
+		{
+			"idx": 24,
+			"version": "7",
+			"when": 1785663600000,
+			"tag": "0024_policy_governance",
+			"breakpoints": true
 		}
 	]
 }

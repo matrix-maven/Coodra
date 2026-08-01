@@ -1,4 +1,5 @@
 import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId, sqliteSchema } from '@coodra/db';
+import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 import { and, eq } from 'drizzle-orm';
@@ -67,6 +68,24 @@ export function createPostToolUseHandler(deps: CreatePostToolUseHandlerDeps): Po
     // safety net for the SessionStart-missed path).
     const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordPostToolUse(event, projectId);
+    if (event.turnId !== undefined && event.toolName.length > 0) {
+      void resolveAskOutcomeApproved(deps.db, {
+        sessionId: event.sessionId,
+        toolUseId: event.turnId,
+        toolName: event.toolName,
+      }).catch((err) =>
+        postToolLogger.warn(
+          {
+            event: 'post_tool_use_ask_outcome_update_failed',
+            sessionId: event.sessionId,
+            toolUseId: event.turnId,
+            toolName: event.toolName,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'failed to resolve ask outcome from PostToolUse',
+        ),
+      );
+    }
     // F15 closure (2026-04-27): include runId in the INFO log line so
     // SOC2 / NHI auditors can grep for a single runId across bridge +
     // MCP service streams. Sync lookup costs ~1ms on the hot path.

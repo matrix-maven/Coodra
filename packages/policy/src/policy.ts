@@ -11,7 +11,7 @@ import {
   timeout,
   wrap,
 } from 'cockatiel';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import picomatch from 'picomatch';
 
 import type { PolicyCheck, PolicyClient, PolicyInput, PolicyResult } from './types.js';
@@ -203,18 +203,35 @@ export interface CreatePolicyClientOptions {
 interface CompiledRule {
   readonly id: string;
   readonly policyId: string;
+  readonly policyVersionId?: string | null;
   readonly priority: number;
   readonly matchEventType: string;
   readonly matchToolName: string;
   /** `null` = any path matches; otherwise the compiled picomatch result. */
   readonly matchPath: ((p: string) => boolean) | null;
+  /** `null` = any command matches; otherwise the compiled shell-command matcher. */
+  readonly matchCommand: ((command: string) => boolean) | null;
   readonly matchAgentType: string | null;
   readonly decision: 'allow' | 'deny' | 'ask';
   readonly reason: string;
 }
 
+interface CompiledException {
+  readonly id: string;
+  readonly policyId: string;
+  readonly policyVersionId: string | null;
+  readonly ruleId: string | null;
+  readonly scopeType: string;
+  readonly scope: Record<string, unknown>;
+  readonly decisionOverride: 'allow' | 'deny' | 'ask';
+  readonly reason: string;
+  readonly startsAt: Date | null;
+  readonly expiresAt: Date | null;
+}
+
 interface CacheEntry {
   readonly rules: ReadonlyArray<CompiledRule>;
+  readonly exceptions: ReadonlyArray<CompiledException>;
   readonly loadedAt: number;
 }
 
@@ -232,6 +249,7 @@ function compileRule(row: {
   matchEventType: string;
   matchToolName: string;
   matchPathGlob: string | null;
+  matchCommandPattern?: string | null;
   matchAgentType: string | null;
   decision: string;
   reason: string;
@@ -242,16 +260,57 @@ function compileRule(row: {
   // check_policy response + the bridge's Claude Code permissionDecision.
   const decision = row.decision === 'deny' ? 'deny' : row.decision === 'ask' ? 'ask' : 'allow';
   const matcher = row.matchPathGlob ? picomatch(row.matchPathGlob, { dot: false, nobrace: true }) : null;
+  const commandMatcher =
+    row.matchCommandPattern !== undefined && row.matchCommandPattern !== null && row.matchCommandPattern.length > 0
+      ? picomatch(row.matchCommandPattern, { dot: true, nobrace: true })
+      : null;
   return {
     id: row.id,
     policyId: row.policyId,
+    policyVersionId: null,
     priority: row.priority,
     matchEventType: row.matchEventType,
     matchToolName: row.matchToolName,
     matchPath: matcher,
+    matchCommand: commandMatcher,
     matchAgentType: row.matchAgentType,
     decision,
     reason: row.reason,
+  };
+}
+
+function compileException(row: {
+  id: string;
+  policyId: string;
+  policyVersionId: string | null;
+  ruleId: string | null;
+  scopeType: string;
+  scopeJson: string;
+  decisionOverride: string;
+  reason: string;
+  startsAt: Date | null;
+  expiresAt: Date | null;
+}): CompiledException {
+  let scope: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(row.scopeJson);
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      scope = parsed as Record<string, unknown>;
+    }
+  } catch {
+    scope = {};
+  }
+  return {
+    id: row.id,
+    policyId: row.policyId,
+    policyVersionId: row.policyVersionId,
+    ruleId: row.ruleId,
+    scopeType: row.scopeType,
+    scope,
+    decisionOverride: row.decisionOverride === 'deny' ? 'deny' : row.decisionOverride === 'ask' ? 'ask' : 'allow',
+    reason: row.reason,
+    startsAt: row.startsAt,
+    expiresAt: row.expiresAt,
   };
 }
 
@@ -272,6 +331,17 @@ function extractPath(input: unknown): string {
   return '';
 }
 
+function extractCommand(input: unknown): string {
+  if (typeof input === 'string') return input;
+  if (!input || typeof input !== 'object') return '';
+  const record = input as Record<string, unknown>;
+  for (const key of ['command', 'cmd', 'shell_command', 'shellCommand']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return '';
+}
+
 /**
  * First-match-wins rule evaluation. `rules` is assumed to be sorted
  * by priority ASC (the DB query does this; the cache preserves the
@@ -284,11 +354,15 @@ export function evaluateRules(
 ): CompiledRule | null {
   const eventType = PHASE_TO_EVENT_TYPE[input.phase];
   const path = extractPath(input.input);
+  const command = extractCommand(input.input);
   for (const rule of rules) {
     if (rule.matchEventType !== '*' && rule.matchEventType !== eventType) continue;
     if (!toolNameMatches(rule, input.toolName)) continue;
     if (rule.matchPath) {
       if (path.length === 0 || !rule.matchPath(path)) continue;
+    }
+    if (rule.matchCommand) {
+      if (command.length === 0 || !rule.matchCommand(command)) continue;
     }
     if (rule.matchAgentType !== null && rule.matchAgentType !== '*') continue;
     return rule;
@@ -296,7 +370,54 @@ export function evaluateRules(
   return null;
 }
 
-async function loadRules(db: DbHandle, projectId: string | null): Promise<ReadonlyArray<CompiledRule>> {
+function exceptionMatches(
+  exception: CompiledException,
+  rule: CompiledRule | null,
+  input: Pick<PolicyInput, 'toolName' | 'input'>,
+  now: Date,
+): boolean {
+  if (exception.startsAt !== null && exception.startsAt > now) return false;
+  if (exception.expiresAt !== null && exception.expiresAt < now) return false;
+  if (rule !== null) {
+    if (exception.ruleId !== null && exception.ruleId !== rule.id) return false;
+    if (exception.policyId !== rule.policyId) return false;
+    if (exception.policyVersionId !== null && exception.policyVersionId !== rule.policyVersionId) return false;
+  }
+
+  const toolName = exception.scope.toolName;
+  if (typeof toolName === 'string' && toolName.length > 0 && toolName !== input.toolName) return false;
+  const agentType = exception.scope.agentType;
+  if (typeof agentType === 'string' && agentType.length > 0) {
+    // Agent type is intentionally not part of PolicyInput yet for legacy callers.
+    // Keep the selector as metadata until all hook paths pass it through.
+  }
+  const pathGlob = exception.scope.pathGlob;
+  if (typeof pathGlob === 'string' && pathGlob.length > 0) {
+    const path = extractPath(input.input);
+    if (path.length === 0 || !picomatch(pathGlob, { dot: false, nobrace: true })(path)) return false;
+  }
+  return true;
+}
+
+function applyException(
+  exceptions: ReadonlyArray<CompiledException>,
+  rule: CompiledRule | null,
+  input: Pick<PolicyInput, 'toolName' | 'input'>,
+  now: Date,
+): CompiledException | null {
+  for (const exception of exceptions) {
+    if (rule !== null && exception.policyId !== rule.policyId) continue;
+    if (exceptionMatches(exception, rule, input, now)) return exception;
+  }
+  return null;
+}
+
+interface LoadedPolicyState {
+  readonly rules: ReadonlyArray<CompiledRule>;
+  readonly exceptions: ReadonlyArray<CompiledException>;
+}
+
+async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<LoadedPolicyState> {
   if (db.kind === 'sqlite') {
     const where =
       projectId === null
@@ -306,19 +427,43 @@ async function loadRules(db: DbHandle, projectId: string | null): Promise<Readon
       .select({
         id: sqliteSchema.policyRules.id,
         policyId: sqliteSchema.policyRules.policyId,
+        policyVersionId: sqliteSchema.policyVersions.id,
         priority: sqliteSchema.policyRules.priority,
         matchEventType: sqliteSchema.policyRules.matchEventType,
         matchToolName: sqliteSchema.policyRules.matchToolName,
         matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
+        matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
         matchAgentType: sqliteSchema.policyRules.matchAgentType,
         decision: sqliteSchema.policyRules.decision,
         reason: sqliteSchema.policyRules.reason,
       })
       .from(sqliteSchema.policyRules)
       .innerJoin(sqliteSchema.policies, eq(sqliteSchema.policies.id, sqliteSchema.policyRules.policyId))
+      .leftJoin(
+        sqliteSchema.policyVersions,
+        and(
+          eq(sqliteSchema.policyVersions.policyId, sqliteSchema.policies.id),
+          eq(sqliteSchema.policyVersions.status, 'active'),
+        ),
+      )
       .where(where)
       .orderBy(sqliteSchema.policyRules.priority);
-    return rows.map(compileRule);
+    const exceptions = await db.db
+      .select()
+      .from(sqliteSchema.policyExceptions)
+      .where(
+        projectId === null
+          ? eq(sqliteSchema.policyExceptions.status, 'active')
+          : and(
+              eq(sqliteSchema.policyExceptions.status, 'active'),
+              eq(sqliteSchema.policyExceptions.projectId, projectId),
+            ),
+      )
+      .orderBy(desc(sqliteSchema.policyExceptions.createdAt));
+    return {
+      rules: rows.map((row) => ({ ...compileRule(row), policyVersionId: row.policyVersionId })),
+      exceptions: exceptions.map(compileException),
+    };
   }
   const where =
     projectId === null
@@ -328,25 +473,52 @@ async function loadRules(db: DbHandle, projectId: string | null): Promise<Readon
     .select({
       id: postgresSchema.policyRules.id,
       policyId: postgresSchema.policyRules.policyId,
+      policyVersionId: postgresSchema.policyVersions.id,
       priority: postgresSchema.policyRules.priority,
       matchEventType: postgresSchema.policyRules.matchEventType,
       matchToolName: postgresSchema.policyRules.matchToolName,
       matchPathGlob: postgresSchema.policyRules.matchPathGlob,
+      matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
       matchAgentType: postgresSchema.policyRules.matchAgentType,
       decision: postgresSchema.policyRules.decision,
       reason: postgresSchema.policyRules.reason,
     })
     .from(postgresSchema.policyRules)
     .innerJoin(postgresSchema.policies, eq(postgresSchema.policies.id, postgresSchema.policyRules.policyId))
+    .leftJoin(
+      postgresSchema.policyVersions,
+      and(
+        eq(postgresSchema.policyVersions.policyId, postgresSchema.policies.id),
+        eq(postgresSchema.policyVersions.status, 'active'),
+      ),
+    )
     .where(where)
     .orderBy(postgresSchema.policyRules.priority);
-  return rows.map(compileRule);
+  const exceptions = await db.db
+    .select()
+    .from(postgresSchema.policyExceptions)
+    .where(
+      projectId === null
+        ? eq(postgresSchema.policyExceptions.status, 'active')
+        : and(
+            eq(postgresSchema.policyExceptions.status, 'active'),
+            eq(postgresSchema.policyExceptions.projectId, projectId),
+          ),
+    )
+    .orderBy(desc(postgresSchema.policyExceptions.createdAt));
+  return {
+    rules: rows.map((row) => ({ ...compileRule(row), policyVersionId: row.policyVersionId })),
+    exceptions: exceptions.map(compileException),
+  };
 }
 
 const FAIL_OPEN_RESULT: PolicyResult = Object.freeze({
   decision: 'allow',
+  baseDecision: 'allow',
   reason: 'policy_check_unavailable',
   matchedRuleId: null,
+  matchedExceptionId: null,
+  policyVersionId: null,
 });
 
 function isCockatielFailOpen(err: unknown): boolean {
@@ -395,24 +567,24 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
     'createPolicyClient: policy engine wired (cache-first + timeout + breaker + fail-open).',
   );
 
-  async function getRules(projectId: string | null): Promise<ReadonlyArray<CompiledRule>> {
+  async function getPolicyState(projectId: string | null): Promise<LoadedPolicyState> {
     const key = projectId ?? GLOBAL_CACHE_KEY;
     const cached = cache.get(key);
     if (cached && now() - cached.loadedAt < cacheTtlMs) {
-      return cached.rules;
+      return { rules: cached.rules, exceptions: cached.exceptions };
     }
-    const rules = await policy.execute(() => loadRules(options.db, projectId));
-    cache.set(key, { rules, loadedAt: now() });
-    return rules;
+    const state = await policy.execute(() => loadPolicyState(options.db, projectId));
+    cache.set(key, { ...state, loadedAt: now() });
+    return state;
   }
 
   return {
     async evaluate(input) {
       const started = now();
       const projectId = input.projectId ?? null;
-      let rules: ReadonlyArray<CompiledRule>;
+      let state: LoadedPolicyState;
       try {
-        rules = await getRules(projectId);
+        state = await getPolicyState(projectId);
       } catch (err) {
         const durationMs = now() - started;
         if (isCockatielFailOpen(err)) {
@@ -443,24 +615,53 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         return FAIL_OPEN_RESULT;
       }
 
-      const matched = evaluateRules(rules, {
+      const matched = evaluateRules(state.rules, {
         phase: input.phase,
         toolName: input.toolName,
         input: input.input,
       });
 
       if (!matched) {
+        const exception = applyException(state.exceptions, null, input, new Date(now()));
+        if (exception !== null) {
+          return {
+            decision: exception.decisionOverride,
+            baseDecision: 'allow',
+            reason: exception.reason,
+            matchedRuleId: null,
+            matchedExceptionId: exception.id,
+            policyVersionId: exception.policyVersionId ?? null,
+          };
+        }
         return {
           decision: 'allow',
+          baseDecision: 'allow',
           reason: 'no_rule_matched',
           matchedRuleId: null,
+          matchedExceptionId: null,
+          policyVersionId: null,
+        };
+      }
+
+      const exception = applyException(state.exceptions, matched, input, new Date(now()));
+      if (exception !== null) {
+        return {
+          decision: exception.decisionOverride,
+          baseDecision: matched.decision,
+          reason: exception.reason,
+          matchedRuleId: matched.id,
+          matchedExceptionId: exception.id,
+          policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
         };
       }
 
       return {
         decision: matched.decision,
+        baseDecision: matched.decision,
         reason: matched.reason,
         matchedRuleId: matched.id,
+        matchedExceptionId: null,
+        policyVersionId: matched.policyVersionId ?? null,
       };
     },
   };
@@ -486,11 +687,19 @@ export interface RecordPolicyDecisionArgs {
    * Optional for backward compatibility; falls back to `'no-turn'`.
    */
   readonly toolUseId?: string;
+  readonly permissionMode?: string | null;
   /** JSON string of the tool input — caller controls truncation. */
   readonly toolInputSnapshot: string;
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
+  readonly policyVersionId?: string | null;
   readonly reason: string;
   readonly matchedRuleId: string | null;
+  readonly matchedExceptionId?: string | null;
+  readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
+  readonly effectiveDecision?: 'allow' | 'deny' | 'ask' | null;
+  readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
+  readonly askOutcomeAt?: Date | null;
+  readonly correlatedRunEventId?: string | null;
   /** Nullable FK — PreToolUse before a run exists writes NULL per §4.3. */
   readonly runId: string | null;
   /** UUID minter; defaults to `crypto.randomUUID()`. Exposed for tests. */
@@ -534,10 +743,19 @@ export async function recordPolicyDecision(
     agentType: args.agentType,
     eventType: args.eventType,
     toolName: args.toolName,
+    toolUseId: args.toolUseId ?? null,
+    permissionMode: args.permissionMode ?? null,
     toolInputSnapshot: args.toolInputSnapshot,
     permissionDecision: args.permissionDecision,
+    policyVersionId: args.policyVersionId ?? null,
     matchedRuleId: args.matchedRuleId,
+    matchedExceptionId: args.matchedExceptionId ?? null,
+    baseDecision: args.baseDecision ?? args.permissionDecision,
+    effectiveDecision: args.effectiveDecision ?? args.permissionDecision,
     reason: args.reason,
+    askOutcome: args.askOutcome ?? (args.permissionDecision === 'ask' ? 'unresolved' : null),
+    askOutcomeAt: args.askOutcomeAt ?? null,
+    correlatedRunEventId: args.correlatedRunEventId ?? null,
   };
 
   if (db.kind === 'sqlite') {
@@ -555,4 +773,107 @@ export async function recordPolicyDecision(
     .onConflictDoNothing({ target: postgresSchema.policyDecisions.idempotencyKey })
     .returning({ id: postgresSchema.policyDecisions.id });
   return { inserted: result.length === 1 };
+}
+
+export interface ResolveAskOutcomeApprovedArgs {
+  readonly sessionId: string;
+  readonly toolUseId: string;
+  readonly toolName: string;
+  readonly correlatedRunEventId?: string | null;
+  readonly now?: Date;
+}
+
+export async function resolveAskOutcomeApproved(
+  db: DbHandle,
+  args: ResolveAskOutcomeApprovedArgs,
+): Promise<{ readonly updated: number }> {
+  const now = args.now ?? new Date();
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.policyDecisions;
+    const result = await db.db
+      .update(t)
+      .set({
+        askOutcome: 'approved',
+        askOutcomeAt: now,
+        correlatedRunEventId: args.correlatedRunEventId ?? null,
+      })
+      .where(
+        and(
+          eq(t.sessionId, args.sessionId),
+          eq(t.toolUseId, args.toolUseId),
+          eq(t.toolName, args.toolName),
+          eq(t.permissionDecision, 'ask'),
+          or(isNull(t.askOutcome), eq(t.askOutcome, 'unresolved')),
+        ),
+      );
+    const updated = (result as { changes?: number } | undefined)?.changes ?? 0;
+    return { updated };
+  }
+
+  const t = postgresSchema.policyDecisions;
+  const rows = await db.db
+    .update(t)
+    .set({
+      askOutcome: 'approved',
+      askOutcomeAt: now,
+      correlatedRunEventId: args.correlatedRunEventId ?? null,
+    })
+    .where(
+      and(
+        eq(t.sessionId, args.sessionId),
+        eq(t.toolUseId, args.toolUseId),
+        eq(t.toolName, args.toolName),
+        eq(t.permissionDecision, 'ask'),
+        or(isNull(t.askOutcome), eq(t.askOutcome, 'unresolved')),
+      ),
+    )
+    .returning({ id: t.id });
+  return { updated: rows.length };
+}
+
+export interface ResolveAskOutcomesNotExecutedArgs {
+  readonly sessionId: string;
+  readonly now?: Date;
+}
+
+export async function resolveAskOutcomesNotExecuted(
+  db: DbHandle,
+  args: ResolveAskOutcomesNotExecutedArgs,
+): Promise<{ readonly updated: number }> {
+  const now = args.now ?? new Date();
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.policyDecisions;
+    const result = await db.db
+      .update(t)
+      .set({
+        askOutcome: 'not_executed',
+        askOutcomeAt: now,
+      })
+      .where(
+        and(
+          eq(t.sessionId, args.sessionId),
+          eq(t.permissionDecision, 'ask'),
+          or(isNull(t.askOutcome), eq(t.askOutcome, 'unresolved')),
+        ),
+      );
+    const updated = (result as { changes?: number } | undefined)?.changes ?? 0;
+    return { updated };
+  }
+
+  const t = postgresSchema.policyDecisions;
+  const rows = await db.db
+    .update(t)
+    .set({
+      askOutcome: 'not_executed',
+      askOutcomeAt: now,
+    })
+    .where(
+      and(
+        eq(t.sessionId, args.sessionId),
+        eq(t.permissionDecision, 'ask'),
+        or(isNull(t.askOutcome), eq(t.askOutcome, 'unresolved')),
+      ),
+    )
+    .returning({ id: t.id });
+  return { updated: rows.length };
 }

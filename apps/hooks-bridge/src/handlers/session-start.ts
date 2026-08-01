@@ -1,4 +1,4 @@
-import type { DbHandle } from '@coodra/db';
+import { attestPolicyProjection, renderPolicyProjectionDriftContext, type DbHandle } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 import { readCoodraProjectConfig } from '@coodra/shared/project-config';
@@ -139,6 +139,7 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     let featuresIndexBlock: string | null = null;
     let recentDecisionsBlock: string | null = null;
     let workflowPolicyBlock: string | null = null;
+    let policyProjectionBlock: string | null = null;
     const slugValue = typeof slug === 'string' && slug.length > 0 ? slug : null;
     const cwdValue = typeof event.cwd === 'string' && event.cwd.length > 0 ? event.cwd : null;
     if (slugValue !== null && cwdValue !== null) {
@@ -157,6 +158,28 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
           },
           'workflow-policy load threw; SessionStart proceeding without workflow policy block',
         );
+      }
+      if (typeof projectId === 'string' && projectId.length > 0) {
+        try {
+          const attestation = await attestPolicyProjection(deps.db, {
+            projectId,
+            projectSlug,
+            projectRoot: cwd,
+            agentType: event.agentType,
+            sessionId: event.sessionId,
+          });
+          policyProjectionBlock = renderPolicyProjectionDriftContext(attestation);
+        } catch (err) {
+          sessionStartLogger.warn(
+            {
+              event: 'session_start_policy_projection_attestation_failed',
+              sessionId: event.sessionId,
+              projectSlug,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            'policy projection attestation threw; SessionStart proceeding without projection block',
+          );
+        }
       }
       // 2026-05-08 — features index injection (Phase C of the skill-style
       // features rollout). Independently fail-opens; if `docs/features/`
@@ -230,6 +253,7 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     if (featuresIndexBlock !== null) blocks.push(featuresIndexBlock);
     blocks.push(M05_SESSION_CONTRACT);
     if (workflowPolicyBlock !== null) blocks.push(workflowPolicyBlock);
+    if (policyProjectionBlock !== null) blocks.push(policyProjectionBlock);
     if (recentDecisionsBlock !== null) blocks.push(recentDecisionsBlock);
     const additionalContext = blocks.length > 0 ? blocks.join('\n\n---\n\n') : undefined;
 

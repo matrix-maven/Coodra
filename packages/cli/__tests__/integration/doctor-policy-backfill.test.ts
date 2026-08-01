@@ -73,7 +73,7 @@ describe('coodra doctor --fix — default-policy backfill', () => {
         .select({ id: sqliteSchema.policyRules.id })
         .from(sqliteSchema.policyRules)
         .where(eq(sqliteSchema.policyRules.policyId, policies[0]?.id as string));
-      expect(rules).toHaveLength(25);
+      expect(rules).toHaveLength(59);
     }
   });
 

@@ -14,6 +14,7 @@ describe('Claude Code adapter', () => {
         tool_name: 'Write',
         tool_input: { file_path: 'src/x.ts', content: '...' },
         tool_use_id: 'tool-xyz',
+        permission_mode: 'default',
         cwd: '/repo',
       },
       { now: FROZEN },
@@ -26,6 +27,7 @@ describe('Claude Code adapter', () => {
       toolName: 'Write',
       filePath: 'src/x.ts',
       toolInput: { file_path: 'src/x.ts', content: '...' },
+      permissionMode: 'default',
       cwd: '/repo',
       rawAt: '2026-04-25T12:00:00.000Z',
     });

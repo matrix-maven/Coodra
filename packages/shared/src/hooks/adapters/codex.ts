@@ -9,6 +9,7 @@ const PHASE_MAP: Readonly<Record<CodexHookPayload['hook_event_name'], HookEvent[
   SessionEnd: 'session_end',
   Stop: 'turn_end',
   UserPromptSubmit: 'user_prompt',
+  ConfigChange: 'config_change',
 };
 
 function extractFilePath(input: unknown): string | undefined {

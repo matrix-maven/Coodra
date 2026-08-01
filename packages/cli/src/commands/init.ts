@@ -401,7 +401,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       if (policyResult.created) {
         io.writeStdout(
           `${pc.green('✓')} Seeded default policy with ${policyResult.rulesInserted} baseline rules ` +
-            '(deny .env / .git/** / node_modules/** writes; ask before Bash)\n',
+            '(deny .env reads+writes, .git/** writes, node_modules/** writes; ask before Bash)\n',
         );
       } else {
         io.writeStdout(`${pc.gray('=')} Default policy already present — leaving user customizations intact\n`);

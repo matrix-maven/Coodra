@@ -11,6 +11,7 @@ import { serve } from '@hono/node-server';
 
 import { buildApp } from './app.js';
 import { env } from './config/env.js';
+import { createConfigChangeHandler } from './handlers/config-change.js';
 import { createPostToolUseHandler } from './handlers/post-tool-use.js';
 import { createPreToolUseHandler } from './handlers/pre-tool-use.js';
 import { createSessionEndHandler } from './handlers/session-end.js';
@@ -124,7 +125,15 @@ async function main(): Promise<void> {
   });
   const sessionEnd = createSessionEndHandler({ runRecorder, projectSlugResolver, db: dbClient.handle });
   const userPromptSubmit = createUserPromptSubmitHandler({ runRecorder, projectSlugResolver, db: dbClient.handle });
-  const dispatch = composeDispatch({ preToolUse, postToolUse, sessionStart, sessionEnd, userPromptSubmit });
+  const configChange = createConfigChangeHandler({ projectSlugResolver, db: dbClient.handle });
+  const dispatch = composeDispatch({
+    preToolUse,
+    postToolUse,
+    sessionStart,
+    sessionEnd,
+    userPromptSubmit,
+    configChange,
+  });
 
   // (5) Build the app.
   const { hono, serverStartedAt } = buildApp({

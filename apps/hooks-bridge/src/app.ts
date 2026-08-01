@@ -142,6 +142,7 @@ function shapeClaudeCodeResponse(hookEventName: string, result: HookDispatchResu
     }
     case 'PostToolUse':
     case 'Stop':
+    case 'ConfigChange':
     case 'SubagentStop': {
       const isBlock = result.permissionDecision === 'deny';
       const body: Record<string, unknown> = { ok: true };
@@ -200,6 +201,7 @@ function shapeCodexResponse(hookEventName: string, result: HookDispatchResult): 
     }
     case 'Stop':
     case 'SessionEnd':
+    case 'ConfigChange':
       return {};
     default:
       return {};

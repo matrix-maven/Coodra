@@ -45,6 +45,8 @@ const tablePairs = [
   ['pending_jobs', sq.pendingJobs, pg.pendingJobs],
   ['policies', sq.policies, pg.policies],
   ['policy_rules', sq.policyRules, pg.policyRules],
+  ['policy_versions', sq.policyVersions, pg.policyVersions],
+  ['policy_exceptions', sq.policyExceptions, pg.policyExceptions],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
   ['integration_connections', sq.integrationConnections, pg.integrationConnections],
   ['external_work_items', sq.externalWorkItems, pg.externalWorkItems],
@@ -88,6 +90,8 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(sq.pendingJobs).toBeDefined();
     expect(sq.policies).toBeDefined();
     expect(sq.policyRules).toBeDefined();
+    expect(sq.policyVersions).toBeDefined();
+    expect(sq.policyExceptions).toBeDefined();
     expect(sq.policyDecisions).toBeDefined();
     expect(sq.decisions).toBeDefined();
     expect(sq.killSwitches).toBeDefined();
@@ -112,6 +116,8 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(pg.pendingJobs).toBeDefined();
     expect(pg.policies).toBeDefined();
     expect(pg.policyRules).toBeDefined();
+    expect(pg.policyVersions).toBeDefined();
+    expect(pg.policyExceptions).toBeDefined();
     expect(pg.policyDecisions).toBeDefined();
     expect(pg.decisions).toBeDefined();
     expect(pg.killSwitches).toBeDefined();
@@ -197,6 +203,7 @@ describe('schema conventions for audit-ready mutable tables', () => {
     ['projects', sq.projects],
     ['policies', sq.policies],
     ['policy_rules', sq.policyRules],
+    ['policy_exceptions', sq.policyExceptions],
     ['features', sq.features],
     ['integration_connections', sq.integrationConnections],
     ['work_packs', sq.workPacks],

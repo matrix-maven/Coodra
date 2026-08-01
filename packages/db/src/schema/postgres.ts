@@ -168,6 +168,9 @@ export const policies = pgTable('policies', {
     .references(() => projects.id),
   name: text('name').notNull(),
   description: text('description'),
+  groupKey: text('group_key').notNull().default('agent_guardrails'),
+  profile: text('profile').notNull().default('default'),
+  enforcementMode: text('enforcement_mode').notNull().default('detective'),
   isActive: boolean('is_active').notNull().default(true),
   // Module 04 Phase 4 — see ./sqlite.ts::policies.createdByUserId.
   createdByUserId: text('created_by_user_id'),
@@ -189,9 +192,14 @@ export const policyRules = pgTable(
     matchEventType: text('match_event_type').notNull(),
     matchToolName: text('match_tool_name').notNull(),
     matchPathGlob: text('match_path_glob'),
+    matchCommandPattern: text('match_command_pattern'),
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
     reason: text('reason').notNull(),
+    controlKey: text('control_key'),
+    ruleType: text('rule_type').notNull().default('tool_call'),
+    severity: text('severity').notNull().default('medium'),
+    details: text('details'),
     createdByUserId: text('created_by_user_id'),
     updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
@@ -204,6 +212,65 @@ export const policyRules = pgTable(
     // idempotency check so future raw-SQL adventurism cannot reintroduce
     // duplicates. See sqlite.ts comment for full rationale.
     uniqueIndex('policy_rules_dedup_uk').on(t.policyId, t.priority, t.matchEventType, t.matchToolName, t.matchPathGlob),
+  ],
+);
+
+export const policyVersions = pgTable(
+  'policy_versions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    versionNumber: integer('version_number').notNull(),
+    status: text('status').notNull().default('active'),
+    snapshotJson: text('snapshot_json').notNull(),
+    snapshotHash: text('snapshot_hash').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    activatedByUserId: text('activated_by_user_id'),
+    changeSummary: text('change_summary'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'date' }),
+    retiredAt: timestamp('retired_at', { withTimezone: true, mode: 'date' }),
+  },
+  (t) => [
+    uniqueIndex('policy_versions_policy_version_uk').on(t.policyId, t.versionNumber),
+    index('policy_versions_policy_status_idx').on(t.policyId, t.status, t.versionNumber),
+  ],
+);
+
+export const policyExceptions = pgTable(
+  'policy_exceptions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
+    ruleId: text('rule_id').references(() => policyRules.id),
+    scopeType: text('scope_type').notNull(),
+    scopeJson: text('scope_json').notNull().default('{}'),
+    decisionOverride: text('decision_override').notNull(),
+    reason: text('reason').notNull(),
+    justification: text('justification').notNull(),
+    requestedByUserId: text('requested_by_user_id'),
+    approvedByUserId: text('approved_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
+    status: text('status').notNull().default('requested'),
+    startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    revokedByUserId: text('revoked_by_user_id'),
+  },
+  (t) => [
+    index('policy_exceptions_active_idx').on(t.projectId, t.status, t.expiresAt),
+    index('policy_exceptions_policy_idx').on(t.policyId, t.status),
   ],
 );
 
@@ -221,13 +288,25 @@ export const policyDecisions = pgTable(
     agentType: text('agent_type').notNull(),
     eventType: text('event_type').notNull(),
     toolName: text('tool_name').notNull(),
+    toolUseId: text('tool_use_id'),
+    permissionMode: text('permission_mode'),
     toolInputSnapshot: text('tool_input_snapshot').notNull(),
     permissionDecision: text('permission_decision').notNull(),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
+    matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
+    baseDecision: text('base_decision'),
+    effectiveDecision: text('effective_decision'),
     reason: text('reason').notNull(),
+    askOutcome: text('ask_outcome'),
+    askOutcomeAt: timestamp('ask_outcome_at', { withTimezone: true, mode: 'date' }),
+    correlatedRunEventId: text('correlated_run_event_id').references(() => runEvents.id),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
-  (t) => [index('policy_decisions_session_idx').on(t.sessionId, t.createdAt)],
+  (t) => [
+    index('policy_decisions_session_idx').on(t.sessionId, t.createdAt),
+    index('policy_decisions_ask_correlation_idx').on(t.sessionId, t.toolUseId, t.toolName, t.askOutcome),
+  ],
 );
 
 /**

@@ -630,6 +630,7 @@ function hooksConfig(): unknown {
     hooks: {
       SessionStart: [{ hooks: [lifecycleHook] }],
       UserPromptSubmit: [{ hooks: [lifecycleHook] }],
+      ConfigChange: [{ hooks: [shortHook] }],
       PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
       PostToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
       Stop: [{ hooks: [lifecycleHook] }],

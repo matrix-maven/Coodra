@@ -79,11 +79,13 @@ import {
   type PolicyIO,
   type PolicyListOptions,
   type PolicyShowOptions,
+  type PolicySyncOptions,
   runPolicyAddCommand,
   runPolicyDisableCommand,
   runPolicyEnableCommand,
   runPolicyListCommand,
   runPolicyShowCommand,
+  runPolicySyncCommand,
 } from './commands/policy.js';
 import {
   type PolicyWorkflowIO,
@@ -267,6 +269,7 @@ interface BuildProgramOptions {
     options: PolicyEnableDisableOptions,
     io?: PolicyIO,
   ) => Promise<unknown>;
+  readonly runPolicySync?: (options: PolicySyncOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyWorkflowRender?: (options: PolicyWorkflowRenderOptions, io?: PolicyWorkflowIO) => Promise<unknown>;
   readonly projectIO?: ProjectIO;
   readonly runProjectList?: (options: ProjectListOptions, io?: ProjectIO) => Promise<unknown>;
@@ -945,6 +948,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .requiredOption('--reason <text>', 'Operator audit context (required).')
     .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
     .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
+    .option('--command-pattern <glob>', 'Shell command glob to match for Bash rules (e.g. "git push*--force*").')
     .option('--agent-type <type>', 'Agent type to match: claude_code | cursor | windsurf | * (default: *).')
     .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
     .option('--policy-name <name>', 'Target policy name (default: __default__).')
@@ -969,6 +973,16 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
       await policyDisableRunner(identifier, opts, options.policyIO);
+    });
+  const policySyncRunner = options.runPolicySync ?? runPolicySyncCommand;
+  policy
+    .command('sync')
+    .description('Write the current DB policy projection into project agent config files for drift attestation.')
+    .option('--project <slug>', 'Project slug. Defaults to the current .coodra/config.json project.')
+    .option('--cwd <path>', 'Project root to write when --project has no recorded cwd. Defaults to process.cwd().')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicySyncOptions) => {
+      await policySyncRunner(opts, options.policyIO);
     });
   const policyWorkflow = policy
     .command('workflow')

@@ -1,12 +1,55 @@
+import { getPolicyEvaluator, POLICY_EVALUATORS } from '@coodra/shared';
 import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
-import { addRuleAction, deleteRuleAction, saveWorkflowPolicyAction, setActiveAction } from '@/lib/actions/policies';
-import { listPolicies } from '@/lib/queries/policies';
+import {
+  addRuleAction,
+  deleteRuleAction,
+  publishPolicyVersionAction,
+  requestPolicyExceptionAction,
+  setActiveAction,
+  updatePolicyExceptionStatusAction,
+  updateRuleAction,
+} from '@/lib/actions/policies';
+import { listPolicies, listPolicyExceptions, listPolicyVersions } from '@/lib/queries/policies';
 import { getProject, listProjects } from '@/lib/queries/projects';
-import { listWorkflowPolicies } from '@/lib/queries/workflow-policy';
 
 export const dynamic = 'force-dynamic';
+
+const GROUP_LABELS: Readonly<Record<string, { title: string; description: string }>> = {
+  agent_guardrails: {
+    title: 'Agent Guardrails',
+    description: 'Tool-call controls for file writes, shell commands, sensitive paths, and human confirmation.',
+  },
+  data_protection: {
+    title: 'Data Protection',
+    description: 'Controls for secrets, customer data, PII, approved model vendors, and data egress evidence.',
+  },
+  delivery_governance: {
+    title: 'Delivery Governance',
+    description: 'Workflow expectations such as branch-first work, tests, commits, PR links, and work-pack updates.',
+  },
+  change_control: {
+    title: 'Change Control',
+    description: 'Approval and audit requirements around risky changes, migrations, releases, and production edits.',
+  },
+  supply_chain: {
+    title: 'Supply Chain',
+    description: 'Package manager, dependency, install-script, and generated-vendor controls.',
+  },
+  separation_of_duties: {
+    title: 'Separation of Duties',
+    description: 'Approval boundaries for policy changes, exceptions, production actions, and author self-approval.',
+  },
+  ai_governance: {
+    title: 'AI Governance',
+    description: 'Model, prompt, data disclosure, context-sharing, and generated-output evidence controls.',
+  },
+  custom: {
+    title: 'Custom Policies',
+    description: 'Project-specific controls that do not fit a built-in governance group.',
+  },
+};
 
 export default async function PoliciesPage({
   searchParams,
@@ -17,49 +60,14 @@ export default async function PoliciesPage({
   const projects = await listProjects();
   const scopedProject = sp.project !== undefined && sp.project !== '' ? await getProject(sp.project) : null;
   const policies = await listPolicies(scopedProject?.id ?? null);
-  const workflowPolicies = await listWorkflowPolicies(scopedProject !== null ? [scopedProject] : projects);
-  // Map projectId → slug for the chip list when grouping.
-  const projectSlugById = new Map(projects.map((p) => [p.id, p.slug]));
-  // Flatten into rows: each rule is a row, with policy + project context.
-  const flatRows = policies.flatMap((p) =>
-    p.rules.map((r) => ({
-      ruleId: r.id,
-      policyName: p.name,
-      policyId: p.id,
-      projectId: p.projectId,
-      decision: r.decision,
-      matchEventType: r.matchEventType,
-      matchToolName: r.matchToolName,
-      matchPathGlob: r.matchPathGlob,
-      reason: r.reason,
-      priority: r.priority,
-      active: p.isActive,
-    })),
+  const exceptions = await listPolicyExceptions(scopedProject?.id ?? null);
+  const versionsByPolicy = new Map(
+    await Promise.all(policies.map(async (policy) => [policy.id, await listPolicyVersions(policy.id)] as const)),
   );
-
-  // When NO project is scoped, collapse rules with identical signatures
-  // across projects — most users seed `coodra init` with the bundled
-  // 25-rule chain, which then fans out to 25*N policy_rules rows. Showing
-  // the signature once with a "applies to N projects" chip list is the
-  // honest summary; the per-project view is one click away.
-  const groupedRows: ReadonlyArray<GroupedRule> =
-    scopedProject !== null
-      ? flatRows.map((r) => ({
-          signature: r.ruleId,
-          decision: r.decision,
-          matchEventType: r.matchEventType,
-          matchToolName: r.matchToolName,
-          matchPathGlob: r.matchPathGlob,
-          reason: r.reason,
-          priority: r.priority,
-          appliesTo: [{ projectId: r.projectId, slug: projectSlugById.get(r.projectId) ?? r.projectId.slice(0, 8) }],
-          ruleIds: [r.ruleId],
-        }))
-      : groupBySignature(flatRows, projectSlugById);
-
-  const totalRules = flatRows.length;
-  const totalPolicies = policies.length;
-  const groupedView = scopedProject === null && groupedRows.length < flatRows.length;
+  const projectSlugById = new Map(projects.map((p) => [p.id, p.slug]));
+  const groupedPolicies = groupPolicies(policies);
+  const totalRules = policies.reduce((sum, policy) => sum + policy.rules.length, 0);
+  const activeExceptions = exceptions.filter((exception) => exception.status === 'active').length;
 
   return (
     <>
@@ -72,11 +80,11 @@ export default async function PoliciesPage({
               {scopedProject !== null ? ` · ${scopedProject.slug.toUpperCase()}` : ''}
             </div>
             <h1 className="head__title">
-              <em>Policies</em>, by the rule.
+              Agent <em>governance</em>.
             </h1>
             <p className="head__lede">
-              Deny lists are loud, allow lists are quiet. Every tool call passes through the chain in order; first match
-              wins.
+              Policies are DB-backed controls. Versions preserve immutable snapshots, exceptions record approved drift,
+              and agent config receives only managed projection metadata.
               {scopedProject !== null ? (
                 <>
                   {' Scoped to '}
@@ -90,358 +98,451 @@ export default async function PoliciesPage({
               ) : null}
             </p>
           </div>
-          <div>
-            <div className="head__meta">
-              <strong>{totalRules} rules</strong>
-              <br />
-              {groupedView ? (
-                <>
-                  {groupedRows.length} unique · <em style={{ color: 'var(--ink-dim)' }}>collapsed</em>
-                </>
-              ) : (
-                <>
-                  {totalPolicies} {totalPolicies === 1 ? 'policy' : 'policies'}
-                </>
-              )}
-              <br />
-              {scopedProject !== null ? scopedProject.slug : 'all projects'}
-            </div>
+          <div className="head__meta">
+            <strong>{policies.length} policies</strong>
+            <br />
+            {totalRules} rules
+            <br />
+            {activeExceptions} active exceptions
           </div>
         </div>
 
-        {sp.added !== undefined ? <Banner tone="ok">Rule added · {sp.added.slice(0, 8)}</Banner> : null}
-        {sp.toggled !== undefined ? <Banner tone="ok">Policy {sp.toggled}</Banner> : null}
-        {sp.deleted !== undefined ? <Banner tone="ok">Rule deleted · {sp.deleted}</Banner> : null}
+        {sp.added !== undefined ? <Banner tone="ok">Created · {sp.added}</Banner> : null}
+        {sp.toggled !== undefined ? <Banner tone="ok">Updated · {sp.toggled}</Banner> : null}
+        {sp.deleted !== undefined ? <Banner tone="ok">Deleted · {sp.deleted}</Banner> : null}
         {sp.error !== undefined ? <Banner tone="warn">Error: {sp.error}</Banner> : null}
 
-        <div style={{ marginBottom: 24 }}>
-          <div className="card__head" style={{ marginBottom: 14 }}>
-            <h2 className="card__title">
-              Workflow <em>policy</em>
-            </h2>
-            <span className="card__role">agent governance · .coodra/config.json</span>
-          </div>
-          <div className="dash-grid">
-            {workflowPolicies.map((item) => (
-              <form
-                key={item.projectId}
-                action={saveWorkflowPolicyAction}
-                className="aside-card"
-                style={{ margin: 0, minWidth: 0 }}
-              >
-                <input type="hidden" name="projectSlug" value={item.projectSlug} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', gap: 16 }}>
-                  <div>
-                    <div style={{ fontFamily: 'var(--serif)', fontSize: 22 }}>{item.projectSlug}</div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 10,
-                        color: item.exists ? 'var(--accent)' : 'var(--warn)',
-                        letterSpacing: '0.06em',
-                        marginTop: 4,
-                      }}
-                    >
-                      {item.exists ? item.policy.profile : 'config missing'}
-                    </div>
-                  </div>
-                  <label
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      color: 'var(--ink-dim)',
-                    }}
-                  >
-                    <input type="checkbox" name="enabled" defaultChecked={item.policy.enabled} />
-                    enabled
-                  </label>
-                </div>
-
-                {item.error !== null ? (
-                  <div style={{ marginTop: 12, color: 'var(--warn)', fontSize: 12 }}>{item.error}</div>
-                ) : null}
-
-                <div className="field" style={{ marginTop: 18, marginBottom: 14 }}>
-                  <label
-                    htmlFor={`workflow-profile-${item.projectId}`}
-                    className="field__label"
-                    style={fieldLabelStyle}
-                  >
-                    Profile
-                  </label>
-                  <select
-                    id={`workflow-profile-${item.projectId}`}
-                    name="profile"
-                    defaultValue={item.policy.profile}
-                    style={fieldInputStyle}
-                  >
-                    <option value="solo">solo</option>
-                    <option value="team">team</option>
-                    <option value="manual">manual</option>
-                  </select>
-                </div>
-
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: 10,
-                    marginBottom: 18,
-                  }}
-                >
-                  <Check name="requireBranch" label="branch first" checked={item.policy.requireBranch} />
-                  <Check name="requireDecisionLog" label="decision log" checked={item.policy.requireDecisionLog} />
-                  <Check name="requireContextPack" label="context pack" checked={item.policy.requireContextPack} />
-                  <Check name="requireTests" label="tests" checked={item.policy.requireTests} />
-                  <Check name="requireCommit" label="commit" checked={item.policy.requireCommit} />
-                  <Check name="requirePush" label="push" checked={item.policy.requirePush} />
-                  <Check name="requirePrLink" label="PR link" checked={item.policy.requirePrLink} />
-                  <Check name="allowAutoMerge" label="auto-merge" checked={item.policy.allowAutoMerge} />
-                  <Check
-                    name="updateWorkPackOnCompletion"
-                    label="update work pack"
-                    checked={item.policy.updateWorkPackOnCompletion}
-                  />
-                </div>
-
-                <button className="btn btn--accent" type="submit">
-                  Save workflow policy
-                </button>
-              </form>
-            ))}
-          </div>
+        <div className="dash-grid" style={{ marginBottom: 24 }}>
+          <Stat
+            title="Policy Versions"
+            value={String([...versionsByPolicy.values()].flat().length)}
+            detail="immutable snapshots"
+          />
+          <Stat title="Ask Evidence" value="approved / unresolved" detail="PostToolUse correlation" />
+          <Stat title="Config Projection" value="detective" detail="DB is source of truth" />
         </div>
 
-        <div className="card" style={{ padding: 28, marginBottom: 24 }}>
+        {groupedPolicies.length === 0 ? (
+          <div className="empty">
+            <strong>
+              No policies <em>yet</em>.
+            </strong>
+            Run <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span> or add a rule
+            below.
+          </div>
+        ) : (
+          groupedPolicies.map(([groupKey, groupPoliciesForKey]) => {
+            const group = GROUP_LABELS[groupKey] ?? {
+              title: 'Custom Policies',
+              description: 'Project-specific controls that do not fit a built-in governance group.',
+            };
+            return (
+              <section key={groupKey} className="card" style={{ padding: 28, marginBottom: 24 }}>
+                <div className="card__head">
+                  <div>
+                    <h2 className="card__title">
+                      {group.title.split(' ')[0]} <em>{group.title.split(' ').slice(1).join(' ')}</em>
+                    </h2>
+                    <p style={{ color: 'var(--ink-dim)', margin: '6px 0 0', maxWidth: 780 }}>{group.description}</p>
+                  </div>
+                  <span className="card__role">{groupPoliciesForKey.length} policies</span>
+                </div>
+
+                {groupPoliciesForKey.map((policy) => {
+                  const versions = versionsByPolicy.get(policy.id) ?? [];
+                  const activeVersion = versions.find((version) => version.status === 'active') ?? versions[0] ?? null;
+                  return (
+                    <div key={policy.id} style={{ borderTop: '1px solid var(--rule)', paddingTop: 18, marginTop: 18 }}>
+                      <div className="policy-row" style={{ border: 'none', padding: 0, background: 'transparent' }}>
+                        <div>
+                          <div style={{ fontFamily: 'var(--serif)', fontSize: 22 }}>{policy.name}</div>
+                          <div style={monoDim}>
+                            {projectSlugById.get(policy.projectId) ?? policy.projectId.slice(0, 8)} ·{' '}
+                            {policy.enforcementMode} · {policy.profile}
+                          </div>
+                        </div>
+                        <div style={monoDim}>{policy.description ?? 'No description'}</div>
+                        <div style={monoDim}>
+                          {activeVersion !== null ? (
+                            <>
+                              v{activeVersion.versionNumber} · {activeVersion.snapshotHash.slice(0, 18)}
+                            </>
+                          ) : (
+                            'no version snapshot'
+                          )}
+                        </div>
+                        <form action={setActiveAction} style={{ textAlign: 'right' }}>
+                          <input type="hidden" name="identifier" value={policy.id} />
+                          <input type="hidden" name="active" value={policy.isActive ? 'false' : 'true'} />
+                          <button className={`badge ${policy.isActive ? 'badge--ok' : ''}`} type="submit">
+                            <span className="badge__dot"></span>
+                            {policy.isActive ? 'ON' : 'OFF'}
+                          </button>
+                        </form>
+                        <form action={publishPolicyVersionAction} style={{ textAlign: 'right' }}>
+                          <input type="hidden" name="policyId" value={policy.id} />
+                          <input type="hidden" name="returnTo" value="/policies" />
+                          <input type="hidden" name="changeSummary" value="Published from Policies UI" />
+                          <button className="btn" type="submit">
+                            Publish
+                          </button>
+                        </form>
+                      </div>
+
+                      <div style={{ marginTop: 18 }}>
+                        {policy.rules.map((rule) => {
+                          const evaluator = getPolicyEvaluator(rule.ruleType);
+                          return (
+                            <div key={rule.id} style={{ borderTop: '1px solid var(--rule)' }}>
+                              <div className="policy-row" style={{ borderTop: 'none' }}>
+                                <div className="policy-row__verdict" style={{ color: verdictColor(rule.decision) }}>
+                                  {rule.decision.toUpperCase()}
+                                </div>
+                                <div className="policy-row__pattern">
+                                  {rule.matchToolName}
+                                  {rule.matchPathGlob !== null ? ` · ${rule.matchPathGlob}` : ''}
+                                  {rule.matchCommandPattern !== null ? ` · ${rule.matchCommandPattern}` : ''}
+                                  <div style={monoDim}>
+                                    {evaluator.label} · {rule.matchEventType} · {rule.severity} ·{' '}
+                                    {rule.controlKey ?? rule.ruleType}
+                                  </div>
+                                </div>
+                                <div className="policy-row__reason">{rule.reason}</div>
+                                <div style={monoDim}>{rule.details ?? 'No details'}</div>
+                                <form action={deleteRuleAction} style={{ textAlign: 'right' }}>
+                                  <input type="hidden" name="ruleId" value={rule.id} />
+                                  <input type="hidden" name="returnTo" value="/policies" />
+                                  <button className="badge" type="submit" title="Delete rule">
+                                    remove
+                                  </button>
+                                </form>
+                              </div>
+                              <details style={{ padding: '0 0 16px 0' }}>
+                                <summary style={editSummaryStyle}>edit rule</summary>
+                                <form action={updateRuleAction} style={editRuleGridStyle}>
+                                  <input type="hidden" name="ruleId" value={rule.id} />
+                                  <SelectField
+                                    label="Evaluator"
+                                    name="evaluator"
+                                    options={POLICY_EVALUATORS.map((entry) => `${entry.key}::${entry.label}`)}
+                                    valueLabel={(value) => value.split('::')[1] ?? value}
+                                    valueTransform={(value) => value.split('::')[0] ?? value}
+                                    defaultValue={evaluator.key}
+                                    help="Changing evaluator changes which matcher fields are meaningful."
+                                  />
+                                  <SelectField
+                                    label="Event"
+                                    name="matchEventType"
+                                    options={[
+                                      'PreToolUse',
+                                      'PostToolUse',
+                                      'Stop',
+                                      'SubagentStop',
+                                      'ConfigChange',
+                                      'SessionStart',
+                                      'SessionEnd',
+                                    ]}
+                                    defaultValue={rule.matchEventType}
+                                  />
+                                  <SelectField
+                                    label="Decision"
+                                    name="decision"
+                                    options={['deny', 'ask', 'allow', 'block', 'flag', 'record', 'warn', 'pass']}
+                                    defaultValue={rule.decision}
+                                  />
+                                  <Field label="Tool name" name="matchToolName" defaultValue={rule.matchToolName} />
+                                  <Field
+                                    label="Path glob"
+                                    name="matchPathGlob"
+                                    defaultValue={rule.matchPathGlob ?? ''}
+                                  />
+                                  <Field
+                                    label="Command pattern"
+                                    name="matchCommandPattern"
+                                    defaultValue={rule.matchCommandPattern ?? ''}
+                                  />
+                                  <Field label="Control key" name="controlKey" defaultValue={rule.controlKey ?? ''} />
+                                  <SelectField
+                                    label="Severity"
+                                    name="severity"
+                                    options={['low', 'medium', 'high', 'critical']}
+                                    defaultValue={rule.severity}
+                                  />
+                                  <Field label="Priority" name="priority" defaultValue={String(rule.priority)} />
+                                  <Field label="Reason" name="reason" defaultValue={rule.reason} required textarea />
+                                  <button className="btn btn--accent" style={{ width: '100%' }} type="submit">
+                                    Save rule
+                                  </button>
+                                </form>
+                              </details>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            );
+          })
+        )}
+
+        <div className="dash-grid" style={{ marginBottom: 24 }}>
+          <AddRuleCard projects={projects} scopedProjectId={scopedProject?.id ?? null} />
+          <ExceptionCard policies={policies} projects={projects} />
+        </div>
+
+        <section className="card" style={{ padding: 28 }}>
           <div className="card__head">
             <h2 className="card__title">
-              Rule <em>chain</em>
+              Policy <em>exceptions</em>
             </h2>
-            <span className="card__role">
-              {groupedView
-                ? `unique signatures · ${groupedRows.length} of ${totalRules} rules · scope a project to expand`
-                : 'priority · top to bottom'}
-            </span>
+            <span className="card__role">{exceptions.length} records</span>
           </div>
-          {groupedRows.length === 0 ? (
-            <div className="empty">
-              <strong>
-                No rules <em>yet</em>.
-              </strong>
-              Add one below or run{' '}
-              <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>coodra init</span> to seed the default
-              chain.
-            </div>
+          {exceptions.length === 0 ? (
+            <div style={{ color: 'var(--ink-dim)' }}>No exceptions requested.</div>
           ) : (
-            <>
-              <div
-                className="policy-row"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: '1px solid var(--rule)',
-                  paddingLeft: 0,
-                  paddingRight: 0,
-                  color: 'var(--ink-mute)',
-                  fontSize: 9,
-                  letterSpacing: '0.2em',
-                  textTransform: 'uppercase',
-                  fontWeight: 500,
-                }}
-              >
-                <div>Verdict</div>
-                <div>Tool · path</div>
-                <div>Reason</div>
-                <div>{groupedView ? 'Applies to' : 'Policy'}</div>
-                <div style={{ textAlign: 'right' }}>Priority</div>
-              </div>
-              {groupedRows.map((row) => (
-                <div key={row.signature} className="policy-row">
-                  <div
-                    className="policy-row__verdict"
-                    style={{
-                      color:
-                        row.decision === 'deny'
-                          ? 'var(--warn)'
-                          : row.decision === 'ask'
-                            ? 'var(--caution)'
-                            : 'var(--accent)',
-                    }}
-                  >
-                    {row.decision.toUpperCase()}
-                  </div>
+            exceptions.map((exception) => (
+              <div key={exception.id} className="policy-row">
+                <div className="policy-row__verdict" style={{ color: verdictColor(exception.decisionOverride) }}>
+                  {exception.decisionOverride.toUpperCase()}
+                </div>
+                <div>
                   <div className="policy-row__pattern">
-                    {row.matchToolName}
-                    {row.matchPathGlob !== null ? ` · ${row.matchPathGlob}` : ''}
+                    {exception.scopeType} · {exception.status}
                   </div>
-                  <div className="policy-row__reason">{row.reason}</div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      color: 'var(--ink-dim)',
-                      letterSpacing: '0.04em',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 4,
-                    }}
-                  >
-                    {groupedView ? (
-                      row.appliesTo.length === projects.length ? (
-                        <span style={{ color: 'var(--accent)' }}>all {row.appliesTo.length} projects</span>
-                      ) : row.appliesTo.length > 4 ? (
-                        <span title={row.appliesTo.map((a) => a.slug).join(', ')}>{row.appliesTo.length} projects</span>
-                      ) : (
-                        row.appliesTo.map((a) => (
-                          <Link
-                            key={a.projectId}
-                            href={`/policies?project=${encodeURIComponent(a.slug)}`}
-                            style={{ color: 'var(--ink-dim)', textDecoration: 'none' }}
-                          >
-                            {a.slug}
-                          </Link>
-                        ))
-                      )
-                    ) : (
-                      (row.appliesTo[0]?.slug ?? '—')
-                    )}
-                  </div>
-                  <div
-                    className="policy-row__hits"
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end' }}
-                  >
-                    <span>{row.priority}</span>
-                    {/* Delete is only available on the per-project view —
-                        the grouped view spans N rule rows across N projects,
-                        and silently deleting all N from one click is too
-                        destructive. Drill into the project to delete. */}
-                    {!groupedView && row.ruleIds[0] !== undefined ? (
-                      <form action={deleteRuleAction} style={{ display: 'inline' }}>
-                        <input type="hidden" name="ruleId" value={row.ruleIds[0]} />
-                        <input
-                          type="hidden"
-                          name="returnTo"
-                          value={
-                            scopedProject !== null
-                              ? `/policies?project=${encodeURIComponent(scopedProject.slug)}`
-                              : '/policies'
-                          }
-                        />
-                        <button
-                          type="submit"
-                          title={`Delete rule (${row.ruleIds[0].slice(0, 8)}) — applies immediately, no undo`}
-                          style={{
-                            background: 'transparent',
-                            border: '1px solid var(--rule-strong)',
-                            color: 'var(--ink-mute)',
-                            fontFamily: 'var(--mono)',
-                            fontSize: 9,
-                            letterSpacing: '0.18em',
-                            textTransform: 'uppercase',
-                            padding: '4px 8px',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          ×
-                        </button>
-                      </form>
-                    ) : null}
-                  </div>
+                  <div style={monoDim}>{exception.scopeJson}</div>
                 </div>
-              ))}
-            </>
+                <div className="policy-row__reason">{exception.reason}</div>
+                <div style={monoDim}>
+                  {exception.expiresAt !== null ? `expires ${exception.expiresAt.toLocaleString()}` : 'no expiry'}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  {exception.status === 'requested' ? (
+                    <>
+                      <ExceptionStatusButton id={exception.id} status="active" label="approve" />
+                      <ExceptionStatusButton id={exception.id} status="rejected" label="reject" />
+                    </>
+                  ) : null}
+                  {exception.status === 'active' ? (
+                    <ExceptionStatusButton id={exception.id} status="revoked" label="revoke" />
+                  ) : null}
+                </div>
+              </div>
+            ))
           )}
-        </div>
-
-        <div className="dash-grid">
-          <div className="aside-card">
-            <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
-              Add a <em>rule</em>
-            </h3>
-            <form action={addRuleAction}>
-              {projects.length > 1 ? (
-                <div className="field" style={{ marginBottom: 14 }}>
-                  <label htmlFor="policy-project" className="field__label" style={fieldLabelStyle}>
-                    Project
-                  </label>
-                  <select
-                    id="policy-project"
-                    name="projectId"
-                    defaultValue={projects[0]?.id ?? ''}
-                    style={fieldInputStyle}
-                    required
-                  >
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.slug}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <input type="hidden" name="projectId" value={projects[0]?.id ?? '__global__'} />
-              )}
-              <Field label="Tool name" name="matchToolName" placeholder="edit · read · bash" required />
-              <Field label="Path glob (optional)" name="matchPathGlob" placeholder="prod/.env" />
-              <SelectField label="Decision" name="decision" options={['deny', 'allow', 'ask']} />
-              <Field label="Reason" name="reason" placeholder="Production secrets — never edit." required textarea />
-              <Field label="Priority (optional)" name="priority" placeholder="100" />
-              <button className="btn btn--accent" style={{ width: '100%' }} type="submit">
-                Add rule
-              </button>
-            </form>
-          </div>
-
-          <div className="aside-card">
-            <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
-              Active <em>policies</em>
-            </h3>
-            {policies.length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--ink-dim)' }}>None.</div>
-            ) : (
-              policies.map((p) => (
-                <form
-                  key={p.id}
-                  action={setActiveAction}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '14px 0',
-                    borderBottom: '1px solid var(--rule)',
-                    gap: 12,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontFamily: 'var(--serif)', fontSize: 18 }}>{p.name}</div>
-                    <div
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 10,
-                        color: 'var(--ink-mute)',
-                        letterSpacing: '0.06em',
-                        marginTop: 3,
-                      }}
-                    >
-                      {p.rules.length} rules · {p.id.slice(0, 8)}
-                    </div>
-                  </div>
-                  <input type="hidden" name="identifier" value={p.id} />
-                  <input type="hidden" name="active" value={p.isActive ? 'false' : 'true'} />
-                  <button className={`badge ${p.isActive ? 'badge--ok' : ''}`} type="submit">
-                    <span className="badge__dot"></span>
-                    {p.isActive ? 'ON' : 'OFF'}
-                  </button>
-                </form>
-              ))
-            )}
-          </div>
-        </div>
+        </section>
       </section>
     </>
+  );
+}
+
+function AddRuleCard({
+  projects,
+  scopedProjectId,
+}: {
+  projects: ReadonlyArray<{ id: string; slug: string }>;
+  scopedProjectId: string | null;
+}) {
+  return (
+    <div className="aside-card">
+      <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
+        Add a <em>rule</em>
+      </h3>
+      <form action={addRuleAction}>
+        <SelectProject projects={projects} scopedProjectId={scopedProjectId} />
+        <SelectField
+          label="Evaluator"
+          name="evaluator"
+          options={POLICY_EVALUATORS.map((evaluator) => `${evaluator.key}::${evaluator.label}`)}
+          valueLabel={(value) => value.split('::')[1] ?? value}
+          valueTransform={(value) => value.split('::')[0] ?? value}
+          help="The evaluator decides which event, matcher fields, and decisions make sense."
+        />
+        <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+          {POLICY_EVALUATORS.map((evaluator) => (
+            <div key={evaluator.key} style={evaluatorHintStyle} title={evaluator.description}>
+              <strong>{evaluator.label}</strong>
+              <span>{evaluator.events.join(' / ')}</span>
+              <span style={{ gridColumn: '1 / -1' }}>{evaluator.examples.join(' · ')}</span>
+            </div>
+          ))}
+        </div>
+        <SelectField label="Group" name="groupKey" options={Object.keys(GROUP_LABELS)} help="Governance domain." />
+        <Field label="Policy name" name="policyName" placeholder="__default__" />
+        <Field label="Control key" name="controlKey" placeholder="shell-human-attestation" />
+        <SelectField
+          label="Event"
+          name="matchEventType"
+          options={['PreToolUse', 'PostToolUse', 'Stop', 'SubagentStop', 'ConfigChange', 'SessionStart', 'SessionEnd']}
+          help="Lifecycle moment where this rule is evaluated."
+        />
+        <SelectField
+          label="Decision"
+          name="decision"
+          options={['deny', 'ask', 'allow', 'block', 'flag', 'record', 'warn', 'pass']}
+          help="Use deny/ask/allow for tool calls; block/flag/record for lifecycle evaluators."
+        />
+        <Field
+          label="Tool name"
+          name="matchToolName"
+          placeholder="Bash · Write · Read · mcp__github__*"
+          help="Leave empty for lifecycle evaluators. Bash Command fills Bash automatically."
+        />
+        <Field label="Path glob" name="matchPathGlob" placeholder="**/.env" help="Required for Protected Files." />
+        <Field
+          label="Command pattern"
+          name="matchCommandPattern"
+          placeholder="git push*--force*"
+          help="Required for Bash Command. Supports glob-style matching."
+        />
+        <SelectField
+          label="Severity"
+          name="severity"
+          options={['low', 'medium', 'high', 'critical']}
+          help="Critical controls are shown as highest audit risk."
+        />
+        <Field label="Reason" name="reason" placeholder="Why this control exists." required textarea />
+        <Field label="Priority" name="priority" placeholder="100" />
+        <button className="btn btn--accent" style={{ width: '100%' }} type="submit">
+          Add rule
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ExceptionCard({
+  policies,
+  projects,
+}: {
+  policies: ReadonlyArray<{
+    id: string;
+    name: string;
+    projectId: string;
+    rules: ReadonlyArray<{ id: string; matchToolName: string; matchPathGlob: string | null }>;
+  }>;
+  projects: ReadonlyArray<{ id: string; slug: string }>;
+}) {
+  const firstPolicy = policies[0];
+  return (
+    <div className="aside-card">
+      <h3 className="aside-card__title" style={{ marginBottom: 14 }}>
+        Request an <em>exception</em>
+      </h3>
+      {firstPolicy === undefined ? (
+        <div style={{ color: 'var(--ink-dim)' }}>Create a policy before requesting exceptions.</div>
+      ) : (
+        <form action={requestPolicyExceptionAction}>
+          <SelectProject projects={projects} scopedProjectId={firstPolicy.projectId} />
+          <SelectField
+            label="Policy"
+            name="policyId"
+            options={policies.map((policy) => `${policy.id}::${policy.name}`)}
+            valueLabel={(value) => value.split('::')[1] ?? value}
+            valueTransform={(value) => value.split('::')[0] ?? value}
+          />
+          <SelectField
+            label="Rule"
+            name="ruleId"
+            options={[
+              '',
+              ...policies.flatMap((policy) =>
+                policy.rules.map(
+                  (rule) =>
+                    `${rule.id}::${rule.matchToolName}${rule.matchPathGlob !== null ? ` ${rule.matchPathGlob}` : ''}`,
+                ),
+              ),
+            ]}
+            valueLabel={(value) => (value === '' ? 'whole policy' : (value.split('::')[1] ?? value))}
+            valueTransform={(value) => value.split('::')[0] ?? value}
+          />
+          <SelectField
+            label="Scope"
+            name="scopeType"
+            options={['project', 'work_pack', 'path', 'tool', 'agent', 'session']}
+          />
+          <Field label="Scope value" name="scopeValue" placeholder="COOD-27 · **/migrations/** · Bash" />
+          <SelectField label="Override" name="decisionOverride" options={['ask', 'allow', 'deny']} />
+          <Field
+            label="Reason"
+            name="reason"
+            placeholder="Temporary migration work requires shell commands."
+            required
+          />
+          <Field label="Justification" name="justification" placeholder="Who approved and why." required textarea />
+          <Field label="Expires at" name="expiresAt" placeholder="2026-08-08T18:00:00" />
+          <label style={{ ...monoDim, display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
+            <input type="checkbox" name="activateNow" />
+            activate immediately
+          </label>
+          <button className="btn btn--accent" style={{ width: '100%' }} type="submit">
+            Request exception
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function SelectProject({
+  projects,
+  scopedProjectId,
+}: {
+  projects: ReadonlyArray<{ id: string; slug: string }>;
+  scopedProjectId: string | null;
+}) {
+  if (projects.length <= 1) return <input type="hidden" name="projectId" value={projects[0]?.id ?? '__global__'} />;
+  return (
+    <div className="field" style={{ marginBottom: 14 }}>
+      <label htmlFor="policy-project" className="field__label" style={fieldLabelStyle}>
+        Project
+      </label>
+      <select
+        id="policy-project"
+        name="projectId"
+        defaultValue={scopedProjectId ?? projects[0]?.id ?? ''}
+        style={fieldInputStyle}
+        required
+      >
+        {projects.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.slug}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ExceptionStatusButton({
+  id,
+  status,
+  label,
+}: {
+  id: string;
+  status: 'active' | 'revoked' | 'rejected';
+  label: string;
+}) {
+  return (
+    <form action={updatePolicyExceptionStatusAction}>
+      <input type="hidden" name="exceptionId" value={id} />
+      <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="returnTo" value="/policies" />
+      <button className="badge" type="submit">
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function Stat({ title, value, detail }: { title: string; value: string; detail: string }) {
+  return (
+    <div className="aside-card" style={{ margin: 0 }}>
+      <div style={monoDim}>{title}</div>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 24, marginTop: 6 }}>{value}</div>
+      <div style={{ color: 'var(--ink-dim)', marginTop: 4 }}>{detail}</div>
+    </div>
   );
 }
 
@@ -468,31 +569,23 @@ function Field({
   label,
   name,
   placeholder,
+  defaultValue,
   required,
   textarea,
+  help,
 }: {
   label: string;
   name: string;
   placeholder?: string;
+  defaultValue?: string;
   required?: boolean;
   textarea?: boolean;
+  help?: string;
 }) {
   const fieldId = `policy-field-${name}`;
   return (
     <div className="field" style={{ marginBottom: 14 }}>
-      <label
-        htmlFor={fieldId}
-        className="field__label"
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 9,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-          color: 'var(--ink-mute)',
-          marginBottom: 6,
-          display: 'block',
-        }}
-      >
+      <label htmlFor={fieldId} className="field__label" style={fieldLabelStyle}>
         {label}
       </label>
       {textarea ? (
@@ -500,53 +593,58 @@ function Field({
           id={fieldId}
           name={name}
           placeholder={placeholder}
+          defaultValue={defaultValue}
           required={required}
           style={fieldInputStyle}
           rows={2}
         />
       ) : (
-        <input id={fieldId} name={name} placeholder={placeholder} required={required} style={fieldInputStyle} />
+        <input
+          id={fieldId}
+          name={name}
+          placeholder={placeholder}
+          defaultValue={defaultValue}
+          required={required}
+          style={fieldInputStyle}
+        />
       )}
+      {help !== undefined ? <div style={fieldHelpStyle}>{help}</div> : null}
     </div>
   );
 }
 
-function SelectField({ label, name, options }: { label: string; name: string; options: ReadonlyArray<string> }) {
+function SelectField({
+  label,
+  name,
+  options,
+  valueLabel,
+  valueTransform,
+  defaultValue,
+  help,
+}: {
+  label: string;
+  name: string;
+  options: ReadonlyArray<string>;
+  valueLabel?: (value: string) => string;
+  valueTransform?: (value: string) => string;
+  defaultValue?: string;
+  help?: string;
+}) {
   const selectId = `policy-select-${name}`;
   return (
     <div className="field" style={{ marginBottom: 14 }}>
       <label htmlFor={selectId} className="field__label" style={fieldLabelStyle}>
         {label}
       </label>
-      <select id={selectId} name={name} style={fieldInputStyle}>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+      <select id={selectId} name={name} defaultValue={defaultValue} style={fieldInputStyle}>
+        {options.map((option) => (
+          <option key={option} value={valueTransform?.(option) ?? option}>
+            {valueLabel?.(option) ?? option}
           </option>
         ))}
       </select>
+      {help !== undefined ? <div style={fieldHelpStyle}>{help}</div> : null}
     </div>
-  );
-}
-
-function Check({ name, label, checked }: { name: string; label: string; checked: boolean }) {
-  return (
-    <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        minHeight: 32,
-        fontFamily: 'var(--mono)',
-        fontSize: 11,
-        color: 'var(--ink-dim)',
-        border: '1px solid var(--rule)',
-        padding: '6px 8px',
-      }}
-    >
-      <input type="checkbox" name={name} defaultChecked={checked} />
-      {label}
-    </label>
   );
 }
 
@@ -568,100 +666,67 @@ const fieldInputStyle: React.CSSProperties = {
   color: 'var(--ink)',
   fontFamily: 'var(--mono)',
   fontSize: 12,
+};
+
+const fieldHelpStyle: React.CSSProperties = {
+  marginTop: 5,
+  color: 'var(--ink-dim)',
+  fontSize: 11,
+  lineHeight: 1.35,
+};
+
+const evaluatorHintStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  gap: '2px 10px',
+  padding: '8px 10px',
+  border: '1px solid var(--rule)',
+  color: 'var(--ink-dim)',
+  fontSize: 11,
+  lineHeight: 1.3,
+};
+
+const editSummaryStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  fontFamily: 'var(--mono)',
+  fontSize: 10,
+  color: 'var(--accent)',
+  margin: '0 0 12px 0',
+  paddingLeft: 8,
+};
+
+const editRuleGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 12,
+  padding: '14px',
+  border: '1px solid var(--rule)',
+};
+
+const monoDim: React.CSSProperties = {
+  fontFamily: 'var(--mono)',
+  fontSize: 10,
+  color: 'var(--ink-dim)',
   letterSpacing: '0.04em',
 };
 
-// ---------------------------------------------------------------------------
-// Rule grouping by signature
-// ---------------------------------------------------------------------------
-
-interface FlatRuleRow {
-  readonly ruleId: string;
-  readonly projectId: string;
-  readonly decision: string;
-  readonly matchEventType: string;
-  readonly matchToolName: string;
-  readonly matchPathGlob: string | null;
-  readonly reason: string;
-  readonly priority: number;
+function verdictColor(decision: string): string {
+  if (decision === 'deny') return 'var(--warn)';
+  if (decision === 'ask') return 'var(--caution)';
+  return 'var(--accent)';
 }
 
-interface GroupedRule {
-  readonly signature: string;
-  readonly decision: string;
-  readonly matchEventType: string;
-  readonly matchToolName: string;
-  readonly matchPathGlob: string | null;
-  readonly reason: string;
-  readonly priority: number;
-  readonly appliesTo: ReadonlyArray<{ readonly projectId: string; readonly slug: string }>;
-  readonly ruleIds: ReadonlyArray<string>;
-}
-
-/**
- * Collapse rules with identical (decision, eventType, toolName, pathGlob, reason)
- * across projects. Same `coodra init` baseline fans out to N copies of
- * each rule — showing the signature once with a project chip list is the
- * honest summary. Sorted by (priority ASC, decision DESC) so the densest
- * deny rules surface first.
- */
-function groupBySignature(
-  rows: ReadonlyArray<FlatRuleRow>,
-  projectSlugById: Map<string, string>,
-): ReadonlyArray<GroupedRule> {
-  const map = new Map<
-    string,
-    GroupedRule & { readonly _appliesTo: Map<string, { projectId: string; slug: string }> }
-  >();
-  for (const r of rows) {
-    const sig = `${r.matchEventType}|${r.matchToolName}|${r.matchPathGlob ?? '_'}|${r.decision}|${r.reason}`;
-    let entry = map.get(sig);
-    if (entry === undefined) {
-      const seed = {
-        signature: sig,
-        decision: r.decision,
-        matchEventType: r.matchEventType,
-        matchToolName: r.matchToolName,
-        matchPathGlob: r.matchPathGlob,
-        reason: r.reason,
-        priority: r.priority,
-        appliesTo: [],
-        ruleIds: [],
-        _appliesTo: new Map<string, { projectId: string; slug: string }>(),
-      };
-      entry = seed as unknown as GroupedRule & {
-        readonly _appliesTo: Map<string, { projectId: string; slug: string }>;
-      };
-      map.set(sig, entry);
-    }
-    if (!entry._appliesTo.has(r.projectId)) {
-      entry._appliesTo.set(r.projectId, {
-        projectId: r.projectId,
-        slug: projectSlugById.get(r.projectId) ?? r.projectId.slice(0, 8),
-      });
-    }
-    (entry.ruleIds as string[]).push(r.ruleId);
+function groupPolicies<T extends { groupKey: string }>(
+  policies: ReadonlyArray<T>,
+): ReadonlyArray<readonly [string, T[]]> {
+  const map = new Map<string, T[]>();
+  for (const policy of policies) {
+    const key = policy.groupKey in GROUP_LABELS ? policy.groupKey : 'custom';
+    const rows = map.get(key) ?? [];
+    rows.push(policy);
+    map.set(key, rows);
   }
-  const result: GroupedRule[] = [];
-  for (const entry of map.values()) {
-    const appliesTo = [...entry._appliesTo.values()].sort((a, b) => a.slug.localeCompare(b.slug));
-    result.push({
-      signature: entry.signature,
-      decision: entry.decision,
-      matchEventType: entry.matchEventType,
-      matchToolName: entry.matchToolName,
-      matchPathGlob: entry.matchPathGlob,
-      reason: entry.reason,
-      priority: entry.priority,
-      appliesTo,
-      ruleIds: entry.ruleIds,
-    });
-  }
-  // Sort: priority ASC (lower = earlier in chain), then deny > ask > allow.
-  result.sort((a, b) => {
-    if (a.priority !== b.priority) return a.priority - b.priority;
-    const decRank = (d: string) => (d === 'deny' ? 0 : d === 'ask' ? 1 : 2);
-    return decRank(a.decision) - decRank(b.decision);
-  });
-  return result;
+  return Object.keys(GROUP_LABELS)
+    .filter((key) => (map.get(key)?.length ?? 0) > 0)
+    .map((key) => [key, map.get(key) ?? []] as const);
 }

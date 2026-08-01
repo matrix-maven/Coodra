@@ -18,6 +18,7 @@ const PHASE_MAP: Readonly<Record<ClaudeCodeHookPayload['hook_event_name'], HookE
   SessionEnd: 'session_end',
   Stop: 'turn_end',
   UserPromptSubmit: 'user_prompt',
+  ConfigChange: 'config_change',
 };
 
 function extractFilePath(input: unknown): string | undefined {
@@ -54,6 +55,9 @@ export function adaptClaudeCode(payload: ClaudeCodeHookPayload, options: AdaptCl
 
   if (payload.tool_use_id !== undefined) {
     (event as { turnId?: string }).turnId = payload.tool_use_id;
+  }
+  if (payload.permission_mode !== undefined) {
+    (event as { permissionMode?: string }).permissionMode = payload.permission_mode;
   }
   const filePath = extractFilePath(payload.tool_input);
   if (filePath !== undefined) {

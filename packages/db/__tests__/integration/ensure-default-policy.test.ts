@@ -41,7 +41,9 @@ async function insertBareProject(args: { slug: string; orgId?: string }): Promis
  *       tools = { Write, Edit, MultiEdit, NotebookEdit }
  *       globs = { .env, **\/.env, .git/**, **\/.git/**,
  *                 node_modules/**, **\/node_modules/** }
- *     plus the existing Bash → ask. 24 deny + 1 ask = 25 rules total.
+ *     plus `.env` / nested `.env` read denies, Coodra/agent
+ *     self-protection rules, and targeted risky Bash command asks.
+ *     54 deny + 5 ask = 59 rules total.
  *
  *   - Phase 4 Fix F also adds an additive-merge repair path: an
  *     existing `__default__` policy missing some rules from the new
@@ -66,14 +68,14 @@ afterAll(() => {
 });
 
 describe('@coodra/db::ensureDefaultPolicy', () => {
-  it('inserts a default Policy row + Phase-4-Fix-F baseline rule set on first call (4 tools × 6 globs + Bash = 25 rules)', async () => {
+  it('inserts a default Policy row + baseline rule set on first call (file protection + targeted Bash = 59 rules)', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const project = await insertBareProject({ slug: 'fresh-policy-project' });
 
     const result = await ensureDefaultPolicy(handle, project.id);
     expect(result.created).toBe(true);
     expect(result.policyId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(result.rulesInserted).toBe(25);
+    expect(result.rulesInserted).toBe(59);
 
     const policies = await handle.db
       .select({ id: sqliteSchema.policies.id, name: sqliteSchema.policies.name })
@@ -87,11 +89,12 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
         priority: sqliteSchema.policyRules.priority,
         matchToolName: sqliteSchema.policyRules.matchToolName,
         matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
+        matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
         decision: sqliteSchema.policyRules.decision,
       })
       .from(sqliteSchema.policyRules)
       .where(eq(sqliteSchema.policyRules.policyId, result.policyId));
-    expect(rules.length).toBe(25);
+    expect(rules.length).toBe(59);
 
     // Phase 4 Fix F: every file-mutating tool denied for every dangerous
     // glob. Walk the cross-product explicitly.
@@ -104,12 +107,18 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
         expect(rule?.decision, `${tool} → ${glob} must deny`).toBe('deny');
       }
     }
-    // Bash ask rule still present.
-    const bashAsk = rules.find((r) => r.matchToolName === 'Bash');
+    // Targeted Bash ask rules are present, but no blanket Bash ask rule
+    // should prompt for harmless commands such as ls/cat/git status.
+    const bashAsk = rules.find((r) => r.matchToolName === 'Bash' && r.matchCommandPattern === 'rm -rf*');
     expect(bashAsk?.decision).toBe('ask');
+    expect(rules.find((r) => r.matchToolName === 'Bash' && r.matchCommandPattern === null)).toBeUndefined();
+    expect(rules.find((r) => r.matchToolName === 'Read' && r.matchPathGlob === '.env')?.decision).toBe('deny');
+    expect(rules.find((r) => r.matchToolName === 'Read' && r.matchPathGlob === '**/.env')?.decision).toBe('deny');
+    expect(rules.find((r) => r.matchToolName === 'Edit' && r.matchPathGlob === '.codex/**')?.decision).toBe('deny');
+    expect(rules.find((r) => r.matchToolName === 'Write' && r.matchPathGlob === 'AGENTS.md')?.decision).toBe('deny');
   });
 
-  it('Phase 4 Fix F: existing pre-Fix-F install with 9 narrow rules is repaired additively (16 missing rules added)', async () => {
+  it('Phase 4 Fix F: existing pre-Fix-F install with 9 narrow rules is repaired additively (51 missing rules added)', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const project = await insertBareProject({ slug: 'pre-fix-f-install' });
 
@@ -151,8 +160,11 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
 
     const result = await ensureDefaultPolicy(handle, project.id);
     expect(result.created).toBe(false);
-    // 25 baseline - 9 already-present = 16 missing rules to insert.
-    expect(result.rulesInserted).toBe(16);
+    // 59 baseline - 8 already-present file rules = 51 missing rules to insert.
+    // The old blanket Bash ask is intentionally preserved as user-owned data
+    // but no longer counts as a current default because command pattern is
+    // part of the rule identity.
+    expect(result.rulesInserted).toBe(51);
     expect(result.policyId).toBe(policyId);
 
     // Existing rules are preserved unchanged.
@@ -163,11 +175,12 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
         matchToolName: sqliteSchema.policyRules.matchToolName,
         matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
         decision: sqliteSchema.policyRules.decision,
+        matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
         reason: sqliteSchema.policyRules.reason,
       })
       .from(sqliteSchema.policyRules)
       .where(eq(sqliteSchema.policyRules.policyId, policyId));
-    expect(allRules.length).toBe(25);
+    expect(allRules.length).toBe(60);
 
     const preserved = allRules.find((r) => r.id === 'pre-fix-f-rule-00');
     expect(preserved?.reason).toBe('pre-fix-f'); // unchanged
@@ -177,6 +190,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
     expect(allRules.some((r) => r.matchToolName === 'NotebookEdit' && r.matchPathGlob === '**/.env')).toBe(true);
     expect(allRules.some((r) => r.matchToolName === 'Write' && r.matchPathGlob === '**/.git/**')).toBe(true);
     expect(allRules.some((r) => r.matchToolName === 'Edit' && r.matchPathGlob === '**/node_modules/**')).toBe(true);
+    expect(allRules.some((r) => r.matchToolName === 'Bash' && r.matchCommandPattern === 'rm -rf*')).toBe(true);
   });
 
   it('Phase 4 Fix F: user-customized rule (changed reason text on a Phase-3 rule) survives a repair', async () => {
@@ -237,7 +251,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
     expect(policyCount).toBe(1);
   });
 
-  it('Phase 4 Fix F priority ordering: .env-Write at priority 10 fires first; Bash sits at priority 70 between Edit and MultiEdit blocks', async () => {
+  it('Phase 4 Fix F priority ordering: .env-Write at priority 10 fires first; targeted Bash asks sit at priority 70-74', async () => {
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite');
     const project = await insertBareProject({ slug: 'priority-policy-project' });
     const result = await ensureDefaultPolicy(handle, project.id);
@@ -247,6 +261,7 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
         priority: sqliteSchema.policyRules.priority,
         matchToolName: sqliteSchema.policyRules.matchToolName,
         matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
+        matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
         decision: sqliteSchema.policyRules.decision,
       })
       .from(sqliteSchema.policyRules)
@@ -260,19 +275,20 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
     expect(rules[0]?.matchToolName).toBe('Write');
     expect(rules[0]?.decision).toBe('deny');
 
-    // Bash ask rule sits at priority 70 (between Edit's last priority 60
+    // Targeted Bash ask rules sit at priorities 70-74 (between Edit's last priority 60
     // and MultiEdit's first priority 80). Priority order doesn't affect
     // Bash correctness because tool-name predicates partition the rule
     // space — Bash never collides with file-mutating tools.
-    const bashIdx = rules.findIndex((r) => r.matchToolName === 'Bash');
+    const bashIdx = rules.findIndex((r) => r.matchToolName === 'Bash' && r.matchCommandPattern === 'rm -rf*');
     expect(bashIdx).toBeGreaterThan(-1);
     expect(rules[bashIdx]?.priority).toBe(70);
     expect(rules[bashIdx]?.decision).toBe('ask');
 
-    // Last rule by priority is in the NotebookEdit block (priority 95).
+    // Last rules by priority are the self-protection controls.
     const last = rules[rules.length - 1];
     expect(last?.matchToolName).toBe('NotebookEdit');
-    expect(last?.priority).toBe(95);
+    expect(last?.matchPathGlob).toBe('CLAUDE.md');
+    expect(last?.priority).toBe(137);
   });
 });
 

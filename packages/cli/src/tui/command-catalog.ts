@@ -72,6 +72,7 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   project: 'projects',
   files: 'projects',
   work: 'work',
+  recipe: 'skills',
   skill: 'skills',
   wiki: 'wiki',
   graphify: 'integrations',

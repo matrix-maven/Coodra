@@ -184,7 +184,9 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'pending_jobs',
         'policies',
         'policy_decisions',
+        'policy_exceptions',
         'policy_rules',
+        'policy_versions',
         'projects',
         'run_diffs',
         'run_events',
@@ -224,8 +226,8 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND substr(name, 1, 18) <> 'context_packs_vec_'`,
         )
         .get() as { n: number };
-      // 22 schema tables + context_packs_vec virtual table = 23.
-      expect(rows.n).toBe(23);
+      // 24 schema tables + context_packs_vec virtual table = 25.
+      expect(rows.n).toBe(25);
     } finally {
       first.close();
     }

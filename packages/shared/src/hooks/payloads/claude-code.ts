@@ -45,11 +45,20 @@ import { z } from 'zod';
  */
 export const ClaudeCodeHookPayloadSchema = z
   .object({
-    hook_event_name: z.enum(['PreToolUse', 'PostToolUse', 'SessionStart', 'SessionEnd', 'Stop', 'UserPromptSubmit']),
+    hook_event_name: z.enum([
+      'PreToolUse',
+      'PostToolUse',
+      'SessionStart',
+      'SessionEnd',
+      'Stop',
+      'UserPromptSubmit',
+      'ConfigChange',
+    ]),
     session_id: z.string().min(1),
     tool_name: z.string().optional(),
     tool_input: z.unknown().optional(),
     tool_use_id: z.string().optional(),
+    permission_mode: z.string().optional(),
     cwd: z.string().optional(),
     prompt: z.string().optional(),
     prompt_id: z.string().optional(),

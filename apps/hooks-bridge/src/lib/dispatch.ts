@@ -19,6 +19,7 @@ import type { DispatchHookEvent, HookDispatchResult } from '../app.js';
  *     If/when per-turn telemetry gains a consumer, attach a handler
  *     in ComposeDispatchDeps and route here.
  *   - `eventPhase === 'user_prompt'`   → userPromptSubmitHandler.
+ *   - `eventPhase === 'config_change'` → configChangeHandler (projection drift attestation only).
  *
  * Returns null events (Windsurf unmapped) are surfaced from the route
  * directly, not through here. This composer assumes a non-null event.
@@ -37,6 +38,8 @@ export interface ComposeDispatchDeps {
   readonly sessionEnd: (event: HookEvent) => Promise<HookDispatchResult>;
   /** UserPromptSubmit handler (S10). */
   readonly userPromptSubmit: (event: HookEvent) => Promise<HookDispatchResult>;
+  /** ConfigChange handler — re-attest policy projection after agent config changes. */
+  readonly configChange?: (event: HookEvent) => Promise<HookDispatchResult>;
 }
 
 export function composeDispatch(deps: ComposeDispatchDeps): DispatchHookEvent {
@@ -64,6 +67,9 @@ export function composeDispatch(deps: ComposeDispatchDeps): DispatchHookEvent {
     }
     if (event.eventPhase === 'user_prompt') {
       return deps.userPromptSubmit(event);
+    }
+    if (event.eventPhase === 'config_change') {
+      return deps.configChange !== undefined ? deps.configChange(event) : { permissionDecision: 'allow' };
     }
     // Should never reach here — every HookEvent.eventPhase is covered.
     dispatchLogger.warn(

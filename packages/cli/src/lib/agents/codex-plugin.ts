@@ -265,6 +265,19 @@ function hooksConfig(): unknown {
           ],
         },
       ],
+      ConfigChange: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command,
+              statusMessage: 'Checking Coodra policy projection',
+              additionalContextLimit: 1000,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
       PreToolUse: [
         {
           matcher: 'Bash|apply_patch|Edit|Write|mcp__.*',

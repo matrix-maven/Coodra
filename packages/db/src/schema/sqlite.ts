@@ -193,6 +193,9 @@ export const policies = sqliteTable('policies', {
     .references(() => projects.id),
   name: text('name').notNull(),
   description: text('description'),
+  groupKey: text('group_key').notNull().default('agent_guardrails'),
+  profile: text('profile').notNull().default('default'),
+  enforcementMode: text('enforcement_mode').notNull().default('detective'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
   // admin who created/last-edited this policy. NULL on solo. Surfaced
@@ -216,9 +219,14 @@ export const policyRules = sqliteTable(
     matchEventType: text('match_event_type').notNull(),
     matchToolName: text('match_tool_name').notNull(),
     matchPathGlob: text('match_path_glob'),
+    matchCommandPattern: text('match_command_pattern'),
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
     reason: text('reason').notNull(),
+    controlKey: text('control_key'),
+    ruleType: text('rule_type').notNull().default('tool_call'),
+    severity: text('severity').notNull().default('medium'),
+    details: text('details'),
     createdByUserId: text('created_by_user_id'),
     updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
@@ -238,6 +246,65 @@ export const policyRules = sqliteTable(
   ],
 );
 
+export const policyVersions = sqliteTable(
+  'policy_versions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    versionNumber: integer('version_number').notNull(),
+    status: text('status').notNull().default('active'),
+    snapshotJson: text('snapshot_json').notNull(),
+    snapshotHash: text('snapshot_hash').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    activatedByUserId: text('activated_by_user_id'),
+    changeSummary: text('change_summary'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    activatedAt: integer('activated_at', { mode: 'timestamp' }),
+    retiredAt: integer('retired_at', { mode: 'timestamp' }),
+  },
+  (t) => [
+    uniqueIndex('policy_versions_policy_version_uk').on(t.policyId, t.versionNumber),
+    index('policy_versions_policy_status_idx').on(t.policyId, t.status, t.versionNumber),
+  ],
+);
+
+export const policyExceptions = sqliteTable(
+  'policy_exceptions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
+    ruleId: text('rule_id').references(() => policyRules.id),
+    scopeType: text('scope_type').notNull(),
+    scopeJson: text('scope_json').notNull().default('{}'),
+    decisionOverride: text('decision_override').notNull(),
+    reason: text('reason').notNull(),
+    justification: text('justification').notNull(),
+    requestedByUserId: text('requested_by_user_id'),
+    approvedByUserId: text('approved_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
+    status: text('status').notNull().default('requested'),
+    startsAt: integer('starts_at', { mode: 'timestamp' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    revokedByUserId: text('revoked_by_user_id'),
+  },
+  (t) => [
+    index('policy_exceptions_active_idx').on(t.projectId, t.status, t.expiresAt),
+    index('policy_exceptions_policy_idx').on(t.policyId, t.status),
+  ],
+);
+
 export const policyDecisions = sqliteTable(
   'policy_decisions',
   {
@@ -252,13 +319,25 @@ export const policyDecisions = sqliteTable(
     agentType: text('agent_type').notNull(),
     eventType: text('event_type').notNull(),
     toolName: text('tool_name').notNull(),
+    toolUseId: text('tool_use_id'),
+    permissionMode: text('permission_mode'),
     toolInputSnapshot: text('tool_input_snapshot').notNull(),
     permissionDecision: text('permission_decision').notNull(),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
+    matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
+    baseDecision: text('base_decision'),
+    effectiveDecision: text('effective_decision'),
     reason: text('reason').notNull(),
+    askOutcome: text('ask_outcome'),
+    askOutcomeAt: integer('ask_outcome_at', { mode: 'timestamp' }),
+    correlatedRunEventId: text('correlated_run_event_id').references(() => runEvents.id),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
-  (t) => [index('policy_decisions_session_idx').on(t.sessionId, t.createdAt)],
+  (t) => [
+    index('policy_decisions_session_idx').on(t.sessionId, t.createdAt),
+    index('policy_decisions_ask_correlation_idx').on(t.sessionId, t.toolUseId, t.toolName, t.askOutcome),
+  ],
 );
 
 /**

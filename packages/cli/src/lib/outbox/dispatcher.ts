@@ -63,9 +63,17 @@ export interface PolicyDecisionPayloadV1 {
   readonly eventType: string;
   readonly toolName: string;
   readonly toolUseId?: string;
+  readonly permissionMode?: string | null;
   readonly toolInputSnapshot: string;
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
+  readonly policyVersionId?: string | null;
   readonly matchedRuleId: string | null;
+  readonly matchedExceptionId?: string | null;
+  readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
+  readonly effectiveDecision?: 'allow' | 'deny' | 'ask' | null;
+  readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
+  readonly askOutcomeAt?: string | null;
+  readonly correlatedRunEventId?: string | null;
   readonly reason: string;
 }
 
@@ -198,6 +206,35 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
           const reason = payload.reason;
           const matchedRuleId =
             payload.matchedRuleId === null || typeof payload.matchedRuleId === 'string' ? payload.matchedRuleId : null;
+          const policyVersionId =
+            payload.policyVersionId === null || typeof payload.policyVersionId === 'string'
+              ? payload.policyVersionId
+              : null;
+          const matchedExceptionId =
+            payload.matchedExceptionId === null || typeof payload.matchedExceptionId === 'string'
+              ? payload.matchedExceptionId
+              : null;
+          const baseDecision =
+            payload.baseDecision === 'allow' || payload.baseDecision === 'deny' || payload.baseDecision === 'ask'
+              ? payload.baseDecision
+              : permissionDecision;
+          const effectiveDecision =
+            payload.effectiveDecision === 'allow' ||
+            payload.effectiveDecision === 'deny' ||
+            payload.effectiveDecision === 'ask'
+              ? payload.effectiveDecision
+              : permissionDecision;
+          const askOutcome =
+            payload.askOutcome === 'approved' ||
+            payload.askOutcome === 'not_executed' ||
+            payload.askOutcome === 'unresolved'
+              ? payload.askOutcome
+              : null;
+          const askOutcomeAt = typeof payload.askOutcomeAt === 'string' ? new Date(payload.askOutcomeAt) : null;
+          const correlatedRunEventId =
+            payload.correlatedRunEventId === null || typeof payload.correlatedRunEventId === 'string'
+              ? payload.correlatedRunEventId
+              : null;
           const resolution = readResolution(payload.resolution);
           if (
             typeof projectId !== 'string' ||
@@ -212,8 +249,13 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
           ) {
             return PERMANENT('policy_decision payload missing required fields');
           }
+          const parsedPermissionDecision = permissionDecision as 'allow' | 'deny' | 'ask';
           const runId = await resolveRunId(deps.db, resolution);
           const toolUseId = typeof payload.toolUseId === 'string' ? payload.toolUseId : undefined;
+          const permissionMode =
+            payload.permissionMode === null || typeof payload.permissionMode === 'string'
+              ? payload.permissionMode
+              : null;
           await recordPolicyDecision(deps.db, {
             projectId,
             sessionId,
@@ -221,10 +263,18 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             eventType,
             toolName,
             ...(toolUseId !== undefined ? { toolUseId } : {}),
+            permissionMode,
             toolInputSnapshot,
-            permissionDecision,
+            permissionDecision: parsedPermissionDecision,
+            policyVersionId,
             reason,
             matchedRuleId,
+            matchedExceptionId,
+            baseDecision: baseDecision as 'allow' | 'deny' | 'ask',
+            effectiveDecision: effectiveDecision as 'allow' | 'deny' | 'ask',
+            askOutcome,
+            askOutcomeAt,
+            correlatedRunEventId,
             runId,
           });
           log.debug(

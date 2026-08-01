@@ -1,4 +1,4 @@
-import { type DbHandle, GLOBAL_PROJECT_ID, lookupRunId } from '@coodra/db';
+import { type DbHandle, GLOBAL_PROJECT_ID, insertAuditEvent, lookupRunId } from '@coodra/db';
 import type { PolicyClient, PolicyInput } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
@@ -54,6 +54,10 @@ import type { RunRecorder } from '../lib/run-recorder.js';
 
 const preToolLogger = createLogger('hooks-bridge.pre-tool-use');
 
+function classifyPermissionMode(mode: string): 'drift' | 'observed' {
+  return mode === 'bypassPermissions' || mode === 'auto' ? 'drift' : 'observed';
+}
+
 export interface CreatePreToolUseHandlerDeps {
   readonly policy: PolicyClient;
   readonly projectSlugResolver: ProjectSlugResolver;
@@ -72,6 +76,53 @@ export interface CreatePreToolUseHandlerDeps {
 export type PreToolUseHandler = (event: HookEvent) => Promise<HookDispatchResult>;
 
 export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreToolUseHandler {
+  const observedPermissionModes = new Map<string, string>();
+
+  async function observePermissionMode(event: HookEvent, projectId: string, runId: string | null): Promise<void> {
+    if (event.permissionMode === undefined || event.agentType !== 'claude_code') return;
+    const modeKey = `${projectId}|${event.sessionId}`;
+    const previousMode = observedPermissionModes.get(modeKey);
+    if (previousMode === event.permissionMode) return;
+
+    observedPermissionModes.set(modeKey, event.permissionMode);
+    const classification = classifyPermissionMode(event.permissionMode);
+    try {
+      await insertAuditEvent(deps.db, {
+        projectId,
+        runId,
+        eventType:
+          classification === 'drift' ? 'policy.permission_mode.drift_detected' : 'policy.permission_mode.observed',
+        subjectTable: 'projects',
+        subjectId: projectId,
+        action: 'observe_permission_mode',
+        result: classification,
+        reason:
+          classification === 'drift'
+            ? `Claude Code effective permission_mode=${event.permissionMode} weakens Coodra policy enforcement.`
+            : `Claude Code effective permission_mode=${event.permissionMode} observed on PreToolUse.`,
+        metadata: {
+          sessionId: event.sessionId,
+          agentType: event.agentType,
+          toolName: event.toolName,
+          toolUseId: event.turnId ?? null,
+          permissionMode: event.permissionMode,
+          previousPermissionMode: previousMode ?? null,
+        },
+      });
+    } catch (err) {
+      preToolLogger.warn(
+        {
+          event: 'pre_tool_use_permission_mode_audit_failed',
+          sessionId: event.sessionId,
+          toolName: event.toolName,
+          permissionMode: event.permissionMode,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'permission-mode observation audit threw; policy decision proceeds',
+      );
+    }
+  }
+
   return async function handlePreToolUse(event) {
     if (event.eventPhase !== 'pre') {
       preToolLogger.warn(
@@ -87,6 +138,8 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
     // as the prior __global__ fallback), so the decision shape is
     // unchanged; the audit row now lands with a real projectId FK.
     const { slug, projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
+    const lookupProjectId = projectId ?? GLOBAL_PROJECT_ID;
+    await observePermissionMode(event, lookupProjectId, null);
 
     // Module 08b S2 (2026-05-03): kill-switch short-circuit. Consults
     // `kill_switches` BEFORE the policy chain. On match, the handler
@@ -173,7 +226,6 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
     // and lets SOC2 / NHI auditors grep for a single runId across
     // bridge + MCP service log streams without joining
     // (projectId, sessionId) tuples.
-    const lookupProjectId = projectId ?? GLOBAL_PROJECT_ID;
     let runId: string | null = null;
     try {
       runId = await lookupRunId(deps.db, lookupProjectId, event.sessionId);
@@ -194,7 +246,10 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         toolName: event.toolName,
         agentType: event.agentType,
         permissionDecision: result.decision,
+        permissionMode: event.permissionMode ?? null,
         matchedRuleId: result.matchedRuleId,
+        policyVersionId: result.policyVersionId ?? null,
+        matchedExceptionId: result.matchedExceptionId ?? null,
         ...(slug !== undefined ? { projectSlug: slug } : {}),
         ...(projectId !== undefined ? { projectId } : {}),
         runId: runId ?? 'unresolved',
@@ -213,6 +268,9 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         decision: result.decision,
         reason: result.reason,
         matchedRuleId: result.matchedRuleId,
+        policyVersionId: result.policyVersionId ?? null,
+        matchedExceptionId: result.matchedExceptionId ?? null,
+        baseDecision: result.baseDecision ?? result.decision,
       });
     }
 
