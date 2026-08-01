@@ -1,4 +1,4 @@
-import { listWorkPacksDetailed, type WorkPackListItem } from '@coodra/db';
+import { getWorkPackDetail, listWorkPacksDetailed, type WorkPackDetail, type WorkPackListItem } from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 
@@ -27,4 +27,20 @@ export async function listWorkPacksByProject(): Promise<WorkPackGroup[]> {
     });
   }
   return [...groups.values()];
+}
+
+export async function getWorkPackProject(projectSlug: string): Promise<WorkPackGroup | null> {
+  const groups = await listWorkPacksByProject();
+  return groups.find((group) => group.projectSlug === projectSlug) ?? null;
+}
+
+export async function getWorkPackDetailBySlug(
+  projectSlug: string,
+  workPackSlug: string,
+): Promise<WorkPackDetail | null> {
+  const db = createWebDb();
+  const packs = await listWorkPacksDetailed(db);
+  const pack = packs.find((item) => item.projectSlug === projectSlug && item.slug === workPackSlug);
+  if (pack === undefined) return null;
+  return getWorkPackDetail(db, pack.id);
 }
