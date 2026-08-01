@@ -62,6 +62,28 @@ function makeIO(): Captured {
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for assertion.
 const ANSI = /\x1b\[[0-9;]*m/g;
 
+async function writeMachineManifest(home: string, agents: Array<{ id: string; installed: boolean }>): Promise<void> {
+  await mkdir(join(home, '.coodra'), { recursive: true });
+  await writeFile(
+    join(home, '.coodra', 'manifest.json'),
+    `${JSON.stringify(
+      {
+        version: 1,
+        coodraHome: join(home, '.coodra'),
+        entries: [],
+        agents: agents.map((agent) => ({
+          id: agent.id,
+          status: agent.installed ? 'installed' : 'detected',
+          installed: agent.installed,
+        })),
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+}
+
 describe('runJiraEnableCommand', () => {
   let cwd: string;
   let home: string;
@@ -169,14 +191,36 @@ describe('runJiraEnableCommand', () => {
     expect(codexCfg.experimental_use_rmcp_client).toBe(true);
   });
 
-  it('autodetects installed agents when --ide is omitted', async () => {
+  it('uses Coodra-installed agents from the machine manifest when --ide is omitted', async () => {
+    await mkdir(join(home, '.claude'), { recursive: true });
+    await writeMachineManifest(home, [
+      { id: 'claude', installed: false },
+      { id: 'codex', installed: true },
+    ]);
+    const c = makeIO();
+    await expect(runJiraEnableCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    expect(JSON.parse(c.stdout()).results.map((r: { ide: string }) => r.ide)).toEqual(['codex']);
+    await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(cwd, '.codex', 'config.toml'), 'utf8')).resolves.toContain('[mcp_servers.atlassian]');
+  });
+
+  it('falls back to detected IDE folders only when no Coodra machine manifest exists', async () => {
     await mkdir(join(home, '.claude'));
     const c = makeIO();
     await expect(runJiraEnableCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(JSON.parse(c.stdout()).results.map((r: { ide: string }) => r.ide)).toEqual(['claude']);
   });
 
-  it('exits user-recoverable (1) when no IDE is detected and none is named', async () => {
+  it('exits user-recoverable (1) when the manifest records no installed agents and none is named', async () => {
+    await mkdir(join(home, '.claude'), { recursive: true });
+    await writeMachineManifest(home, [{ id: 'claude', installed: false }]);
+    const c = makeIO();
+    await expect(runJiraEnableCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
+    expect(c.exitCode()).toBe(1);
+    expect(c.stderr()).toContain('No Coodra-installed native agent plugins');
+  });
+
+  it('exits user-recoverable (1) when no IDE is detected, no manifest exists, and none is named', async () => {
     const c = makeIO();
     await expect(runJiraEnableCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(1);
