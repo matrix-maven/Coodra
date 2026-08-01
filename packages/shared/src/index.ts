@@ -48,6 +48,7 @@ export {
   hashCodexNativePermissionsSurface,
   hashPolicyProjectionSurface,
   type PolicyProjection,
+  type PolicyProjectionAgent,
   type PolicyProjectionPolicy,
   type PolicyProjectionReadResult,
   type PolicyProjectionWriteResult,

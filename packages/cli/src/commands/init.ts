@@ -3,6 +3,7 @@ import { chmod, mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import {
+  buildPolicyProjection,
   createPostgresDb,
   ensureDefaultPolicy,
   ensureGlobalProject,
@@ -10,6 +11,7 @@ import {
   migrateSqlite,
   postgresSchema,
 } from '@coodra/db';
+import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { readVerifiedToken } from '@coodra/shared/auth';
 import { eq } from 'drizzle-orm';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
@@ -18,6 +20,7 @@ import { detectLanguages, detectProjectRoot } from '../lib/detect.js';
 import { ensureGraphifyLlmEnvTemplate } from '../lib/graphify/env-template.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
+import { readMachineManifest } from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import {
   classifyGeneratedPath,
@@ -279,6 +282,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // every fresh install shipped with policy enforcement effectively
   // off).
   const dataDb = `${coodraHome}/data.db`;
+  const outcomes: WriteOutcome[] = [];
   if (!dryRun) {
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     try {
@@ -406,6 +410,25 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       } else {
         io.writeStdout(`${pc.gray('=')} Default policy already present — leaving user customizations intact\n`);
       }
+      const projectionAgents = await installedPolicyProjectionAgents(coodraHome);
+      if (projectionAgents.length > 0) {
+        const projection = await buildPolicyProjection(handle, {
+          projectId: projectResult.id,
+          projectSlug,
+        });
+        const written = await writePolicyProjectionFiles(root, projection, { agents: projectionAgents });
+        for (const path of [written.codexPath, written.claudePath]) {
+          if (path !== undefined) {
+            outcomes.push({ path, action: 'merged', notes: 'policy projection for installed agent' });
+          }
+        }
+        const agentList = written.agents.join(', ');
+        io.writeStdout(`${pc.green('✓')} Synced policy projection for installed agent(s): ${agentList}\n`);
+      } else {
+        io.writeStdout(
+          `${pc.gray('=')} No native agent plugins recorded yet — skipping project policy projection files\n`,
+        );
+      }
     } finally {
       handle.close();
     }
@@ -470,8 +493,6 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     }
   }
 
-  const outcomes: WriteOutcome[] = [];
-
   // Write/merge the project-local `.coodra/config.json` identity.
   outcomes.push(...(await writeProjectConfig({ root, projectSlug, mode: machineCfg.mode, force, dryRun })));
   outcomes.push(...(await ensureProjectLayout(root, dryRun)));
@@ -523,6 +544,15 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   }
 
   return io.exit(EXIT_OK);
+}
+
+async function installedPolicyProjectionAgents(coodraHome: string): Promise<PolicyProjectionAgent[]> {
+  const manifest = await readMachineManifest(coodraHome);
+  if (manifest === null) return [];
+  const agents: PolicyProjectionAgent[] = [];
+  if (manifest.agents.some((agent) => agent.id === 'codex' && agent.installed)) agents.push('codex');
+  if (manifest.agents.some((agent) => agent.id === 'claude' && agent.installed)) agents.push('claude');
+  return agents;
 }
 
 function sanitizeSlug(raw: string): string {

@@ -1,5 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { buildPolicyProjection, lookupProjectBySlug } from '@coodra/db';
+import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
@@ -12,9 +14,11 @@ import {
   resolveAgentInput,
   resolveAgentWiringContext,
 } from '../lib/agents/index.js';
+import { resolveCoodraDataDb } from '../lib/coodra-home.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { classifyMachineRuntimePath, recordMachineManifest } from '../lib/machine-store/manifest.js';
+import { openLocalDb } from '../lib/open-local-db.js';
 import {
   classifyGeneratedPath,
   ensureProjectConfig,
@@ -290,6 +294,19 @@ async function runWire(
     );
   }
 
+  const projectionAgents = results
+    .filter((r) => r.error === undefined && (r.id === 'codex' || r.id === 'claude'))
+    .map((r) => r.id as PolicyProjectionAgent);
+  const projectionOutcome =
+    projectionAgents.length > 0
+      ? await syncPolicyProjectionForAgents({
+          resolved,
+          agents: projectionAgents,
+          dryRun,
+          createdBy: `coodra agent ${mode} ${agentArg}`,
+        })
+      : null;
+
   if (json) {
     io.writeStdout(
       `${JSON.stringify(
@@ -301,6 +318,7 @@ async function runWire(
           dryRun,
           ...(mcpJson !== null ? { mcpJson } : {}),
           agents: results,
+          ...(projectionOutcome !== null ? { policyProjection: projectionOutcome } : {}),
         },
         null,
         2,
@@ -329,6 +347,14 @@ async function runWire(
     }
     if (r.note !== undefined) io.writeStdout(`  ${pc.gray(`→ ${r.note}`)}\n`);
   }
+  if (projectionOutcome !== null) {
+    if (projectionOutcome.written.length > 0) {
+      io.writeStdout(`\n${pc.green('✓')} Policy projection synced for ${projectionOutcome.agents.join(', ')}\n`);
+      for (const path of projectionOutcome.written) io.writeStdout(`  ${pc.gray(path)}\n`);
+    } else if (projectionOutcome.skippedReason !== undefined) {
+      io.writeStdout(`\n${pc.gray('=')} Policy projection skipped: ${projectionOutcome.skippedReason}\n`);
+    }
+  }
   io.writeStdout(
     `\n${hintLine(
       mode === 'add'
@@ -337,6 +363,43 @@ async function runWire(
     )}\n`,
   );
   return io.exit(EXIT_OK);
+}
+
+async function syncPolicyProjectionForAgents(args: {
+  readonly resolved: Awaited<ReturnType<typeof resolveAgentWiringContext>>;
+  readonly agents: readonly PolicyProjectionAgent[];
+  readonly dryRun: boolean;
+  readonly createdBy: string;
+}): Promise<{ agents: readonly PolicyProjectionAgent[]; written: readonly string[]; skippedReason?: string }> {
+  const uniqueAgents = [...new Set(args.agents)].sort();
+  if (uniqueAgents.length === 0) return { agents: [], written: [] };
+  if (args.dryRun) return { agents: uniqueAgents, written: [], skippedReason: 'dry run' };
+
+  const handle = await openLocalDb(resolveCoodraDataDb(args.resolved.coodraHome));
+  try {
+    const project = await lookupProjectBySlug(handle, args.resolved.projectSlug);
+    if (project === null) {
+      return {
+        agents: uniqueAgents,
+        written: [],
+        skippedReason: 'project is not registered yet; run coodra init first',
+      };
+    }
+    const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
+    const result = await writePolicyProjectionFiles(args.resolved.projectRoot, projection, { agents: uniqueAgents });
+    const written = [result.codexPath, result.claudePath].filter((path): path is string => path !== undefined);
+    if (written.length > 0) {
+      await recordManifestEntries({
+        root: args.resolved.projectRoot,
+        projectSlug: args.resolved.projectSlug,
+        entries: written.map((path) => classifyGeneratedPath(path, args.resolved.projectRoot, args.createdBy)),
+        dryRun: false,
+      });
+    }
+    return { agents: uniqueAgents, written };
+  } finally {
+    handle.close();
+  }
 }
 
 export function runAgentAddCommand(

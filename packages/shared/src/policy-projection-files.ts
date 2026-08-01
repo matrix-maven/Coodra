@@ -85,9 +85,12 @@ export interface PolicyProjectionReadResult {
 }
 
 export interface PolicyProjectionWriteResult {
-  readonly codexPath: string;
-  readonly claudePath: string;
+  readonly codexPath?: string;
+  readonly claudePath?: string;
+  readonly agents: readonly PolicyProjectionAgent[];
 }
+
+export type PolicyProjectionAgent = 'codex' | 'claude';
 
 export function policyProjectionPaths(projectRoot: string): {
   readonly codexPath: string;
@@ -302,61 +305,78 @@ function upsertTopLevelTomlString(raw: string, key: string, value: string): stri
 export async function writePolicyProjectionFiles(
   projectRoot: string,
   projection: PolicyProjection,
+  options: { readonly agents?: readonly PolicyProjectionAgent[] } = {},
 ): Promise<PolicyProjectionWriteResult> {
   const { codexPath, claudePath } = policyProjectionPaths(projectRoot);
-  await mkdir(dirname(codexPath), { recursive: true });
-  await mkdir(dirname(claudePath), { recursive: true });
+  const agents = options.agents ?? ['codex', 'claude'];
+  const agentSet = new Set<PolicyProjectionAgent>(agents);
+  let wroteCodexPath: string | undefined;
+  let wroteClaudePath: string | undefined;
 
-  let codexRaw = '';
-  try {
-    codexRaw = await readFile(codexPath, 'utf8');
-  } catch {
-    codexRaw = '';
-  }
-  let codexNext = upsertManagedTextBlock(codexRaw, renderCodexPolicyProjectionBlock(projection));
-  if (projection.nativePermissions?.codex !== undefined) {
-    codexNext = upsertTopLevelTomlString(codexNext, 'trust_level', 'trusted');
-    codexNext = upsertTopLevelTomlString(
-      codexNext,
-      'default_permissions',
-      projection.nativePermissions.codex.defaultPermissions,
-    );
-    codexNext = upsertManagedBlock(
-      codexNext,
-      renderCodexNativePermissionsBlock(projection.nativePermissions.codex),
-      COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN,
-      COODRA_CODEX_NATIVE_PERMISSIONS_END,
-    );
-  }
-  await writeFile(codexPath, codexNext, 'utf8');
-
-  let claudeSettings: Record<string, unknown> = {};
-  try {
-    const raw = await readFile(claudePath, 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      claudeSettings = parsed as Record<string, unknown>;
+  if (agentSet.has('codex')) {
+    await mkdir(dirname(codexPath), { recursive: true });
+    let codexRaw = '';
+    try {
+      codexRaw = await readFile(codexPath, 'utf8');
+    } catch {
+      codexRaw = '';
     }
-  } catch {
-    claudeSettings = {};
+    let codexNext = upsertManagedTextBlock(codexRaw, renderCodexPolicyProjectionBlock(projection));
+    if (projection.nativePermissions?.codex !== undefined) {
+      codexNext = upsertTopLevelTomlString(codexNext, 'trust_level', 'trusted');
+      codexNext = upsertTopLevelTomlString(
+        codexNext,
+        'default_permissions',
+        projection.nativePermissions.codex.defaultPermissions,
+      );
+      codexNext = upsertManagedBlock(
+        codexNext,
+        renderCodexNativePermissionsBlock(projection.nativePermissions.codex),
+        COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN,
+        COODRA_CODEX_NATIVE_PERMISSIONS_END,
+      );
+    }
+    await writeFile(codexPath, codexNext, 'utf8');
+    wroteCodexPath = codexPath;
   }
-  const coodra =
-    claudeSettings.coodra !== null && typeof claudeSettings.coodra === 'object' && !Array.isArray(claudeSettings.coodra)
-      ? (claudeSettings.coodra as Record<string, unknown>)
-      : {};
-  const previousProjection = parseProjection(coodra.policyProjection);
-  const permissions = mergeClaudePermissions(
-    claudeSettings.permissions,
-    projection.nativePermissions?.claude,
-    previousProjection?.nativePermissions?.claude,
-  );
-  if (permissions !== null) {
-    claudeSettings.permissions = permissions;
-  }
-  claudeSettings.coodra = { ...coodra, policyProjection: projection };
-  await writeFile(claudePath, `${JSON.stringify(claudeSettings, null, 2)}\n`, 'utf8');
 
-  return { codexPath, claudePath };
+  if (agentSet.has('claude')) {
+    await mkdir(dirname(claudePath), { recursive: true });
+    let claudeSettings: Record<string, unknown> = {};
+    try {
+      const raw = await readFile(claudePath, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        claudeSettings = parsed as Record<string, unknown>;
+      }
+    } catch {
+      claudeSettings = {};
+    }
+    const coodra =
+      claudeSettings.coodra !== null &&
+      typeof claudeSettings.coodra === 'object' &&
+      !Array.isArray(claudeSettings.coodra)
+        ? (claudeSettings.coodra as Record<string, unknown>)
+        : {};
+    const previousProjection = parseProjection(coodra.policyProjection);
+    const permissions = mergeClaudePermissions(
+      claudeSettings.permissions,
+      projection.nativePermissions?.claude,
+      previousProjection?.nativePermissions?.claude,
+    );
+    if (permissions !== null) {
+      claudeSettings.permissions = permissions;
+    }
+    claudeSettings.coodra = { ...coodra, policyProjection: projection };
+    await writeFile(claudePath, `${JSON.stringify(claudeSettings, null, 2)}\n`, 'utf8');
+    wroteClaudePath = claudePath;
+  }
+
+  return {
+    ...(wroteCodexPath !== undefined ? { codexPath: wroteCodexPath } : {}),
+    ...(wroteClaudePath !== undefined ? { claudePath: wroteClaudePath } : {}),
+    agents: [...agentSet].sort(),
+  };
 }
 
 function asStringArray(value: unknown): string[] {

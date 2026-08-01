@@ -323,8 +323,11 @@ export async function runPolicySyncCommand(options: PolicySyncOptions, ioOverrid
     } else {
       io.writeStdout(`${pc.green('✓')} Synced Coodra policy projection for ${project.slug}.\n`);
       io.writeStdout(`  hash: ${projection.projectionHash}\n`);
-      io.writeStdout(`  Codex:  ${written.codexPath}\n`);
-      io.writeStdout(`  Claude: ${written.claudePath}\n`);
+      if (written.codexPath !== undefined) io.writeStdout(`  Codex:  ${written.codexPath}\n`);
+      if (written.claudePath !== undefined) io.writeStdout(`  Claude: ${written.claudePath}\n`);
+      if (written.codexPath === undefined && written.claudePath === undefined) {
+        io.writeStdout(`  ${pc.dim('No agent policy files were written.')}\n`);
+      }
     }
     io.exit(EXIT_OK);
   } finally {
@@ -412,7 +415,8 @@ async function syncProjectionBestEffort(
   try {
     const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
     const written = await writePolicyProjectionFiles(project.cwd, projection);
-    io.writeStdout(`  ${pc.dim(`Policy projection synced: ${written.codexPath}, ${written.claudePath}`)}\n`);
+    const paths = [written.codexPath, written.claudePath].filter((path): path is string => path !== undefined);
+    io.writeStdout(`  ${pc.dim(`Policy projection synced: ${paths.join(', ')}`)}\n`);
   } catch (err) {
     io.writeStdout(
       `  ${pc.dim(`Policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`)}\n`,

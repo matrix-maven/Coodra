@@ -183,8 +183,8 @@ export default async function PoliciesPage({
                           <input type="hidden" name="policyId" value={policy.id} />
                           <input type="hidden" name="returnTo" value="/policies" />
                           <input type="hidden" name="changeSummary" value="Published from Policies UI" />
-                          <button className="btn" type="submit">
-                            Publish
+                          <button className="btn" type="submit" title="Create an immutable active version snapshot">
+                            Publish version
                           </button>
                         </form>
                       </div>
@@ -209,13 +209,7 @@ export default async function PoliciesPage({
                                 </div>
                                 <div className="policy-row__reason">{rule.reason}</div>
                                 <div style={monoDim}>{rule.details ?? 'No details'}</div>
-                                <form action={deleteRuleAction} style={{ textAlign: 'right' }}>
-                                  <input type="hidden" name="ruleId" value={rule.id} />
-                                  <input type="hidden" name="returnTo" value="/policies" />
-                                  <button className="badge" type="submit" title="Delete rule">
-                                    remove
-                                  </button>
-                                </form>
+                                <RemoveRuleControl ruleId={rule.id} />
                               </div>
                               <details style={{ padding: '0 0 16px 0' }}>
                                 <summary style={editSummaryStyle}>edit rule</summary>
@@ -269,10 +263,20 @@ export default async function PoliciesPage({
                                     defaultValue={rule.severity}
                                   />
                                   <Field label="Priority" name="priority" defaultValue={String(rule.priority)} />
-                                  <Field label="Reason" name="reason" defaultValue={rule.reason} required textarea />
-                                  <button className="btn btn--accent" style={{ width: '100%' }} type="submit">
-                                    Save rule
-                                  </button>
+                                  <Field
+                                    label="Reason"
+                                    name="reason"
+                                    defaultValue={rule.reason}
+                                    required
+                                    textarea
+                                    rows={4}
+                                    style={{ gridColumn: 'span 2' }}
+                                  />
+                                  <div style={{ display: 'flex', alignItems: 'end' }}>
+                                    <button className="btn btn--accent" style={{ width: 'auto' }} type="submit">
+                                      Save rule
+                                    </button>
+                                  </div>
                                 </form>
                               </details>
                             </div>
@@ -536,6 +540,24 @@ function ExceptionStatusButton({
   );
 }
 
+function RemoveRuleControl({ ruleId }: { ruleId: string }) {
+  return (
+    <details style={{ textAlign: 'right' }}>
+      <summary className="badge" style={removeSummaryStyle} title="Confirm before deleting this rule">
+        remove
+      </summary>
+      <form action={deleteRuleAction} style={removeConfirmStyle}>
+        <input type="hidden" name="ruleId" value={ruleId} />
+        <input type="hidden" name="returnTo" value="/policies" />
+        <div style={{ ...monoDim, marginBottom: 8 }}>Remove this rule?</div>
+        <button className="badge" type="submit" title="Confirm rule deletion">
+          confirm remove
+        </button>
+      </form>
+    </details>
+  );
+}
+
 function Stat({ title, value, detail }: { title: string; value: string; detail: string }) {
   return (
     <div className="aside-card" style={{ margin: 0 }}>
@@ -573,6 +595,8 @@ function Field({
   required,
   textarea,
   help,
+  rows,
+  style,
 }: {
   label: string;
   name: string;
@@ -581,10 +605,12 @@ function Field({
   required?: boolean;
   textarea?: boolean;
   help?: string;
+  rows?: number;
+  style?: React.CSSProperties;
 }) {
   const fieldId = `policy-field-${name}`;
   return (
-    <div className="field" style={{ marginBottom: 14 }}>
+    <div className="field" style={{ marginBottom: 14, ...style }}>
       <label htmlFor={fieldId} className="field__label" style={fieldLabelStyle}>
         {label}
       </label>
@@ -596,7 +622,7 @@ function Field({
           defaultValue={defaultValue}
           required={required}
           style={fieldInputStyle}
-          rows={2}
+          rows={rows ?? 2}
         />
       ) : (
         <input
@@ -701,6 +727,20 @@ const editRuleGridStyle: React.CSSProperties = {
   gap: 12,
   padding: '14px',
   border: '1px solid var(--rule)',
+};
+
+const removeSummaryStyle: React.CSSProperties = {
+  display: 'inline-block',
+  cursor: 'pointer',
+  listStyle: 'none',
+};
+
+const removeConfirmStyle: React.CSSProperties = {
+  marginTop: 8,
+  padding: 10,
+  border: '1px solid var(--warn)',
+  background: 'var(--warn-glow)',
+  minWidth: 150,
 };
 
 const monoDim: React.CSSProperties = {
