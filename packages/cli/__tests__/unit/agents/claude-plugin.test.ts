@@ -428,7 +428,11 @@ describe('Claude Code native plugin installer', () => {
       expect(uninstallPlugin).toHaveBeenCalledWith('/usr/local/bin/claude');
       // Manual cleanup still ran (idempotent) regardless of CLI success.
       expect(existsSync(paths.marketplaceRoot)).toBe(false);
-      expect(result.outcomes.some((o) => o.notes?.includes('claude plugin uninstall --scope user'))).toBe(true);
+      expect(
+        result.outcomes.some((o) =>
+          o.notes?.includes("'claude plugin uninstall' + 'claude plugin marketplace remove'"),
+        ),
+      ).toBe(true);
     });
   });
 

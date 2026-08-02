@@ -23,7 +23,8 @@ export const CLAUDE_LEGACY_SKILLS_DIR_PLUGIN_KEY = `${CLAUDE_PLUGIN_NAME}@skills
  * install/update-triggered cache-eviction bookkeeping. See
  * docs/en/plugin-marketplaces and docs/en/plugins-reference (code.claude.com)
  * for the documented `claude plugin marketplace add` / `claude plugin
- * install --scope user` / `claude plugin uninstall --scope user` surface.
+ * install --scope user` / `claude plugin uninstall --scope user` /
+ * `claude plugin marketplace remove --scope user` surface.
  *
  * Falls back to the hand-written settings/cache path below whenever the
  * `claude` binary isn't on PATH yet (the common case on a machine where
@@ -38,6 +39,18 @@ export interface ClaudeCliRunner {
     claudeBin: string,
     marketplaceRoot: string,
   ): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /**
+   * Removes both the plugin (`claude plugin uninstall <key> --scope user`)
+   * and Coodra's marketplace registration (`claude plugin marketplace
+   * remove coodra --scope user`) — mirrors `CodexCliRunner.uninstallPlugin`,
+   * which does the same two-call shape for `codex plugin`. Previously this
+   * only uninstalled the plugin and left marketplace deregistration to the
+   * hand-written `removeMarketplaceRegistration` fallback below, even when
+   * the CLI was available — that meant `known_marketplaces.json` was always
+   * hand-edited instead of going through Claude Code's own CLI when it
+   * could have. Both calls are best-effort and independent, so either
+   * order is safe; results are combined into one outcome.
+   */
   uninstallPlugin(claudeBin: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   /** Best-effort: is `coodra@coodra` visible to `claude plugin list --json`? */
   isInstalled(claudeBin: string): Promise<boolean>;
@@ -77,14 +90,28 @@ export function createClaudeCliRunner(timeoutMs: number = CLI_TIMEOUT_MS): Claud
       }
     },
     async uninstallPlugin(claudeBin) {
-      try {
-        await execFile(claudeBin, ['plugin', 'uninstall', CLAUDE_PLUGIN_KEY, '--scope', 'user'], {
-          timeout: timeoutMs,
-        });
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, reason: err instanceof Error ? err.message : String(err) };
-      }
+      const pluginRemove = await execFile(claudeBin, ['plugin', 'uninstall', CLAUDE_PLUGIN_KEY, '--scope', 'user'], {
+        timeout: timeoutMs,
+      }).then(
+        () => ({ ok: true as const }),
+        (err) => ({ ok: false as const, reason: err instanceof Error ? err.message : String(err) }),
+      );
+      const marketRemove = await execFile(
+        claudeBin,
+        ['plugin', 'marketplace', 'remove', CLAUDE_MARKETPLACE_NAME, '--scope', 'user'],
+        { timeout: timeoutMs },
+      ).then(
+        () => ({ ok: true as const }),
+        (err) => ({ ok: false as const, reason: err instanceof Error ? err.message : String(err) }),
+      );
+      if (pluginRemove.ok && marketRemove.ok) return { ok: true };
+      const reasons = [
+        !pluginRemove.ok ? `plugin uninstall: ${pluginRemove.reason}` : null,
+        !marketRemove.ok ? `marketplace remove: ${marketRemove.reason}` : null,
+      ]
+        .filter((r): r is string => r !== null)
+        .join('; ');
+      return { ok: false, reason: reasons };
     },
     async isInstalled(claudeBin) {
       // Best-effort: `claude plugin list --json`'s exact schema hasn't been
@@ -273,12 +300,13 @@ export async function removeClaudePlugin(
   const paths = claudePluginPaths(ctx.userHome, ctx.coodraHome, ctx.settingsPath);
   const outcomes: WriteOutcome[] = [];
 
-  // Best-effort: let Claude Code's own uninstall clean up whatever it owns
-  // (settings.json, known_marketplaces.json, cache). The manual cleanup
+  // Best-effort: let Claude Code's own CLI clean up whatever it owns
+  // (settings.json, known_marketplaces.json, cache) via `claude plugin
+  // uninstall` + `claude plugin marketplace remove`. The manual cleanup
   // below always runs afterward regardless of outcome — it's idempotent
   // (each step no-ops on a missing path/entry) and also removes the
   // Coodra-owned marketplace source + legacy artifacts the CLI doesn't
-  // know about.
+  // know about, so it's a backstop rather than a replacement.
   if (!ctx.dryRun) {
     const claudeBin = await cliRunner.detect();
     if (claudeBin !== null) {
@@ -287,8 +315,8 @@ export async function removeClaudePlugin(
         path: paths.settingsPath,
         action: cli.ok ? 'merged' : 'unchanged',
         notes: cli.ok
-          ? `removed ${CLAUDE_PLUGIN_KEY} via 'claude plugin uninstall --scope user'`
-          : `'claude plugin uninstall' failed or plugin not installed via CLI (${cli.reason})`,
+          ? `removed ${CLAUDE_PLUGIN_KEY} via 'claude plugin uninstall' + 'claude plugin marketplace remove'`
+          : `'claude plugin uninstall'/'claude plugin marketplace remove' failed or plugin not installed via CLI (${cli.reason})`,
       });
     }
   }
