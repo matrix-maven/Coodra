@@ -19,7 +19,7 @@ import { removeInstructionBlock } from '../lib/init/instruction-files.js';
 import { readMachineManifest } from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { SERVICES } from '../lib/services.js';
-import { pc } from '../ui/index.js';
+import { hintLine, pc } from '../ui/index.js';
 
 /**
  * `coodra uninstall` — tear down Coodra's machine-level runtime wiring.
@@ -317,6 +317,15 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
       for (const p of preserved) {
         io.writeStdout(`    • ${p}\n`);
       }
+    }
+    if (!dryRun) {
+      io.writeStdout(
+        `\n${hintLine(
+          '  Restart Claude Code / Codex now. A coding agent already running keeps its MCP server subprocess ' +
+            'alive regardless of what just got removed on disk — it can silently recreate the DB file and keep ' +
+            'answering tool calls (Work Packs, decisions, etc.) against a fresh, empty store until you restart it.',
+        )}\n`,
+      );
     }
     if (options.skipNpmHint !== true) {
       io.writeStdout(
