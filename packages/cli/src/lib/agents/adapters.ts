@@ -105,7 +105,9 @@ const codexAdapter: AgentAdapter = {
   agentType: 'codex',
   detectionDir: '.codex',
   postWireNote:
-    'Restart Codex, install/enable the Coodra plugin from the Personal marketplace if prompted, then review/trust bundled hooks with /hooks.',
+    'The files above are everything Coodra writes for Codex (no separate cache mirror, unlike Claude Code). ' +
+    'Restart Codex, install/enable the Coodra plugin from the Personal marketplace if prompted — that step is ' +
+    "Codex's own bookkeeping, not something Coodra writes — then review/trust bundled hooks with /hooks.",
   detect: (userHome) => detectDir(userHome, '.codex'),
   async status(ctx: AgentPathContext): Promise<AgentStatus> {
     const probe = await probeCodexPlugin(ctx);

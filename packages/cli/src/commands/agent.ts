@@ -334,7 +334,11 @@ async function syncPolicyProjectionForAgents(args: {
       return {
         agents: uniqueAgents,
         written: [],
-        skippedReason: 'project is not registered yet; run coodra init first',
+        skippedReason:
+          `no registered Coodra project at ${args.resolved.projectRoot} — the agent plugin above is already ` +
+          `installed (that part is machine-global, not project-scoped). This step only syncs that project's ` +
+          `policy into the agent's config; run \`coodra init\` from your project's root directory, then ` +
+          '`coodra agent add` again there, to pick it up.',
       };
     }
     const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });

@@ -48,10 +48,30 @@ function looksSensitive(pattern: string): boolean {
   );
 }
 
+/**
+ * Codex's native `filesystem.":workspace_roots"` glob engine only accepts a
+ * leading-`**\/` (recursive-anywhere) glob for `deny` access — `read` requires
+ * an exact path or a glob with only a trailing `/**` subtree, e.g. `.git/**`.
+ * A `read` rule compiled from a leading-`**\/` pattern (e.g. `**\/.git/**`)
+ * fails Codex's own config validation at chat-session start, hard-blocking
+ * every tool call. Downgrading to `deny` is always valid for that glob shape
+ * and is the safe fallback — never silently drop the `**\/`, which would
+ * widen access beyond what the policy rule intended.
+ */
+function isRecursiveAnywhereGlob(pathPattern: string): boolean {
+  return pathPattern.startsWith('**/');
+}
+
+function codexAccessForGlob(pathPattern: string, wanted: CodexAccess): CodexAccess {
+  return wanted === 'read' && isRecursiveAnywhereGlob(pathPattern) ? 'deny' : wanted;
+}
+
 function accessForRule(rule: PolicyWithRules['rules'][number], pathPattern: string): CodexAccess | null {
   if (rule.decision === 'allow' || rule.decision === 'ask') return null;
   if (CODEX_FILE_READ_TOOLS.has(rule.matchToolName)) return 'deny';
-  if (CODEX_FILE_EDIT_TOOLS.has(rule.matchToolName)) return looksSensitive(pathPattern) ? 'deny' : 'read';
+  if (CODEX_FILE_EDIT_TOOLS.has(rule.matchToolName)) {
+    return codexAccessForGlob(pathPattern, looksSensitive(pathPattern) ? 'deny' : 'read');
+  }
   return null;
 }
 
@@ -73,9 +93,9 @@ export function buildCodexNativePermissionsProjection(
     { path: '.env', access: 'deny' },
     { path: '**/.env', access: 'deny' },
     { path: '.git/**', access: 'read' },
-    { path: '**/.git/**', access: 'read' },
+    { path: '**/.git/**', access: codexAccessForGlob('**/.git/**', 'read') },
     { path: 'node_modules/**', access: 'read' },
-    { path: '**/node_modules/**', access: 'read' },
+    { path: '**/node_modules/**', access: codexAccessForGlob('**/node_modules/**', 'read') },
   ];
   const translatedRuleIds: string[] = [];
   const untranslatedRuleIds: string[] = [];
