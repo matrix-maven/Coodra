@@ -38,13 +38,13 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.mcp.json'), entry('.cursorrules', { owner: 'agent:cursor' })],
+      entries: [entry('.cursor/mcp.json'), entry('.cursorrules', { owner: 'agent:cursor' })],
       dryRun: false,
       now: CLOCK,
     });
     const m = await readManifest(root);
     expect(m?.projectSlug).toBe('demo');
-    expect(m?.entries.map((e) => e.path)).toEqual(['.cursorrules', '.mcp.json']);
+    expect(m?.entries.map((e) => e.path)).toEqual(['.cursor/mcp.json', '.cursorrules']);
     expect(m?.entries.every((e) => e.updatedAt === CLOCK())).toBe(true);
   });
 
@@ -52,14 +52,14 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.mcp.json', { kind: 'mcp-config' })],
+      entries: [entry('.cursor/mcp.json', { kind: 'mcp-config' })],
       dryRun: false,
       now: CLOCK,
     });
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.mcp.json', { kind: 'updated-kind' })],
+      entries: [entry('.cursor/mcp.json', { kind: 'updated-kind' })],
       dryRun: false,
       now: CLOCK,
     });
@@ -72,18 +72,28 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.mcp.json'), entry('.cursorrules'), entry('.coodra/config.json', { cleanup: 'preserve' })],
+      entries: [
+        entry('.cursor/mcp.json'),
+        entry('.cursorrules'),
+        entry('.coodra/config.json', { cleanup: 'preserve' }),
+      ],
       dryRun: false,
       now: CLOCK,
     });
-    const removed = await pruneManifestEntries(root, ['.mcp.json', '.not-there'], { dryRun: false });
-    expect(removed).toEqual(['.mcp.json']);
+    const removed = await pruneManifestEntries(root, ['.cursor/mcp.json', '.not-there'], { dryRun: false });
+    expect(removed).toEqual(['.cursor/mcp.json']);
     const m = await readManifest(root);
     expect(m?.entries.map((e) => e.path).sort()).toEqual(['.coodra/config.json', '.cursorrules']);
   });
 
   it('--dry-run records nothing to disk', async () => {
-    await recordManifestEntries({ root, projectSlug: 'demo', entries: [entry('.mcp.json')], dryRun: true, now: CLOCK });
+    await recordManifestEntries({
+      root,
+      projectSlug: 'demo',
+      entries: [entry('.cursor/mcp.json')],
+      dryRun: true,
+      now: CLOCK,
+    });
     expect(await readManifest(root)).toBeNull();
   });
 });
@@ -92,7 +102,6 @@ describe('project-store manifest — classifyGeneratedPath', () => {
   it('classifies project files by kind + cleanup policy', () => {
     const cases: Array<[string, { owner: string; kind: string; cleanup: string; scope: string }]> = [
       ['.coodra/config.json', { owner: 'coodra', kind: 'project-config', cleanup: 'preserve', scope: 'project' }],
-      ['.mcp.json', { owner: 'coodra', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],
       ['.env', { owner: 'coodra', kind: 'env', cleanup: 'preserve', scope: 'project' }],
       ['data.db', { owner: 'coodra', kind: 'sqlite-db', cleanup: 'preserve', scope: 'project' }],
       ['logs', { owner: 'coodra', kind: 'logs-dir', cleanup: 'preserve', scope: 'project' }],

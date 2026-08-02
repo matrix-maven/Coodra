@@ -157,8 +157,8 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
       .select()
       .from(sqliteSchema.policyRules)
       .where(eq(sqliteSchema.policyRules.policyId, policies[0]?.id as string));
-    // 24 deny rules (Write/Edit/MultiEdit/NotebookEdit × 6 dangerous globs) + 1 Bash ask.
-    expect(rules).toHaveLength(25);
+    // 24 dangerous write denies + 2 env Read denies + 28 agent-control self-protection denies + 5 targeted Bash asks.
+    expect(rules).toHaveLength(59);
     // Spot-check the exact rule doctor check 29 probes: Write→.env must deny.
     const envDeny = rules.find((r) => r.matchToolName === 'Write' && r.matchPathGlob === '.env');
     expect(envDeny?.decision).toBe('deny');

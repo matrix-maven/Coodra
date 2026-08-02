@@ -3,6 +3,7 @@ import { createLogger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
+import { publishPolicyVersion } from './policies.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
 
 /**
@@ -37,7 +38,9 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
  *     globs = { .env, **\/.env, .git/**, **\/.git/**,
  *               node_modules/**, **\/node_modules/** }
  *
- *   Plus the existing `Bash → ask` rule. 24 deny rules + 1 ask = 25.
+ *   Plus `Read` denies for `.env` / nested `.env`, self-protection
+ *   write denies for Coodra/agent control files, and targeted Bash ask
+ *   rules. 54 deny rules + 5 ask = 59.
  *
  *   The matcher in `~/.claude/settings.json` is fixed in the same
  *   slice — see `packages/cli/src/lib/init/claude-settings-merge.ts`.
@@ -71,16 +74,23 @@ const DEFAULT_POLICY_DESCRIPTION =
   'Default policy seeded by `coodra init` (Phase 3 Fix D + Phase 4 Fix F, 2026-05-02). ' +
   'Denies file-mutating tools (Write, Edit, MultiEdit, NotebookEdit) writing to ' +
   '.env / **/.env / .git/** / **/.git/** / node_modules/** / **/node_modules/**; ' +
-  'asks before Bash. Edit via `policy` UI or by writing custom rules with higher priority.';
+  'denies Read against .env / **/.env; ' +
+  'denies writes to Coodra and agent control files; asks before targeted risky Bash commands. ' +
+  'Edit via `policy` UI or by writing custom rules with higher priority.';
 
 interface DefaultRuleSpec {
   readonly priority: number;
   readonly matchEventType: string;
   readonly matchToolName: string;
   readonly matchPathGlob: string | null;
+  readonly matchCommandPattern?: string | null;
   readonly matchAgentType: string;
   readonly decision: 'allow' | 'deny' | 'ask';
   readonly reason: string;
+  readonly controlKey?: string;
+  readonly ruleType?: string;
+  readonly severity?: string;
+  readonly details?: string | null;
 }
 
 /**
@@ -129,6 +139,62 @@ const TOOL_BLOCKS: readonly ToolPriorityBlock[] = [
   { toolName: 'NotebookEdit', priorities: [90, 91, 92, 93, 94, 95] },
 ];
 
+const ENV_READ_RULES: readonly DefaultRuleSpec[] = [
+  {
+    priority: 96,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Read',
+    matchPathGlob: '.env',
+    matchAgentType: '*',
+    decision: 'deny',
+    reason: 'reads of .env are denied — secrets must not flow into agent context or transcripts',
+  },
+  {
+    priority: 97,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Read',
+    matchPathGlob: '**/.env',
+    matchAgentType: '*',
+    decision: 'deny',
+    reason: 'reads of nested .env are denied — secrets must not flow into agent context or transcripts',
+  },
+];
+
+const SELF_PROTECTION_GLOBS: readonly string[] = [
+  '.coodra/config.json',
+  '.coodra/policies/**',
+  '.coodra/hooks/**',
+  '.claude/**',
+  '.codex/**',
+  'AGENTS.md',
+  'CLAUDE.md',
+];
+
+function buildSelfProtectionRules(): DefaultRuleSpec[] {
+  const tools = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'] as const;
+  const rules: DefaultRuleSpec[] = [];
+  let priority = 110;
+  for (const toolName of tools) {
+    for (const glob of SELF_PROTECTION_GLOBS) {
+      rules.push({
+        priority,
+        matchEventType: 'PreToolUse',
+        matchToolName: toolName,
+        matchPathGlob: glob,
+        matchAgentType: '*',
+        decision: 'deny',
+        reason: `writes to ${glob} are denied — agents must not modify their own Coodra or agent-control surface`,
+        controlKey: 'agent-self-protection',
+        ruleType: 'file_protection',
+        severity: 'critical',
+        details: 'Prevents agents from weakening policy, hooks, rule files, or native agent configuration.',
+      });
+      priority += 1;
+    }
+  }
+  return rules;
+}
+
 const GLOBS_IN_BLOCK_ORDER: readonly (keyof typeof DENY_REASONS)[] = [
   '.env',
   '**/.env',
@@ -150,18 +216,80 @@ function buildToolBlockRules(block: ToolPriorityBlock): DefaultRuleSpec[] {
   }));
 }
 
-const BASH_ASK_RULE: DefaultRuleSpec = {
-  priority: 70,
-  matchEventType: 'PreToolUse',
-  matchToolName: 'Bash',
-  matchPathGlob: null,
-  matchAgentType: '*',
-  decision: 'ask',
-  reason:
-    'Bash invocations require user confirmation — destructive commands (rm -rf, git push --force) are easy to slip through, and shell redirects (echo X > .env) bypass the file-tool deny rules above',
-};
+const BASH_ASK_RULES: readonly DefaultRuleSpec[] = [
+  {
+    priority: 70,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    matchPathGlob: null,
+    matchCommandPattern: 'rm -rf*',
+    matchAgentType: '*',
+    decision: 'ask',
+    reason: 'destructive recursive removal requires human confirmation',
+    controlKey: 'shell-human-attestation',
+    ruleType: 'bash_command',
+    severity: 'high',
+  },
+  {
+    priority: 71,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    matchPathGlob: null,
+    matchCommandPattern: 'git push*--force*',
+    matchAgentType: '*',
+    decision: 'ask',
+    reason: 'force pushes require human confirmation',
+    controlKey: 'shell-human-attestation',
+    ruleType: 'bash_command',
+    severity: 'high',
+  },
+  {
+    priority: 72,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    matchPathGlob: null,
+    matchCommandPattern: '* > .env*',
+    matchAgentType: '*',
+    decision: 'ask',
+    reason: 'shell redirects into .env require human confirmation',
+    controlKey: 'shell-human-attestation',
+    ruleType: 'bash_command',
+    severity: 'high',
+  },
+  {
+    priority: 73,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    matchPathGlob: null,
+    matchCommandPattern: 'curl*|*bash*',
+    matchAgentType: '*',
+    decision: 'ask',
+    reason: 'curl piped to bash requires human confirmation',
+    controlKey: 'supply-chain-shell-install',
+    ruleType: 'bash_command',
+    severity: 'critical',
+  },
+  {
+    priority: 74,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    matchPathGlob: null,
+    matchCommandPattern: 'curl*|*sh*',
+    matchAgentType: '*',
+    decision: 'ask',
+    reason: 'curl piped to sh requires human confirmation',
+    controlKey: 'supply-chain-shell-install',
+    ruleType: 'bash_command',
+    severity: 'critical',
+  },
+];
 
-const DEFAULT_RULES: readonly DefaultRuleSpec[] = [...TOOL_BLOCKS.flatMap(buildToolBlockRules), BASH_ASK_RULE];
+const DEFAULT_RULES: readonly DefaultRuleSpec[] = [
+  ...TOOL_BLOCKS.flatMap(buildToolBlockRules),
+  ...ENV_READ_RULES,
+  ...BASH_ASK_RULES,
+  ...buildSelfProtectionRules(),
+];
 
 export interface EnsureDefaultPolicyResult {
   readonly policyId: string;
@@ -186,8 +314,9 @@ function ruleIdentity(spec: {
   matchEventType: string;
   matchToolName: string;
   matchPathGlob: string | null;
+  matchCommandPattern?: string | null;
 }): string {
-  return `${spec.priority}|${spec.matchEventType}|${spec.matchToolName}|${spec.matchPathGlob ?? ''}`;
+  return `${spec.priority}|${spec.matchEventType}|${spec.matchToolName}|${spec.matchPathGlob ?? ''}|${spec.matchCommandPattern ?? ''}`;
 }
 
 export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Promise<EnsureDefaultPolicyResult> {
@@ -208,6 +337,9 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
         projectId,
         name: DEFAULT_POLICY_NAME,
         description: DEFAULT_POLICY_DESCRIPTION,
+        groupKey: 'agent_guardrails',
+        profile: 'default',
+        enforcementMode: 'detective',
         isActive: true,
       });
       created = true;
@@ -224,6 +356,7 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
             matchEventType: sqliteSchema.policyRules.matchEventType,
             matchToolName: sqliteSchema.policyRules.matchToolName,
             matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
+            matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
           })
           .from(sqliteSchema.policyRules)
           .where(eq(sqliteSchema.policyRules.policyId, policyId));
@@ -238,12 +371,22 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
         matchEventType: spec.matchEventType,
         matchToolName: spec.matchToolName,
         matchPathGlob: spec.matchPathGlob,
+        matchCommandPattern: spec.matchCommandPattern ?? null,
         matchAgentType: spec.matchAgentType,
         decision: spec.decision,
         reason: spec.reason,
+        controlKey:
+          spec.controlKey ??
+          (spec.decision === 'ask' ? 'shell-human-attestation' : `protect-${spec.matchPathGlob ?? 'shell'}`),
+        ruleType: spec.ruleType ?? (spec.matchCommandPattern !== undefined ? 'bash_command' : 'tool_call'),
+        severity: spec.severity ?? (spec.decision === 'deny' ? 'high' : 'medium'),
+        details: spec.details ?? spec.reason,
       }));
       await db.db.insert(sqliteSchema.policyRules).values(ruleRows);
     }
+    await publishPolicyVersion(db, policyId, {
+      changeSummary: created ? 'Seeded default Agent Guardrails policy' : 'Repaired default Agent Guardrails policy',
+    });
 
     seedLogger.info(
       {
@@ -279,6 +422,9 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
       projectId,
       name: DEFAULT_POLICY_NAME,
       description: DEFAULT_POLICY_DESCRIPTION,
+      groupKey: 'agent_guardrails',
+      profile: 'default',
+      enforcementMode: 'detective',
       isActive: true,
     });
     created = true;
@@ -295,6 +441,7 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
           matchEventType: postgresSchema.policyRules.matchEventType,
           matchToolName: postgresSchema.policyRules.matchToolName,
           matchPathGlob: postgresSchema.policyRules.matchPathGlob,
+          matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
         })
         .from(postgresSchema.policyRules)
         .where(eq(postgresSchema.policyRules.policyId, policyId));
@@ -309,12 +456,22 @@ export async function ensureDefaultPolicy(db: DbHandle, projectId: string): Prom
       matchEventType: spec.matchEventType,
       matchToolName: spec.matchToolName,
       matchPathGlob: spec.matchPathGlob,
+      matchCommandPattern: spec.matchCommandPattern ?? null,
       matchAgentType: spec.matchAgentType,
       decision: spec.decision,
       reason: spec.reason,
+      controlKey:
+        spec.controlKey ??
+        (spec.decision === 'ask' ? 'shell-human-attestation' : `protect-${spec.matchPathGlob ?? 'shell'}`),
+      ruleType: spec.ruleType ?? (spec.matchCommandPattern !== undefined ? 'bash_command' : 'tool_call'),
+      severity: spec.severity ?? (spec.decision === 'deny' ? 'high' : 'medium'),
+      details: spec.details ?? spec.reason,
     }));
     await db.db.insert(postgresSchema.policyRules).values(ruleRows);
   }
+  await publishPolicyVersion(db, policyId, {
+    changeSummary: created ? 'Seeded default Agent Guardrails policy' : 'Repaired default Agent Guardrails policy',
+  });
 
   seedLogger.info(
     {

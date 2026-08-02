@@ -183,7 +183,12 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       ...(input.toolUseId !== undefined ? { toolUseId: input.toolUseId } : {}),
       toolInputSnapshot,
       permissionDecision: evalResult.decision,
+      policyVersionId: evalResult.policyVersionId ?? null,
       matchedRuleId: evalResult.matchedRuleId,
+      matchedExceptionId: evalResult.matchedExceptionId ?? null,
+      baseDecision: evalResult.baseDecision ?? evalResult.decision,
+      effectiveDecision: evalResult.decision,
+      askOutcome: evalResult.decision === 'ask' ? 'unresolved' : null,
       reason: auditReason,
     };
     const policyIdempotencyKey = buildPolicyDecisionIdempotencyKey({
@@ -217,6 +222,10 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       reason,
       ruleReason,
       matchedRuleId: evalResult.matchedRuleId,
+      policyVersionId: evalResult.policyVersionId ?? null,
+      matchedExceptionId: evalResult.matchedExceptionId ?? null,
+      baseDecision: evalResult.baseDecision ?? evalResult.decision,
+      effectiveDecision: evalResult.decision,
       failOpen,
     };
   };

@@ -62,6 +62,28 @@ function makeIO(): Captured {
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for assertion.
 const ANSI = /\x1b\[[0-9;]*m/g;
 
+async function writeMachineManifest(home: string, agents: Array<{ id: string; installed: boolean }>): Promise<void> {
+  await mkdir(join(home, '.coodra'), { recursive: true });
+  await writeFile(
+    join(home, '.coodra', 'manifest.json'),
+    `${JSON.stringify(
+      {
+        version: 1,
+        coodraHome: join(home, '.coodra'),
+        entries: [],
+        agents: agents.map((agent) => ({
+          id: agent.id,
+          status: agent.installed ? 'installed' : 'detected',
+          installed: agent.installed,
+        })),
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
+}
+
 describe('runJiraEnableCommand', () => {
   let cwd: string;
   let home: string;
@@ -71,12 +93,12 @@ describe('runJiraEnableCommand', () => {
     home = await mkdtemp(join(tmpdir(), 'coodra-jira-enable-home-'));
   });
 
-  it('wires a native http `atlassian` entry into <cwd>/.mcp.json for --ide claude', async () => {
+  it('leaves repo-root .mcp.json untouched for --ide claude because native/plugin MCP owns Coodra wiring', async () => {
     const c = makeIO();
     await expect(runJiraEnableCommand({ ide: 'claude', cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO });
+    await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
+    expect(c.stdout().replace(ANSI, '')).toContain('user-owned');
   });
 
   it('Cursor gets a bare { url } entry', async () => {
@@ -106,45 +128,46 @@ describe('runJiraEnableCommand', () => {
   });
 
   it('preserves the `coodra` entry and any sibling MCP servers', async () => {
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
     await writeFile(
-      join(cwd, '.mcp.json'),
+      join(cwd, '.cursor', 'mcp.json'),
       JSON.stringify({ mcpServers: { coodra: { command: 'node' }, memory: { command: 'npx' } } }, null, 2),
       'utf8',
     );
     const c = makeIO();
-    await expect(runJiraEnableCommand({ ide: 'claude', cwd, userHome: home }, c.io)).rejects.toThrow();
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
+    await expect(runJiraEnableCommand({ ide: 'cursor', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
     expect(parsed.mcpServers.coodra.command).toBe('node');
     expect(parsed.mcpServers.memory.command).toBe('npx');
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO });
+    expect(parsed.mcpServers.atlassian).toEqual({ url: ROVO });
   });
 
   it('is idempotent — a second enable is a no-op', async () => {
     const first = makeIO();
-    await expect(runJiraEnableCommand({ ide: 'claude', json: true, cwd, userHome: home }, first.io)).rejects.toThrow();
+    await expect(runJiraEnableCommand({ ide: 'cursor', json: true, cwd, userHome: home }, first.io)).rejects.toThrow();
     expect(JSON.parse(first.stdout()).results[0].action).toBe('wrote');
     const second = makeIO();
-    await expect(runJiraEnableCommand({ ide: 'claude', json: true, cwd, userHome: home }, second.io)).rejects.toThrow();
+    await expect(runJiraEnableCommand({ ide: 'cursor', json: true, cwd, userHome: home }, second.io)).rejects.toThrow();
     expect(JSON.parse(second.stdout()).results[0].action).toBe('unchanged');
   });
 
   it('leaves a drifted entry untouched without --force; --force overwrites', async () => {
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
     await writeFile(
-      join(cwd, '.mcp.json'),
+      join(cwd, '.cursor', 'mcp.json'),
       JSON.stringify({ mcpServers: { atlassian: { url: 'https://example.test/custom' } } }, null, 2),
       'utf8',
     );
     const held = makeIO();
-    await expect(runJiraEnableCommand({ ide: 'claude', cwd, userHome: home }, held.io)).rejects.toThrow();
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.atlassian).toEqual({
+    await expect(runJiraEnableCommand({ ide: 'cursor', cwd, userHome: home }, held.io)).rejects.toThrow();
+    expect(JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8')).mcpServers.atlassian).toEqual({
       url: 'https://example.test/custom',
     });
     const forced = makeIO();
     await expect(
-      runJiraEnableCommand({ ide: 'claude', force: true, cwd, userHome: home }, forced.io),
+      runJiraEnableCommand({ ide: 'cursor', force: true, cwd, userHome: home }, forced.io),
     ).rejects.toThrow();
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.atlassian).toEqual({
-      type: 'http',
+    expect(JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8')).mcpServers.atlassian).toEqual({
       url: ROVO,
     });
   });
@@ -162,21 +185,43 @@ describe('runJiraEnableCommand', () => {
     expect(report.ok).toBe(true);
     expect(report.url).toBe(ROVO);
     const byIde = Object.fromEntries(report.results.map((r: { ide: string; action: string }) => [r.ide, r.action]));
-    expect(byIde).toEqual({ claude: 'wrote', cursor: 'wrote', windsurf: 'wrote', codex: 'wrote' });
+    expect(byIde).toEqual({ claude: 'unchanged', cursor: 'wrote', windsurf: 'wrote', codex: 'wrote' });
     const codexCfg = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
       experimental_use_rmcp_client?: boolean;
     };
     expect(codexCfg.experimental_use_rmcp_client).toBe(true);
   });
 
-  it('autodetects installed agents when --ide is omitted', async () => {
+  it('uses Coodra-installed agents from the machine manifest when --ide is omitted', async () => {
+    await mkdir(join(home, '.claude'), { recursive: true });
+    await writeMachineManifest(home, [
+      { id: 'claude', installed: false },
+      { id: 'codex', installed: true },
+    ]);
+    const c = makeIO();
+    await expect(runJiraEnableCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    expect(JSON.parse(c.stdout()).results.map((r: { ide: string }) => r.ide)).toEqual(['codex']);
+    await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(cwd, '.codex', 'config.toml'), 'utf8')).resolves.toContain('[mcp_servers.atlassian]');
+  });
+
+  it('falls back to detected IDE folders only when no Coodra machine manifest exists', async () => {
     await mkdir(join(home, '.claude'));
     const c = makeIO();
     await expect(runJiraEnableCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(JSON.parse(c.stdout()).results.map((r: { ide: string }) => r.ide)).toEqual(['claude']);
   });
 
-  it('exits user-recoverable (1) when no IDE is detected and none is named', async () => {
+  it('exits user-recoverable (1) when the manifest records no installed agents and none is named', async () => {
+    await mkdir(join(home, '.claude'), { recursive: true });
+    await writeMachineManifest(home, [{ id: 'claude', installed: false }]);
+    const c = makeIO();
+    await expect(runJiraEnableCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
+    expect(c.exitCode()).toBe(1);
+    expect(c.stderr()).toContain('No Coodra-installed native agent plugins');
+  });
+
+  it('exits user-recoverable (1) when no IDE is detected, no manifest exists, and none is named', async () => {
     const c = makeIO();
     await expect(runJiraEnableCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(1);
@@ -205,9 +250,10 @@ describe('runJiraEnableCommand', () => {
 
 // Field fix 2026-07-12: enable used to key only on the literal `atlassian`
 // name and blindly added a second Atlassian server next to a user's
-// pre-existing entry (e.g. `atlassian-mcp-server`). Now it detects any
-// foreign Atlassian entry by content, asks interactively, skips
-// non-interactively, and only `--force` proceeds without scanning.
+// pre-existing entry (e.g. `atlassian-mcp-server`). For Coodra-managed
+// per-agent config files it detects any foreign Atlassian entry by content,
+// asks interactively, skips non-interactively, and only `--force` proceeds
+// without scanning. Claude's repo-root `.mcp.json` is user-owned and ignored.
 describe('runJiraEnableCommand — pre-existing Atlassian MCP server detection', () => {
   let cwd: string;
   let home: string;
@@ -229,62 +275,53 @@ describe('runJiraEnableCommand — pre-existing Atlassian MCP server detection',
     await writeFile(join(cwd, '.mcp.json'), FOREIGN_CONFIG, 'utf8');
   });
 
-  it('non-interactive (--json): skips with action unchanged, notes naming the key and --force', async () => {
+  it('Claude does not inspect foreign Atlassian entries in user-owned root .mcp.json', async () => {
     const c = makeIO();
     await expect(runJiraEnableCommand({ ide: 'claude', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
     const result = JSON.parse(c.stdout()).results[0] as { action: string; notes: string };
     expect(result.action).toBe('unchanged');
-    expect(result.notes).toContain('atlassian-mcp-server');
-    expect(result.notes).toContain('--force');
-    // The file is untouched — no second Atlassian entry.
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toBeUndefined();
-    expect(parsed.mcpServers['atlassian-mcp-server']).toEqual({
-      serverUrl: 'https://mcp.atlassian.com/v1/mcp',
-      disabled: true,
-    });
+    expect(result.notes).toContain('user-owned');
+    expect(await readFile(join(cwd, '.mcp.json'), 'utf8')).toBe(FOREIGN_CONFIG);
   });
 
-  it("interactive: readPrompt answering 'y' wires Coodra's entry anyway", async () => {
+  it('Claude does not prompt to modify user-owned root .mcp.json', async () => {
     const readPrompt = vi.fn(async (_question: string) => 'y');
     const c = makeIO();
     await expect(runJiraEnableCommand({ ide: 'claude', cwd, userHome: home, readPrompt }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
-    expect(readPrompt).toHaveBeenCalledTimes(1);
-    const question = (readPrompt.mock.calls[0]?.[0] ?? '').replace(ANSI, '');
-    expect(question).toContain("Add Coodra's 'atlassian' entry anyway?");
-    expect(c.stdout().replace(ANSI, '')).toContain("key 'atlassian-mcp-server'");
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO });
-    expect(parsed.mcpServers['atlassian-mcp-server']).toEqual({
-      serverUrl: 'https://mcp.atlassian.com/v1/mcp',
-      disabled: true,
-    });
+    expect(readPrompt).not.toHaveBeenCalled();
+    expect(await readFile(join(cwd, '.mcp.json'), 'utf8')).toBe(FOREIGN_CONFIG);
   });
 
-  it("interactive: readPrompt answering 'n' skips — the file is unchanged", async () => {
+  it("Cursor interactive: readPrompt answering 'n' skips — the file is unchanged", async () => {
+    const cursorPath = join(cwd, '.cursor', 'mcp.json');
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
+    await writeFile(cursorPath, FOREIGN_CONFIG, 'utf8');
     const readPrompt = vi.fn(async (_question: string) => 'n');
     const c = makeIO();
-    await expect(runJiraEnableCommand({ ide: 'claude', cwd, userHome: home, readPrompt }, c.io)).rejects.toThrow();
+    await expect(runJiraEnableCommand({ ide: 'cursor', cwd, userHome: home, readPrompt }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
     expect(readPrompt).toHaveBeenCalledTimes(1);
-    expect(await readFile(join(cwd, '.mcp.json'), 'utf8')).toBe(FOREIGN_CONFIG);
+    expect(await readFile(cursorPath, 'utf8')).toBe(FOREIGN_CONFIG);
     const out = c.stdout().replace(ANSI, '');
     expect(out).toContain("existing Atlassian MCP server (key 'atlassian-mcp-server')");
     expect(out).toContain('--force');
   });
 
   it('--force wires without scanning — the prompt is never called', async () => {
+    const cursorPath = join(cwd, '.cursor', 'mcp.json');
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
+    await writeFile(cursorPath, FOREIGN_CONFIG, 'utf8');
     const readPrompt = vi.fn(async (_question: string) => 'n');
     const c = makeIO();
     await expect(
-      runJiraEnableCommand({ ide: 'claude', force: true, cwd, userHome: home, readPrompt }, c.io),
+      runJiraEnableCommand({ ide: 'cursor', force: true, cwd, userHome: home, readPrompt }, c.io),
     ).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
     expect(readPrompt).not.toHaveBeenCalled();
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO });
+    const parsed = JSON.parse(await readFile(cursorPath, 'utf8'));
+    expect(parsed.mcpServers.atlassian).toEqual({ url: ROVO });
   });
 });
 
@@ -297,7 +334,7 @@ describe('runJiraDisableCommand', () => {
     home = await mkdtemp(join(tmpdir(), 'coodra-jira-disable-home-'));
   });
 
-  it('strips the `atlassian` entry but leaves `coodra` intact', async () => {
+  it('Claude disable leaves user-owned root .mcp.json untouched', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       JSON.stringify({ mcpServers: { coodra: { command: 'node' }, atlassian: { type: 'http', url: ROVO } } }, null, 2),
@@ -307,7 +344,7 @@ describe('runJiraDisableCommand', () => {
     await expect(runJiraDisableCommand({ ide: 'claude', cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
     const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toBeUndefined();
+    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO });
     expect(parsed.mcpServers.coodra.command).toBe('node');
   });
 
@@ -332,7 +369,7 @@ describe('runJiraDisableCommand', () => {
       'utf8',
     );
     const c = makeIO();
-    await expect(runJiraDisableCommand({ ide: 'claude', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    await expect(runJiraDisableCommand({ ide: 'cursor', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(JSON.parse(c.stdout()).results[0].action).toBe('unchanged');
   });
 
@@ -369,15 +406,18 @@ describe('runJiraStatusCommand', () => {
     const c = makeIO();
     await expect(runJiraStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     const report = JSON.parse(c.stdout());
-    expect(report.ides.every((i: { wired: boolean }) => i.wired === true)).toBe(true);
+    expect(report.ides.find((i: { ide: string }) => i.ide === 'claude')?.wired).toBe(false);
+    expect(
+      report.ides.filter((i: { ide: string }) => i.ide !== 'claude').every((i: { wired: boolean }) => i.wired),
+    ).toBe(true);
   });
 
-  it('flags an unreadable config file', async () => {
+  it('ignores an unreadable user-owned root .mcp.json for Claude status', async () => {
     await writeFile(join(cwd, '.mcp.json'), '{ not json', 'utf8');
     const c = makeIO();
     await expect(runJiraStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     const claude = JSON.parse(c.stdout()).ides.find((i: { ide: string }) => i.ide === 'claude');
-    expect(claude).toMatchObject({ exists: true, wired: false, unreadable: true });
+    expect(claude).toMatchObject({ exists: false, wired: false, unreadable: false });
   });
 
   it('renders a human-readable table naming all four agents', async () => {
@@ -390,7 +430,7 @@ describe('runJiraStatusCommand', () => {
     expect(out).toContain('Codex');
   });
 
-  it('surfaces a foreign Atlassian entry in the JSON status (foreignKey on ides[])', async () => {
+  it('does not surface a foreign Atlassian entry from user-owned root .mcp.json', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       JSON.stringify(
@@ -406,12 +446,12 @@ describe('runJiraStatusCommand', () => {
       ides: Array<{ ide: string; wired: boolean; foreignKey: string | null }>;
     };
     const claude = report.ides.find((i) => i.ide === 'claude');
-    expect(claude).toMatchObject({ wired: false, foreignKey: 'atlassian-mcp-server' });
+    expect(claude).toMatchObject({ wired: false, foreignKey: null });
     // Every entry carries the field — null when no foreign server exists.
     expect(report.ides.find((i) => i.ide === 'cursor')?.foreignKey).toBeNull();
   });
 
-  it("renders a foreign entry as wired-outside-Coodra in human output ('not Coodra-managed')", async () => {
+  it('does not render user-owned root .mcp.json foreign entries as Coodra status', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       JSON.stringify(
@@ -424,7 +464,7 @@ describe('runJiraStatusCommand', () => {
     const c = makeIO();
     await expect(runJiraStatusCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
     const out = c.stdout().replace(ANSI, '');
-    expect(out).toContain("Atlassian wired under key 'atlassian-mcp-server' (not Coodra-managed)");
-    expect(out).toContain('already wired outside Coodra');
+    expect(out).not.toContain("Atlassian wired under key 'atlassian-mcp-server' (not Coodra-managed)");
+    expect(out).toContain('uses native/plugin-scoped MCP; repo-root .mcp.json is user-owned');
   });
 });

@@ -1,7 +1,10 @@
-import { readFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, resolve } from 'node:path';
-
-import type { DbHandle } from '@coodra/db';
+import {
+  attestPolicyProjection,
+  lookupProjectBySlug,
+  renderPolicyProjectionDriftContext,
+  type DbHandle,
+} from '@coodra/db';
+import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import {
   adaptClaudeCode,
@@ -10,6 +13,8 @@ import {
   CodexHookPayloadSchema,
   type HookEvent,
 } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -138,23 +143,6 @@ function compactHookPayload(rawPayload: Record<string, unknown>): Record<string,
   return compacted;
 }
 
-async function readProjectSlug(cwd: string | undefined): Promise<string | null> {
-  if (cwd === undefined || cwd.length === 0) return null;
-  let current = isAbsolute(cwd) ? cwd : resolve(cwd);
-  for (;;) {
-    const configPath = join(current, '.coodra', 'config.json');
-    try {
-      const parsed = JSON.parse(await readFile(configPath, 'utf8')) as { projectSlug?: unknown };
-      if (typeof parsed.projectSlug === 'string' && parsed.projectSlug.length > 0) return parsed.projectSlug;
-    } catch {
-      // Keep walking upward; hooks must fail open when project state is missing.
-    }
-    const parent = dirname(current);
-    if (parent === current) return null;
-    current = parent;
-  }
-}
-
 function eventRecordPhase(event: HookEvent): 'pre' | 'post' | 'mcp_call' {
   if (event.eventPhase === 'pre') return 'pre';
   if (event.eventPhase === 'post') return 'post';
@@ -191,13 +179,28 @@ async function resolveRunId(args: {
   return result.ok ? result.runId : null;
 }
 
-function sessionAdditionalContext(projectSlug: string | null, runId: string | null): string {
+function sessionAdditionalContext(args: {
+  readonly projectSlug: string | null;
+  readonly runId: string | null;
+  readonly workflowPolicy: unknown | null;
+  readonly policyProjectionContext?: string | null;
+}): string {
   const lines = [SESSION_CONTRACT];
-  if (projectSlug !== null) {
-    lines.push('', `Project slug: \`${projectSlug}\``);
+  if (args.projectSlug !== null) {
+    lines.push('', `Project slug: \`${args.projectSlug}\``);
   }
-  if (runId !== null) {
-    lines.push(`Run id: \`${runId}\``);
+  if (args.runId !== null) {
+    lines.push(`Run id: \`${args.runId}\``);
+  }
+  if (args.workflowPolicy !== null) {
+    const workflowPolicy = renderWorkflowPolicyContext(args.workflowPolicy, {
+      projectSlug: args.projectSlug,
+      runId: args.runId,
+    });
+    if (workflowPolicy !== null) lines.push('', '---', '', workflowPolicy);
+  }
+  if (args.policyProjectionContext !== undefined && args.policyProjectionContext !== null) {
+    lines.push('', '---', '', args.policyProjectionContext);
   }
   return lines.join('\n');
 }
@@ -242,7 +245,8 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       input.agentType === 'claude_code'
         ? adaptClaudeCode(parsed.data, { now: ctx.now })
         : adaptCodex(parsed.data, { now: ctx.now });
-    const projectSlug = await readProjectSlug(event.cwd);
+    const projectConfig = await readCoodraProjectConfig(event.cwd);
+    const projectSlug = projectConfig?.projectSlug ?? null;
     const runId = await resolveRunId({ deps, projectSlug, event, ctx });
 
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
@@ -284,13 +288,69 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       });
     }
 
+    if (
+      parsed.data.hook_event_name === 'PostToolUse' &&
+      typeof event.turnId === 'string' &&
+      event.turnId.length > 0 &&
+      event.toolName.length > 0
+    ) {
+      await resolveAskOutcomeApproved(deps.db, {
+        sessionId: event.sessionId,
+        toolUseId: event.turnId,
+        toolName: event.toolName,
+      });
+    }
+
     const hookEventName = parsed.data.hook_event_name;
     const workIntent = hookEventName === 'UserPromptSubmit' ? parseJiraWorkIntent(event.toolInput) : null;
+    let policyProjectionContext: string | null = null;
+    if (hookEventName === 'SessionStart' && projectSlug !== null && projectConfig !== null) {
+      try {
+        const project = await lookupProjectBySlug(deps.db, projectSlug);
+        if (project !== null) {
+          const attestation = await attestPolicyProjection(deps.db, {
+            projectId: project.id,
+            projectSlug,
+            projectRoot: project.cwd ?? projectConfig.root,
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            runId,
+            now: ctx.now(),
+          });
+          policyProjectionContext = renderPolicyProjectionDriftContext(attestation);
+        }
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_policy_projection_attestation_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'policy projection attestation failed; SessionStart proceeding',
+        );
+      }
+    }
+    const workflowPolicyBlock =
+      workIntent !== null && projectConfig !== null
+        ? renderWorkflowPolicyContext(projectConfig?.workflowPolicy, {
+            projectSlug,
+            runId,
+          })
+        : null;
     const additionalContext =
       hookEventName === 'SessionStart'
-        ? sessionAdditionalContext(projectSlug, runId)
+        ? sessionAdditionalContext({
+            projectSlug,
+            runId,
+            workflowPolicy: projectConfig?.workflowPolicy ?? null,
+            policyProjectionContext,
+          })
         : workIntent !== null
-          ? renderJiraWorkModeContext(workIntent)
+          ? [renderJiraWorkModeContext(workIntent), workflowPolicyBlock]
+              .filter((block): block is string => block !== null)
+              .join('\n\n---\n\n')
           : undefined;
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,

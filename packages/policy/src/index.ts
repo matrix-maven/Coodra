@@ -7,7 +7,11 @@ export {
   devNullPolicyCheck,
   evaluateRules,
   type RecordPolicyDecisionArgs,
+  type ResolveAskOutcomeApprovedArgs,
+  type ResolveAskOutcomesNotExecutedArgs,
   recordPolicyDecision,
+  resolveAskOutcomeApproved,
+  resolveAskOutcomesNotExecuted,
 } from './policy.js';
 export {
   type PolicyCheck,

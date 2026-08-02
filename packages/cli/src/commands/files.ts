@@ -72,7 +72,7 @@ async function noManifest(io: FilesIO, root: string, json: boolean, command: str
     io.writeStdout(`${commandTitle('Files', command, { width: terminalWidth(), indent: 0 })}\n`);
     io.writeStdout(`  ${pc.gray(`project root: ${root}`)}\n`);
     io.writeStdout(
-      `\n  ${pc.gray('No .coodra/manifest.json yet — run `coodra init` or `coodra agent add <agent>` to generate files.')}\n`,
+      `\n  ${pc.gray('No .coodra/manifest.json yet — run `coodra init` from the project root to generate it.')}\n`,
     );
   }
   return io.exit(EXIT_OK);

@@ -1,4 +1,9 @@
 export {
+  type InsertAuditEventArgs,
+  insertAuditEvent,
+} from './audit-events.js';
+export { buildClaudeNativePermissionsProjection } from './claude-permissions.js';
+export {
   type CreateDbOptions,
   type CreatePostgresDbOptions,
   type CreateSqliteDbOptions,
@@ -12,6 +17,7 @@ export {
   type SqliteDb,
   type SqliteHandle,
 } from './client.js';
+export { buildCodexNativePermissionsProjection } from './codex-permissions.js';
 export {
   type CloseRunArgs,
   closeRun,
@@ -58,16 +64,37 @@ export {
   type AddPolicyRuleArgs,
   type AddPolicyRuleResult,
   addPolicyRule,
+  createPolicyException,
   DEFAULT_POLICY_NAME,
   deletePolicyRule,
+  getActivePolicyVersion,
   getPolicy,
   listPolicies,
+  listPolicyExceptions,
+  listPolicyVersions,
   type PolicyDecisionKind,
+  type PolicyExceptionRow,
+  type PolicyExceptionScopeType,
+  type PolicyExceptionStatus,
   type PolicyRow,
   type PolicyRuleRow,
+  type PolicyVersionRow,
+  type PolicyVersionStatus,
   type PolicyWithRules,
+  publishPolicyVersion,
   setPolicyActive,
+  type UpdatePolicyRuleArgs,
+  updatePolicyExceptionStatus,
+  updatePolicyRule,
 } from './policies.js';
+export {
+  type AttestPolicyProjectionArgs,
+  attestPolicyProjection,
+  type PolicyProjectionAttestation,
+  type PolicyProjectionAttestationStatus,
+  renderPolicyProjectionDriftContext,
+} from './policy-attestation.js';
+export { type BuildPolicyProjectionArgs, buildPolicyProjection } from './policy-projection.js';
 export {
   type DeleteProjectResult,
   deleteProject,

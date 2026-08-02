@@ -584,7 +584,7 @@ async function syncPolicyDecisions({ localDb, cloudDb, lookup, log, jobId }: Syn
   }
   // policy_rules (and their parent policy) aren't synced to cloud in
   // v1 — admins seed them per-project locally via `coodra init`'s
-  // 25-rule baseline, and there's no edit UI yet that would justify
+  // baseline policy, and there's no edit UI yet that would justify
   // cross-machine sync. Cloud's policy_decisions table has an FK on
   // matched_rule_id that would block every PreToolUse audit if we
   // pushed the local UUID. Null it out — the local row keeps the
@@ -601,6 +601,7 @@ async function syncPolicyDecisions({ localDb, cloudDb, lookup, log, jobId }: Syn
       agentType: row.agentType,
       eventType: row.eventType,
       toolName: row.toolName,
+      permissionMode: row.permissionMode,
       toolInputSnapshot: row.toolInputSnapshot,
       permissionDecision: row.permissionDecision,
       matchedRuleId: null, // see comment above — cloud has no policy_rules yet.

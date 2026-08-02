@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { defaultWorkflowPolicy, parseWorkflowPolicy, workflowPolicySchema } from '@coodra/shared/workflow-policy';
 import { z } from 'zod';
 import type { WriteOutcome } from '../init/types.js';
 
@@ -22,6 +23,7 @@ const projectConfigSchema = z
     version: z.literal(1),
     projectSlug: z.string().min(1),
     mode: z.enum(['solo', 'team']).optional(),
+    workflowPolicy: workflowPolicySchema.optional(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
   })
@@ -30,6 +32,10 @@ const projectConfigSchema = z
   .loose();
 
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+
+function workflowPolicyForMode(mode: 'solo' | 'team' | undefined): ReturnType<typeof defaultWorkflowPolicy> {
+  return defaultWorkflowPolicy(mode === 'team' ? 'team' : 'solo');
+}
 
 async function readJsonObject(path: string): Promise<Record<string, unknown> | null> {
   let raw: string;
@@ -99,6 +105,7 @@ export async function writeProjectConfig(opts: WriteProjectConfigOptions): Promi
       version: 1,
       projectSlug: opts.projectSlug,
       ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+      workflowPolicy: workflowPolicyForMode(opts.mode),
       createdAt: ts,
       updatedAt: ts,
     };
@@ -119,6 +126,7 @@ export async function writeProjectConfig(opts: WriteProjectConfigOptions): Promi
         version: 1,
         projectSlug: opts.projectSlug,
         ...(opts.mode !== undefined ? { mode: opts.mode } : {}),
+        workflowPolicy: parseWorkflowPolicy(existing.workflowPolicy, workflowPolicyForMode(opts.mode).profile),
         createdAt: typeof existing.createdAt === 'string' ? existing.createdAt : now(),
         updatedAt: now(),
       };

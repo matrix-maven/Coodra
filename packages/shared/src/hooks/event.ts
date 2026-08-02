@@ -22,6 +22,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *       SessionEnd         post_cascade_response session_end     → 'session_end'
  *       Stop               (n/a)                 (n/a)           → 'turn_end'
  *       UserPromptSubmit   pre_user_prompt       (n/a today)     → 'user_prompt'
+ *       ConfigChange       ConfigChange          ConfigChange    → 'config_change'
  *
  *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
  *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
@@ -43,6 +44,10 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *      present; lets policy rules' path-glob axis match.
  *   - `toolInput` — passthrough of the agent's payload.tool_input,
  *      shape unspecified (handlers Zod-validate per use).
+ *   - `permissionMode` — agent-reported effective permission mode
+ *      when present. Claude Code emits this on tool-call events after
+ *      resolving settings/local/CLI precedence, so it is better audit
+ *      evidence than parsing config files.
  *   - `cwd` — extracted from the agent's payload when present, used to
  *      resolve `projectSlug` from `<cwd>/.coodra.json` later.
  *   - `projectSlug` — looked up by hooks-bridge AFTER the adapter, so
@@ -55,12 +60,13 @@ import { runKeySegmentSchema } from '../idempotency.js';
 export const HookEventSchema = z
   .object({
     agentType: z.enum(['claude_code', 'windsurf', 'cursor', 'codex', 'unknown']),
-    eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt']),
+    eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt', 'config_change']),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),
     toolName: z.string(),
     filePath: z.string().optional(),
     toolInput: z.unknown(),
+    permissionMode: z.string().optional(),
     cwd: z.string().optional(),
     projectSlug: z.string().optional(),
     rawAt: z.string().datetime(),

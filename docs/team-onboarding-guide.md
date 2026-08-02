@@ -118,10 +118,11 @@ Verify with `coodra status`. All three should be `running` and `Mode` should be 
 claude
 ```
 
-Claude Code reads `.mcp.json`, spawns the bundled MCP server in stdio mode, and
+The native Coodra Claude plugin spawns the bundled MCP server in stdio mode and
 calls `record_decision`, `save_context_pack`, `query_decisions`, etc. as you
-work. Each write lands in **local SQLite first** (sub-millisecond) and is then
-mirrored to your Supabase Postgres by the sync daemon. All writes carry your
+work. Repo-root `.mcp.json` is user-owned and is not managed by Coodra. Each
+write lands in **local SQLite first** (sub-millisecond) and is then mirrored to
+your Supabase Postgres by the sync daemon. All writes carry your
 `user_v2_test_admin` (the user_id you passed in Phase 1).
 
 ## Phase 6 · Admin opens the web app

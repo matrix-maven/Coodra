@@ -630,6 +630,7 @@ function hooksConfig(): unknown {
     hooks: {
       SessionStart: [{ hooks: [lifecycleHook] }],
       UserPromptSubmit: [{ hooks: [lifecycleHook] }],
+      ConfigChange: [{ hooks: [shortHook] }],
       PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
       PostToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
       Stop: [{ hooks: [lifecycleHook] }],
@@ -725,11 +726,13 @@ description: Generate, update, inspect, or use the Coodra project wiki stored un
 
 Use this skill when the user asks for wiki generation, architecture documentation, codebase explanations, or wiki-grounded implementation context.
 
-1. Inspect \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` first when generating or refreshing a wiki.
-2. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
-3. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
-4. Use Graphify artifacts under \`.coodra/graphify/out/\` when they exist, and derive the wiki shape from this repo rather than a fixed template.
-5. Use existing wiki records as grounding, but verify claims against source files before editing.
+1. If \`.coodra/wiki/job.md\` or \`.coodra/wiki/grounding.md\` is missing, run \`coodra wiki build\` first. That command creates the bounded grounding bundle and includes Graphify communities, god nodes, and \`GRAPH_REPORT.md\` when \`.coodra/graphify/out/graph.json\` exists.
+2. Read \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` before planning. Treat the Graphify section as the first structural map; do not start by recursively scanning the whole repo unless the grounding explicitly says the file list is truncated or a page needs verification.
+3. When the managed Graphify MCP server is available, query it without \`project_path\` for neighbours/dependency paths that the grounding summary does not already include.
+4. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
+5. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
+6. Derive the wiki shape from this repo's real graph, domains, and workflows rather than a fixed template.
+7. Use existing wiki records as grounding, but verify claims against targeted source files before editing.
 `;
 }
 
@@ -752,9 +755,12 @@ description: Build, inspect, or use Graphify codebase graph artifacts managed by
 Use this skill when the user asks to graphify a repository, use the code graph, inspect graph artifacts, or make the assistant always consult the graph.
 
 1. Prefer Coodra-managed Graphify output under \`.coodra/graphify/out/\`.
-2. Set \`GRAPHIFY_OUT=.coodra/graphify/out\` before running Graphify when the command supports it.
-3. Use Graphify artifacts as context before broad architecture, dependency, wiki, or refactor work.
-4. Do not leave new Graphify output in root-level \`graphify-out/\` unless the user explicitly asks.
+2. Build with \`coodra graphify build\`; it sets \`GRAPHIFY_OUT=.coodra/graphify/out\` and records generated artifacts.
+3. Do not inspect or print environment variables to discover LLM keys unless the user explicitly asks. If a semantic build fails because Graphify lacks a backend, explain that the external Graphify process cannot automatically borrow this Claude Code chat session, then fall back to \`coodra graphify build --no-llm\` for a structural graph.
+4. When querying the managed Graphify MCP server installed by the Coodra plugin, omit \`project_path\` unless the user has explicitly wired a custom Graphify server. The managed plugin entry already points at \`.coodra/graphify/out/graph.json\`; passing \`project_path\` can make Graphify append its stock \`graphify-out/\` path and miss the Coodra-managed graph.
+5. Treat \`coodra graphify status\` legacy config rows as explicit/custom wiring only. Native Coodra plugin wiring is managed by \`coodra agent add <agent>\` / \`coodra agent repair <agent>\`.
+6. Use Graphify artifacts as context before broad architecture, dependency, wiki, or refactor work.
+7. Do not leave new Graphify output in root-level \`graphify-out/\` unless the user explicitly asks.
 `;
 }
 

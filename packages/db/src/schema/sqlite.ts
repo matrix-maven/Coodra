@@ -49,6 +49,7 @@ export const runs = sqliteTable(
   'runs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -86,6 +87,8 @@ export const runEvents = sqliteTable(
   'run_events',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     // run_id is nullable + ON DELETE SET NULL: the `RunRecorder.record()`
     // contract (see apps/mcp-server/src/framework/tool-context.ts) accepts
     // `runId: string | null` so PreToolUse events that fire before a
@@ -107,6 +110,7 @@ export const contextPacks = sqliteTable(
   'context_packs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     runId: text('run_id')
       .notNull()
       .references(() => runs.id),
@@ -153,6 +157,9 @@ export const pendingJobs = sqliteTable(
   'pending_jobs',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id'),
+    runId: text('run_id'),
     queue: text('queue').notNull(),
     payload: text('payload').notNull(),
     attempts: integer('attempts').notNull().default(0),
@@ -180,16 +187,21 @@ export const pendingJobs = sqliteTable(
 
 export const policies = sqliteTable('policies', {
   id: text('id').primaryKey(),
+  orgId: text('org_id'),
   projectId: text('project_id')
     .notNull()
     .references(() => projects.id),
   name: text('name').notNull(),
   description: text('description'),
+  groupKey: text('group_key').notNull().default('agent_guardrails'),
+  profile: text('profile').notNull().default('default'),
+  enforcementMode: text('enforcement_mode').notNull().default('detective'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
   // admin who created/last-edited this policy. NULL on solo. Surfaced
   // in the web admin's "created by" badge.
   createdByUserId: text('created_by_user_id'),
+  updatedByUserId: text('updated_by_user_id'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
 });
@@ -198,6 +210,8 @@ export const policyRules = sqliteTable(
   'policy_rules',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     policyId: text('policy_id')
       .notNull()
       .references(() => policies.id),
@@ -205,10 +219,18 @@ export const policyRules = sqliteTable(
     matchEventType: text('match_event_type').notNull(),
     matchToolName: text('match_tool_name').notNull(),
     matchPathGlob: text('match_path_glob'),
+    matchCommandPattern: text('match_command_pattern'),
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
     reason: text('reason').notNull(),
+    controlKey: text('control_key'),
+    ruleType: text('rule_type').notNull().default('tool_call'),
+    severity: text('severity').notNull().default('medium'),
+    details: text('details'),
+    createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }),
   },
   (t) => [
     index('policy_rules_policy_priority_idx').on(t.policyId, t.priority),
@@ -224,10 +246,70 @@ export const policyRules = sqliteTable(
   ],
 );
 
+export const policyVersions = sqliteTable(
+  'policy_versions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    versionNumber: integer('version_number').notNull(),
+    status: text('status').notNull().default('active'),
+    snapshotJson: text('snapshot_json').notNull(),
+    snapshotHash: text('snapshot_hash').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    activatedByUserId: text('activated_by_user_id'),
+    changeSummary: text('change_summary'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    activatedAt: integer('activated_at', { mode: 'timestamp' }),
+    retiredAt: integer('retired_at', { mode: 'timestamp' }),
+  },
+  (t) => [
+    uniqueIndex('policy_versions_policy_version_uk').on(t.policyId, t.versionNumber),
+    index('policy_versions_policy_status_idx').on(t.policyId, t.status, t.versionNumber),
+  ],
+);
+
+export const policyExceptions = sqliteTable(
+  'policy_exceptions',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    policyId: text('policy_id')
+      .notNull()
+      .references(() => policies.id),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
+    ruleId: text('rule_id').references(() => policyRules.id),
+    scopeType: text('scope_type').notNull(),
+    scopeJson: text('scope_json').notNull().default('{}'),
+    decisionOverride: text('decision_override').notNull(),
+    reason: text('reason').notNull(),
+    justification: text('justification').notNull(),
+    requestedByUserId: text('requested_by_user_id'),
+    approvedByUserId: text('approved_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
+    status: text('status').notNull().default('requested'),
+    startsAt: integer('starts_at', { mode: 'timestamp' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    revokedByUserId: text('revoked_by_user_id'),
+  },
+  (t) => [
+    index('policy_exceptions_active_idx').on(t.projectId, t.status, t.expiresAt),
+    index('policy_exceptions_policy_idx').on(t.policyId, t.status),
+  ],
+);
+
 export const policyDecisions = sqliteTable(
   'policy_decisions',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     idempotencyKey: text('idempotency_key').notNull().unique(),
     runId: text('run_id').references(() => runs.id),
     sessionId: text('session_id').notNull(),
@@ -237,13 +319,25 @@ export const policyDecisions = sqliteTable(
     agentType: text('agent_type').notNull(),
     eventType: text('event_type').notNull(),
     toolName: text('tool_name').notNull(),
+    toolUseId: text('tool_use_id'),
+    permissionMode: text('permission_mode'),
     toolInputSnapshot: text('tool_input_snapshot').notNull(),
     permissionDecision: text('permission_decision').notNull(),
+    policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
+    matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
+    baseDecision: text('base_decision'),
+    effectiveDecision: text('effective_decision'),
     reason: text('reason').notNull(),
+    askOutcome: text('ask_outcome'),
+    askOutcomeAt: integer('ask_outcome_at', { mode: 'timestamp' }),
+    correlatedRunEventId: text('correlated_run_event_id').references(() => runEvents.id),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
-  (t) => [index('policy_decisions_session_idx').on(t.sessionId, t.createdAt)],
+  (t) => [
+    index('policy_decisions_session_idx').on(t.sessionId, t.createdAt),
+    index('policy_decisions_ask_correlation_idx').on(t.sessionId, t.toolUseId, t.toolName, t.askOutcome),
+  ],
 );
 
 /**
@@ -282,6 +376,7 @@ export const features = sqliteTable(
   'features',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -300,6 +395,7 @@ export const features = sqliteTable(
     // 'draft' | 'published'. MCP filters on status='published'.
     status: text('status').notNull().default('draft'),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -321,6 +417,7 @@ export const integrationConnections = sqliteTable(
   'integration_connections',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -331,6 +428,7 @@ export const integrationConnections = sqliteTable(
     boardId: text('board_id'),
     enabledCapabilitiesJson: text('enabled_capabilities_json').notNull().default('{}'),
     createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -349,6 +447,7 @@ export const externalWorkItems = sqliteTable(
   'external_work_items',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -387,6 +486,7 @@ export const workPacks = sqliteTable(
     createdByRunId: text('created_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
     orgId: text('org_id'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -401,6 +501,8 @@ export const workPackExternalLinks = sqliteTable(
   'work_pack_external_links',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     workPackId: text('work_pack_id')
       .notNull()
       .references(() => workPacks.id, { onDelete: 'cascade' }),
@@ -411,6 +513,7 @@ export const workPackExternalLinks = sqliteTable(
     syncState: text('sync_state').notNull().default('synced'),
     lastSyncedHash: text('last_synced_hash'),
     conflictState: text('conflict_state'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -424,6 +527,7 @@ export const workPackRelationships = sqliteTable(
   'work_pack_relationships',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -434,6 +538,7 @@ export const workPackRelationships = sqliteTable(
     relationshipType: text('relationship_type').notNull(),
     syncLevel: text('sync_level').notNull().default('summary'),
     metadataJson: text('metadata_json').notNull().default('{}'),
+    updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
@@ -447,6 +552,7 @@ export const syncEvents = sqliteTable(
   'sync_events',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
@@ -471,6 +577,8 @@ export const decisions = sqliteTable(
   'decisions',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     // idempotency_key = `dec:{runId}:{sha256(description).slice(0,32)}`. Two
     // calls with the same runId + identical description collide on this
     // unique index and the second returns the first row's id — see
@@ -537,6 +645,9 @@ export const killSwitches = sqliteTable(
   'kill_switches',
   {
     id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
     // 'global' | 'project' | 'tool' | 'agent_type' — see OQ-2 (polymorphic).
     scope: text('scope').notNull(),
     // null when scope='global'; projectId / toolName / agentType otherwise.
@@ -604,6 +715,8 @@ export const killSwitches = sqliteTable(
 export const runDiffs = sqliteTable(
   'run_diffs',
   {
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
     runId: text('run_id')
       .primaryKey()
       .references(() => runs.id, { onDelete: 'cascade' }),
@@ -627,6 +740,40 @@ export const runDiffs = sqliteTable(
     generatedAt: integer('generated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
   (t) => [index('run_diffs_generated_at_idx').on(t.generatedAt)],
+);
+
+/**
+ * Append-only canonical audit stream for team/EE reporting. State tables keep
+ * current truth; this table records who did what, when, and to which subject.
+ * `prev_hash` + `hash` are reserved for server-side tamper-evident chains.
+ */
+export const auditEvents = sqliteTable(
+  'audit_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id').notNull(),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    actorUserId: text('actor_user_id'),
+    actorRunId: text('actor_run_id').references(() => runs.id, { onDelete: 'set null' }),
+    eventType: text('event_type').notNull(),
+    subjectTable: text('subject_table').notNull(),
+    subjectId: text('subject_id').notNull(),
+    action: text('action').notNull(),
+    result: text('result').notNull().default('success'),
+    reason: text('reason'),
+    metadataJson: text('metadata_json').notNull().default('{}'),
+    beforeHash: text('before_hash'),
+    afterHash: text('after_hash'),
+    prevHash: text('prev_hash'),
+    hash: text('hash'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    index('audit_events_org_created_idx').on(t.orgId, t.createdAt),
+    index('audit_events_project_created_idx').on(t.projectId, t.createdAt),
+    index('audit_events_subject_idx').on(t.subjectTable, t.subjectId, t.createdAt),
+  ],
 );
 
 export type Project = typeof projects.$inferSelect;
@@ -663,6 +810,8 @@ export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
 export type RunDiff = typeof runDiffs.$inferSelect;
 export type NewRunDiff = typeof runDiffs.$inferInsert;
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type NewAuditEvent = typeof auditEvents.$inferInsert;
 export type KillSwitch = typeof killSwitches.$inferSelect;
 export type NewKillSwitch = typeof killSwitches.$inferInsert;
 
@@ -801,6 +950,7 @@ export const wikis = sqliteTable(
     structureJson: text('structure_json').notNull(),
     generatedByRunId: text('generated_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     orgId: text('org_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
@@ -833,6 +983,7 @@ export const wikiPages = sqliteTable(
   'wiki_pages',
   {
     id: text('id').primaryKey(),
+    projectId: text('project_id').references(() => projects.id),
     wikiId: text('wiki_id')
       .notNull()
       .references(() => wikis.id, { onDelete: 'cascade' }),
@@ -845,6 +996,7 @@ export const wikiPages = sqliteTable(
     citations: text('citations').notNull().default('[]'),
     authoredByRunId: text('authored_by_run_id').references(() => runs.id, { onDelete: 'set null' }),
     createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
     orgId: text('org_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),

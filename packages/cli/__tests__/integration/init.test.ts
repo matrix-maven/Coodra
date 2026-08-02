@@ -66,6 +66,7 @@ describe('runInitCommand — integration', () => {
     await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
     await expect(stat(join(cwd, 'AGENTS.md'))).rejects.toThrow();
     expect((await stat(join(cwd, '.coodra', 'recipes'))).isDirectory()).toBe(true);
+    expect((await stat(join(cwd, '.coodra', 'work-packs'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'graphify'))).isDirectory()).toBe(true);
     expect((await stat(join(cwd, '.coodra', 'wiki'))).isDirectory()).toBe(true);
 
@@ -83,6 +84,7 @@ describe('runInitCommand — integration', () => {
         expect.objectContaining({ path: join(home, 'logs'), scope: 'global', kind: 'logs-dir' }),
         expect.objectContaining({ path: join(home, 'pids'), scope: 'global', kind: 'pids-dir' }),
         expect.objectContaining({ path: '.coodra/recipes', scope: 'project', kind: 'recipes-dir' }),
+        expect.objectContaining({ path: '.coodra/work-packs', scope: 'project', kind: 'work-packs-dir' }),
         expect.objectContaining({ path: '.coodra/graphify', scope: 'project', kind: 'graphify-dir' }),
         expect.objectContaining({ path: '.coodra/wiki', scope: 'project', kind: 'wiki-dir' }),
       ]),
@@ -95,7 +97,7 @@ describe('runInitCommand — integration', () => {
     const stdout = captured.stdout.join('');
     expect(stdout).toContain('Coodra is ready');
     expect(stdout).toContain('Project Coodra layout ready');
-    expect(stdout).toContain('Project init does not install or wire agent plugins');
+    expect(stdout).toContain('Project init only creates project-local .coodra state');
   });
 
   it('idempotent re-run: no destructive writes (action: unchanged)', async () => {
@@ -173,7 +175,7 @@ describe('runInitCommand — integration', () => {
     await expect(stat(join(cwd, '.mcp.json'))).rejects.toThrow();
     await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
     await expect(stat(join(cwd, 'AGENTS.md'))).rejects.toThrow();
-    expect(captured.stdout.join('')).toContain('Project init does not install or wire agent plugins');
+    expect(captured.stdout.join('')).toContain('Project init only creates project-local .coodra state');
     expect(captured.stdout.join('')).toContain('coodra agent add <agent>');
   });
 

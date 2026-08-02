@@ -6,6 +6,7 @@ import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
 import { EXIT_OK } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir, resolveCoodraPidsDir } from '../lib/coodra-home.js';
 import { detectIDE, IDE_DISPLAY } from '../lib/detect.js';
+import { ensureGraphifyLlmEnvTemplate } from '../lib/graphify/env-template.js';
 import {
   ensureManagedGraphifyRuntime,
   type ManagedGraphifyRuntimeResult,
@@ -123,6 +124,7 @@ export async function runInstallCommand(
     upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
     upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', portFromEnv(env, 'MCP_SERVER_PORT', '3100'));
     upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', portFromEnv(env, 'HOOKS_BRIDGE_PORT', '3101'));
+    ensureGraphifyLlmEnvTemplate(homeEnvPath);
 
     const handle = await openLocalDb(dataDbPath, { loadVecExtension: true });
     try {
@@ -182,7 +184,7 @@ export async function runInstallCommand(
           },
           graphifyRuntime,
           detectedAgents: detected,
-          pluginInstallers: 'pending-native-agent-features',
+          next: ['coodra start', 'coodra doctor', 'coodra agent add <agent>', 'coodra init'],
         },
         null,
         2,
@@ -195,6 +197,7 @@ export async function runInstallCommand(
   io.writeStdout(`${pc.green('✓')} Runtime directories: logs, pids\n`);
   io.writeStdout(`${pc.green('✓')} Local SQLite store: data.db + migrations + __global__ sentinel\n`);
   io.writeStdout(`${pc.green('✓')} Runtime env: LOCAL_HOOK_SECRET, MCP_SERVER_PORT, HOOKS_BRIDGE_PORT\n`);
+  io.writeStdout(`${pc.green('✓')} Graphify LLM backend placeholders: ~/.coodra/.env\n`);
   if (graphifyRuntime.ok) {
     io.writeStdout(
       `${pc.green('✓')} Graphify MCP runtime: ${graphifyRuntime.python}${graphifyRuntime.installed ? pc.gray(` (${graphifyRuntime.tool})`) : ''}\n`,
@@ -213,12 +216,12 @@ export async function runInstallCommand(
     io.writeStdout(`\n${pc.gray('·')} No supported agent config homes detected yet.\n`);
   }
 
+  io.writeStdout(`\n${hintLine('Next: run `coodra start` to launch the local Coodra services.')}\n`);
+  io.writeStdout(`${hintLine('Then run `coodra doctor` to verify this machine runtime.')}\n`);
+  io.writeStdout(`${hintLine('Wire your coding agent with `coodra agent add codex` or `coodra agent add claude`.')}\n`);
   io.writeStdout(
-    `\n${hintLine(
-      'Native agent plugin installers are tracked separately in COOD-6 through COOD-9. `coodra agent add <agent>` remains the follow-up command for adding one later.',
-    )}\n`,
+    `${hintLine('Then open a project and run `coodra init`, or ask the installed agent to use `/coodra init`.')}\n`,
   );
-  io.writeStdout(`${hintLine('Next: run `coodra init` inside a repo to create that project’s .coodra/ layout.')}\n`);
 
   return io.exit(EXIT_OK);
 }

@@ -1,24 +1,35 @@
-import { rm, stat } from 'node:fs/promises';
+import { readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
+import { GLOBAL_PROJECT_ID, listProjects } from '@coodra/db';
+import {
+  COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN,
+  COODRA_CODEX_NATIVE_PERMISSIONS_END,
+  COODRA_POLICY_PROJECTION_BEGIN,
+  COODRA_POLICY_PROJECTION_END,
+} from '@coodra/shared';
 import { EXIT_OK } from '../exit-codes.js';
-import { resolveCoodraHome } from '../lib/coodra-home.js';
+import { type ClaudeCliRunner, removeClaudePlugin } from '../lib/agents/claude-plugin.js';
+import { removeCodexPlugin } from '../lib/agents/codex-plugin.js';
+import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
-import { detectProjectRoot } from '../lib/detect.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
 import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
-import { removeMcpJson } from '../lib/init/mcp-merge.js';
 import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
+import { readMachineManifest } from '../lib/machine-store/manifest.js';
+import { openLocalDb } from '../lib/open-local-db.js';
 import { SERVICES } from '../lib/services.js';
 import { pc } from '../ui/index.js';
 
 /**
- * `coodra uninstall` — reverse `coodra init` writes.
+ * `coodra uninstall` — tear down Coodra's machine-level runtime wiring.
  *
  * Per OQ-5 lock (2026-05-03) the default is conservative: preserve
- * data + config + project work by default. `--purge` adds
- * removal of `~/.coodra/`. Always prints the
+ * data + config + project work by default. `--purge` additionally removes
+ * every registered repo's Coodra-owned project footprint plus `~/.coodra/`.
+ * Always prints the
  * `npm uninstall -g @coodra/cli` command for the user — the
  * CLI does NOT execute it (the binary is mid-execution).
  *
@@ -34,10 +45,14 @@ import { pc } from '../ui/index.js';
  *      store is released before any `--remove-data` / `--purge`
  *      deletion (deleting `data.db` out from under an open WAL handle
  *      is a corruption risk).
- *   1. Drop `__coodra__`-matcher / URL-owned entries from
- *      `~/.claude/settings.json`.
- *   2. Drop the `coodra` server from `<cwd>/.mcp.json` + reverse the
- *      per-agent Codex / Cursor / Windsurf / CLAUDE.md writes.
+ *   1. Drop global native/plugin wiring: Claude Code settings,
+ *      marketplace/cache entries, Codex personal marketplace/plugin bundle,
+ *      and global Windsurf MCP entries.
+ *   2. With `--purge`: discover registered project roots from the local DB
+ *      and machine manifest, then reverse project-local Coodra writes
+ *      (`.codex/config.toml`, `.claude`/instruction blocks, `.coodra/`,
+ *      legacy `docs/context-packs/`, etc.). Repo-root `.mcp.json` is
+ *      user-owned and is never edited by uninstall.
  *   3. With `--remove-data` (and NOT `--purge`): delete the SQLite
  *      store — `data.db` + its `-wal` / `-shm` sidecars — while
  *      preserving `config.json` and the packs. The narrow "forget my
@@ -50,11 +65,11 @@ import { pc } from '../ui/index.js';
  * anywhere, no daemon units) is exit-0 with "nothing to remove" /
  * "already stopped" notes for each step.
  *
- * NOT removed by default: `~/.coodra/data.db`,
- * `~/.coodra/config.json`, every `.coodra/work-packs/<slug>/`,
- * and every `docs/context-packs/`. The user can re-run `coodra init`
- * after `npm i -g` and pick up where they left off. `--remove-data`
- * drops the DB but keeps config + project work; `--purge` drops everything.
+ * NOT removed by default: `~/.coodra/data.db`, `~/.coodra/config.json`,
+ * and every repo-level `.coodra/` project workspace (wiki, graphify output,
+ * work packs, recipes). The user can re-run `coodra install` / `coodra
+ * agent add ...` and pick up where they left off. `--remove-data` drops the
+ * DB but keeps project work; `--purge` drops the whole Coodra footprint.
  */
 
 export interface UninstallOptions {
@@ -80,6 +95,9 @@ export interface UninstallIO {
   readonly cwd?: string;
   readonly bridgePort?: number;
   readonly settingsPath?: string;
+  readonly userHome?: string;
+  /** Test override so integration tests never invoke the real `claude` CLI. */
+  readonly claudeCliRunner?: ClaudeCliRunner;
   /**
    * Daemon manager override. Tests inject a stub so the daemon-stop
    * step stays hermetic (never touches the host's real launchd /
@@ -110,11 +128,23 @@ interface UninstallStepResult {
 interface UninstallJson {
   readonly ok: true;
   readonly purged: boolean;
-  /** The resolved project root every project-scoped remover targeted. */
-  readonly projectRoot: string;
+  /** Registered project roots every project-scoped remover targeted. */
+  readonly projectRoots: ReadonlyArray<string>;
   readonly steps: ReadonlyArray<UninstallStepResult>;
   readonly preserved?: ReadonlyArray<string>;
   readonly npmUninstallCommand: string;
+}
+
+interface RegisteredProjectTarget {
+  readonly id: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly cwd: string;
+}
+
+interface ProjectTargetResolution {
+  readonly targets: readonly RegisteredProjectTarget[];
+  readonly note?: string;
 }
 
 export async function runUninstallCommand(options: UninstallOptions, ioOverride?: UninstallIO): Promise<void> {
@@ -123,19 +153,12 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   const purge = options.purge === true;
   const dryRun = options.dryRun === true;
   const homePath = io.coodraHome ?? resolveCoodraHome();
-  // Resolve the SAME project root `coodra init` used — init walks up from
-  // cwd to the nearest marker (`.git` / `package.json` / …) and writes
-  // `.mcp.json`, `.cursor/mcp.json`, `CLAUDE.md`, `.codex/config.toml`
-  // there. Uninstall previously used the raw `process.cwd()`, so running
-  // it from a subdirectory inspected a DIFFERENT `.cursor/mcp.json` and
-  // truthfully reported "no coodra entry to remove" while the real entry
-  // persisted (field bug 2026-07-12). An explicit `io.cwd` (tests /
-  // scripting) is honoured verbatim.
-  const cwd = io.cwd ?? (await detectProjectRoot(process.cwd())).root;
   const bridgePort = io.bridgePort ?? 3101;
   const removeData = options.removeData === true;
+  const userHome = io.userHome ?? homedir();
 
   const steps: UninstallStepResult[] = [];
+  const projectTargets = await resolveProjectTargets({ homePath });
 
   // Step 0: stop + uninstall every daemon unit BEFORE touching config or
   // data. This is what makes `coodra uninstall` actually tear the system
@@ -145,7 +168,9 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
   // deletes `data.db` out from under an open WAL handle.
   await stopAndUninstallDaemons({ io, homePath, dryRun, steps });
 
-  // Step 1: ~/.claude/settings.json
+  // Step 1: global native/plugin surfaces. Plain uninstall removes these so
+  // the next agent session does not keep loading Coodra hooks/skills, while
+  // leaving every repo's `.coodra/` artifacts in place for a later reinstall.
   // settingsPath precedence: explicit IO override (tests) > CLAUDE_SETTINGS_PATH
   // env (sandbox runners) > defaultClaudeSettingsPath() (production default).
   // The env override lands inside `removeClaudeSettings`'s default-path
@@ -170,57 +195,62 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     });
   }
 
-  // Step 2: <cwd>/.mcp.json
-  try {
-    const result = await removeMcpJson({ cwd, dryRun });
-    steps.push({ step: 'mcp-json', action: String(result.action), notes: result.notes ?? '' });
-  } catch (err) {
-    steps.push({
-      step: 'mcp-json',
-      action: 'failed',
-      notes: err instanceof Error ? err.message : String(err),
-    });
+  await removeGlobalNativePlugins({
+    userHome,
+    homePath,
+    bridgePort,
+    dryRun,
+    ...(io.settingsPath !== undefined ? { settingsPath: io.settingsPath } : {}),
+    ...(io.claudeCliRunner !== undefined ? { claudeCliRunner: io.claudeCliRunner } : {}),
+    steps,
+  });
+
+  if (purge) {
+    if (projectTargets.note !== undefined) {
+      steps.push({ step: 'registered-projects', action: 'unchanged', notes: projectTargets.note });
+    }
+    if (projectTargets.targets.length === 0) {
+      steps.push({ step: 'registered-projects', action: 'unchanged', notes: 'no project roots selected' });
+    }
+    for (const project of projectTargets.targets) {
+      const prefix = projectTargets.targets.length === 1 ? '' : `project:${project.slug}:`;
+      await removeProjectScopedFiles({ root: project.cwd, prefix, dryRun, steps });
+      await purgeProjectDataDirs({ root: project.cwd, prefix, dryRun, steps });
+    }
+  } else if (projectTargets.note !== undefined) {
+    steps.push({ step: 'registered-projects', action: 'unchanged', notes: projectTargets.note });
   }
 
-  // Step 2b: reverse the per-agent writes for Codex, Windsurf, Cursor,
-  // and Claude's CLAUDE.md (the `~/.claude/settings.json` reverse runs
-  // in Step 2 above). Each is idempotent: a no-op when the entry/block
-  // isn't present, so running uninstall on a partial install is
-  // harmless. Best-effort per step — one failure doesn't block the
-  // rest (same as every other uninstall step).
-  for (const [step, fn] of [
-    ['claude-md', () => removeInstructionBlock({ cwd, filename: 'CLAUDE.md', dryRun })],
-    ['cursor-mcp', () => removeCursorMcpConfig({ cwd, dryRun })],
-    ['cursor-rules', () => removeInstructionBlock({ cwd, filename: '.cursorrules', dryRun })],
-    ['codex-config', () => removeCodexConfig({ cwd, dryRun })],
-    ['codex-agents-md', () => removeInstructionBlock({ cwd, filename: 'AGENTS.md', dryRun })],
-    ['windsurf-mcp', () => removeWindsurfMcpConfig({ dryRun })],
-    ['windsurf-rules', () => removeInstructionBlock({ cwd, filename: '.windsurfrules', dryRun })],
-  ] as const) {
-    try {
-      const result = await fn();
-      steps.push({ step, action: String(result.action), notes: result.notes ?? '' });
-    } catch (err) {
-      steps.push({ step, action: 'failed', notes: err instanceof Error ? err.message : String(err) });
-    }
+  // Step 1c: reverse global Windsurf MCP config once. Windsurf's MCP file is
+  // user-global, unlike Claude/Cursor/Codex project files.
+  try {
+    const result = await removeWindsurfMcpConfig({ dryRun, userHome });
+    steps.push({ step: 'windsurf-mcp', action: String(result.action), notes: result.notes ?? '' });
+  } catch (err) {
+    steps.push({ step: 'windsurf-mcp', action: 'failed', notes: err instanceof Error ? err.message : String(err) });
   }
 
   // Step 3: ~/.coodra/ purge (only on --purge)
   if (purge) {
     try {
+      let exists = true;
       try {
         await stat(homePath);
       } catch {
+        exists = false;
+      }
+      if (!exists) {
         steps.push({ step: 'purge-home', action: 'unchanged', notes: `${homePath} does not exist` });
+      } else {
+        if (!dryRun) {
+          await rm(homePath, { recursive: true, force: true });
+        }
+        steps.push({
+          step: 'purge-home',
+          action: dryRun ? 'unchanged' : 'merged',
+          notes: dryRun ? `dry-run: would remove ${homePath}` : `removed ${homePath}`,
+        });
       }
-      if (!dryRun) {
-        await rm(homePath, { recursive: true, force: true });
-      }
-      steps.push({
-        step: 'purge-home',
-        action: dryRun ? 'unchanged' : 'merged',
-        notes: dryRun ? `dry-run: would remove ${homePath}` : `removed ${homePath}`,
-      });
     } catch (err) {
       steps.push({
         step: 'purge-home',
@@ -278,7 +308,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     const payload: UninstallJson = {
       ok: true,
       purged: purge,
-      projectRoot: cwd,
+      projectRoots: projectTargets.targets.map((project) => project.cwd),
       steps,
       preserved,
       npmUninstallCommand,
@@ -286,7 +316,10 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     io.writeStdout(`${JSON.stringify(payload, null, 2)}\n`);
   } else {
     io.writeStdout(`${pc.green('✓')} coodra uninstall ${dryRun ? '(dry-run) ' : ''}complete:\n`);
-    io.writeStdout(`  ${pc.gray(`project root: ${cwd}`)}\n`);
+    io.writeStdout(`  ${pc.gray(`project roots: ${projectTargets.targets.length}`)}\n`);
+    for (const project of projectTargets.targets) {
+      io.writeStdout(`    • ${project.slug}  ${pc.gray(project.cwd)}\n`);
+    }
     for (const s of steps) {
       const symbol = s.action === 'failed' ? pc.red('✗') : s.action === 'unchanged' ? pc.dim('—') : pc.green('•');
       io.writeStdout(`  ${symbol} ${s.step}: ${s.action} (${s.notes})\n`);
@@ -304,6 +337,328 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   }
   io.exit(EXIT_OK);
+}
+
+async function resolveProjectTargets(args: { readonly homePath: string }): Promise<ProjectTargetResolution> {
+  const dbPath = resolveCoodraDataDb(args.homePath);
+  let handle: Awaited<ReturnType<typeof openLocalDb>> | null = null;
+  const targetsByCwd = new Map<string, RegisteredProjectTarget>();
+  let dbReadError: string | null = null;
+  try {
+    handle = await openLocalDb(dbPath, { loadVecExtension: false });
+    const projects = await listProjects(handle);
+    for (const project of projects
+      .filter((project) => project.id !== GLOBAL_PROJECT_ID && project.cwd !== null)
+      .map((project) => ({
+        id: project.id,
+        slug: project.slug,
+        name: project.name,
+        cwd: project.cwd as string,
+      }))) {
+      targetsByCwd.set(project.cwd, project);
+    }
+  } catch (err) {
+    dbReadError = err instanceof Error ? err.message : String(err);
+  } finally {
+    handle?.close();
+  }
+
+  const manifest = await readMachineManifest(args.homePath);
+  for (const project of manifest?.projects ?? []) {
+    if (!targetsByCwd.has(project.cwd)) {
+      targetsByCwd.set(project.cwd, {
+        id: project.id,
+        slug: project.slug,
+        name: project.slug,
+        cwd: project.cwd,
+      });
+    }
+  }
+
+  const allTargets = [...targetsByCwd.values()].sort((a, b) => a.slug.localeCompare(b.slug));
+  if (allTargets.length > 0) {
+    return {
+      targets: allTargets,
+      ...(dbReadError !== null
+        ? { note: `local DB unreadable; using machine manifest project index (${dbReadError})` }
+        : {}),
+    };
+  }
+  return {
+    targets: [],
+    note:
+      dbReadError === null
+        ? 'no registered project roots found'
+        : `could not read registered projects and no manifest project index was available (${dbReadError})`,
+  };
+}
+
+async function removeGlobalNativePlugins(args: {
+  readonly userHome: string;
+  readonly homePath: string;
+  readonly bridgePort: number;
+  readonly dryRun: boolean;
+  readonly settingsPath?: string;
+  readonly claudeCliRunner?: ClaudeCliRunner;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  const ctx = {
+    cwd: args.userHome,
+    userHome: args.userHome,
+    coodraHome: args.homePath,
+    bridgePort: args.bridgePort,
+    dryRun: args.dryRun,
+    ...(args.settingsPath !== undefined ? { settingsPath: args.settingsPath } : {}),
+  };
+
+  try {
+    const result = await removeClaudePlugin(ctx, args.claudeCliRunner ?? undefined);
+    pushWriteOutcomes(args.steps, 'claude-plugin', result.outcomes);
+  } catch (err) {
+    args.steps.push({
+      step: 'claude-plugin',
+      action: 'failed',
+      notes: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const result = await removeCodexPlugin(ctx);
+    pushWriteOutcomes(args.steps, 'codex-plugin', result.outcomes);
+  } catch (err) {
+    args.steps.push({
+      step: 'codex-plugin',
+      action: 'failed',
+      notes: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+function pushWriteOutcomes(
+  steps: UninstallStepResult[],
+  prefix: string,
+  outcomes: ReadonlyArray<{ readonly path: string; readonly action: string; readonly notes?: string }>,
+): void {
+  if (outcomes.length === 0) {
+    steps.push({ step: prefix, action: 'unchanged', notes: 'nothing to remove' });
+    return;
+  }
+  for (const outcome of outcomes) {
+    steps.push({
+      step: `${prefix}:${basename(outcome.path)}`,
+      action: outcome.action,
+      notes: outcome.notes ?? outcome.path,
+    });
+  }
+}
+
+async function removeCodexPolicyProjection(options: { cwd: string; dryRun: boolean }): Promise<{
+  readonly action: string;
+  readonly notes?: string;
+}> {
+  const path = join(options.cwd, '.codex', 'config.toml');
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch {
+    return { action: 'unchanged', notes: '.codex/config.toml does not exist; nothing to remove' };
+  }
+  let next = removeManagedTextBlock(raw, COODRA_POLICY_PROJECTION_BEGIN, COODRA_POLICY_PROJECTION_END);
+  next = removeManagedTextBlock(next, COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN, COODRA_CODEX_NATIVE_PERMISSIONS_END);
+  next = removeTopLevelTomlAssignment(next, 'default_permissions', 'coodra-project');
+  if (next === raw) return { action: 'unchanged', notes: 'no Coodra policy projection found' };
+  if (!options.dryRun) await writeFile(path, normalizeTextFile(next), 'utf8');
+  return {
+    action: options.dryRun ? 'unchanged' : 'merged',
+    notes: 'removed Coodra policy projection from .codex/config.toml',
+  };
+}
+
+async function removeClaudePolicyProjection(options: { cwd: string; dryRun: boolean }): Promise<{
+  readonly action: string;
+  readonly notes?: string;
+}> {
+  const path = join(options.cwd, '.claude', 'settings.json');
+  let raw: string;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch {
+    return { action: 'unchanged', notes: '.claude/settings.json does not exist; nothing to remove' };
+  }
+  let settings: Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { action: 'unchanged', notes: '.claude/settings.json is not a JSON object' };
+    }
+    settings = parsed as Record<string, unknown>;
+  } catch (err) {
+    return {
+      action: 'failed',
+      notes: `Cannot parse .claude/settings.json: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  const coodra =
+    settings.coodra !== null && typeof settings.coodra === 'object' && !Array.isArray(settings.coodra)
+      ? (settings.coodra as Record<string, unknown>)
+      : null;
+  const projection = parseProjectionRecord(coodra?.policyProjection);
+  if (coodra === null || projection === null) {
+    return { action: 'unchanged', notes: 'no Coodra policy projection found' };
+  }
+
+  const claudeNative = parseClaudeNativePermissions(projection.nativePermissions);
+  if (claudeNative !== null)
+    settings.permissions = removeClaudeGeneratedPermissions(settings.permissions, claudeNative);
+  delete coodra.policyProjection;
+  if (Object.keys(coodra).length === 0) delete settings.coodra;
+  else settings.coodra = coodra;
+
+  if (!options.dryRun) await writeFile(path, `${JSON.stringify(settings, null, 2)}\n`, 'utf8');
+  return {
+    action: options.dryRun ? 'unchanged' : 'merged',
+    notes: 'removed Coodra policy projection from .claude/settings.json',
+  };
+}
+
+function removeManagedTextBlock(raw: string, begin: string, end: string): string {
+  const start = raw.indexOf(begin);
+  const stop = raw.indexOf(end);
+  if (start < 0 || stop < start) return raw;
+  const afterEnd = stop + end.length;
+  return `${raw.slice(0, start)}${raw.slice(afterEnd)}`.replace(/\n{3,}/g, '\n\n');
+}
+
+function removeTopLevelTomlAssignment(raw: string, key: string, expectedValue: string): string {
+  const lines = raw.split(/\r?\n/);
+  let firstTableIndex = lines.findIndex((line) => /^\s*\[/.test(line));
+  if (firstTableIndex < 0) firstTableIndex = lines.length;
+  const matcher = new RegExp(`^\\s*${key}\\s*=\\s*"${escapeRegExp(expectedValue)}"\\s*$`);
+  return lines.filter((line, index) => index >= firstTableIndex || !matcher.test(line)).join('\n');
+}
+
+function normalizeTextFile(raw: string): string {
+  const trimmed = raw.trim();
+  return trimmed.length === 0 ? '' : `${trimmed}\n`;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseProjectionRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function parseClaudeNativePermissions(value: unknown): {
+  readonly allow: readonly string[];
+  readonly ask: readonly string[];
+  readonly deny: readonly string[];
+} | null {
+  const native = parseProjectionRecord(value);
+  const claude = parseProjectionRecord(native?.claude);
+  if (claude === null) return null;
+  return {
+    allow: asStringArray(claude.allow),
+    ask: asStringArray(claude.ask),
+    deny: asStringArray(claude.deny),
+  };
+}
+
+function removeClaudeGeneratedPermissions(
+  rawPermissions: unknown,
+  generated: { readonly allow: readonly string[]; readonly ask: readonly string[]; readonly deny: readonly string[] },
+): Record<string, unknown> {
+  const permissions =
+    rawPermissions !== null && typeof rawPermissions === 'object' && !Array.isArray(rawPermissions)
+      ? { ...(rawPermissions as Record<string, unknown>) }
+      : {};
+  permissions.allow = removeStrings(asStringArray(permissions.allow), generated.allow);
+  permissions.ask = removeStrings(asStringArray(permissions.ask), generated.ask);
+  permissions.deny = removeStrings(asStringArray(permissions.deny), generated.deny);
+  if (permissions.disableAutoMode === 'disable') delete permissions.disableAutoMode;
+  if (permissions.disableBypassPermissionsMode === 'disable') delete permissions.disableBypassPermissionsMode;
+  return permissions;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
+}
+
+function removeStrings(existing: readonly string[], generated: readonly string[]): string[] {
+  const generatedSet = new Set(generated);
+  return existing.filter((entry) => !generatedSet.has(entry));
+}
+
+async function removeProjectScopedFiles(args: {
+  readonly root: string;
+  readonly prefix: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  const { root, prefix, dryRun, steps } = args;
+
+  for (const [step, fn] of [
+    ['claude-md', () => removeInstructionBlock({ cwd: root, filename: 'CLAUDE.md', dryRun })],
+    ['claude-policy-projection', () => removeClaudePolicyProjection({ cwd: root, dryRun })],
+    ['cursor-mcp', () => removeCursorMcpConfig({ cwd: root, dryRun })],
+    ['cursor-rules', () => removeInstructionBlock({ cwd: root, filename: '.cursorrules', dryRun })],
+    ['codex-policy-projection', () => removeCodexPolicyProjection({ cwd: root, dryRun })],
+    ['codex-config', () => removeCodexConfig({ cwd: root, dryRun })],
+    ['codex-agents-md', () => removeInstructionBlock({ cwd: root, filename: 'AGENTS.md', dryRun })],
+    ['windsurf-rules', () => removeInstructionBlock({ cwd: root, filename: '.windsurfrules', dryRun })],
+  ] as const) {
+    try {
+      const result = await fn();
+      steps.push({ step: `${prefix}${step}`, action: String(result.action), notes: result.notes ?? '' });
+    } catch (err) {
+      steps.push({
+        step: `${prefix}${step}`,
+        action: 'failed',
+        notes: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
+async function purgeProjectDataDirs(args: {
+  readonly root: string;
+  readonly prefix: string;
+  readonly dryRun: boolean;
+  readonly steps: UninstallStepResult[];
+}): Promise<void> {
+  for (const [step, path] of [
+    ['project-coodra-dir', join(args.root, '.coodra')],
+    ['legacy-context-packs', join(args.root, 'docs', 'context-packs')],
+  ] as const) {
+    let exists = true;
+    try {
+      await stat(path);
+    } catch {
+      exists = false;
+    }
+    if (!exists) {
+      args.steps.push({ step: `${args.prefix}${step}`, action: 'unchanged', notes: `${path} does not exist` });
+      continue;
+    }
+    try {
+      if (!args.dryRun) await rm(path, { recursive: true, force: true });
+      args.steps.push({
+        step: `${args.prefix}${step}`,
+        action: args.dryRun ? 'unchanged' : 'merged',
+        notes: args.dryRun ? `dry-run: would remove ${path}` : `removed ${path}`,
+      });
+    } catch (err) {
+      args.steps.push({
+        step: `${args.prefix}${step}`,
+        action: 'failed',
+        notes: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 /**

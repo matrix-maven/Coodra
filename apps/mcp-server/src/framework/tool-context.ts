@@ -94,6 +94,10 @@ export interface ContextPackStoreWriteOptions {
    * + when the actor identity is unavailable.
    */
   readonly createdByUserId?: string | null;
+  /** Tenant id to stamp on `context_packs.org_id` when known. */
+  readonly orgId?: string | null;
+  /** Nullable Work Pack link for smart Jira-work sessions. */
+  readonly workPackId?: string | null;
 }
 
 export interface ContextPackStore {

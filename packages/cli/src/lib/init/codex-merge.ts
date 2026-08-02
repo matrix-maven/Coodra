@@ -13,10 +13,9 @@ import type { WriteOutcome } from './types.js';
  *
  * **Project-scoped, not global.** Codex reads MCP servers from either
  * `~/.codex/config.toml` (global) or `<repo>/.codex/config.toml`
- * (project-scoped, trusted projects only). We write the PROJECT file —
- * it's repo-scoped (matches the `.mcp.json` model), `coodra uninstall`
- * can cleanly remove it, and `coodra init` never has to touch the
- * user's shared global Codex config. The one cost: Codex prompts the
+ * (project-scoped, trusted projects only). We write the PROJECT file,
+ * `coodra uninstall` can cleanly remove it, and `coodra init` never has
+ * to touch the user's shared global Codex config. The one cost: Codex prompts the
  * user to "trust" the project before it loads `.codex/config.toml` —
  * a one-time, expected interaction.
  *
@@ -26,7 +25,7 @@ import type { WriteOutcome } from './types.js';
  * `buildCoodraMcpEntry`. One source of truth for the entry shape;
  * this module only owns the TOML serialization + idempotent merge.
  *
- * Merge contract mirrors `mergeMcpJson` (spec §11 Decision 3): never
+ * Merge contract mirrors Coodra's external-MCP writer discipline: never
  * destroys user edits — an existing drifted `coodra` entry is
  * preserved unless `--force`; every other table in the file is left
  * byte-untouched (smol-toml round-trips them).

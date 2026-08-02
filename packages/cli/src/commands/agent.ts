@@ -1,5 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { buildPolicyProjection, lookupProjectBySlug } from '@coodra/db';
+import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
@@ -7,14 +9,15 @@ import {
   ACCEPTED_AGENT_TOKENS,
   type AgentAdapter,
   type AgentStatus,
-  ensureProjectMcpJson,
   listAdapters,
   resolveAgentInput,
   resolveAgentWiringContext,
 } from '../lib/agents/index.js';
+import { resolveCoodraDataDb } from '../lib/coodra-home.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { classifyMachineRuntimePath, recordMachineManifest } from '../lib/machine-store/manifest.js';
+import { openLocalDb } from '../lib/open-local-db.js';
 import {
   classifyGeneratedPath,
   ensureProjectConfig,
@@ -35,8 +38,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  *                     global native plugin; older adapters still use their
  *                     current MCP/instruction surfaces. Idempotent.
  *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
- *   remove <agent>  — strip ONLY this agent's Coodra-owned entries. The
- *                     project .mcp.json is left for `coodra uninstall`.
+ *   remove <agent>  — strip ONLY this agent's Coodra-owned entries.
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
@@ -175,7 +177,6 @@ async function runWire(
   }
 
   const needsProjectFiles = targets.adapters.some((adapter) => PROJECT_SCOPED_AGENT_IDS.has(adapter.id));
-  const mcpJson = needsProjectFiles ? await ensureProjectMcpJson(resolved.context) : null;
 
   const results: AgentActionResult[] = [];
   for (const adapter of targets.adapters) {
@@ -210,7 +211,6 @@ async function runWire(
       const paths = [
         ...new Set([
           ...cfg.outcomes.map((o) => o.path),
-          ...(mcpJson !== null ? [mcpJson.path] : []),
           ...results
             .filter((r) => PROJECT_SCOPED_AGENT_IDS.has(r.id as AgentAdapter['id']))
             .flatMap((r) => r.outcomes.map((o) => o.path)),
@@ -290,6 +290,19 @@ async function runWire(
     );
   }
 
+  const projectionAgents = results
+    .filter((r) => r.error === undefined && (r.id === 'codex' || r.id === 'claude'))
+    .map((r) => r.id as PolicyProjectionAgent);
+  const projectionOutcome =
+    projectionAgents.length > 0
+      ? await syncPolicyProjectionForAgents({
+          resolved,
+          agents: projectionAgents,
+          dryRun,
+          createdBy: `coodra agent ${mode} ${agentArg}`,
+        })
+      : null;
+
   if (json) {
     io.writeStdout(
       `${JSON.stringify(
@@ -299,8 +312,8 @@ async function runWire(
           projectRoot: resolved.projectRoot,
           mode: resolved.mode,
           dryRun,
-          ...(mcpJson !== null ? { mcpJson } : {}),
           agents: results,
+          ...(projectionOutcome !== null ? { policyProjection: projectionOutcome } : {}),
         },
         null,
         2,
@@ -311,11 +324,6 @@ async function runWire(
 
   io.writeStdout(`${commandTitle('Agent', `${mode} · Coodra wiring`, { width: terminalWidth(), indent: 0 })}\n`);
   io.writeStdout(`  ${pc.gray(`project root: ${resolved.projectRoot}`)}${dryRun ? pc.gray('  (dry-run)') : ''}\n`);
-  if (mcpJson !== null) {
-    io.writeStdout(
-      `  ${glyphForAction(mcpJson.action)} .mcp.json: ${mcpJson.action} ${pc.gray(`(${mcpJson.notes ?? ''})`)}\n`,
-    );
-  }
   let slot = 1;
   for (const r of results) {
     io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), r.label)}\n`);
@@ -329,6 +337,14 @@ async function runWire(
     }
     if (r.note !== undefined) io.writeStdout(`  ${pc.gray(`→ ${r.note}`)}\n`);
   }
+  if (projectionOutcome !== null) {
+    if (projectionOutcome.written.length > 0) {
+      io.writeStdout(`\n${pc.green('✓')} Policy projection synced for ${projectionOutcome.agents.join(', ')}\n`);
+      for (const path of projectionOutcome.written) io.writeStdout(`  ${pc.gray(path)}\n`);
+    } else if (projectionOutcome.skippedReason !== undefined) {
+      io.writeStdout(`\n${pc.gray('=')} Policy projection skipped: ${projectionOutcome.skippedReason}\n`);
+    }
+  }
   io.writeStdout(
     `\n${hintLine(
       mode === 'add'
@@ -337,6 +353,58 @@ async function runWire(
     )}\n`,
   );
   return io.exit(EXIT_OK);
+}
+
+async function syncPolicyProjectionForAgents(args: {
+  readonly resolved: Awaited<ReturnType<typeof resolveAgentWiringContext>>;
+  readonly agents: readonly PolicyProjectionAgent[];
+  readonly dryRun: boolean;
+  readonly createdBy: string;
+}): Promise<{ agents: readonly PolicyProjectionAgent[]; written: readonly string[]; skippedReason?: string }> {
+  const uniqueAgents = [...new Set(args.agents)].sort();
+  if (uniqueAgents.length === 0) return { agents: [], written: [] };
+  if (args.dryRun) return { agents: uniqueAgents, written: [], skippedReason: 'dry run' };
+
+  let handle: Awaited<ReturnType<typeof openLocalDb>>;
+  try {
+    handle = await openLocalDb(resolveCoodraDataDb(args.resolved.coodraHome));
+  } catch (err) {
+    return {
+      agents: uniqueAgents,
+      written: [],
+      skippedReason: `local store is not ready; run coodra install/init first (${err instanceof Error ? err.message : String(err)})`,
+    };
+  }
+  try {
+    const project = await lookupProjectBySlug(handle, args.resolved.projectSlug);
+    if (project === null) {
+      return {
+        agents: uniqueAgents,
+        written: [],
+        skippedReason: 'project is not registered yet; run coodra init first',
+      };
+    }
+    const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
+    const result = await writePolicyProjectionFiles(args.resolved.projectRoot, projection, { agents: uniqueAgents });
+    const written = [result.codexPath, result.claudePath].filter((path): path is string => path !== undefined);
+    if (written.length > 0) {
+      await recordManifestEntries({
+        root: args.resolved.projectRoot,
+        projectSlug: args.resolved.projectSlug,
+        entries: written.map((path) => classifyGeneratedPath(path, args.resolved.projectRoot, args.createdBy)),
+        dryRun: false,
+      });
+    }
+    return { agents: uniqueAgents, written };
+  } catch (err) {
+    return {
+      agents: uniqueAgents,
+      written: [],
+      skippedReason: `policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  } finally {
+    handle.close();
+  }
 }
 
 export function runAgentAddCommand(
@@ -419,9 +487,6 @@ export async function runAgentRemoveCommand(
       io.writeStdout(`  ${glyphForAction(o.action)} ${o.path}: ${o.action} ${pc.gray(`(${o.notes ?? ''})`)}\n`);
     }
   }
-  io.writeStdout(
-    `\n${hintLine('The project `.mcp.json` is preserved — run `coodra uninstall` to remove all Coodra project files.')}\n`,
-  );
   return io.exit(EXIT_OK);
 }
 

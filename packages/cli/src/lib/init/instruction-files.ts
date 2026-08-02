@@ -1,5 +1,10 @@
 import { access, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import {
+  defaultWorkflowPolicy,
+  renderWorkflowPolicyContext,
+  type WorkflowPolicy,
+} from '@coodra/shared/workflow-policy';
 import type { WriteOutcome } from './types.js';
 
 /**
@@ -12,11 +17,10 @@ import type { WriteOutcome } from './types.js';
  *   - Codex   → `<repo>/AGENTS.md`        (Codex reads it on the first turn)
  *   - Windsurf→ `<repo>/.windsurfrules`   (Cascade applies it to everything)
  *
- * Why this matters: the agent has the `coodra__*` MCP tools wired
- * via `.mcp.json` / `.codex/config.toml` / `.cursor/mcp.json` /
- * `~/.codeium/windsurf/mcp_config.json`, but without an instruction
- * file it doesn't know WHEN to call them. The instruction file IS the
- * trigger contract.
+ * Why this matters: the agent has the `coodra__*` MCP tools wired via
+ * native plugin MCP or agent-specific MCP config, but without an instruction
+ * file it doesn't know WHEN to call them. The instruction file IS the trigger
+ * contract.
  *
  * The block is generated PER AGENT (2026-07-02): the shared contract is
  * identical across all four files, but each file names its own agent and
@@ -61,8 +65,13 @@ const INSTRUCTION_FILE_AGENT: Readonly<
  * are attributed correctly (a client whose MCP handshake name the server
  * doesn't recognise would otherwise land as "unknown agent").
  */
-export function buildInstructionBlock(projectSlug: string, filename: InstructionFileName): string {
+export function buildInstructionBlock(
+  projectSlug: string,
+  filename: InstructionFileName,
+  workflowPolicy: WorkflowPolicy = defaultWorkflowPolicy('solo'),
+): string {
   const agent = INSTRUCTION_FILE_AGENT[filename];
+  const policyBlock = renderWorkflowPolicyContext(workflowPolicy, { projectSlug });
   const sessionIdHint =
     filename === 'CLAUDE.md'
       ? ' When a Coodra SessionStart hook gave you a session id, pass it as\n   `agentSessionId` so this call and the hooks-bridge resolve to ONE run.'
@@ -96,8 +105,10 @@ Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool 
    \`coodra__search_packs_nl { projectSlug: "${projectSlug}", query: "<what you're about to build>" }\`
    — so you don't duplicate or contradict past work.
 
+${policyBlock !== null ? `${policyBlock}\n\n` : ''}
 ### Before every file write, edit, or shell command
-Call \`coodra__check_policy\` with the tool + input. \`permissionDecision:
+Call \`coodra__check_policy\` with the tool + input. This is the guardrail
+policy engine for individual actions. \`permissionDecision:
 "deny"\` → STOP, surface the reason, do not work around it. \`"ask"\` → surface
 the question to the user and wait. \`"allow"\` → proceed.
 
@@ -139,6 +150,7 @@ export interface MergeInstructionFileOptions {
   readonly cwd: string;
   readonly filename: InstructionFileName;
   readonly projectSlug: string;
+  readonly workflowPolicy?: WorkflowPolicy;
   readonly dryRun: boolean;
 }
 
@@ -156,7 +168,7 @@ export interface MergeInstructionFileOptions {
  */
 export async function mergeInstructionFile(options: MergeInstructionFileOptions): Promise<WriteOutcome> {
   const path = join(options.cwd, options.filename);
-  const block = buildInstructionBlock(options.projectSlug, options.filename);
+  const block = buildInstructionBlock(options.projectSlug, options.filename, options.workflowPolicy);
   const exists = await pathExists(path);
 
   if (!exists) {

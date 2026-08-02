@@ -61,13 +61,17 @@ describe('Codex native plugin installer', () => {
     });
     const wikiSkill = await readFile(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'utf8');
     expect(wikiSkill).toContain('wiki_save_structure');
+    expect(wikiSkill).toContain('run `coodra wiki build` first');
     expect(wikiSkill).toContain('.coodra/wiki/job.md');
+    expect(wikiSkill).toContain('Treat the Graphify section as the first structural map');
+    expect(wikiSkill).toContain('do not start by recursively scanning the whole repo');
     expect(wikiSkill).toContain('.coodra/wiki/<slug>/structure.json');
     expect(wikiSkill).toContain('rather than a fixed template');
     const deepWikiSkill = await readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
     expect(deepWikiSkill).toContain('name: deep-wiki-author');
     expect(deepWikiSkill).toContain('coodra__wiki_save_structure');
     expect(deepWikiSkill).toContain('coodra__wiki_save_page');
+    expect(deepWikiSkill).toContain('Graph-first planning');
     expect(deepWikiSkill).toContain('Markdown mirror');
 
     expect(await probeCodexPlugin({ cwd, userHome })).toMatchObject({

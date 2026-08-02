@@ -1,6 +1,8 @@
-import type { DbHandle } from '@coodra/db';
+import { attestPolicyProjection, renderPolicyProjectionDriftContext, type DbHandle } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { HookDispatchResult } from '../app.js';
 import { abandonStaleInProgressRuns } from '../lib/abandon-stale-runs.js';
@@ -136,11 +138,49 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // always renders; dynamic blocks fail-open.
     let featuresIndexBlock: string | null = null;
     let recentDecisionsBlock: string | null = null;
+    let workflowPolicyBlock: string | null = null;
+    let policyProjectionBlock: string | null = null;
     const slugValue = typeof slug === 'string' && slug.length > 0 ? slug : null;
     const cwdValue = typeof event.cwd === 'string' && event.cwd.length > 0 ? event.cwd : null;
     if (slugValue !== null && cwdValue !== null) {
       const projectSlug: string = slugValue;
       const cwd: string = cwdValue;
+      try {
+        const cfg = await readCoodraProjectConfig(cwd);
+        workflowPolicyBlock = cfg !== null ? renderWorkflowPolicyContext(cfg.workflowPolicy, { projectSlug }) : null;
+      } catch (err) {
+        sessionStartLogger.warn(
+          {
+            event: 'session_start_workflow_policy_failed',
+            sessionId: event.sessionId,
+            projectSlug,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'workflow-policy load threw; SessionStart proceeding without workflow policy block',
+        );
+      }
+      if (typeof projectId === 'string' && projectId.length > 0) {
+        try {
+          const attestation = await attestPolicyProjection(deps.db, {
+            projectId,
+            projectSlug,
+            projectRoot: cwd,
+            agentType: event.agentType,
+            sessionId: event.sessionId,
+          });
+          policyProjectionBlock = renderPolicyProjectionDriftContext(attestation);
+        } catch (err) {
+          sessionStartLogger.warn(
+            {
+              event: 'session_start_policy_projection_attestation_failed',
+              sessionId: event.sessionId,
+              projectSlug,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            'policy projection attestation threw; SessionStart proceeding without projection block',
+          );
+        }
+      }
       // 2026-05-08 — features index injection (Phase C of the skill-style
       // features rollout). Independently fail-opens; if `docs/features/`
       // doesn't exist or the index is unreadable, this returns null and
@@ -206,11 +246,14 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // Block ordering:
     //   1. Skills index       — skill-style "what's available"
     //   2. Session Contract   — compliance reminder (always)
-    //   3. Recent decisions   — situational awareness
+    //   3. Workflow policy    — repo governance from .coodra/config.json
+    //   4. Recent decisions   — situational awareness
     // Each block is independent: any missing block just doesn't surface.
     const blocks: string[] = [];
     if (featuresIndexBlock !== null) blocks.push(featuresIndexBlock);
     blocks.push(M05_SESSION_CONTRACT);
+    if (workflowPolicyBlock !== null) blocks.push(workflowPolicyBlock);
+    if (policyProjectionBlock !== null) blocks.push(policyProjectionBlock);
     if (recentDecisionsBlock !== null) blocks.push(recentDecisionsBlock);
     const additionalContext = blocks.length > 0 ? blocks.join('\n\n---\n\n') : undefined;
 

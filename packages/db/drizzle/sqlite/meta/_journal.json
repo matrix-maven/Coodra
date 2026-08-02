@@ -148,6 +148,20 @@
 			"when": 1785490800000,
 			"tag": "0020_work_pack_session_links",
 			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "6",
+			"when": 1785577200000,
+			"tag": "0021_audit_events_and_tenant_columns",
+			"breakpoints": true
+		},
+		{
+			"idx": 22,
+			"version": "6",
+			"when": 1785663600000,
+			"tag": "0022_policy_governance",
+			"breakpoints": true
 		}
 	]
 }

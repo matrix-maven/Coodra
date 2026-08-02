@@ -9,7 +9,15 @@ import { z } from 'zod';
  */
 export const CodexHookPayloadSchema = z
   .object({
-    hook_event_name: z.enum(['PreToolUse', 'PostToolUse', 'SessionStart', 'SessionEnd', 'Stop', 'UserPromptSubmit']),
+    hook_event_name: z.enum([
+      'PreToolUse',
+      'PostToolUse',
+      'SessionStart',
+      'SessionEnd',
+      'Stop',
+      'UserPromptSubmit',
+      'ConfigChange',
+    ]),
     session_id: z.string().min(1),
     turn_id: z.string().optional(),
     tool_name: z.string().optional(),

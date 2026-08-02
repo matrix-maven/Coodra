@@ -28,11 +28,19 @@ export interface MachineManifestAgent {
   readonly updatedAt?: string;
 }
 
+export interface MachineManifestProject {
+  readonly id: string;
+  readonly slug: string;
+  readonly cwd: string;
+  readonly updatedAt?: string;
+}
+
 export interface MachineManifest {
   readonly version: 1;
   readonly coodraHome: string;
   readonly entries: MachineManifestEntry[];
   readonly agents: MachineManifestAgent[];
+  readonly projects: MachineManifestProject[];
 }
 
 export function machineManifestPath(home: string): string {
@@ -61,6 +69,7 @@ export async function readMachineManifest(home: string): Promise<MachineManifest
       coodraHome: typeof parsed.coodraHome === 'string' ? parsed.coodraHome : home,
       entries: parsed.entries,
       agents: parsed.agents,
+      projects: Array.isArray(parsed.projects) ? (parsed.projects as MachineManifestProject[]) : [],
     };
   } catch {
     return null;
@@ -108,6 +117,11 @@ export interface RecordMachineManifestOptions {
     readonly pluginPath?: string;
     readonly marketplacePath?: string;
   }[];
+  readonly registeredProjects?: readonly {
+    readonly id: string;
+    readonly slug: string;
+    readonly cwd: string;
+  }[];
   readonly dryRun: boolean;
   readonly now?: () => string;
 }
@@ -141,11 +155,18 @@ export async function recordMachineManifest(opts: RecordMachineManifestOptions):
     });
   }
 
+  const byProjectCwd = new Map<string, MachineManifestProject>();
+  for (const project of existing?.projects ?? []) byProjectCwd.set(project.cwd, project);
+  for (const project of opts.registeredProjects ?? []) {
+    byProjectCwd.set(project.cwd, { ...project, updatedAt: now() });
+  }
+
   const manifest: MachineManifest = {
     version: 1,
     coodraHome: opts.home,
     entries: [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path)),
     agents: [...byAgent.values()].sort((a, b) => a.id.localeCompare(b.id)),
+    projects: [...byProjectCwd.values()].sort((a, b) => a.slug.localeCompare(b.slug)),
   };
   if (!opts.dryRun) await writeJsonAtomic(machineManifestPath(opts.home), manifest);
   return manifest;

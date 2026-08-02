@@ -220,7 +220,7 @@ Streamable HTTP :3100 (Windsurf, VS Code Copilot, any HTTP MCP client):
 
 **SSE is used only in the web dashboard** (`/api/runs/[id]/events`) for browser → server one-way event streaming. That SSE stream is separate from and unrelated to MCP transport.
 
-Claude Code config (`.mcp.json` in project root):
+Claude Code native plugin MCP config (plugin-scoped, not repo-root `.mcp.json`):
 ```json
 { "mcpServers": { "coodra": { "type": "stdio", "command": "node", "args": ["~/.coodra/bin/mcp-server.js"] } } }
 ```
@@ -732,8 +732,8 @@ $ coodra start
 → Starts Web App (Next.js :3000)
 → Starts Semantic Diff (:3201, Python)
 → Starts NL Assembly (:3200, Python, optional — skips if Ollama absent)
-→ Writes hook scripts to ~/.claude/settings.json + ~/.windsurf/hooks/coodra.sh
-→ Writes MCP configs to ~/.mcp.json + ~/.windsurf/mcp_config.json
+→ Writes native plugin hooks/MCP for Claude Code and Codex
+→ Writes MCP configs only for agents whose Coodra-owned config surface requires it
 → Prints: "Coodra running at http://localhost:3000"
 ```
 
@@ -1193,7 +1193,7 @@ The endpoint, transport, exact tool names, OAuth shape, and per-IDE wiring are d
 
 Rovo is a **remote** Streamable HTTP MCP server at `https://mcp.atlassian.com/v1/mcp/authv2` (the `/v1/mcp/authv2` IDE-auth variant of `https://mcp.atlassian.com/v1/mcp`; the legacy `/v1/sse` endpoint is deprecated and unsupported after 2026-06-30 — Coodra wires Streamable HTTP only). `coodra jira enable` writes the server entry into each detected agent's config, the same per-IDE dispatch as `coodra graphify enable` (the `9·Core` substrate: JSON writer `external-mcp-merge.ts`, TOML writer `external-codex-merge.ts`) via a sibling `jira-wire.ts`. The one structural difference from Graphify: Graphify was **stdio** (`{ command, args }`); Rovo is **remote** (`url`). The writers therefore gain a remote/`url` entry shape per client:
 
-- **Claude Code** (`.mcp.json`, project scope): `{ "atlassian": { "type": "http", "url": "https://mcp.atlassian.com/v1/mcp/authv2" } }`. OAuth completed interactively via `/mcp`.
+- **Claude Code**: Jira/Rovo is surfaced through native/plugin-scoped Coodra MCP wiring; repo-root `.mcp.json` is user-owned and not created, checked, or edited by Coodra.
 - **Cursor**: `{ "Atlassian": { "url": "https://mcp.atlassian.com/v1/mcp/authv2" } }` (Cursor infers remote from `url`).
 - **Windsurf** (`~/.codeium/windsurf/mcp_config.json`): `{ "atlassian": { "serverUrl": "https://mcp.atlassian.com/v1/mcp/authv2" } }`.
 - **Codex** (`config.toml`): `experimental_use_rmcp_client = true` + `[mcp_servers.atlassian]` with `url = "https://mcp.atlassian.com/v1/mcp/authv2"`.

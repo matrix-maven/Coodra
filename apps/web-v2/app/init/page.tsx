@@ -104,7 +104,10 @@ export default async function InitWizardPage({ searchParams }: { searchParams: P
                 title="Create project state"
                 body="<cwd>/.coodra/{config.json,manifest.json,recipes/,graphify/,wiki/,work-packs/}."
               />
-              <Step title="Seed default policy" body="The 25-rule starter chain. Editable later from /policies." />
+              <Step
+                title="Seed default policy"
+                body="Agent guardrails for secrets, risky paths, agent-control files, and destructive shell commands. Editable later from /policies."
+              />
             </div>
 
             <div className="aside-card">

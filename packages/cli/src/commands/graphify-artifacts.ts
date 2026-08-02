@@ -4,6 +4,7 @@ import { homedir, platform as osPlatform } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 import { promisify } from 'node:util';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import {
   absOf,
@@ -14,6 +15,7 @@ import {
   writeGraphifyRecord,
 } from '../lib/graphify/artifacts.js';
 import { resolveGraphifyPython } from '../lib/init/graphify-python.js';
+import { loadHomeEnv } from '../lib/load-home-env.js';
 import { readProjectConfig } from '../lib/project-store/config.js';
 import { classifyGeneratedPath, pruneManifestEntries, recordManifestEntries } from '../lib/project-store/index.js';
 import { commandTitle, hintLine, pc, terminalWidth } from '../ui/index.js';
@@ -133,6 +135,10 @@ export async function runGraphifyBuildCommand(
   const paths = await resolveGraphifyPaths(root);
   const outAbs = absOf(root, paths.outputDir);
   const bin = await resolveGraphifyBin(options, root);
+  const processEnv = options.env ?? process.env;
+  const coodraHome = resolveCoodraHome({ env: processEnv });
+  const env: NodeJS.ProcessEnv = { ...loadHomeEnv(coodraHome, root), ...processEnv, GRAPHIFY_OUT: outAbs };
+  const backend = options.backend ?? env.GRAPHIFY_BACKEND;
   // Verified against graphify 0.8.27:
   //   `graphify .`            → full build; ABORTS without an LLM backend key.
   //   `graphify update .`     → "re-extract code files … (no LLM needed)" — the
@@ -141,8 +147,7 @@ export async function runGraphifyBuildCommand(
   const args =
     options.llm === false
       ? ['update', '.']
-      : ['.', ...(options.backend !== undefined && options.backend.length > 0 ? ['--backend', options.backend] : [])];
-  const env: NodeJS.ProcessEnv = { ...(options.env ?? process.env), GRAPHIFY_OUT: outAbs };
+      : ['.', ...(backend !== undefined && backend.length > 0 ? ['--backend', backend] : [])];
 
   if (dryRun) {
     const payload = { ok: true, command: 'build', dryRun: true, bin, args, graphifyOut: outAbs };

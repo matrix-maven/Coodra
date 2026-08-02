@@ -1,4 +1,6 @@
 import { access } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 import { openLocalDb } from '../../lib/open-local-db.js';
 import { projectConfigPath, readProjectConfig } from '../../lib/project-store/index.js';
 import type { Check } from '../types.js';
@@ -11,10 +13,15 @@ export const projectRegisteredCheck: Check = {
     const configPath = projectConfigPath(ctx.cwd);
     const parsed = await readProjectConfig(ctx.cwd);
     if (parsed === null) {
+      const userHome = resolve(ctx.env.HOME || ctx.env.USERPROFILE || homedir());
+      const cwd = resolve(ctx.cwd);
       return {
         status: 'yellow',
         detail: `${configPath} missing or invalid — bridge will fall back to __global__ for this cwd`,
-        remediation: 'Run `coodra init` from this directory to register the project.',
+        remediation:
+          cwd === userHome
+            ? 'Open a project directory, then run `coodra init` to register that project.'
+            : 'Run `coodra init` from this directory to register the project.',
       };
     }
     try {

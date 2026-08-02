@@ -53,14 +53,15 @@ export const DEFAULT_GRAPHIFY_PYTHON = 'python3';
 export const DEFAULT_GRAPHIFY_GRAPH_PATH = 'graphify-out/graph.json';
 
 /**
- * Resolve the agent's MCP-config path for `ide`. Claude Code, Cursor
- * and Codex are project-scoped (under `cwd`); Windsurf's config is
- * global (under `userHome`). Mirrors `commands/agents.ts`.
+ * Resolve the agent's MCP-config path for `ide`. Coodra does not create or
+ * edit Claude Code repo-root `.mcp.json`; Claude uses the native Coodra
+ * plugin's plugin-scoped MCP file. Cursor and Codex are project-scoped;
+ * Windsurf's config is global (under `userHome`). Mirrors `commands/agents.ts`.
  */
-export function graphifyConfigPath(ide: IDE, cwd: string, userHome: string): string {
+export function graphifyConfigPath(ide: IDE, cwd: string, userHome: string): string | null {
   switch (ide) {
     case 'claude':
-      return join(cwd, '.mcp.json');
+      return null;
     case 'cursor':
       return join(cwd, '.cursor', 'mcp.json');
     case 'windsurf':
@@ -114,6 +115,7 @@ export interface WireGraphifyOptions {
  */
 export async function wireGraphify(options: WireGraphifyOptions): Promise<WriteOutcome> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
   const entry = buildGraphifyEntry({
     ide: options.ide,
     python: options.python,
@@ -150,6 +152,7 @@ export async function unwireGraphify(options: {
   readonly dryRun: boolean;
 }): Promise<WriteOutcome> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
   if (options.ide === 'codex') {
     return removeExternalCodexServer({ filePath, name: GRAPHIFY_SERVER_NAME, dryRun: options.dryRun });
   }
@@ -172,8 +175,17 @@ export async function readGraphifyPresence(options: {
   readonly userHome: string;
 }): Promise<GraphifyServerPresence> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return { exists: false, wired: false, unreadable: false };
   if (options.ide === 'codex') {
     return readExternalCodexServerPresence({ filePath, name: GRAPHIFY_SERVER_NAME });
   }
   return readExternalMcpServerPresence({ filePath, name: GRAPHIFY_SERVER_NAME });
+}
+
+function claudeNativePluginOutcome(_cwd: string): WriteOutcome {
+  return {
+    path: 'Claude Code native plugin',
+    action: 'unchanged',
+    notes: 'Claude Code uses the native Coodra plugin MCP; repo-root .mcp.json is user-owned and not managed by Coodra',
+  };
 }

@@ -4,8 +4,6 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { resolveCoodraHome } from '../coodra-home.js';
 import { detectProjectRoot } from '../detect.js';
-import { buildCoodraMcpEntry, mergeMcpJson } from '../init/mcp-merge.js';
-import type { WriteOutcome } from '../init/types.js';
 import { readProjectConfig } from '../project-store/config.js';
 import { bundledMigrationsDir, resolveRuntimeBinary } from '../runtime-paths.js';
 import { readTeamConfig } from '../team-config.js';
@@ -17,9 +15,9 @@ import type { AgentContext } from './types.js';
  * (mcp-server binary, bundled migrations dir, LOCAL_HOOK_SECRET, bridge
  * port, solo/team mode + DATABASE_URL). Keeping this here lets
  * `coodra agent add/repair` wire an agent WITHOUT re-running project init.
- * Codex uses this context to generate its global plugin `.mcp.json`; legacy
- * adapters still use it for their existing config files while their native
- * plugin features land.
+ * Native adapters use this context to generate plugin-scoped MCP files;
+ * non-native adapters use their own agent-specific config files. Coodra does
+ * not create or manage a repo-root `.mcp.json`.
  */
 
 export interface ResolveAgentContextOptions {
@@ -114,14 +112,4 @@ export async function resolveAgentWiringContext(opts: ResolveAgentContextOptions
   };
 
   return { context, coodraHome, projectRoot, projectSlug, mode: machineCfg.mode };
-}
-
-/**
- * Ensure `<cwd>/.mcp.json` carries the legacy project-level Coodra MCP
- * registration for adapters that still need it. Codex does not call this path;
- * it gets MCP through its native global plugin.
- */
-export async function ensureProjectMcpJson(ctx: AgentContext): Promise<WriteOutcome> {
-  const entry = buildCoodraMcpEntry({ ...ctx.mcpEntryOptions, agentType: 'claude_code' });
-  return mergeMcpJson({ cwd: ctx.cwd, entry, force: ctx.force, dryRun: ctx.dryRun });
 }

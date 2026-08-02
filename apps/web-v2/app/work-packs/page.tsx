@@ -8,10 +8,7 @@ export const dynamic = 'force-dynamic';
 export default async function WorkPacksPage() {
   const groups = await listWorkPacksByProject();
   const total = groups.reduce((n, group) => n + group.packs.length, 0);
-  const linked = groups.reduce(
-    (n, group) => n + group.packs.filter((pack) => pack.externalKey !== null).length,
-    0,
-  );
+  const linked = groups.reduce((n, group) => n + group.packs.filter((pack) => pack.externalKey !== null).length, 0);
 
   return (
     <>
@@ -51,57 +48,43 @@ export default async function WorkPacksPage() {
             from a project root, then ask your agent to import the issue through Atlassian MCP.
           </div>
         ) : (
-          groups.map((group) => (
-            <div key={group.projectId} style={{ marginBottom: 28 }}>
-              <h2
-                style={{
-                  fontFamily: 'var(--mono)',
-                  fontSize: 11,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--ink-mute)',
-                  margin: '0 0 12px',
-                }}
-              >
-                {group.projectName}
-              </h2>
-              <div className="pack-grid">
-                {group.packs.map((pack) => {
-                  const synced = pack.syncState === 'synced';
-                  return (
-                    <article key={pack.id} className="pack">
-                      <div
-                        className="pack__num"
-                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
-                      >
-                        <span>/ {pack.slug.toUpperCase()}</span>
-                        <span className={`badge ${synced ? 'badge--ok' : 'badge--caution'}`}>
-                          <span className="badge__dot"></span>
-                          {pack.syncState ?? 'LOCAL'}
-                        </span>
-                      </div>
-                      <h3 className="pack__title">{pack.title}</h3>
-                      <p className="pack__excerpt">
-                        {pack.packType} · {pack.status}
-                        {pack.externalKey !== null ? ` · ${pack.externalKey}` : ''}
-                        {pack.externalStatus !== null ? ` is ${pack.externalStatus}` : ''}
-                      </p>
-                      <div className="pack__meta">
-                        <span>{formatRelative(pack.updatedAt)}</span>
-                        {pack.externalUrl !== null ? (
-                          <Link href={pack.externalUrl} style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>
-                            JIRA →
-                          </Link>
-                        ) : (
-                          <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>LOCAL</span>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          ))
+          <div className="pack-grid">
+            {groups.map((group) => {
+              const synced = group.packs.filter((pack) => pack.syncState === 'synced').length;
+              const latest = group.packs.reduce<Date | null>(
+                (max, pack) => (max === null || pack.updatedAt > max ? pack.updatedAt : max),
+                null,
+              );
+              const linkedCount = group.packs.filter((pack) => pack.externalKey !== null).length;
+              return (
+                <Link
+                  key={group.projectId}
+                  className="pack"
+                  href={`/work-packs/${encodeURIComponent(group.projectSlug)}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <div
+                    className="pack__num"
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
+                  >
+                    <span>/ {group.projectSlug.toUpperCase()}</span>
+                    <span className={`badge ${synced === group.packs.length ? 'badge--ok' : 'badge--caution'}`}>
+                      <span className="badge__dot"></span>
+                      {synced}/{group.packs.length} synced
+                    </span>
+                  </div>
+                  <h3 className="pack__title">{group.projectName}</h3>
+                  <p className="pack__excerpt">
+                    {group.packs.length} work pack{group.packs.length === 1 ? '' : 's'} · {linkedCount} Jira-linked
+                  </p>
+                  <div className="pack__meta">
+                    <span>{latest !== null ? formatRelative(latest) : 'no updates'}</span>
+                    <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>OPEN PROJECT →</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </section>
     </>

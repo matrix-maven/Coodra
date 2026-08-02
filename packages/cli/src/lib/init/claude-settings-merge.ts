@@ -112,7 +112,7 @@ const LEGACY_COODRA_MATCHER = '__coodra__' as const;
  * out of `TOOL_EVENTS` below — the writer omits `matcher` for non-tool
  * events the same way it does for SessionStart and Stop.
  */
-const CLAUDE_HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd'] as const;
+const CLAUDE_HOOK_EVENTS = ['SessionStart', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd', 'ConfigChange'] as const;
 type ClaudeHookEvent = (typeof CLAUDE_HOOK_EVENTS)[number];
 
 const TOOL_EVENTS: ReadonlySet<ClaudeHookEvent> = new Set(['PreToolUse', 'PostToolUse']);

@@ -140,6 +140,9 @@ export interface RunRecorder {
     readonly decision: 'allow' | 'deny' | 'ask';
     readonly reason: string;
     readonly matchedRuleId: string | null;
+    readonly policyVersionId?: string | null;
+    readonly matchedExceptionId?: string | null;
+    readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
   }): void;
   /**
    * Enqueue a `runs` row open when SessionStart fires. Idempotent at
@@ -488,7 +491,16 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         });
     },
 
-    recordPolicyDecision({ event, projectId, decision, reason, matchedRuleId }) {
+    recordPolicyDecision({
+      event,
+      projectId,
+      decision,
+      reason,
+      matchedRuleId,
+      policyVersionId,
+      matchedExceptionId,
+      baseDecision,
+    }) {
       // M04 Phase 2 S1 (F3 root-cause fix): defensive session_open
       // before the first audit row for this (projectId, sessionId).
       ensureSessionOpenInflight(event, projectId);
@@ -512,9 +524,15 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         toolName: event.toolName,
         // F14 closure (2026-04-27): include toolUseId for the 4-segment key.
         ...(event.turnId !== undefined ? { toolUseId: event.turnId } : {}),
+        permissionMode: event.permissionMode ?? null,
         toolInputSnapshot,
         permissionDecision: decision,
+        policyVersionId: policyVersionId ?? null,
         matchedRuleId,
+        matchedExceptionId: matchedExceptionId ?? null,
+        baseDecision: baseDecision ?? decision,
+        effectiveDecision: decision,
+        askOutcome: decision === 'ask' ? 'unresolved' : null,
         reason,
       };
       const idempotencyKey = buildPolicyDecisionIdempotencyKey({

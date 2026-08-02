@@ -75,6 +75,10 @@ const successBranch = z
       .nullable()
       .describe("Human-readable rule text; populated when reason === 'rule_matched', else null."),
     matchedRuleId: z.string().nullable(),
+    policyVersionId: z.string().nullable().optional(),
+    matchedExceptionId: z.string().nullable().optional(),
+    baseDecision: z.enum(['allow', 'ask', 'deny']).optional(),
+    effectiveDecision: z.enum(['allow', 'ask', 'deny']).optional(),
     failOpen: z
       .boolean()
       .describe(

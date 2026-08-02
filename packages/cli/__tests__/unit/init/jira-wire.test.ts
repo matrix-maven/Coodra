@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
@@ -21,7 +21,7 @@ import {
  * Atlassian's own remote MCP server ("Rovo") into each agent config —
  * NATIVE remote entries only, no `mcp-remote` shim (decision 2026-05-31):
  *
- *   - Claude Code → `{ type: 'http', url }` in `<cwd>/.mcp.json`
+ *   - Claude Code → native Coodra plugin MCP; repo-root `.mcp.json` is user-owned
  *   - Cursor      → `{ url }`            in `<cwd>/.cursor/mcp.json`
  *   - Windsurf    → `{ serverUrl }`      in `<home>/.codeium/windsurf/mcp_config.json`
  *   - Codex       → `[mcp_servers.atlassian] url = …` in `<cwd>/.codex/config.toml`
@@ -52,14 +52,14 @@ describe('buildJiraEntry — native remote shape per client', () => {
 
 describe('jiraConfigPath', () => {
   it('resolves each agent config path (project-scoped except Windsurf)', () => {
-    expect(jiraConfigPath('claude', '/repo', '/home/u')).toBe('/repo/.mcp.json');
+    expect(jiraConfigPath('claude', '/repo', '/home/u')).toBeNull();
     expect(jiraConfigPath('cursor', '/repo', '/home/u')).toBe('/repo/.cursor/mcp.json');
     expect(jiraConfigPath('windsurf', '/repo', '/home/u')).toBe('/home/u/.codeium/windsurf/mcp_config.json');
     expect(jiraConfigPath('codex', '/repo', '/home/u')).toBe('/repo/.codex/config.toml');
   });
 });
 
-describe('wireJira — JSON agents (Claude Code / Cursor / Windsurf)', () => {
+describe('wireJira — JSON agents (Cursor / Windsurf)', () => {
   let cwd: string;
   let home: string;
 
@@ -68,11 +68,11 @@ describe('wireJira — JSON agents (Claude Code / Cursor / Windsurf)', () => {
     home = await mkdtemp(join(tmpdir(), 'coodra-jira-home-'));
   });
 
-  it('Claude Code: greenfield writes a native http remote entry', async () => {
+  it('Claude Code: leaves repo-root .mcp.json untouched because native plugin MCP owns Coodra wiring', async () => {
     const result = await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
-    expect(result.action).toBe('wrote');
-    const parsed = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO_MCP_URL });
+    expect(result.action).toBe('unchanged');
+    expect(result.notes).toContain('user-owned');
+    await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
   });
 
   it('Cursor: writes a bare { url } entry under .cursor/mcp.json', async () => {
@@ -87,53 +87,54 @@ describe('wireJira — JSON agents (Claude Code / Cursor / Windsurf)', () => {
     expect(parsed.mcpServers.atlassian).toEqual({ serverUrl: ROVO_MCP_URL });
   });
 
-  it('is idempotent — a second wire is unchanged', async () => {
-    await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
-    const second = await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
+  it('is idempotent — a second Cursor wire is unchanged', async () => {
+    await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: false });
+    const second = await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: false });
     expect(second.action).toBe('unchanged');
     expect(second.notes).toContain('already matches');
   });
 
   it("preserves a sibling `coodra` entry (merge-don't-clobber)", async () => {
-    const filePath = join(cwd, '.mcp.json');
+    const filePath = join(cwd, '.cursor', 'mcp.json');
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
     await writeFile(
       filePath,
       `${JSON.stringify({ mcpServers: { coodra: { command: 'node', args: ['/abs/mcp-server.js'] } } }, null, 2)}\n`,
       'utf8',
     );
-    const result = await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
+    const result = await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: false });
     expect(result.action).toBe('merged');
     const parsed = JSON.parse(await readFile(filePath, 'utf8'));
     expect(parsed.mcpServers.coodra).toEqual({ command: 'node', args: ['/abs/mcp-server.js'] });
-    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO_MCP_URL });
+    expect(parsed.mcpServers.atlassian).toEqual({ url: ROVO_MCP_URL });
   });
 
   it('drift is preserved without --force, overwritten with --force', async () => {
-    const filePath = join(cwd, '.mcp.json');
+    const filePath = join(cwd, '.cursor', 'mcp.json');
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
     await writeFile(
       filePath,
       `${JSON.stringify({ mcpServers: { atlassian: { url: 'https://example.test/custom' } } }, null, 2)}\n`,
       'utf8',
     );
-    const held = await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
+    const held = await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: false });
     expect(held.action).toBe('unchanged');
     expect(held.notes).toContain('--force');
     expect(JSON.parse(await readFile(filePath, 'utf8')).mcpServers.atlassian).toEqual({
       url: 'https://example.test/custom',
     });
 
-    const forced = await wireJira({ ide: 'claude', cwd, userHome: home, force: true, dryRun: false });
+    const forced = await wireJira({ ide: 'cursor', cwd, userHome: home, force: true, dryRun: false });
     expect(forced.action).toBe('forced');
     expect(JSON.parse(await readFile(filePath, 'utf8')).mcpServers.atlassian).toEqual({
-      type: 'http',
       url: ROVO_MCP_URL,
     });
   });
 
   it('dry-run writes nothing', async () => {
-    const result = await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: true });
+    const result = await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: true });
     expect(result.action).toBe('wrote');
-    await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8')).rejects.toThrow();
   });
 });
 
@@ -205,7 +206,7 @@ describe('unwireJira', () => {
     home = await mkdtemp(join(tmpdir(), 'coodra-jira-unwire-home-'));
   });
 
-  it('removes the atlassian entry, leaving coodra (Claude Code)', async () => {
+  it('leaves user-owned root .mcp.json untouched for Claude Code', async () => {
     const filePath = join(cwd, '.mcp.json');
     await writeFile(
       filePath,
@@ -213,6 +214,22 @@ describe('unwireJira', () => {
       'utf8',
     );
     const result = await unwireJira({ ide: 'claude', cwd, userHome: home, dryRun: false });
+    expect(result.action).toBe('unchanged');
+    expect(result.notes).toContain('user-owned');
+    const parsed = JSON.parse(await readFile(filePath, 'utf8'));
+    expect(parsed.mcpServers.atlassian).toEqual({ type: 'http', url: ROVO_MCP_URL });
+    expect(parsed.mcpServers.coodra).toEqual({ command: 'node' });
+  });
+
+  it('removes the atlassian entry, leaving coodra (Cursor)', async () => {
+    const filePath = join(cwd, '.cursor', 'mcp.json');
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
+    await writeFile(
+      filePath,
+      `${JSON.stringify({ mcpServers: { coodra: { command: 'node' }, atlassian: { url: ROVO_MCP_URL } } }, null, 2)}\n`,
+      'utf8',
+    );
+    const result = await unwireJira({ ide: 'cursor', cwd, userHome: home, dryRun: false });
     expect(result.action).toBe('merged');
     const parsed = JSON.parse(await readFile(filePath, 'utf8'));
     expect(parsed.mcpServers.atlassian).toBeUndefined();
@@ -268,11 +285,11 @@ describe('readJiraPresence', () => {
     expect(await readJiraPresence({ ide: 'codex', cwd, userHome: home })).toMatchObject({ exists: true, wired: true });
   });
 
-  it('reports unreadable:true on a corrupt JSON config', async () => {
+  it('ignores corrupt user-owned root .mcp.json for Claude presence', async () => {
     await writeFile(join(cwd, '.mcp.json'), '{ not json', 'utf8');
     expect(await readJiraPresence({ ide: 'claude', cwd, userHome: home })).toMatchObject({
-      exists: true,
-      unreadable: true,
+      exists: false,
+      unreadable: false,
     });
   });
 
@@ -280,7 +297,7 @@ describe('readJiraPresence', () => {
     expect(JIRA_SERVER_NAME).toBe('atlassian');
   });
 
-  it('sets foreignKey when a foreign Atlassian entry exists alongside wired:false', async () => {
+  it('does not set foreignKey from user-owned root .mcp.json', async () => {
     await writeFile(
       join(cwd, '.mcp.json'),
       `${JSON.stringify(
@@ -291,16 +308,16 @@ describe('readJiraPresence', () => {
       'utf8',
     );
     expect(await readJiraPresence({ ide: 'claude', cwd, userHome: home })).toEqual({
-      exists: true,
+      exists: false,
       wired: false,
       unreadable: false,
-      foreignKey: 'atlassian-mcp-server',
+      foreignKey: null,
     });
   });
 
   it('foreignKey stays null when only the coodra-managed `atlassian` entry exists (wired:true)', async () => {
-    await wireJira({ ide: 'claude', cwd, userHome: home, force: false, dryRun: false });
-    expect(await readJiraPresence({ ide: 'claude', cwd, userHome: home })).toEqual({
+    await wireJira({ ide: 'cursor', cwd, userHome: home, force: false, dryRun: false });
+    expect(await readJiraPresence({ ide: 'cursor', cwd, userHome: home })).toEqual({
       exists: true,
       wired: true,
       unreadable: false,

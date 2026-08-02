@@ -47,8 +47,13 @@ JSON-RPC frame.
 
 ## Point an MCP client at it
 
-After building, register the server binary with your client. The
-repo-root `.mcp.json` already contains the correct entry:
+For normal Coodra installs, do not add a repo-root `.mcp.json`.
+`coodra agent add codex` and `coodra agent add claude` install native
+plugins that carry their own Coodra MCP configuration. That is the
+supported path for the product.
+
+For local MCP-server development, you can still register the built server
+manually with an MCP client:
 
 ```json
 {
@@ -63,8 +68,9 @@ repo-root `.mcp.json` already contains the correct entry:
 }
 ```
 
-Claude Code, Cursor and Windsurf all read `.mcp.json` at workspace load
-time. After first build, reload the IDE to have it spawn the server.
+After first build, reload the client to have it spawn the server. Keep
+this kind of project-local MCP config out of the repo unless you are
+intentionally testing legacy/manual wiring.
 
 ## Critical invariants
 

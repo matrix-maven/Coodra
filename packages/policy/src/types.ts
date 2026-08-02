@@ -48,8 +48,11 @@ export interface PolicyInput {
 
 export interface PolicyResult {
   readonly decision: PolicyDecision;
+  readonly baseDecision?: PolicyDecision;
   readonly reason: string;
   readonly matchedRuleId: string | null;
+  readonly matchedExceptionId?: string | null;
+  readonly policyVersionId?: string | null;
 }
 
 /**
@@ -72,7 +75,14 @@ export interface PolicyClient {
     readonly input: unknown;
     readonly idempotencyKey: IdempotencyKey;
     readonly projectId?: string;
-  }): Promise<{ decision: PolicyDecision; reason: string; matchedRuleId: string | null }>;
+  }): Promise<{
+    decision: PolicyDecision;
+    baseDecision?: PolicyDecision;
+    reason: string;
+    matchedRuleId: string | null;
+    matchedExceptionId?: string | null;
+    policyVersionId?: string | null;
+  }>;
 }
 
 /**

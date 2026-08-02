@@ -57,21 +57,38 @@ function computeIdempotencyKey(runId: string, description: string): string {
   return `dec:${runId}:${hash}`;
 }
 
-async function runExists(db: DbHandle, runId: string): Promise<boolean> {
+interface RunAttribution {
+  readonly projectId: string;
+  readonly orgId: string | null;
+}
+
+async function selectRunAttribution(db: DbHandle, runId: string): Promise<RunAttribution | null> {
   if (db.kind === 'sqlite') {
     const rows = await db.db
-      .select({ id: sqliteSchema.runs.id })
+      .select({
+        projectId: sqliteSchema.runs.projectId,
+        runOrgId: sqliteSchema.runs.orgId,
+        projectOrgId: sqliteSchema.projects.orgId,
+      })
       .from(sqliteSchema.runs)
+      .innerJoin(sqliteSchema.projects, eq(sqliteSchema.projects.id, sqliteSchema.runs.projectId))
       .where(eq(sqliteSchema.runs.id, runId))
       .limit(1);
-    return rows.length > 0;
+    const row = rows[0];
+    return row ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId } : null;
   }
   const rows = await db.db
-    .select({ id: postgresSchema.runs.id })
+    .select({
+      projectId: postgresSchema.runs.projectId,
+      runOrgId: postgresSchema.runs.orgId,
+      projectOrgId: postgresSchema.projects.orgId,
+    })
     .from(postgresSchema.runs)
+    .innerJoin(postgresSchema.projects, eq(postgresSchema.projects.id, postgresSchema.runs.projectId))
     .where(eq(postgresSchema.runs.id, runId))
     .limit(1);
-  return rows.length > 0;
+  const row = rows[0];
+  return row ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId } : null;
 }
 
 interface ExistingDecisionRow {
@@ -108,6 +125,8 @@ async function insertIgnoreOnConflict(
   db: DbHandle,
   row: {
     readonly id: string;
+    readonly orgId: string | null;
+    readonly projectId: string;
     readonly idempotencyKey: string;
     readonly runId: string;
     readonly description: string;
@@ -129,6 +148,8 @@ async function insertIgnoreOnConflict(
       .insert(sqliteSchema.decisions)
       .values({
         id: row.id,
+        orgId: row.orgId,
+        projectId: row.projectId,
         idempotencyKey: row.idempotencyKey,
         runId: row.runId,
         description: row.description,
@@ -155,6 +176,8 @@ async function insertIgnoreOnConflict(
     .insert(postgresSchema.decisions)
     .values({
       id: row.id,
+      orgId: row.orgId,
+      projectId: row.projectId,
       idempotencyKey: row.idempotencyKey,
       runId: row.runId,
       description: row.description,
@@ -190,7 +213,8 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
     input: RecordDecisionInput,
     ctx: ToolContext,
   ): Promise<RecordDecisionOutput> {
-    if (!(await runExists(deps.db, input.runId))) {
+    const runAttribution = await selectRunAttribution(deps.db, input.runId);
+    if (runAttribution === null) {
       handlerLogger.info(
         { event: 'record_decision_run_not_found', runId: input.runId, sessionId: ctx.sessionId },
         'record_decision: runId does not match a runs row — returning soft-failure',
@@ -230,6 +254,8 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
     const actor = auth.actor;
     const { inserted, id, createdAt } = await insertIgnoreOnConflict(deps.db, {
       id: `dec_${randomUUID()}`,
+      orgId: actor?.orgId ?? runAttribution.orgId,
+      projectId: runAttribution.projectId,
       idempotencyKey,
       runId: input.runId,
       description: input.description,

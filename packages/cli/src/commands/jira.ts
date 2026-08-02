@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { detectIDE, type IDE, IDE_DISPLAY, IDE_ORDER, resolveIdeSelection } from '../lib/detect.js';
 import {
   type ForeignAtlassianServer,
@@ -11,6 +12,7 @@ import {
   wireJira,
 } from '../lib/init/jira-wire.js';
 import type { WriteOutcome } from '../lib/init/types.js';
+import { readMachineManifest } from '../lib/machine-store/manifest.js';
 import { terminalReadPrompt } from '../lib/terminal-prompt.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
@@ -97,6 +99,10 @@ type IdeActionResult =
   | { readonly kind: 'outcome'; readonly ide: IDE; readonly displayName: string; readonly outcome: WriteOutcome }
   | { readonly kind: 'error'; readonly ide: IDE; readonly displayName: string; readonly message: string };
 
+type JiraIdeSelection =
+  | { readonly ok: true; readonly ides: readonly IDE[]; readonly source: 'flag' | 'manifest' | 'detected' }
+  | { readonly ok: false; readonly error: string };
+
 function serializeActionResult(r: IdeActionResult): Record<string, unknown> {
   if (r.kind === 'outcome') {
     return { ide: r.ide, path: r.outcome.path, action: r.outcome.action, notes: r.outcome.notes ?? null };
@@ -117,6 +123,29 @@ function renderActionRow(r: IdeActionResult): string {
   const glyph = isDrift(r.outcome) ? pc.yellow('◌') : pc.green('✓');
   const note = r.outcome.notes ?? r.outcome.action;
   return `  ${glyph} ${name} ${pc.gray(`${r.outcome.path} — ${note}`)}`;
+}
+
+async function resolveJiraIdeSelection(options: {
+  readonly flag?: string;
+  readonly userHome: string;
+}): Promise<JiraIdeSelection> {
+  if (options.flag !== undefined) {
+    const selection = resolveIdeSelection({
+      flag: options.flag,
+      detected: await detectIDE({ homeDir: options.userHome }),
+    });
+    return selection.ok ? { ...selection, source: 'flag' } : selection;
+  }
+
+  const coodraHome = resolveCoodraHome({ home: options.userHome });
+  const manifest = await readMachineManifest(coodraHome);
+  if (manifest !== null) {
+    const installed = new Set(manifest.agents.filter((agent) => agent.installed).map((agent) => agent.id));
+    return { ok: true, ides: IDE_ORDER.filter((ide) => installed.has(ide)), source: 'manifest' };
+  }
+
+  const detected = await detectIDE({ homeDir: options.userHome });
+  return { ok: true, ides: detected, source: 'detected' };
 }
 
 /**
@@ -173,16 +202,19 @@ export async function runJiraEnableCommand(
   const dryRun = options.dryRun === true;
   const json = options.json === true;
 
-  const selection = resolveIdeSelection({ flag: options.ide, detected: await detectIDE({ homeDir: userHome }) });
+  const selection = await resolveJiraIdeSelection({
+    ...(options.ide !== undefined ? { flag: options.ide } : {}),
+    userHome,
+  });
   if (!selection.ok) {
     return failSelection(io, selection.error, json);
   }
   if (selection.ides.length === 0) {
-    return failSelection(
-      io,
-      'No supported IDE detected. Pass --ide claude|cursor|windsurf|codex|all to wire one explicitly.',
-      json,
-    );
+    const message =
+      selection.source === 'manifest'
+        ? 'No Coodra-installed native agent plugins are recorded. Run `coodra agent add claude|codex`, or pass --ide claude|cursor|windsurf|codex|all to wire one explicitly.'
+        : 'No supported IDE detected. Pass --ide claude|cursor|windsurf|codex|all to wire one explicitly.';
+    return failSelection(io, message, json);
   }
 
   // Field fix 2026-07-12: detect a PRE-EXISTING Atlassian MCP server wired
@@ -348,7 +380,7 @@ export async function runJiraDisableCommand(
 interface JiraIdeStatus {
   readonly ide: IDE;
   readonly displayName: string;
-  readonly configPath: string;
+  readonly configPath: string | null;
   readonly exists: boolean;
   readonly wired: boolean;
   readonly unreadable: boolean;
@@ -360,7 +392,10 @@ function renderStatusRow(s: JiraIdeStatus): string {
   const name = s.displayName.padEnd(13);
   let glyph: string;
   let note: string;
-  if (s.unreadable) {
+  if (s.configPath === null) {
+    glyph = pc.gray('✗');
+    note = 'uses native/plugin-scoped MCP; repo-root .mcp.json is user-owned';
+  } else if (s.unreadable) {
     glyph = pc.red('✗');
     note = `${s.configPath} — unreadable config`;
   } else if (s.wired) {

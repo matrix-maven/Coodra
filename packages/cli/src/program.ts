@@ -79,12 +79,19 @@ import {
   type PolicyIO,
   type PolicyListOptions,
   type PolicyShowOptions,
+  type PolicySyncOptions,
   runPolicyAddCommand,
   runPolicyDisableCommand,
   runPolicyEnableCommand,
   runPolicyListCommand,
   runPolicyShowCommand,
+  runPolicySyncCommand,
 } from './commands/policy.js';
+import {
+  type PolicyWorkflowIO,
+  type PolicyWorkflowRenderOptions,
+  runPolicyWorkflowRenderCommand,
+} from './commands/policy-workflow.js';
 import {
   type ProjectDemoteOptions,
   type ProjectIO,
@@ -248,6 +255,7 @@ interface BuildProgramOptions {
   readonly uninstallIO?: UninstallIO;
   readonly runUninstall?: (options: UninstallOptions, io?: UninstallIO) => Promise<unknown>;
   readonly policyIO?: PolicyIO;
+  readonly policyWorkflowIO?: PolicyWorkflowIO;
   readonly runPolicyList?: (options: PolicyListOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyShow?: (identifier: string, options: PolicyShowOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyAdd?: (options: PolicyAddOptions, io?: PolicyIO) => Promise<unknown>;
@@ -261,6 +269,8 @@ interface BuildProgramOptions {
     options: PolicyEnableDisableOptions,
     io?: PolicyIO,
   ) => Promise<unknown>;
+  readonly runPolicySync?: (options: PolicySyncOptions, io?: PolicyIO) => Promise<unknown>;
+  readonly runPolicyWorkflowRender?: (options: PolicyWorkflowRenderOptions, io?: PolicyWorkflowIO) => Promise<unknown>;
   readonly projectIO?: ProjectIO;
   readonly runProjectList?: (options: ProjectListOptions, io?: ProjectIO) => Promise<unknown>;
   readonly runProjectShow?: (identifier: string, options: ProjectShowOptions, io?: ProjectIO) => Promise<unknown>;
@@ -938,6 +948,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .requiredOption('--reason <text>', 'Operator audit context (required).')
     .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
     .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
+    .option('--command-pattern <glob>', 'Shell command glob to match for Bash rules (e.g. "git push*--force*").')
     .option('--agent-type <type>', 'Agent type to match: claude_code | cursor | windsurf | * (default: *).')
     .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
     .option('--policy-name <name>', 'Target policy name (default: __default__).')
@@ -962,6 +973,30 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (identifier: string, opts: PolicyEnableDisableOptions) => {
       await policyDisableRunner(identifier, opts, options.policyIO);
+    });
+  const policySyncRunner = options.runPolicySync ?? runPolicySyncCommand;
+  policy
+    .command('sync')
+    .description('Write the current DB policy projection into project agent config files for drift attestation.')
+    .option('--project <slug>', 'Project slug. Defaults to the current .coodra/config.json project.')
+    .option('--cwd <path>', 'Project root to write when --project has no recorded cwd. Defaults to process.cwd().')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicySyncOptions) => {
+      await policySyncRunner(opts, options.policyIO);
+    });
+  const policyWorkflow = policy
+    .command('workflow')
+    .description('Manage workflow policy rendered from .coodra/config.json.');
+  const policyWorkflowRenderRunner = options.runPolicyWorkflowRender ?? runPolicyWorkflowRenderCommand;
+  policyWorkflow
+    .command('render')
+    .description('Render workflow policy into managed AGENTS.md / CLAUDE.md blocks.')
+    .option('--agents <list>', 'Comma-separated agents to render: codex,claude (default: codex,claude).')
+    .option('--cwd <path>', 'Project root containing .coodra/config.json (default: current directory).')
+    .option('--dry-run', 'Report planned writes without changing files.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicyWorkflowRenderOptions) => {
+      await policyWorkflowRenderRunner(opts, options.policyWorkflowIO);
     });
 
   // Module 08b S10 — project admin (list, show, reset).
@@ -1194,7 +1229,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('uninstall')
     .description(
-      'Reverse `coodra init`: stop + remove the daemon units (mcp-server, hooks-bridge, sync-daemon, web), strip Coodra entries from ~/.claude/settings.json + .mcp.json + per-agent files. Default-safe (preserves data + config + project work); --remove-data drops the SQLite store; --purge removes ~/.coodra/.',
+      'Tear down Coodra runtime/plugin wiring. Default-safe: preserves ~/.coodra data and every registered repo .coodra workspace; --remove-data drops only the SQLite store; --purge also removes registered project footprints and ~/.coodra/.',
     )
     .option('--remove-data', 'Delete ~/.coodra/data.db (+ -wal/-shm) but keep config + packs.')
     .option('--purge', 'Remove ~/.coodra/ as well (data + config + logs + pids).')

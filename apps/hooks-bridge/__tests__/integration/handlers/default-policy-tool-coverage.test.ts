@@ -37,12 +37,13 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  *
  * Post-fix state (this test PASSES after Phase 4 Fix F):
  *
- *   `ensureDefaultPolicy` seeds 24 deny rules covering the
+ *   `ensureDefaultPolicy` seeds 26 deny rules covering the
  *   cross-product of:
  *     tools = { Write, Edit, MultiEdit, NotebookEdit }
  *     globs = { .env, **\/.env, .git/**, **\/.git/**,
  *               node_modules/**, **\/node_modules/** }
- *   plus the existing Bash → ask rule.
+ *   plus Read denies for .env / nested .env
+ *   plus targeted risky Bash command ask rules.
  *
  * The test wires the SAME code path init does — `ensureGlobalProject`
  * → `ensureProject` → `ensureDefaultPolicy` — so any future divergence
@@ -123,21 +124,21 @@ interface ClaudeCodeBody {
   readonly hook_event_name: 'PreToolUse';
   readonly session_id: string;
   readonly tool_name: string;
-  readonly tool_input: { file_path: string; [k: string]: unknown };
+  readonly tool_input: { file_path?: string; command?: string; [k: string]: unknown };
   readonly tool_use_id: string;
   readonly cwd: string;
 }
 
 async function postPreToolUse(
   toolName: string,
-  filePath: string,
+  toolInput: string | { file_path?: string; command?: string; [k: string]: unknown },
   idem: string,
 ): Promise<{ permissionDecision: string; permissionDecisionReason?: string }> {
   const body: ClaudeCodeBody = {
     hook_event_name: 'PreToolUse',
     session_id: `phase4-${idem}`,
     tool_name: toolName,
-    tool_input: { file_path: filePath, content: 'irrelevant' },
+    tool_input: typeof toolInput === 'string' ? { file_path: toolInput, content: 'irrelevant' } : toolInput,
     tool_use_id: `tu-${idem}`,
     cwd: h.cwd,
   };
@@ -171,11 +172,19 @@ describe('default policy — every file-mutating tool denied for dangerous paths
     expect(out.permissionDecision).toBe('allow');
   });
 
-  // F6 (2026-07-04): the seeded "ask before Bash" rule must surface to
-  // Claude Code as permissionDecision='ask' — a genuine user-confirmation
-  // tier, not silently collapsed to 'allow' as it was before this fix.
-  it('PreToolUse Bash → asks for confirmation (permissionDecision=ask) with a reason', async () => {
-    const out = await postPreToolUse('Bash', 'rm -rf node_modules', 'bash-ask');
+  it('PreToolUse Read → .env: denies secret reads before credentials enter context', async () => {
+    const out = await postPreToolUse('Read', '.env', 'read-env-deny');
+    expect(out.permissionDecision).toBe('deny');
+    expect((out.permissionDecisionReason ?? '').length).toBeGreaterThan(0);
+  });
+
+  it('PreToolUse Bash → harmless command: still allows without prompting', async () => {
+    const out = await postPreToolUse('Bash', { command: 'ls -la' }, 'bash-allow');
+    expect(out.permissionDecision).toBe('allow');
+  });
+
+  it('PreToolUse Bash → risky command: asks for confirmation with a reason', async () => {
+    const out = await postPreToolUse('Bash', { command: 'rm -rf node_modules' }, 'bash-ask');
     expect(out.permissionDecision).toBe('ask');
     expect((out.permissionDecisionReason ?? '').length).toBeGreaterThan(0);
   });

@@ -1,4 +1,5 @@
 import { type DbHandle, lookupRunId, sqliteSchema } from '@coodra/db';
+import { resolveAskOutcomesNotExecuted } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 import { and, eq, ne, sql } from 'drizzle-orm';
@@ -81,6 +82,16 @@ export function createSessionEndHandler(deps: CreateSessionEndHandlerDeps): Sess
     // SessionStart was somehow missed, this still closes the loop).
     const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordSessionEnd({ event, projectId });
+    void resolveAskOutcomesNotExecuted(deps.db, { sessionId: event.sessionId }).catch((err) =>
+      sessionEndLogger.warn(
+        {
+          event: 'session_end_ask_outcome_sweep_failed',
+          sessionId: event.sessionId,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'failed to resolve unexecuted ask outcomes on SessionEnd',
+      ),
+    );
     sessionEndLogger.info(
       {
         event: 'session_end_recorded',

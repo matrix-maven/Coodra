@@ -1,6 +1,8 @@
 import {
   addPolicyRule,
+  buildPolicyProjection,
   getPolicy,
+  getProjectByIdentifier,
   listPolicies,
   lookupProjectBySlug,
   type PolicyDecisionKind,
@@ -9,6 +11,7 @@ import {
   type PolicyWithRules,
   setPolicyActive,
 } from '@coodra/db';
+import { readCoodraProjectConfig, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -50,6 +53,7 @@ export interface PolicyAddOptions {
   readonly reason: string;
   readonly eventType?: string;
   readonly pathGlob?: string;
+  readonly commandPattern?: string;
   readonly agentType?: string;
   readonly priority?: string;
   readonly policyName?: string;
@@ -58,6 +62,12 @@ export interface PolicyAddOptions {
 
 export interface PolicyEnableDisableOptions {
   readonly project?: string;
+  readonly json?: boolean;
+}
+
+export interface PolicySyncOptions {
+  readonly project?: string;
+  readonly cwd?: string;
   readonly json?: boolean;
 }
 
@@ -221,6 +231,7 @@ export async function runPolicyAddCommand(options: PolicyAddOptions, ioOverride?
       ...(options.eventType !== undefined ? { matchEventType: options.eventType } : {}),
       matchToolName: options.tool.trim(),
       ...(options.pathGlob !== undefined ? { matchPathGlob: options.pathGlob } : {}),
+      ...(options.commandPattern !== undefined ? { matchCommandPattern: options.commandPattern } : {}),
       ...(options.agentType !== undefined ? { matchAgentType: options.agentType } : {}),
       decision: options.decision as PolicyDecisionKind,
       reason: options.reason,
@@ -245,6 +256,7 @@ export async function runPolicyAddCommand(options: PolicyAddOptions, ioOverride?
         `${pc.green('✓')} Added policy_rule (priority=${result.priority}, decision=${options.decision}) to policy ${result.policyId}${created}.\n`,
       );
       io.writeStdout(`  Rule id: ${result.ruleId}\n`);
+      await syncProjectionBestEffort(handle, project, io);
       io.writeStdout(
         `  ${pc.dim('Note: bridge cache TTL is 60s; running bridges will see the rule on the next cache miss.')}\n`,
       );
@@ -273,6 +285,54 @@ export async function runPolicyDisableCommand(
   ioOverride?: PolicyIO,
 ): Promise<void> {
   await runPolicySetActive(identifier, false, options, ioOverride);
+}
+
+// ============================================================================
+// sync
+// ============================================================================
+
+export async function runPolicySyncCommand(options: PolicySyncOptions, ioOverride?: PolicyIO): Promise<void> {
+  const io = ioOverride ?? DEFAULT_POLICY_IO;
+  const json = options.json === true;
+  const cwd = options.cwd ?? process.cwd();
+  const projectConfig = options.project === undefined ? await readCoodraProjectConfig(cwd) : null;
+  const projectSlug = options.project ?? projectConfig?.projectSlug;
+  if (projectSlug === undefined || projectSlug.length === 0) {
+    return surfaceError(
+      io,
+      json,
+      EXIT_USER_RECOVERABLE,
+      'policy sync needs a project. Run inside a Coodra project or pass --project <slug>.',
+    );
+  }
+  const projectRoot = projectConfig?.root ?? cwd;
+  const handle = await openHandle(io);
+  try {
+    const project = await lookupProjectBySlug(handle, projectSlug);
+    if (project === null) {
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `project slug "${projectSlug}" does not exist`);
+    }
+    const root = project.cwd ?? projectRoot;
+    const projection = await buildPolicyProjection(handle, {
+      projectId: project.id,
+      projectSlug: project.slug,
+    });
+    const written = await writePolicyProjectionFiles(root, projection);
+    if (json) {
+      io.writeStdout(`${JSON.stringify({ ok: true, project: project.slug, projection, written }, null, 2)}\n`);
+    } else {
+      io.writeStdout(`${pc.green('✓')} Synced Coodra policy projection for ${project.slug}.\n`);
+      io.writeStdout(`  hash: ${projection.projectionHash}\n`);
+      if (written.codexPath !== undefined) io.writeStdout(`  Codex:  ${written.codexPath}\n`);
+      if (written.claudePath !== undefined) io.writeStdout(`  Claude: ${written.claudePath}\n`);
+      if (written.codexPath === undefined && written.claudePath === undefined) {
+        io.writeStdout(`  ${pc.dim('No agent policy files were written.')}\n`);
+      }
+    }
+    io.exit(EXIT_OK);
+  } finally {
+    handle.close();
+  }
 }
 
 async function runPolicySetActive(
@@ -320,6 +380,10 @@ async function runPolicySetActive(
     } else {
       const verb = active ? 'enabled' : 'disabled';
       io.writeStdout(`${pc.green('✓')} Policy "${updated.name}" (id: ${updated.id}) is now ${verb}.\n`);
+      const project = await getProjectByIdentifier(handle, updated.projectId);
+      if (project !== null) {
+        await syncProjectionBestEffort(handle, project, io);
+      }
     }
     io.exit(EXIT_OK);
   } finally {
@@ -335,6 +399,29 @@ async function openHandle(io: PolicyIO): Promise<Awaited<ReturnType<typeof openL
   const homePath = io.coodraHome ?? resolveCoodraHome();
   const dbPath = resolveCoodraDataDb(homePath);
   return await openLocalDb(dbPath);
+}
+
+async function syncProjectionBestEffort(
+  handle: Awaited<ReturnType<typeof openLocalDb>>,
+  project: { readonly id: string; readonly slug: string; readonly cwd: string | null },
+  io: PolicyIO,
+): Promise<void> {
+  if (project.cwd === null || project.cwd.length === 0) {
+    io.writeStdout(
+      `  ${pc.dim('Policy projection not written: project has no recorded cwd; run coodra policy sync from the repo.')}\n`,
+    );
+    return;
+  }
+  try {
+    const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
+    const written = await writePolicyProjectionFiles(project.cwd, projection);
+    const paths = [written.codexPath, written.claudePath].filter((path): path is string => path !== undefined);
+    io.writeStdout(`  ${pc.dim(`Policy projection synced: ${paths.join(', ')}`)}\n`);
+  } catch (err) {
+    io.writeStdout(
+      `  ${pc.dim(`Policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`)}\n`,
+    );
+  }
 }
 
 interface SerializedPolicy {
@@ -354,6 +441,7 @@ interface SerializedRule {
   readonly matchEventType: string;
   readonly matchToolName: string;
   readonly matchPathGlob: string | null;
+  readonly matchCommandPattern: string | null;
   readonly matchAgentType: string | null;
   readonly decision: string;
   readonly reason: string;
@@ -380,6 +468,7 @@ function serializeRule(r: PolicyRuleRow): SerializedRule {
     matchEventType: r.matchEventType,
     matchToolName: r.matchToolName,
     matchPathGlob: r.matchPathGlob,
+    matchCommandPattern: r.matchCommandPattern,
     matchAgentType: r.matchAgentType,
     decision: r.decision,
     reason: r.reason,
@@ -405,6 +494,9 @@ function printPolicyHuman(io: PolicyIO, p: PolicyRow & { readonly rules?: Readon
     io.writeStdout(
       `    [${String(r.priority).padStart(3, ' ')}] ${decisionColor(r.decision.padEnd(5, ' '))} ${r.matchEventType} ${r.matchToolName}${r.matchPathGlob !== null ? ` ${r.matchPathGlob}` : ''}${r.matchAgentType !== null && r.matchAgentType !== '*' ? ` agent=${r.matchAgentType}` : ''}\n`,
     );
+    if (r.matchCommandPattern !== null) {
+      io.writeStdout(`         ${pc.dim(`command=${r.matchCommandPattern}`)}\n`);
+    }
   }
 }
 

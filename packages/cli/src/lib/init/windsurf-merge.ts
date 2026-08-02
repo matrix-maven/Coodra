@@ -11,7 +11,7 @@ import type { WriteOutcome } from './types.js';
  * so a Cascade session can spawn the bundled Coodra MCP server and
  * call the `coodra__*` tools.
  *
- * **Global, not project-scoped.** Unlike Claude Code (`.mcp.json`) and
+ * **Global, not project-scoped.** Unlike Cursor (`.cursor/mcp.json`) and
  * Codex (`.codex/config.toml`), Windsurf has no project-level MCP
  * config — Cascade only reads `~/.codeium/windsurf/mcp_config.json`.
  * So this writer touches a shared user file, which makes the
@@ -25,7 +25,7 @@ import type { WriteOutcome } from './types.js';
  * canonical comparator from `mcp-merge.ts`. This module only owns the
  * global-path resolution + the `~/.codeium/windsurf/` mkdir.
  *
- * Merge contract mirrors `mergeMcpJson` (spec §11 Decision 3): an
+ * Merge contract mirrors Coodra's external-MCP writer discipline: an
  * existing drifted `coodra` entry is preserved unless `--force`.
  */
 

@@ -84,6 +84,7 @@ export interface ContextPackWriteOptions {
    * mode + when the actor identity is unavailable.
    */
   readonly createdByUserId?: string | null;
+  readonly orgId?: string | null;
   /** Nullable Work Pack link for smart Jira-work sessions. */
   readonly workPackId?: string | null;
 }
@@ -147,6 +148,7 @@ async function insertRow(
   row: {
     readonly id: string;
     readonly runId: string;
+    readonly orgId: string | null;
     readonly projectId: string;
     readonly title: string;
     readonly content: string;
@@ -161,6 +163,7 @@ async function insertRow(
     const baseRow = {
       id: row.id,
       runId: row.runId,
+      orgId: row.orgId,
       projectId: row.projectId,
       title: row.title,
       content: row.content,
@@ -179,6 +182,7 @@ async function insertRow(
   const values = {
     id: row.id,
     runId: row.runId,
+    orgId: row.orgId,
     projectId: row.projectId,
     title: row.title,
     content: row.content,
@@ -369,6 +373,7 @@ export function createContextPackStore(deps: CreateContextPackStoreDeps): Contex
       const { createdAt } = await insertRow(deps.db, {
         id,
         runId: input.runId,
+        orgId: writeOptions.orgId ?? null,
         projectId: input.projectId,
         title: input.title,
         content: input.content,

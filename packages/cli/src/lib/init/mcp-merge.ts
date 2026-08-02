@@ -1,7 +1,3 @@
-import { access, readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import type { WriteOutcome } from './types.js';
-
 export interface BuildMcpEntryOptions {
   /**
    * Absolute path to the bundled mcp-server binary. The init command
@@ -82,16 +78,7 @@ export interface CoodraMcpEntry {
   readonly env?: Record<string, string>;
 }
 
-/**
- * Build the canonical `coodra` entry for `.mcp.json`. The bundled
- * mcp-server binary path is resolved by the init command and passed in
- * verbatim. Pre dec_83ba10c1 we wrote a `npx -y @coodra/cli
- * mcp-stdio` fallback when no monorepo was detected — that subcommand
- * never existed, so npm-installed users got a `.mcp.json` that Claude
- * Code could not spawn. With bundled dists the runtime is always on
- * disk inside the @coodra/cli package, so the fallback is gone and
- * init fails loudly when the binary cannot be located.
- */
+/** Build the canonical plugin-scoped `coodra` stdio MCP entry. */
 export function buildCoodraMcpEntry(options: BuildMcpEntryOptions): CoodraMcpEntry {
   const env: Record<string, string> = {
     COODRA_LOG_DESTINATION: 'stderr',
@@ -154,118 +141,4 @@ function canonical(value: unknown): unknown {
     return sorted;
   }
   return value;
-}
-
-export interface MergeMcpJsonOptions {
-  readonly cwd: string;
-  readonly entry: CoodraMcpEntry;
-  readonly force: boolean;
-  readonly dryRun: boolean;
-}
-
-/**
- * Idempotent merge of the `coodra` entry into `<cwd>/.mcp.json` per
- * spec §11 Decision 3. Returns the WriteOutcome describing what happened.
- */
-export async function mergeMcpJson(options: MergeMcpJsonOptions): Promise<WriteOutcome> {
-  const path = join(options.cwd, '.mcp.json');
-  const exists = await pathExists(path);
-
-  if (!exists) {
-    const baseline = { mcpServers: { coodra: options.entry } };
-    if (!options.dryRun) await writeFile(path, `${JSON.stringify(baseline, null, 2)}\n`, 'utf8');
-    return { path, action: 'wrote', notes: 'created baseline .mcp.json with coodra entry' };
-  }
-
-  const raw = await readFile(path, 'utf8');
-  let parsed: { mcpServers?: Record<string, unknown>; [k: string]: unknown };
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(`Cannot parse existing .mcp.json: ${(err as Error).message}`);
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error(`.mcp.json must be a JSON object`);
-  }
-
-  const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
-  const existingCoodra = servers.coodra;
-
-  if (options.force) {
-    parsed.mcpServers = { ...servers, coodra: options.entry };
-    if (!options.dryRun) await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-    return { path, action: 'forced', notes: 'overwrote .mcp.json with baseline coodra entry' };
-  }
-
-  if (existingCoodra === undefined) {
-    parsed.mcpServers = { ...servers, coodra: options.entry };
-    if (!options.dryRun) await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-    return { path, action: 'merged', notes: 'added coodra entry to existing .mcp.json' };
-  }
-
-  if (isCoodraEntryEqual(options.entry, existingCoodra)) {
-    return { path, action: 'unchanged', notes: 'coodra entry already matches baseline' };
-  }
-
-  // Drift: existing coodra entry differs from baseline. Without `--force`
-  // we preserve the user's edits (Decision 3 — "never destroys user edits").
-  return {
-    path,
-    action: 'unchanged',
-    notes: 'coodra entry exists with custom config; pass --force to overwrite with baseline',
-  };
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Module 08b S8 — `coodra uninstall` reverse for `.mcp.json`.
- *
- * Removes the `coodra` key from `mcpServers` if present. Leaves
- * every other server entry untouched. Returns a WriteOutcome
- * describing what happened (action='unchanged' on no-op, 'merged'
- * when the entry was actually removed, 'wrote' is unused).
- *
- * Idempotent: re-running on a file with no `coodra` entry is
- * action='unchanged'.
- */
-export async function removeMcpJson(options: { cwd: string; dryRun: boolean }): Promise<WriteOutcome> {
-  const path = join(options.cwd, '.mcp.json');
-  const exists = await pathExists(path);
-  if (!exists) {
-    return { path, action: 'unchanged', notes: '.mcp.json does not exist; nothing to remove' };
-  }
-
-  const raw = await readFile(path, 'utf8');
-  let parsed: { mcpServers?: Record<string, unknown>; [k: string]: unknown };
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    throw new Error(`Cannot parse existing .mcp.json: ${(err as Error).message}`);
-  }
-  if (typeof parsed !== 'object' || parsed === null) {
-    throw new Error(`.mcp.json must be a JSON object`);
-  }
-
-  const servers = (parsed.mcpServers as Record<string, unknown> | undefined) ?? {};
-  if (!Object.hasOwn(servers, 'coodra')) {
-    return { path, action: 'unchanged', notes: 'no coodra entry to remove' };
-  }
-
-  const next: Record<string, unknown> = { ...servers };
-  delete next.coodra;
-  parsed.mcpServers = next;
-
-  if (!options.dryRun) {
-    await writeFile(path, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
-  }
-  return { path, action: 'merged', notes: 'removed coodra entry from .mcp.json' };
 }

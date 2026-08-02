@@ -1,6 +1,8 @@
 import type { DbHandle } from '@coodra/db';
 import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
+import { readCoodraProjectConfig } from '@coodra/shared/project-config';
+import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { HookDispatchResult } from '../app.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
@@ -48,7 +50,27 @@ export function createUserPromptSubmitHandler(deps: CreateUserPromptSubmitHandle
     const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordUserPromptSubmit(event, projectId);
     const intent = parseJiraWorkIntent(event.toolInput);
-    const additionalContext = intent !== null ? renderJiraWorkModeContext(intent) : undefined;
+    let workflowPolicyBlock: string | null = null;
+    if (intent !== null) {
+      try {
+        const cfg = await readCoodraProjectConfig(event.cwd);
+        workflowPolicyBlock =
+          cfg !== null
+            ? renderWorkflowPolicyContext(cfg.workflowPolicy, {
+                projectSlug: cfg.projectSlug,
+                includeTitle: true,
+              })
+            : null;
+      } catch {
+        workflowPolicyBlock = null;
+      }
+    }
+    const additionalContext =
+      intent !== null
+        ? [renderJiraWorkModeContext(intent), workflowPolicyBlock]
+            .filter((block): block is string => block !== null)
+            .join('\n\n---\n\n')
+        : undefined;
     userPromptLogger.info(
       {
         event: 'user_prompt_recorded',
