@@ -25,7 +25,7 @@ const listFeaturesIdempotencyKey: IdempotencyKeyBuilder<ListFeaturesInput> = (in
   };
 };
 
-export function createListSkillsToolRegistration(
+export function createListRecipesToolRegistration(
   deps: ListFeaturesHandlerDeps,
 ): ToolRegistration<typeof listFeaturesInputSchema, typeof listFeaturesOutputSchema> {
   return {

@@ -1,6 +1,6 @@
 {
   "name": "@coodra/cli",
-  "version": "0.3.10",
+  "version": "0.4.0",
   "private": false,
   "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",
@@ -34,10 +34,6 @@
     "./lib/init/graphify-python": {
       "types": "./dist/lib/init/graphify-python.d.ts",
       "import": "./dist/lib/init/graphify-python.js"
-    },
-    "./lib/init/jira-wire": {
-      "types": "./dist/lib/init/jira-wire.d.ts",
-      "import": "./dist/lib/init/jira-wire.js"
     },
     "./lib/detect": {
       "types": "./dist/lib/detect.d.ts",

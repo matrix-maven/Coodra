@@ -2,7 +2,7 @@
 
 > **Status:** stable native-agent release. Install with `npm i -g @coodra/cli`. pnpm users should allow the native SQLite build: `pnpm add -g @coodra/cli --allow-build=better-sqlite3`. The command reference below is partial; run `coodra` (no args) for the full interactive catalog, or `coodra --help`.
 
-The single-binary install / configure / run / diagnose surface for Coodra, the MCP server platform that gives AI coding agents (Claude Code, Cursor, Windsurf) Feature Packs, Context Packs, and policy enforcement.
+The single-binary install / configure / run / diagnose surface for Coodra, the MCP server platform that gives AI coding agents (Claude Code, Codex) Feature Packs, Context Packs, and policy enforcement.
 
 ## Install
 

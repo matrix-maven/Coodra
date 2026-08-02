@@ -1,8 +1,8 @@
 # @coodra/hooks-bridge
 
 Coodra Hooks Bridge — the **write surface** of the system. Hono
-service on `127.0.0.1:3101` that ingests Claude Code, Windsurf, and
-Cursor hook events, normalizes them through per-agent adapters into the
+service on `127.0.0.1:3101` that ingests Claude Code and Codex hook
+events, normalizes them through per-agent adapters into the
 canonical `HookEvent` shape, runs pre-tool policy enforcement, and
 appends to `runs` + `run_events`.
 
@@ -13,8 +13,7 @@ Pairs with `apps/mcp-server` (the read surface) per `system-architecture.md` §1
 | Method | Path | Purpose | Auth |
 |---|---|---|---|
 | `POST` | `/v1/hooks/claude-code` | Claude Code hook ingress (HTTP-native) | three-layer chain |
-| `POST` | `/v1/hooks/windsurf` | Windsurf shell-adapter ingress | three-layer chain |
-| `POST` | `/v1/hooks/cursor` | Cursor shell-adapter ingress | three-layer chain |
+| `POST` | `/v1/hooks/codex` | Codex hook ingress (HTTP-native) | three-layer chain |
 | `GET` | `/healthz` | Health check | none |
 
 ## Auth chain

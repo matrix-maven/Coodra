@@ -13,7 +13,7 @@ const getFeatureIdempotencyKey: IdempotencyKeyBuilder<GetFeatureInput> = (input,
   };
 };
 
-export function createGetSkillToolRegistration(
+export function createGetRecipeToolRegistration(
   deps: GetFeatureHandlerDeps,
 ): ToolRegistration<typeof getFeatureInputSchema, typeof getFeatureOutputSchema> {
   return {

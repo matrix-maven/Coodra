@@ -2,7 +2,7 @@
   "name": "@coodra/hooks-bridge",
   "version": "0.0.0",
   "private": true,
-  "description": "Coodra Hooks Bridge — Hono service on 127.0.0.1:3101 that ingests Claude Code (HTTP), Windsurf (shell adapter), and Cursor (shell adapter) hook events, normalizes them through per-agent adapters, runs pre-tool policy enforcement, and writes runs + run_events.",
+  "description": "Coodra Hooks Bridge — Hono service on 127.0.0.1:3101 that ingests Claude Code and Codex (both HTTP) hook events, normalizes them through per-agent adapters, runs pre-tool policy enforcement, and writes runs + run_events.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

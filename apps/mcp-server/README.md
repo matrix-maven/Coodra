@@ -2,7 +2,7 @@
 
 Coodra MCP server — the process that speaks the Model Context Protocol
 on behalf of the platform. This is the package that MCP clients (Claude
-Code, Cursor, Windsurf) connect to in order to call the `coodra__*`
+Code, Codex) connect to in order to call the `coodra__*`
 tools described in `system-architecture.md` §24.
 
 ## Current scope (Module 02, S5 walking skeleton)

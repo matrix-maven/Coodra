@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RunRecorder } from '../../../src/framework/tool-context.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
 import { createDbClient } from '../../../src/lib/db.js';
-import { getFeatureInputSchema } from '../../../src/tools/get-skill/schema.js';
+import { getFeatureInputSchema } from '../../../src/tools/get-recipe/schema.js';
 import { listContextPacksInputSchema } from '../../../src/tools/list-context-packs/schema.js';
 import { createQueryRunHistoryToolRegistration } from '../../../src/tools/query-run-history/manifest.js';
 import { queryRunHistoryInputSchema } from '../../../src/tools/query-run-history/schema.js';

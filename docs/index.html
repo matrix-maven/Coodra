@@ -1043,7 +1043,7 @@
         </div>
         <div class="section__head__aside">Read first<br>~3 min</div>
       </div>
-      <p class="section__lede">A coordination layer between human architects and AI coding agents — Claude Code, Cursor, Windsurf. It runs as a local-first <span style="color:var(--accent)">MCP (Model Context Protocol)</span> server and feeds every agent session three things, automatically.</p>
+      <p class="section__lede">A coordination layer between human architects and AI coding agents — Claude Code, Codex. It runs as a local-first <span style="color:var(--accent)">MCP (Model Context Protocol)</span> server and feeds every agent session three things, automatically.</p>
 
       <div class="grid-3">
         <div class="card">
@@ -1104,7 +1104,7 @@
         </div>
         <div class="section__head__aside">Solo mode<br>Zero network</div>
       </div>
-      <p class="section__lede">If you have Node 22, pnpm, and a Claude Code / Cursor / Windsurf install — you're three commands away. Solo mode is the default after <code>coodra init</code>.</p>
+      <p class="section__lede">If you have Node 22, pnpm, and a Claude Code / Codex install — you're three commands away. Solo mode is the default after <code>coodra init</code>.</p>
 
       <div class="steps">
         <div class="step">
@@ -1402,8 +1402,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="topo__layer__name">L0 · Agent</div>
           <div class="topo__nodes">
             <div class="topo__node"><span class="topo__node__dot"></span>Claude Code <small>stdio + hooks</small></div>
-            <div class="topo__node"><span class="topo__node__dot topo__node__dot--w"></span>Cursor <small>shell adapter</small></div>
-            <div class="topo__node"><span class="topo__node__dot topo__node__dot--w"></span>Windsurf <small>shell adapter</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Codex <small>stdio + hooks</small></div>
           </div>
         </div>
         <div class="topo__layer">
@@ -1816,7 +1815,6 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
           </table>
         </div>
 
-        <p class="p p--dim">Cursor and Windsurf use the same adapter pattern — payloads normalised through <code>packages/shared/src/hooks/adapters/</code>. Shell adapters at <code>scripts/hook-adapters/{cursor-coodra.sh, windsurf-coodra.sh}</code>.</p>
       </div>
     </section>
 
@@ -2349,7 +2347,7 @@ cp deploy/.env.example deploy/.env
       <div class="kv">
         <div class="kv__row">
           <div class="kv__k">Is Coodra a code editor?</div>
-          <div class="kv__v">No. It runs <em>alongside</em> your editor — Claude Code, Cursor, Windsurf. Coodra is the layer between the agent and your project: blueprints in, audit out.</div>
+          <div class="kv__v">No. It runs <em>alongside</em> your editor — Claude Code, Codex. Coodra is the layer between the agent and your project: blueprints in, audit out.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">Does it call out to OpenAI / Anthropic?</div>
@@ -2357,7 +2355,7 @@ cp deploy/.env.example deploy/.env
         </div>
         <div class="kv__row">
           <div class="kv__k">Can I use Coodra without Claude Code?</div>
-          <div class="kv__v">Yes. Cursor and Windsurf are supported through shell adapters. Any MCP-speaking client can talk to <code>mcp-server</code>; the hook-driven memory feature is best with Claude Code today.</div>
+          <div class="kv__v">Yes. Codex is fully supported alongside Claude Code — both get the native plugin, hooks, and MCP wiring. Any MCP-speaking client can talk to <code>mcp-server</code>.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">What happens if the hooks bridge goes down?</div>

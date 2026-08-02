@@ -2,13 +2,13 @@ import type { DbHandle } from '@coodra/db';
 
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
+import { createGetRecipeToolRegistration } from './get-recipe/manifest.js';
+import { createGetRecipeFileToolRegistration } from './get-recipe-file/manifest.js';
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
-import { createGetSkillToolRegistration } from './get-skill/manifest.js';
-import { createGetSkillFileToolRegistration } from './get-skill-file/manifest.js';
 import { createLifecycleEventToolRegistration } from './lifecycle-event/manifest.js';
 import { createLinkRunToIssueToolRegistration } from './link-run-to-issue/manifest.js';
 import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
-import { createListSkillsToolRegistration } from './list-skills/manifest.js';
+import { createListRecipesToolRegistration } from './list-recipes/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
 import { createPrepareJiraCommentToolRegistration } from './prepare-jira-comment/manifest.js';
 import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
@@ -74,9 +74,9 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // apps/hooks-bridge/src/lib/features-index-loader.ts for the SessionStart
   // injection that surfaces the index list to agents. Former tool names are
   // registered as hidden aliases below so no agent config breaks on upgrade.
-  registry.register(createListSkillsToolRegistration({ db: deps.db }));
-  registry.register(createGetSkillToolRegistration({ db: deps.db }));
-  registry.register(createGetSkillFileToolRegistration({ db: deps.db }));
+  registry.register(createListRecipesToolRegistration({ db: deps.db }));
+  registry.register(createGetRecipeToolRegistration({ db: deps.db }));
+  registry.register(createGetRecipeFileToolRegistration({ db: deps.db }));
   registry.registerAlias('list_skills', 'list_recipes');
   registry.registerAlias('get_skill', 'get_recipe');
   registry.registerAlias('get_skill_file', 'get_recipe_file');
@@ -94,8 +94,10 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // link_run_to_issue binds a run to its Jira key (runs.issue_ref) so Coodra
   // history is Jira-aware ("what touched PROJ-412?"). This is Coodra's ONLY
   // Jira MCP tool — the Jira tools themselves (getJiraIssue, etc.) come from
-  // Atlassian's Rovo MCP wired alongside Coodra via `coodra jira enable`, not
-  // from this server. J2 added link_run_to_issue; J3 added prepare_jira_comment
+  // Atlassian's Rovo MCP, wired directly via the agent's own native
+  // MCP/connector settings, not from this server (the CLI's per-IDE `coodra
+  // jira enable` wiring command was removed; a Coodra-managed redesign is
+  // planned). J2 added link_run_to_issue; J3 added prepare_jira_comment
   // (the on-request write-back helper — assembles the session summary from the
   // Context Pack + decisions; the AGENT posts it via Rovo's addCommentToJiraIssue,
   // only when the user asks). Coodra's only two Jira tools. Tool count 15 → 17.

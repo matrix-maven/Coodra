@@ -13,7 +13,7 @@ import { createWebDb } from '@/lib/db';
  * `cancelRunAction` flips a stuck `in_progress` run to `cancelled` and
  * sets `endedAt = now()`. Used by the operator-side "force-complete"
  * affordance on the runs list and run detail pages — solo-mode dev
- * boxes accumulate ghost in_progress rows when Claude / Cursor exits
+ * boxes accumulate ghost in_progress rows when Claude Code / Codex exits
  * without firing SessionEnd.
  *
  * Idempotent: cancelling an already-terminal run is a no-op (the db

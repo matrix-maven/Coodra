@@ -753,16 +753,6 @@ function StepSixIntegrations() {
           <code style={inlineMono}>/graphify .</code>). The agent calls its query tools directly.
         </p>
 
-        <div style={{ marginTop: 24 }}>
-          <FieldLabel>Jira · Atlassian Rovo</FieldLabel>
-          <pre style={{ ...codeBlockStyle, padding: 22 }}>{`coodra jira enable`}</pre>
-          <p style={{ marginTop: 14, fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-            Wires Atlassian’s Rovo remote MCP so the agent reads tickets directly, and Coodra links each run to its
-            issue. After wiring, run <code style={inlineMono}>/mcp</code> in the assistant to complete the per-user
-            sign-in. Coodra builds no Jira client (Direct, ADR-016).
-          </p>
-        </div>
-
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>
           <Link href="/" className="btn btn--accent">
             Done · open dashboard

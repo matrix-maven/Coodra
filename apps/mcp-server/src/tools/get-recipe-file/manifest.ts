@@ -14,7 +14,7 @@ const getFeatureFileIdempotencyKey: IdempotencyKeyBuilder<GetFeatureFileInput> =
   };
 };
 
-export function createGetSkillFileToolRegistration(
+export function createGetRecipeFileToolRegistration(
   deps: GetFeatureFileHandlerDeps,
 ): ToolRegistration<typeof getFeatureFileInputSchema, typeof getFeatureFileOutputSchema> {
   return {
