@@ -1,17 +1,9 @@
 import { Topbar } from '@/components/Topbar';
-import {
-  disableGraphifyAction,
-  disableJiraAction,
-  enableGraphifyAction,
-  enableJiraAction,
-} from '@/lib/actions/integrations';
+import { disableGraphifyAction, enableGraphifyAction } from '@/lib/actions/integrations';
 import {
   type GraphifyIntegrationStatus,
   type GraphifyProjectStatus,
-  type JiraIntegrationStatus,
-  type JiraProjectStatus,
   readGraphifyIntegrationStatus,
-  readJiraIntegrationStatus,
 } from '@/lib/queries/integrations';
 
 export const dynamic = 'force-dynamic';
@@ -19,11 +11,10 @@ export const dynamic = 'force-dynamic';
 /**
  * `/settings/integrations` — Module 09, Track 9B (phase G4).
  *
- * One card per external-MCP integration. Today that is Graphify; the
- * Jira card lands next to it in track 9A (J3). Each card wires an
- * external MCP server into the agent configs alongside the `coodra`
- * server — Coodra consumes these tools by configuration, not code
- * (ADR-010, Option C).
+ * One card per external-MCP integration. Today that is Graphify. Each
+ * card wires an external MCP server into the agent configs alongside
+ * the `coodra` server — Coodra consumes these tools by configuration,
+ * not code (ADR-010, Option C).
  *
  * Mode behaviour (mirrors `lib/actions/services.ts`):
  *   - local web   — the server actions write `.mcp.json` etc. directly.
@@ -35,15 +26,13 @@ export const dynamic = 'force-dynamic';
 interface SearchParams {
   readonly enabled?: string;
   readonly disabled?: string;
-  readonly jiraEnabled?: string;
-  readonly jiraDisabled?: string;
   readonly error?: string;
   readonly errorMessage?: string;
 }
 
 export default async function IntegrationsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  const [status, jiraStatus] = await Promise.all([readGraphifyIntegrationStatus(), readJiraIntegrationStatus()]);
+  const status = await readGraphifyIntegrationStatus();
 
   return (
     <>
@@ -69,19 +58,9 @@ export default async function IntegrationsPage({ searchParams }: { searchParams:
           </Banner>
         ) : null}
         {sp.disabled !== undefined ? <Banner tone="ok">● Graphify unwired for project “{sp.disabled}”.</Banner> : null}
-        {sp.jiraEnabled !== undefined ? (
-          <Banner tone="ok">
-            ● Jira (Rovo) wired for project “{sp.jiraEnabled}”. Restart the agent, then run{' '}
-            <code style={inlineMono}>/mcp</code> to complete the Atlassian sign-in.
-          </Banner>
-        ) : null}
-        {sp.jiraDisabled !== undefined ? (
-          <Banner tone="ok">● Jira unwired for project “{sp.jiraDisabled}”.</Banner>
-        ) : null}
         {sp.error !== undefined ? <Banner tone="warn">✕ {sp.errorMessage ?? sp.error}</Banner> : null}
 
         <GraphifyCard status={status} />
-        <JiraCard status={jiraStatus} />
       </section>
     </>
   );
@@ -150,7 +129,7 @@ function LocalBody({ status }: { readonly status: GraphifyIntegrationStatus }) {
       <SectionLabel>Projects</SectionLabel>
       {detectedCount === 0 ? (
         <Banner tone="warn">
-          ✕ No supported IDE (Claude Code, Cursor, Windsurf, Codex) detected on this machine. Install one, then reload.
+          ✕ No supported IDE (Claude Code, Codex) detected on this machine. Install one, then reload.
         </Banner>
       ) : (
         <p style={bodyText}>
@@ -173,8 +152,7 @@ function LocalBody({ status }: { readonly status: GraphifyIntegrationStatus }) {
       )}
 
       <p style={{ ...bodyText, marginTop: 22, fontSize: 12, color: 'var(--ink-mute)' }}>
-        Windsurf’s MCP config is global — its <code style={inlineMono}>graphify</code> entry points at the
-        most-recently-enabled project’s graph. The wiring is idempotent and never clobbers a hand-edited entry; use{' '}
+        The wiring is idempotent and never clobbers a hand-edited entry; use{' '}
         <code style={inlineMono}>coodra graphify enable --force</code> from the CLI to overwrite a drifted one.
       </p>
     </div>
@@ -262,153 +240,6 @@ function WiredBadge({
     <span className="badge">
       {wiredCount}/{detectedCount} agents
     </span>
-  );
-}
-
-/* ---------- Jira (Atlassian Rovo) card ---------- */
-
-function JiraCard({ status }: { readonly status: JiraIntegrationStatus }) {
-  return (
-    <div className="card" style={{ padding: 36, marginTop: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16 }}>
-        <h2 className="card__title" style={{ marginBottom: 6 }}>
-          Jira
-        </h2>
-        <span style={tagStyle}>issue tracker · atlassian rovo</span>
-      </div>
-      <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.6, marginBottom: 24 }}>
-        Atlassian ships its own remote MCP server (“Rovo”). Coodra wires it into your agent configs (Direct, ADR-016) so
-        the agent reads tickets directly — <code style={inlineMono}>getJiraIssue</code>,{' '}
-        <code style={inlineMono}>searchJiraIssuesUsingJql</code>, … — and Coodra links the run to its issue (
-        <code style={inlineMono}>link_run_to_issue</code>) so its own history is Jira-aware. Coodra builds no Jira
-        client, OAuth, or webhooks — those are Atlassian’s.
-      </p>
-
-      <SectionLabel>Prerequisite</SectionLabel>
-      <ol style={prereqList}>
-        <li>
-          After wiring, complete the per-user OAuth sign-in: run <code style={inlineMono}>/mcp</code> in your assistant
-          and authorize the <code style={inlineMono}>atlassian</code> server in the browser. No Coodra app, no API key —
-          the sign-in is interactive (it does not run headless in CI/cron).
-        </li>
-      </ol>
-
-      {status.cloudHosted ? <JiraTeamHostedBody /> : <JiraLocalBody status={status} />}
-    </div>
-  );
-}
-
-/** team-hosted web — the server can't touch developer configs; show the CLI command. */
-function JiraTeamHostedBody() {
-  return (
-    <div style={{ marginTop: 28 }}>
-      <SectionLabel>Enable Jira</SectionLabel>
-      <p style={bodyText}>
-        This web app is team-hosted — it has no access to each developer’s local agent configs. Every developer wires
-        Jira on their own machine, from inside the project:
-      </p>
-      <CmdBlock>coodra jira enable</CmdBlock>
-      <p style={{ ...bodyText, marginTop: 16 }}>
-        That writes the <code style={inlineMono}>atlassian</code> remote MCP entry into every detected agent config.{' '}
-        <code style={inlineMono}>coodra jira status</code> shows the wiring;{' '}
-        <code style={inlineMono}>coodra jira disable</code> removes it. Then run <code style={inlineMono}>/mcp</code> in
-        the assistant to sign in.
-      </p>
-    </div>
-  );
-}
-
-/** local web — wire the configs directly via server actions, per project. */
-function JiraLocalBody({ status }: { readonly status: JiraIntegrationStatus }) {
-  const detectedCount = status.detectedAgents.length;
-  return (
-    <div style={{ marginTop: 28 }}>
-      <SectionLabel>Projects</SectionLabel>
-      {detectedCount === 0 ? (
-        <Banner tone="warn">
-          ✕ No supported IDE (Claude Code, Cursor, Windsurf, Codex) detected on this machine. Install one, then reload.
-        </Banner>
-      ) : (
-        <p style={bodyText}>
-          Detected agents on this machine:{' '}
-          <strong style={{ color: 'var(--ink)' }}>{status.detectedAgents.join(', ')}</strong>. “Enable” wires
-          Atlassian’s Rovo remote MCP into each of them for the chosen project. Each developer still completes the{' '}
-          <code style={inlineMono}>/mcp</code> sign-in once.
-        </p>
-      )}
-
-      {status.projects.length === 0 ? (
-        <Banner tone="muted">
-          No projects registered yet. Run <code style={inlineMono}>coodra init</code> in a project, then reload.
-        </Banner>
-      ) : (
-        <div style={{ marginTop: 14, borderTop: '1px solid var(--rule)' }}>
-          {status.projects.map((project) => (
-            <JiraProjectRow key={project.slug} project={project} detectedCount={detectedCount} />
-          ))}
-        </div>
-      )}
-
-      <p style={{ ...bodyText, marginTop: 22, fontSize: 12, color: 'var(--ink-mute)' }}>
-        Windsurf’s MCP config is global — its <code style={inlineMono}>atlassian</code> entry is shared across projects.
-        The wiring is idempotent and never clobbers a hand-edited entry; use{' '}
-        <code style={inlineMono}>coodra jira enable --force</code> from the CLI to overwrite a drifted one.
-      </p>
-    </div>
-  );
-}
-
-function JiraProjectRow({
-  project,
-  detectedCount,
-}: {
-  readonly project: JiraProjectStatus;
-  readonly detectedCount: number;
-}) {
-  const noCwd = project.cwd === null;
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 16,
-        padding: '16px 0',
-        borderBottom: '1px solid var(--rule)',
-      }}
-    >
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 14, color: 'var(--ink)' }}>{project.name}</div>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-mute)', marginTop: 3 }}>
-          {project.slug}
-          {noCwd ? ' · cwd not recorded' : ''}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <WiredBadge wiredCount={project.wiredCount} detectedCount={detectedCount} noCwd={noCwd} />
-        {noCwd ? (
-          <span style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--ink-mute)' }}>run `coodra init`</span>
-        ) : (
-          <>
-            <form action={enableJiraAction}>
-              <input type="hidden" name="projectSlug" value={project.slug} />
-              <input type="hidden" name="cwd" value={project.cwd ?? ''} />
-              <button type="submit" className="btn btn--accent" disabled={detectedCount === 0}>
-                {project.wiredCount > 0 ? 'Re-sync' : 'Enable'}
-              </button>
-            </form>
-            <form action={disableJiraAction}>
-              <input type="hidden" name="projectSlug" value={project.slug} />
-              <input type="hidden" name="cwd" value={project.cwd ?? ''} />
-              <button type="submit" className="btn btn--ghost" disabled={project.wiredCount === 0}>
-                Disable
-              </button>
-            </form>
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 

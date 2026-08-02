@@ -10,8 +10,7 @@ import type { WriteOutcome } from './types.js';
  * to `mcp-merge.ts`: `codex-merge.ts` is hardcoded to the `coodra` key
  * + `<cwd>/.codex/config.toml`; this module parameterises both the
  * entry key (`name`) and the absolute `filePath`, so any external MCP
- * server (Graphify today, the Atlassian Rovo MCP next) can be wired
- * into a Codex `config.toml`.
+ * server (Graphify today) can be wired into a Codex `config.toml`.
  *
  * Codex's `[mcp_servers.<name>]` STDIO table accepts exactly
  * `command` / `args` / `env` — the same three fields the JSON
@@ -59,8 +58,7 @@ function entryToTomlObject(entry: McpEntry): Record<string, unknown> {
     if (e.env !== undefined) obj.env = e.env;
     return obj;
   }
-  // Remote shape — Codex uses `url` (+ optional headers). Windsurf's
-  // `serverUrl` alias is JSON-only; the Codex builder always emits `url`.
+  // Remote shape — Codex uses `url` (+ optional headers).
   const obj: Record<string, unknown> = {};
   if (typeof e.url === 'string') obj.url = e.url;
   if (e.headers !== undefined) obj.headers = e.headers;

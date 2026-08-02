@@ -5,10 +5,9 @@ import { glob } from 'glob';
 
 /**
  * IDEs / agents we can wire `init` for. Order matters — preference for
- * output. `codex` added beta.95 (Scope A — Codex + Windsurf MCP-config
- * + instruction-file integration).
+ * output. Coodra supports native Claude Code and Codex plugins only.
  */
-export type IDE = 'claude' | 'cursor' | 'windsurf' | 'codex';
+export type IDE = 'claude' | 'codex';
 
 export type Language = 'typescript' | 'javascript' | 'python' | 'rust' | 'go' | 'java' | 'ruby';
 
@@ -143,13 +142,11 @@ export async function detectLanguages(root: string): Promise<Language[]> {
  * stable and by `resolveIdeSelection` to return its result in the same
  * order regardless of how the user typed the flag.
  */
-export const IDE_ORDER: readonly IDE[] = ['claude', 'cursor', 'windsurf', 'codex'] as const;
+export const IDE_ORDER: readonly IDE[] = ['claude', 'codex'] as const;
 
 /** Human-readable agent names, keyed by the IDE id. One map for every command surface. */
 export const IDE_DISPLAY: Readonly<Record<IDE, string>> = {
   claude: 'Claude Code',
-  cursor: 'Cursor',
-  windsurf: 'Windsurf',
   codex: 'Codex',
 };
 
@@ -189,7 +186,7 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
   if (tokens.length === 0) {
     return {
       ok: false,
-      error: '--ide value is empty. Pass one of: claude, cursor, windsurf, codex, all (comma-separated for multiple).',
+      error: '--ide value is empty. Pass one of: claude, codex, all (comma-separated for multiple).',
     };
   }
   if (tokens.includes('all')) {
@@ -204,7 +201,7 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
     if (!allowed.has(token)) {
       return {
         ok: false,
-        error: `--ide: unknown agent '${token}'. Valid: claude, cursor, windsurf, codex, all.`,
+        error: `--ide: unknown agent '${token}'. Valid: claude, codex, all.`,
       };
     }
     seen.add(token as IDE);
@@ -214,21 +211,17 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
 
 /**
  * Look for IDE config dirs in $HOME. Each detected IDE gets one entry; the
- * order matches the candidate list (Claude, Cursor, Windsurf, Codex). An
- * empty array means no supported IDE is installed — `init` warns the user.
+ * order matches the candidate list (Claude, Codex). An empty array means
+ * no supported IDE is installed — `init` warns the user.
  *
  * Detection dirs:
  *   - claude   → ~/.claude
- *   - cursor   → ~/.cursor
- *   - windsurf → ~/.windsurf
  *   - codex    → ~/.codex   (Codex CLI's config home; beta.95)
  */
 export async function detectIDE(deps: DetectionDeps = {}): Promise<IDE[]> {
   const home = deps.homeDir ?? homedir();
   const candidates: Array<{ ide: IDE; dir: string }> = [
     { ide: 'claude', dir: '.claude' },
-    { ide: 'cursor', dir: '.cursor' },
-    { ide: 'windsurf', dir: '.windsurf' },
     { ide: 'codex', dir: '.codex' },
   ];
   const found: IDE[] = [];

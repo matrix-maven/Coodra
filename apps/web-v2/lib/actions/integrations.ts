@@ -4,7 +4,6 @@ import { homedir } from 'node:os';
 import { detectIDE } from '@coodra/cli/lib/detect';
 import { resolveGraphifyPython } from '@coodra/cli/lib/init/graphify-python';
 import { DEFAULT_GRAPHIFY_GRAPH_PATH, unwireGraphify, wireGraphify } from '@coodra/cli/lib/init/graphify-wire';
-import { unwireJira, wireJira } from '@coodra/cli/lib/init/jira-wire';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
@@ -80,7 +79,7 @@ export async function enableGraphifyAction(formData: FormData): Promise<void> {
     redirect(
       errorHref(
         'no_ide_detected',
-        'No supported IDE (Claude Code, Cursor, Windsurf, Codex) was detected on this machine. Install one, then retry.',
+        'No supported IDE (Claude Code, Codex) was detected on this machine. Install one, then retry.',
       ),
     );
   }
@@ -136,80 +135,4 @@ export async function disableGraphifyAction(formData: FormData): Promise<void> {
   }
 
   redirect(`${INTEGRATIONS_HREF}?disabled=${encodeURIComponent(projectSlug)}`);
-}
-
-/* ---------------------------------------------------------------------------
- * Jira (Atlassian Rovo) — Module 09, Track 9A (J4). Same shape as the
- * Graphify actions, on the same `refuseInTeamHosted` gate, reusing the
- * native-remote 9·Core writers (`wireJira` / `unwireJira`) from `@coodra/cli`.
- * Coodra builds no Jira client — these just write the `atlassian` remote MCP
- * entry into each detected agent config (ADR-016).
- * ------------------------------------------------------------------------- */
-
-/**
- * Wire Atlassian's Rovo remote MCP server into every detected agent config
- * for one project. Idempotent; a drifted entry is preserved (the CLI's
- * `--force` is intentionally not exposed in the web).
- */
-export async function enableJiraAction(formData: FormData): Promise<void> {
-  refuseInTeamHosted('enableJiraAction');
-
-  const parsed = PROJECT_FORM_SCHEMA.safeParse({
-    projectSlug: String(formData.get('projectSlug') ?? ''),
-    cwd: String(formData.get('cwd') ?? ''),
-  });
-  if (!parsed.success) {
-    redirect(errorHref('invalid_input', firstZodMessage(parsed.error)));
-  }
-  const { projectSlug, cwd } = parsed.data;
-  const userHome = homedir();
-
-  const detected = await detectIDE();
-  if (detected.length === 0) {
-    redirect(
-      errorHref(
-        'no_ide_detected',
-        'No supported IDE (Claude Code, Cursor, Windsurf, Codex) was detected on this machine. Install one, then retry.',
-      ),
-    );
-  }
-
-  try {
-    for (const ide of detected) {
-      await wireJira({ ide, cwd, userHome, force: false, dryRun: false });
-    }
-  } catch (err) {
-    redirect(errorHref('enable_failed', (err as Error).message));
-  }
-
-  redirect(`${INTEGRATIONS_HREF}?jiraEnabled=${encodeURIComponent(projectSlug)}`);
-}
-
-/**
- * Remove the `atlassian` MCP entry from every detected agent config for one
- * project. Idempotent — a missing file or missing entry is a no-op.
- */
-export async function disableJiraAction(formData: FormData): Promise<void> {
-  refuseInTeamHosted('disableJiraAction');
-
-  const parsed = PROJECT_FORM_SCHEMA.safeParse({
-    projectSlug: String(formData.get('projectSlug') ?? ''),
-    cwd: String(formData.get('cwd') ?? ''),
-  });
-  if (!parsed.success) {
-    redirect(errorHref('invalid_input', firstZodMessage(parsed.error)));
-  }
-  const { projectSlug, cwd } = parsed.data;
-  const userHome = homedir();
-
-  const detected = await detectIDE();
-  try {
-    for (const ide of detected) {
-      await unwireJira({ ide, cwd, userHome, dryRun: false });
-    }
-  } catch (err) {
-    redirect(errorHref('disable_failed', (err as Error).message));
-  }
-
-  redirect(`${INTEGRATIONS_HREF}?jiraDisabled=${encodeURIComponent(projectSlug)}`);
 }

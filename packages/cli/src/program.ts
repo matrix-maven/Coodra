@@ -52,15 +52,6 @@ import {
 import { type InitIO, type InitOptions, runInitCommand } from './commands/init.js';
 import { type InstallIO, type InstallOptions, runInstallCommand } from './commands/install.js';
 import { type InviteIO, type InviteOptions, runInviteCommand } from './commands/invite.js';
-import {
-  type JiraDisableOptions,
-  type JiraEnableOptions,
-  type JiraIO,
-  type JiraStatusOptions,
-  runJiraDisableCommand,
-  runJiraEnableCommand,
-  runJiraStatusCommand,
-} from './commands/jira.js';
 import { type LoginIO, type LoginOptions, runLoginCommand } from './commands/login.js';
 import { type LogoutIO, type LogoutOptions, runLogoutCommand } from './commands/logout.js';
 import { type LogsIO, type LogsOptions, runLogsCommand } from './commands/logs.js';
@@ -202,10 +193,6 @@ interface BuildProgramOptions {
   readonly runGraphifyEnable?: (options: GraphifyEnableOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly runGraphifyDisable?: (options: GraphifyDisableOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly runGraphifyStatus?: (options: GraphifyStatusOptions, io?: GraphifyIO) => Promise<unknown>;
-  readonly jiraIO?: JiraIO;
-  readonly runJiraEnable?: (options: JiraEnableOptions, io?: JiraIO) => Promise<unknown>;
-  readonly runJiraDisable?: (options: JiraDisableOptions, io?: JiraIO) => Promise<unknown>;
-  readonly runJiraStatus?: (options: JiraStatusOptions, io?: JiraIO) => Promise<unknown>;
   readonly wikiIO?: WikiIO;
   readonly runWikiGenerate?: (options: WikiGenerateOptions, io?: WikiIO) => Promise<unknown>;
   readonly runWikiStatus?: (options: WikiStatusOptions, io?: WikiIO) => Promise<unknown>;
@@ -409,7 +396,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('agents')
     .description(
-      'Show per-agent wiring status (Claude Code, Cursor, Windsurf, Codex). Read-only, same report as `coodra agent status` — use `coodra agent add|remove` to change wiring.',
+      'Show per-agent wiring status (Claude Code, Codex). Read-only, same report as `coodra agent status` — use `coodra agent add|remove` to change wiring.',
     )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentsOptions) => {
@@ -417,21 +404,16 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   // Phase 1 — `coodra agent {add,status,remove,repair} <agent>` drives the
-  // AgentAdapter registry (lib/agents). Machine-level native plugin path for
-  // Codex, and the single-agent repair/status surface for other adapters while
-  // their native-plugin features land.
+  // AgentAdapter registry (lib/agents). Both Claude Code and Codex wire a
+  // global native plugin.
   const agentAddRunner = options.runAgentAdd ?? runAgentAddCommand;
   const agentRemoveRunner = options.runAgentRemove ?? runAgentRemoveCommand;
   const agentRepairRunner = options.runAgentRepair ?? runAgentRepairCommand;
   const agentStatusRunner = options.runAgentStatus ?? runAgentStatusCommand;
-  const agent = program
-    .command('agent')
-    .description('Wire, re-wire, or strip a single coding agent (claude | cursor | codex | windsurf | devin).');
+  const agent = program.command('agent').description('Wire, re-wire, or strip a single coding agent (claude | codex).');
   agent
     .command('add <agent>')
-    .description(
-      'Wire the Coodra bundle for one agent. Codex installs a global native plugin; older adapters use their current MCP/instruction surfaces. Accepts claude|cursor|codex|windsurf|devin|all|detected.',
-    )
+    .description('Wire the Coodra bundle for one agent as a global native plugin. Accepts claude|codex|all|detected.')
     .option('--force', 'Overwrite existing Coodra entries with the current baseline.')
     .option('--dry-run', 'Print what would change without touching disk.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
@@ -456,7 +438,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
   agent
     .command('status')
-    .description('Per-agent Coodra wiring report (claude, cursor, windsurf/devin, codex). Read-only.')
+    .description('Per-agent Coodra wiring report (claude, codex). Read-only.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentCommandOptions) => {
       await agentStatusRunner(opts, options.agentIO);
@@ -501,15 +483,16 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('graphify')
     .description(
       "Wire Graphify's codebase-graph MCP server (a structural-query tool) into your agent config " +
-        '(Claude Code / Cursor / Windsurf / Codex). Option C per ADR-010 / ADR-015 — Coodra consumes Graphify ' +
-        'by configuration, not code, and does not mint Work Packs from it.',
+        '(Claude Code / Codex). Claude Code is native-plugin-managed; Codex also gets one via ' +
+        '`coodra agent add codex` and only needs explicit wiring for a custom graph path. Option C per ' +
+        'ADR-010 / ADR-015 — Coodra consumes Graphify by configuration, not code, and does not mint Work Packs from it.',
     );
   graphify
     .command('enable')
     .description(
       'Add the `graphify` MCP server entry to each detected agent config so the agent can run structural queries. Idempotent; preserves the `coodra` entry and your edits.',
     )
-    .option('--ide <ide>', 'IDE(s) to wire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
+    .option('--ide <ide>', 'IDE(s) to wire ("claude", "codex", or "all"; comma-separated).')
     .option(
       '--python <path>',
       'Python interpreter for `-m graphify.serve`. Omit to auto-detect a verified graphifyy[mcp] interpreter (active venv → ./.venv → the `graphify` install → uv tool → python3); pass a path to pin one explicitly.',
@@ -534,7 +517,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       'Remove the `graphify` MCP server entry from each agent config. Idempotent. Leaves every other entry untouched.',
     )
-    .option('--ide <ide>', 'IDE(s) to unwire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
+    .option('--ide <ide>', 'IDE(s) to unwire ("claude", "codex", or "all"; comma-separated).')
     .option('--dry-run', 'Report what would change without touching disk.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyDisableOptions) => {
@@ -589,7 +572,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   graphify
     .command('status')
     .description(
-      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Cursor / Windsurf / Codex), plus the graph artifacts (path, size, node/link/community counts). Read-only.',
+      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Codex), plus the graph artifacts (path, size, node/link/community counts). Read-only.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyStatusOptions) => {
@@ -609,7 +592,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('wiki')
     .description(
       'Generate a DeepWiki-style, hierarchical/mind-map explanation of this codebase. Your coding agent (Claude ' +
-        'Code / Codex / Cursor) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
+        'Code / Codex) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
     );
   wiki
     .command('build')
@@ -700,56 +683,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (issueKey: string, opts: WorkImportOptions) => {
       await workImportRunner(issueKey, opts, options.workIO);
-    });
-
-  // Module 09 Track 9A (Jira = Direct, ADR-016) — `coodra jira
-  // {enable,disable,status}` wires Atlassian's own remote MCP server
-  // ("Rovo") into the agent config(s). Coodra consumes Jira by
-  // configuration, not by code: the entry points the agent at
-  // https://mcp.atlassian.com/v1/mcp/authv2 and the agent calls
-  // Atlassian's own Jira tools. Native remote entry only — no mcp-remote
-  // shim (decision 2026-05-31).
-  const jiraEnableRunner = options.runJiraEnable ?? runJiraEnableCommand;
-  const jiraDisableRunner = options.runJiraDisable ?? runJiraDisableCommand;
-  const jiraStatusRunner = options.runJiraStatus ?? runJiraStatusCommand;
-  const jira = program
-    .command('jira')
-    .description(
-      "Wire Atlassian's Jira (Rovo) remote MCP server into your agent config " +
-        '(Claude Code / Cursor / Windsurf / Codex). Direct per ADR-016 — Coodra consumes Jira ' +
-        'by configuration, not code, and builds no Jira client, OAuth, or jira_* tools.',
-    );
-  jira
-    .command('enable')
-    .description(
-      "Add the `atlassian` (Rovo) remote MCP server entry to each detected agent config so the agent can call Atlassian's Jira tools. Idempotent; preserves the `coodra` entry and your edits.",
-    )
-    .option('--ide <ide>', 'IDE(s) to wire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
-    .option('--force', 'Overwrite an existing drifted `atlassian` entry with the baseline.')
-    .option('--dry-run', 'Report what would change without touching disk.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: JiraEnableOptions) => {
-      await jiraEnableRunner(opts, options.jiraIO);
-    });
-  jira
-    .command('disable')
-    .description(
-      'Remove the `atlassian` MCP server entry from each agent config. Idempotent. Leaves every other entry untouched.',
-    )
-    .option('--ide <ide>', 'IDE(s) to unwire ("claude", "cursor", "windsurf", "codex", or "all"; comma-separated).')
-    .option('--dry-run', 'Report what would change without touching disk.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: JiraDisableOptions) => {
-      await jiraDisableRunner(opts, options.jiraIO);
-    });
-  jira
-    .command('status')
-    .description(
-      'Show whether the `atlassian` MCP entry is present in each agent config (Claude Code / Cursor / Windsurf / Codex). Read-only.',
-    )
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: JiraStatusOptions) => {
-      await jiraStatusRunner(opts, options.jiraIO);
     });
 
   // Phase G slice G.3 — top-level `coodra login` for browser-handoff auth.
@@ -949,7 +882,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
     .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
     .option('--command-pattern <glob>', 'Shell command glob to match for Bash rules (e.g. "git push*--force*").')
-    .option('--agent-type <type>', 'Agent type to match: claude_code | cursor | windsurf | * (default: *).')
+    .option('--agent-type <type>', 'Agent type to match: claude_code | codex | * (default: *).')
     .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
     .option('--policy-name <name>', 'Target policy name (default: __default__).')
     .option('--json', 'Emit a structured JSON report.')

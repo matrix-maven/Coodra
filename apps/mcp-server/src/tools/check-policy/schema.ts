@@ -55,8 +55,7 @@ export const checkPolicyInputSchema = z
     toolInput: z.record(z.string(), z.unknown()),
     runId: z.string().min(1).max(256).optional(),
     // F14 closure (2026-04-27 verification): per-invocation turn id
-    // (Claude Code `tool_use_id`, Cursor `tool_call_id`, Windsurf
-    // `execution_id`). Threads into the audit-row idempotency key so
+    // (Claude Code `tool_use_id`). Threads into the audit-row idempotency key so
     // distinct invocations of the same tool within a session land
     // distinct policy_decisions rows. Optional for backward
     // compatibility — absent → `'no-turn'` fallback.

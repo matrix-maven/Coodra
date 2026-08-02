@@ -62,7 +62,7 @@ describe('auth chain on POST /v1/hooks/{agent}', () => {
   it('(2) X-Local-Hook-Secret matches → request proceeds', async () => {
     const secret = 'a'.repeat(32);
     const { hono } = buildApp({ env: makeEnv(), localHookSecret: secret });
-    const res = await hono.request('/v1/hooks/windsurf', {
+    const res = await hono.request('/v1/hooks/codex', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-local-hook-secret': secret },
       body: STUB_BODY,
@@ -106,9 +106,9 @@ describe('auth chain on POST /v1/hooks/{agent}', () => {
     expect(res.status).toBe(401);
   });
 
-  it('all agent routes share the same chain (windsurf, cursor, codex, claude-code identical)', async () => {
+  it('all agent routes share the same chain (codex, claude-code identical)', async () => {
     const { hono } = buildApp({ env: makeEnv({ CLERK_SECRET_KEY: 'sk_test_replace_me' }) });
-    for (const agent of ['claude-code', 'windsurf', 'cursor', 'codex'] as const) {
+    for (const agent of ['claude-code', 'codex'] as const) {
       const res = await hono.request(`/v1/hooks/${agent}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

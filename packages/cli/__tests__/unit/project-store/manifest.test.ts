@@ -38,13 +38,13 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.cursor/mcp.json'), entry('.cursorrules', { owner: 'agent:cursor' })],
+      entries: [entry('.codex/config.toml'), entry('AGENTS.md', { owner: 'agent:codex' })],
       dryRun: false,
       now: CLOCK,
     });
     const m = await readManifest(root);
     expect(m?.projectSlug).toBe('demo');
-    expect(m?.entries.map((e) => e.path)).toEqual(['.cursor/mcp.json', '.cursorrules']);
+    expect(m?.entries.map((e) => e.path)).toEqual(['.codex/config.toml', 'AGENTS.md']);
     expect(m?.entries.every((e) => e.updatedAt === CLOCK())).toBe(true);
   });
 
@@ -52,14 +52,14 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.cursor/mcp.json', { kind: 'mcp-config' })],
+      entries: [entry('.codex/config.toml', { kind: 'mcp-config' })],
       dryRun: false,
       now: CLOCK,
     });
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.cursor/mcp.json', { kind: 'updated-kind' })],
+      entries: [entry('.codex/config.toml', { kind: 'updated-kind' })],
       dryRun: false,
       now: CLOCK,
     });
@@ -72,25 +72,21 @@ describe('project-store manifest — record/read/prune', () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [
-        entry('.cursor/mcp.json'),
-        entry('.cursorrules'),
-        entry('.coodra/config.json', { cleanup: 'preserve' }),
-      ],
+      entries: [entry('.codex/config.toml'), entry('AGENTS.md'), entry('.coodra/config.json', { cleanup: 'preserve' })],
       dryRun: false,
       now: CLOCK,
     });
-    const removed = await pruneManifestEntries(root, ['.cursor/mcp.json', '.not-there'], { dryRun: false });
-    expect(removed).toEqual(['.cursor/mcp.json']);
+    const removed = await pruneManifestEntries(root, ['.codex/config.toml', '.not-there'], { dryRun: false });
+    expect(removed).toEqual(['.codex/config.toml']);
     const m = await readManifest(root);
-    expect(m?.entries.map((e) => e.path).sort()).toEqual(['.coodra/config.json', '.cursorrules']);
+    expect(m?.entries.map((e) => e.path).sort()).toEqual(['.coodra/config.json', 'AGENTS.md']);
   });
 
   it('--dry-run records nothing to disk', async () => {
     await recordManifestEntries({
       root,
       projectSlug: 'demo',
-      entries: [entry('.cursor/mcp.json')],
+      entries: [entry('.codex/config.toml')],
       dryRun: true,
       now: CLOCK,
     });
@@ -106,12 +102,9 @@ describe('project-store manifest — classifyGeneratedPath', () => {
       ['data.db', { owner: 'coodra', kind: 'sqlite-db', cleanup: 'preserve', scope: 'project' }],
       ['logs', { owner: 'coodra', kind: 'logs-dir', cleanup: 'preserve', scope: 'project' }],
       ['pids', { owner: 'coodra', kind: 'pids-dir', cleanup: 'preserve', scope: 'project' }],
-      ['.cursor/mcp.json', { owner: 'agent:cursor', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],
-      ['.cursorrules', { owner: 'agent:cursor', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
       ['.codex/config.toml', { owner: 'agent:codex', kind: 'mcp-config', cleanup: 'ask', scope: 'project' }],
       ['AGENTS.md', { owner: 'agent:codex', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
       ['CLAUDE.md', { owner: 'agent:claude', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
-      ['.windsurfrules', { owner: 'agent:windsurf', kind: 'instruction-file', cleanup: 'ask', scope: 'project' }],
     ];
     for (const [rel, expected] of cases) {
       const e = classifyGeneratedPath(join(root, rel), root, 'coodra init');
@@ -128,11 +121,5 @@ describe('project-store manifest — classifyGeneratedPath', () => {
     expect(e.owner).toBe('agent:claude');
     expect(e.cleanup).toBe('preserve');
     expect(e.safeToDelete).toBe(false);
-
-    const windsurf = '/Users/someone/.codeium/windsurf/mcp_config.json';
-    const w = classifyGeneratedPath(windsurf, root, 'coodra agent add devin');
-    expect(w.scope).toBe('global');
-    expect(w.owner).toBe('agent:windsurf');
-    expect(w.cleanup).toBe('preserve');
   });
 });

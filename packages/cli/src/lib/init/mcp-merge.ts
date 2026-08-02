@@ -58,8 +58,8 @@ export interface BuildMcpEntryOptions {
    */
   readonly localHookSecret?: string;
   /**
-   * Which agent this MCP entry is written FOR (`claude_code` / `cursor` /
-   * `windsurf` / `codex`). Stamped as `COODRA_AGENT_TYPE` in the entry's
+   * Which agent this MCP entry is written FOR (`claude_code` / `codex`).
+   * Stamped as `COODRA_AGENT_TYPE` in the entry's
    * env so the spawned stdio server can attribute `runs.agent_type` even
    * when the client's `initialize.clientInfo.name` is one the server's
    * mapping table has never seen (the observed failure: Codex ships
@@ -69,7 +69,7 @@ export interface BuildMcpEntryOptions {
    * resolveAgentType`). Safe per-entry because each agent has its own
    * config file and spawns its own server process.
    */
-  readonly agentType?: 'claude_code' | 'cursor' | 'windsurf' | 'codex';
+  readonly agentType?: 'claude_code' | 'codex';
 }
 
 export interface CoodraMcpEntry {

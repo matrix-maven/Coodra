@@ -926,6 +926,6 @@ shared cloud DB. But it never gates web sign-in. Web sign-in is Clerk's job.
 > same feature on different days don't silently contradict each other.**
 
 The web app is how you author + browse it. The CLI is how you set it up
-+ run the daemons. Claude Code (or Cursor / Windsurf) is what actually
++ run the daemons. Claude Code (or Codex) is what actually
 does the work and writes the audit history. Sync daemons mirror
 everything in the background.

@@ -21,11 +21,10 @@ import { z } from 'zod';
  * Agents (or their harnesses) should pass:
  *   - `agentSessionId` = the same `session_id` they fire at the
  *     hooks bridge in the SessionStart payload.
- *   - `agentType` = `claude_code | cursor | windsurf | codex | unknown`
- *     so the runs row's agent_type column is populated correctly
- *     (closes F10 — without it, MCP-minted rows defaulted to
- *     `unknown` regardless of which agent was active). `codex` added
- *     beta.95 — Codex/Windsurf Scope A integration.
+ *   - `agentType` = `claude_code | codex | unknown` so the runs row's
+ *     agent_type column is populated correctly (closes F10 — without
+ *     it, MCP-minted rows defaulted to `unknown` regardless of which
+ *     agent was active).
  *
  * Both fields are optional and backward-compatible: callers that
  * omit them get the legacy behaviour (ctx.sessionId, transport-
@@ -47,7 +46,7 @@ export const getRunIdInputSchema = z
           'runs row. Omit to use the transport-generated sessionId (legacy).',
       ),
     agentType: z
-      .enum(['claude_code', 'cursor', 'windsurf', 'codex', 'unknown'])
+      .enum(['claude_code', 'codex', 'unknown'])
       .optional()
       .describe(
         'Agent type stamp for the runs row. Fallback only: it applies when the transport ' +

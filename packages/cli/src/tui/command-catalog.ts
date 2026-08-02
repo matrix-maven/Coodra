@@ -76,7 +76,6 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   skill: 'skills',
   wiki: 'wiki',
   graphify: 'integrations',
-  jira: 'integrations',
   template: 'templates',
   pause: 'enforcement',
   resume: 'enforcement',
@@ -131,14 +130,12 @@ const INTERACTIVE: ReadonlySet<string> = new Set([
   'coodra team migrate',
   'coodra team leave',
   'coodra team login',
-  // These three gate their prompts on `process.stdin.isTTY` — which is TRUE
+  // These two gate their prompts on `process.stdin.isTTY` — which is TRUE
   // under Ink's raw-mode stdin, so running them in-process would fight Ink
   // for input and hang. `files clean` prompts per ask-tier file,
-  // `graphify enable` prompts for legacy-layout migration + the install
-  // offer, `jira enable` prompts when a foreign Atlassian entry exists.
+  // `graphify enable` prompts for legacy-layout migration + the install offer.
   'coodra files clean',
   'coodra graphify enable',
-  'coodra jira enable',
 ]);
 
 /** First sentence of a commander description, capped — commander descriptions run long. */

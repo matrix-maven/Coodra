@@ -14,7 +14,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
 
 **Memory, project context, and policy guardrails for AI coding agents.**
-**Works with Claude Code, Codex, Cursor, and Devin/Windsurf — local-first, MIT.**
+**Works with Claude Code and Codex — local-first, MIT.**
 
 </div>
 
@@ -61,7 +61,7 @@ Plus an **on-demand skill layer** (Anthropic Skills pattern) the agent pulls onl
 
 ```mermaid
 flowchart LR
-  A["Claude Code<br/>Codex<br/>Cursor<br/>Devin/Windsurf"]
+  A["Claude Code<br/>Codex"]
   B["MCP Server<br/>:3100<br/>20 tools"]
   H["Hooks Bridge<br/>:3101<br/>Pre / Post / Start / End"]
   S["Sync Daemon<br/>team mode only"]
@@ -211,7 +211,7 @@ Single tarball via esbuild — `npm i -g @coodra/cli` is the default install ste
 | Linux (x64 / arm64) | ✅ Full | systemd-user daemons; all surfaces |
 | **Windows (x64)** | ✅ **Core** | `npm i -g @coodra/cli` → `coodra install` → `coodra init` → `coodra start` prepares the machine runtime and registers a project. Daemons run via the detached-child fallback manager; native `better-sqlite3` + `sqlite-vec-windows-x64` install per-platform. Proven by the `windows-latest` CI smoke. |
 
-On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), the **Cursor / Devin/Windsurf** shell hook adapters (`.sh` + `curl` + `python3` — Claude Code's HTTP hooks are unaffected), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
+On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
 
 ---
 
@@ -220,7 +220,7 @@ On Windows the following are **not yet supported** (tracked for a follow-up): th
 ```
 apps/
   mcp-server/    Coodra MCP server (20 tools)
-  hooks-bridge/  Claude Code / Cursor / Windsurf hook receiver
+  hooks-bridge/  Claude Code / Codex hook receiver
   sync-daemon/   Team-mode cloud sync (push + pull)
   web-v2/        Admin + audit-trail UI (Next.js 15)
 

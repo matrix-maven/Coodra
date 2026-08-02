@@ -16,9 +16,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *   - Claude Code: `claude-code-{uuid}` or `claude-code-{uuid}:fork-{n}`
  *     (the second form has a colon — exactly what runKeySegmentSchema
  *     rejects).
- *   - Windsurf: `traj-{base32}` (no colon, but may carry whitespace
- *     in older Windsurf builds).
- *   - Cursor: `conv-{uuid}` (per ADR-009).
+ *   - Codex: `codex-{uuid}`.
  *
  * Sanitization rules (in order):
  *   1. Replace every `<`, `>`, `:`, `"`, `/`, `\\`, `|`, `?`, `*`, or

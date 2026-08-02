@@ -149,8 +149,6 @@ export LOCAL_HOOK_SECRET=<paste from terminal 1>
 # the bridge logs `hook_ingress` events.
 ```
 
-For Windsurf / Cursor adapters, run `bash scripts/hook-adapters/install.sh` to copy the shell adapters into the IDE's hooks directory. The adapter scripts read `LOCAL_HOOK_SECRET` and `HOOKS_BRIDGE_PORT` from the environment. (Module 08a's `coodra init` CLI will automate this.)
-
 ### Iterating on the CLI (Module 08a)
 
 `@coodra/cli` is a regular workspace TypeScript package — same `tsc → dist/` pipeline as `@coodra/shared` and every other package. There is no separate build tool. Module 08a Decision 5 ships it as a published npm package (`@coodra/cli`); the publish step itself is out of 08a scope.
@@ -383,7 +381,7 @@ running`.
 ### Pure-MCP runs don't generate `run_events`
 
 Running an agent that calls **only** the MCP server (no Claude Code or
-Cursor hooks firing at the bridge) populates `runs`, `policy_decisions`,
+Codex hooks firing at the bridge) populates `runs`, `policy_decisions`,
 `decisions`, and `context_packs` — but **not** `run_events`. The
 `run_events` table is written by `apps/hooks-bridge/src/handlers/post-tool-use.ts`
 on `PostToolUse` hook ingress; the MCP server itself never inserts there.

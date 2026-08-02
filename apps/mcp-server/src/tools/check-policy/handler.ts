@@ -62,9 +62,7 @@ import type { CheckPolicyInput, CheckPolicyOutput } from './schema.js';
  * `'ask'` reaches the response when a rule matches with `decision='ask'`
  * (E2E finding F6, 2026-07-04). The seeded default policy's "ask before
  * Bash" rule now round-trips: rule matched → `permissionDecision: 'ask'`
- * → Claude Code renders a user-confirmation prompt. Cursor / Windsurf,
- * whose hook responses have no ask tier, degrade `'ask'` → `'allow'` at
- * the bridge serialization boundary (an ask is not a block).
+ * → Claude Code renders a user-confirmation prompt.
  */
 
 const handlerLogger = createLogger('mcp-server.tool.check_policy');

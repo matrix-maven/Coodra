@@ -21,10 +21,7 @@ import type { IdempotencyKey } from '@coodra/shared/idempotency';
  * Policy decision tiers. `'ask'` (2026-07-04, E2E finding F6) is a real,
  * enforced tier — a matched rule with `decision='ask'` propagates to
  * Claude Code's PreToolUse `permissionDecision: 'ask'` (user-confirmation
- * prompt). Agents without an ask tier (Cursor / Windsurf hooks, which
- * only speak allow/deny) degrade `'ask'` → `'allow'` at the bridge
- * serialization boundary — an ask is not a block. `FAIL_OPEN_RESULT`
- * stays `'allow'`.
+ * prompt). `FAIL_OPEN_RESULT` stays `'allow'`.
  */
 export type PolicyDecision = 'allow' | 'deny' | 'ask';
 
@@ -90,7 +87,7 @@ export interface PolicyClient {
  * registry translates this into the tool-error envelope so clients see
  * a structured refusal rather than a silent success + empty body.
  * Hooks-bridge translates it into the agent's native deny shape
- * (Claude Code hookSpecificOutput / Windsurf+Cursor decision JSON).
+ * (Claude Code hookSpecificOutput).
  */
 export class PolicyDenyError extends Error {
   public readonly toolName: string;

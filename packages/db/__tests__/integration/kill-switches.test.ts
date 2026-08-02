@@ -137,7 +137,7 @@ describe('@coodra/db::kill_switches helpers', () => {
     // Even with no projectId on the event:
     const matchedNoProject = findKillSwitchMatchingEvent(switches, {
       toolName: 'Read',
-      agentType: 'cursor',
+      agentType: 'codex',
     });
     expect(matchedNoProject?.id).toBe(row.id);
   });
@@ -169,10 +169,10 @@ describe('@coodra/db::kill_switches helpers', () => {
 
   it('Fixture 5 — findKillSwitchMatchingEvent: scope=tool matches only the named tool, scope=agent_type matches only the named agent', async () => {
     const bashSwitch = await insertKillSwitch(handle, { scope: 'tool', target: 'Bash', reason: 'no bash' });
-    const cursorSwitch = await insertKillSwitch(handle, {
+    const codexSwitch = await insertKillSwitch(handle, {
       scope: 'agent_type',
-      target: 'cursor',
-      reason: 'block cursor',
+      target: 'codex',
+      reason: 'block codex',
     });
     const switches = await listActiveKillSwitches(handle, 'proj_demo');
 
@@ -185,17 +185,17 @@ describe('@coodra/db::kill_switches helpers', () => {
       })?.id,
     ).toBe(bashSwitch.id);
 
-    // Edit event from cursor → matches the agent_type switch.
+    // Edit event from codex → matches the agent_type switch.
     expect(
       findKillSwitchMatchingEvent(switches, {
         projectId: 'proj_demo',
         toolName: 'Edit',
-        agentType: 'cursor',
+        agentType: 'codex',
       })?.id,
-    ).toBe(cursorSwitch.id);
+    ).toBe(codexSwitch.id);
 
     // Edit event from claude_code → matches NOTHING (no global, no project,
-    // tool=Edit ≠ Bash, agent_type=claude_code ≠ cursor).
+    // tool=Edit ≠ Bash, agent_type=claude_code ≠ codex).
     expect(
       findKillSwitchMatchingEvent(switches, {
         projectId: 'proj_demo',

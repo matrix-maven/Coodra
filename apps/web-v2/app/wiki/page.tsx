@@ -10,8 +10,8 @@ export const dynamic = 'force-dynamic';
  * the workspace, grouped by project. Each card links to the hierarchical
  * reader at `/wiki/<id>`.
  *
- * Wikis are authored by the user's coding agent (Claude Code / Codex /
- * Cursor) via Coodra's wiki_* MCP tools — Coodra runs no LLM. Operators
+ * Wikis are authored by the user's coding agent (Claude Code / Codex)
+ * via Coodra's wiki_* MCP tools — Coodra runs no LLM. Operators
  * kick one off with `coodra wiki generate`.
  */
 export default async function WikiIndexPage() {

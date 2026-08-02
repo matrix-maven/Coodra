@@ -21,8 +21,9 @@ import type { DispatchHookEvent, HookDispatchResult } from '../app.js';
  *   - `eventPhase === 'user_prompt'`   → userPromptSubmitHandler.
  *   - `eventPhase === 'config_change'` → configChangeHandler (projection drift attestation only).
  *
- * Returns null events (Windsurf unmapped) are surfaced from the route
- * directly, not through here. This composer assumes a non-null event.
+ * A null event (an adapter that declines to map a payload) is surfaced
+ * from the route directly, not through here. This composer assumes a
+ * non-null event.
  */
 
 const dispatchLogger = createLogger('hooks-bridge.dispatch');

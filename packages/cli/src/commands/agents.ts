@@ -4,16 +4,13 @@ import { join } from 'node:path';
 import { EXIT_OK } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
-import { INSTRUCTION_BLOCK_START } from '../lib/init/instruction-files.js';
-import { defaultWindsurfMcpConfigPath } from '../lib/init/windsurf-merge.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, type KvRow, kvBlock, sectionHead, terminalWidth } from '../ui/index.js';
 
 /**
  * `coodra agents` — read-only status surface for the multi-agent wiring.
  *
- * Lists each supported agent (Claude Code, Cursor, Windsurf, Codex)
- * with a per-file status:
+ * Lists each supported agent (Claude Code, Codex) with a per-file status:
  *   ✓ wired   — file exists AND contains a managed coodra entry/block
  *   ◌ partial — file exists but no coodra entry/block (or vice versa)
  *   ✗ missing — file does not exist
@@ -47,7 +44,7 @@ export const DEFAULT_AGENTS_IO: AgentsIO = {
   },
 };
 
-type AgentName = 'claude' | 'cursor' | 'windsurf' | 'codex';
+type AgentName = 'claude' | 'codex';
 
 export interface AgentFileState {
   /** Display name of the file (`.mcp.json`, `~/.claude/settings.json`, etc.). */
@@ -107,8 +104,6 @@ function renderAgent(report: AgentReport, slot: number, io: AgentsIO): void {
     valueTone: file.wired ? 'phosphor' : file.exists ? 'amber' : 'inkFar',
   }));
   if (rows.length > 0) {
-    // 42-col key gives `~/.codeium/windsurf/mcp_config.json` (the
-    // longest label) breathing room before the value column starts.
     io.writeStdout(`${kvBlock(rows, { keyWidth: 42, indent: 2 })}\n`);
   }
   if (report.howToEnable !== null) {
@@ -128,7 +123,7 @@ export interface BuildReportsInput {
 }
 
 export async function buildAgentReports(input: BuildReportsInput): Promise<readonly AgentReport[]> {
-  return [await claudeReport(input), await cursorReport(input), await windsurfReport(input), await codexReport(input)];
+  return [await claudeReport(input), await codexReport(input)];
 }
 
 async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
@@ -186,45 +181,6 @@ async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
     howToEnable: detected
       ? null
       : 'Install Claude Code (claude.ai/code), then run `coodra init` (or `coodra init --ide claude`).',
-  };
-}
-
-async function cursorReport(input: BuildReportsInput): Promise<AgentReport> {
-  const cursorDir = join(input.userHome, '.cursor');
-  const detected = await pathExists(cursorDir);
-  return {
-    name: 'cursor',
-    displayName: 'Cursor',
-    detected,
-    detectionPath: `${cursorDir}/`,
-    files: [
-      await mcpJsonState({ path: join(input.cwd, '.cursor', 'mcp.json'), label: '.cursor/mcp.json' }),
-      await instructionFileState({ path: join(input.cwd, '.cursorrules'), label: '.cursorrules' }),
-    ],
-    howToEnable: detected
-      ? null
-      : 'Install Cursor (cursor.com), then run `coodra init` (or `coodra init --ide cursor`).',
-  };
-}
-
-async function windsurfReport(input: BuildReportsInput): Promise<AgentReport> {
-  const windsurfDir = join(input.userHome, '.windsurf');
-  const detected = await pathExists(windsurfDir);
-  return {
-    name: 'windsurf',
-    displayName: 'Windsurf',
-    detected,
-    detectionPath: `${windsurfDir}/`,
-    files: [
-      await mcpJsonState({
-        path: defaultWindsurfMcpConfigPath(input.userHome),
-        label: '~/.codeium/windsurf/mcp_config.json',
-      }),
-      await instructionFileState({ path: join(input.cwd, '.windsurfrules'), label: '.windsurfrules' }),
-    ],
-    howToEnable: detected
-      ? null
-      : 'Install Windsurf (codeium.com/windsurf), then run `coodra init` (or `coodra init --ide windsurf`).',
   };
 }
 
@@ -331,26 +287,6 @@ async function fileContainsState(input: FileContainsInput): Promise<AgentFileSta
       exists: true,
       wired,
       notes: wired ? input.wiredNote : input.partialNote,
-    };
-  } catch {
-    return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable file' };
-  }
-}
-
-async function instructionFileState(input: FileLabelInput): Promise<AgentFileState> {
-  const exists = await pathExists(input.path);
-  if (!exists) {
-    return { label: input.label, path: input.path, exists: false, wired: false, notes: 'missing' };
-  }
-  try {
-    const raw = await readFile(input.path, 'utf8');
-    const wired = raw.includes(INSTRUCTION_BLOCK_START);
-    return {
-      label: input.label,
-      path: input.path,
-      exists: true,
-      wired,
-      notes: wired ? 'coodra block present' : 'no coodra block — run `coodra init`',
     };
   } catch {
     return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable file' };

@@ -12,12 +12,11 @@ import type { RunRecorder } from '../lib/run-recorder.js';
  * `apps/hooks-bridge/src/handlers/user-prompt-submit` — schedules an
  * audit append to `run_events` with `phase = 'user_prompt'`.
  *
- * Today only Claude Code's `UserPromptSubmit` event surfaces here
- * (the adapter folds `prompt` + `prompt_id` into the event's
+ * Both Claude Code's and Codex's `UserPromptSubmit` events surface
+ * here (each adapter folds `prompt` + `prompt_id` into the event's
  * `toolInput` field with stable sentinel `toolName: 'user_prompt'`).
- * Windsurf's `pre_user_prompt` and Cursor's potential equivalent map
- * to the same eventPhase via the per-agent adapters; if those land
- * later, this handler picks them up without modification.
+ * A future agent adapter mapping to the same eventPhase is picked up
+ * without modification.
  *
  * The recorder clamps `toolInput` to 8KB code points, so a multi-MB
  * paste is safely truncated rather than dropped.

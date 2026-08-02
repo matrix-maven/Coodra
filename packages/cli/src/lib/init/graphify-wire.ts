@@ -1,18 +1,12 @@
-import { isAbsolute, join } from 'node:path';
+import { join } from 'node:path';
 import { type IDE, IDE_ORDER } from '../detect.js';
 import {
   mergeExternalCodexServer,
   readExternalCodexServerPresence,
   removeExternalCodexServer,
 } from './external-codex-merge.js';
-import {
-  type ExternalMcpEntry,
-  mergeExternalMcpServer,
-  readExternalMcpServerPresence,
-  removeExternalMcpServer,
-} from './external-mcp-merge.js';
+import type { ExternalMcpEntry } from './external-mcp-merge.js';
 import type { WriteOutcome } from './types.js';
-import { defaultWindsurfMcpConfigPath } from './windsurf-merge.js';
 
 /**
  * `graphify-wire.ts` — the Graphify-specific wiring core shared by
@@ -21,15 +15,10 @@ import { defaultWindsurfMcpConfigPath } from './windsurf-merge.js';
  *
  * Module 09, Track 9B (ADR-010, Option C). Graphify ships its own
  * stdio MCP server — `python -m graphify.serve graphify-out/graph.json`.
- * This module knows the Graphify entry shape and the per-IDE config
- * dispatch; the actual idempotent never-clobber merge lives in the
- * 9·Core substrate — `external-mcp-merge.ts` for the JSON agents
- * (Claude Code / Cursor / Windsurf) and `external-codex-merge.ts` for
- * Codex's TOML config.
- *
- * Keeping this dispatch in one place means the CLI command and the
- * `init` step cannot drift apart on, say, how Windsurf's global config
- * resolves its graph path.
+ * Claude Code is native-plugin-managed (Coodra's own plugin bundles
+ * Graphify automatically); this module's only remaining job is Codex's
+ * project-scoped `.codex/config.toml`, for a custom graph path or a
+ * Codex install that isn't running through the Coodra plugin.
  */
 
 /**
@@ -55,36 +44,18 @@ export const DEFAULT_GRAPHIFY_GRAPH_PATH = 'graphify-out/graph.json';
 /**
  * Resolve the agent's MCP-config path for `ide`. Coodra does not create or
  * edit Claude Code repo-root `.mcp.json`; Claude uses the native Coodra
- * plugin's plugin-scoped MCP file. Cursor and Codex are project-scoped;
- * Windsurf's config is global (under `userHome`). Mirrors `commands/agents.ts`.
+ * plugin's plugin-scoped MCP file. Codex is project-scoped (under `cwd`).
  */
-export function graphifyConfigPath(ide: IDE, cwd: string, userHome: string): string | null {
+export function graphifyConfigPath(ide: IDE, cwd: string, _userHome: string): string | null {
   switch (ide) {
     case 'claude':
       return null;
-    case 'cursor':
-      return join(cwd, '.cursor', 'mcp.json');
-    case 'windsurf':
-      return defaultWindsurfMcpConfigPath(userHome);
     case 'codex':
       return join(cwd, '.codex', 'config.toml');
   }
 }
 
-/**
- * Resolve the `graph.json` argument for `ide`. Claude Code, Cursor and
- * Codex read project-scoped configs, so a relative path resolves
- * against the repo root the agent spawns the server from — keep it
- * relative. Windsurf's config is global and has no project anchor, so
- * a relative path is pinned absolute against `cwd`.
- */
-function graphArgFor(ide: IDE, graphPath: string, cwd: string): string {
-  if (isAbsolute(graphPath)) return graphPath;
-  if (ide === 'windsurf') return join(cwd, graphPath);
-  return graphPath;
-}
-
-/** Build the Graphify stdio MCP server entry for `ide`. */
+/** Build the Graphify stdio MCP server entry for `ide`. Codex reads a project-scoped config, so a relative graph path resolves against the repo root it spawns the server from — kept as-is. */
 export function buildGraphifyEntry(opts: {
   readonly ide: IDE;
   readonly python: string;
@@ -93,7 +64,7 @@ export function buildGraphifyEntry(opts: {
 }): ExternalMcpEntry {
   return {
     command: opts.python,
-    args: ['-m', 'graphify.serve', graphArgFor(opts.ide, opts.graphPath, opts.cwd)],
+    args: ['-m', 'graphify.serve', opts.graphPath],
   };
 }
 
@@ -115,23 +86,14 @@ export interface WireGraphifyOptions {
  */
 export async function wireGraphify(options: WireGraphifyOptions): Promise<WriteOutcome> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
-  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
+  if (filePath === null) return nativePluginOutcome();
   const entry = buildGraphifyEntry({
     ide: options.ide,
     python: options.python,
     graphPath: options.graphPath,
     cwd: options.cwd,
   });
-  if (options.ide === 'codex') {
-    return mergeExternalCodexServer({
-      filePath,
-      name: GRAPHIFY_SERVER_NAME,
-      entry,
-      force: options.force,
-      dryRun: options.dryRun,
-    });
-  }
-  return mergeExternalMcpServer({
+  return mergeExternalCodexServer({
     filePath,
     name: GRAPHIFY_SERVER_NAME,
     entry,
@@ -152,11 +114,8 @@ export async function unwireGraphify(options: {
   readonly dryRun: boolean;
 }): Promise<WriteOutcome> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
-  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
-  if (options.ide === 'codex') {
-    return removeExternalCodexServer({ filePath, name: GRAPHIFY_SERVER_NAME, dryRun: options.dryRun });
-  }
-  return removeExternalMcpServer({ filePath, name: GRAPHIFY_SERVER_NAME, dryRun: options.dryRun });
+  if (filePath === null) return nativePluginOutcome();
+  return removeExternalCodexServer({ filePath, name: GRAPHIFY_SERVER_NAME, dryRun: options.dryRun });
 }
 
 export interface GraphifyServerPresence {
@@ -176,13 +135,10 @@ export async function readGraphifyPresence(options: {
 }): Promise<GraphifyServerPresence> {
   const filePath = graphifyConfigPath(options.ide, options.cwd, options.userHome);
   if (filePath === null) return { exists: false, wired: false, unreadable: false };
-  if (options.ide === 'codex') {
-    return readExternalCodexServerPresence({ filePath, name: GRAPHIFY_SERVER_NAME });
-  }
-  return readExternalMcpServerPresence({ filePath, name: GRAPHIFY_SERVER_NAME });
+  return readExternalCodexServerPresence({ filePath, name: GRAPHIFY_SERVER_NAME });
 }
 
-function claudeNativePluginOutcome(_cwd: string): WriteOutcome {
+function nativePluginOutcome(): WriteOutcome {
   return {
     path: 'Claude Code native plugin',
     action: 'unchanged',

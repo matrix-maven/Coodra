@@ -24,7 +24,7 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  *     `src/auth/**` for any agent
  *   - POST /v1/hooks/claude-code with a Write to src/auth/x.ts → deny
  *   - POST /v1/hooks/claude-code with a Write to src/utils/y.ts → allow
- *   - POST /v1/hooks/cursor mirrors the same deny path (cross-agent)
+ *   - POST /v1/hooks/codex mirrors the same deny path (cross-agent)
  */
 
 interface Harness {
@@ -158,22 +158,24 @@ describe('pre-tool-use enforcement (real policy + real sqlite)', () => {
     expect(body.hookSpecificOutput.permissionDecision).toBe('allow');
   });
 
-  it('cursor: Write to src/auth/x.ts → decision: deny (cross-agent rule applies)', async () => {
-    const res = await h.hono.request('/v1/hooks/cursor', {
+  it('codex: Write to src/auth/x.ts → decision: deny (cross-agent rule applies)', async () => {
+    const res = await h.hono.request('/v1/hooks/codex', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        conversation_id: 'conv-deny-1',
-        event_type: 'pre_tool_use',
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-deny-1',
         tool_name: 'Write',
         tool_input: { file_path: 'src/auth/x.ts' },
         cwd: h.cwd,
       }),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { decision: string; reason: string };
-    expect(body.decision).toBe('deny');
-    expect(body.reason).toBe('auth files are reviewed manually');
+    const body = (await res.json()) as {
+      hookSpecificOutput: { permissionDecision: string; permissionDecisionReason: string };
+    };
+    expect(body.hookSpecificOutput.permissionDecision).toBe('deny');
+    expect(body.hookSpecificOutput.permissionDecisionReason).toBe('auth files are reviewed manually');
   });
 
   // S8 long since shipped (RunRecorder wired into post-tool); this file scopes

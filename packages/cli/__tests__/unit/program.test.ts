@@ -34,8 +34,6 @@ describe('buildProgram — full surface (post-S8)', () => {
       'init',
       'install',
       'invite',
-      // Module 09 Track 9A — Jira (Atlassian Rovo) MCP wiring (enable/disable/status).
-      'jira',
       'login',
       'logout',
       'logs',

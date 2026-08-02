@@ -7,12 +7,13 @@ import {
   COODRA_POLICY_PROJECTION_BEGIN,
   COODRA_POLICY_PROJECTION_END,
 } from '@coodra/shared';
+import { parse as parseToml } from 'smol-toml';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runUninstallCommand, type UninstallIO } from '../../src/commands/uninstall.js';
 import { EXIT_OK } from '../../src/exit-codes.js';
 import type { ClaudeCliRunner } from '../../src/lib/agents/claude-plugin.js';
 import type { DaemonManager } from '../../src/lib/daemon/index.js';
-import { mergeCursorMcpConfig } from '../../src/lib/init/cursor-merge.js';
+import { mergeCodexConfig } from '../../src/lib/init/codex-merge.js';
 
 interface Capture {
   stdout: string[];
@@ -418,10 +419,10 @@ describe('coodra uninstall integration', () => {
     }
   });
 
-  it('Fixture 6 — --purge removes the coodra entry a real init wrote into a registered project .cursor/mcp.json', async () => {
+  it('Fixture 6 — --purge removes the coodra entry a real init wrote into a registered project .codex/config.toml', async () => {
     // Write via the SAME writer `coodra init` uses, so the fixture matches
     // production bytes rather than a hand-rolled shape.
-    const wrote = await mergeCursorMcpConfig({
+    const wrote = await mergeCodexConfig({
       cwd: projectCwd,
       entry: { command: 'node', args: ['/abs/runtime/mcp-server.js'] },
       force: false,
@@ -446,11 +447,11 @@ describe('coodra uninstall integration', () => {
     };
     // Purge acts on registered projects, independent of where the command runs.
     expect(payload.projectRoots).toEqual([projectCwd]);
-    expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
-    const next = JSON.parse(readFileSync(join(projectCwd, '.cursor', 'mcp.json'), 'utf8')) as {
-      mcpServers: Record<string, unknown>;
+    expect(payload.steps.find((s) => s.step === 'codex-config')?.action).toBe('merged');
+    const next = parseToml(readFileSync(join(projectCwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: Record<string, unknown>;
     };
-    expect(next.mcpServers).not.toHaveProperty('coodra');
+    expect(next.mcp_servers).not.toHaveProperty('coodra');
   });
 
   it('Fixture 7 — --purge run from a subdirectory still removes registered project-root entries', async () => {
@@ -460,7 +461,7 @@ describe('coodra uninstall integration', () => {
     const subDir = join(repoDir, 'sub');
     mkdirSync(join(repoDir, '.git'), { recursive: true }); // project-root marker
     mkdirSync(subDir, { recursive: true });
-    await mergeCursorMcpConfig({
+    await mergeCodexConfig({
       cwd: repoDir,
       entry: { command: 'node', args: ['/abs/runtime/mcp-server.js'] },
       force: false,
@@ -485,11 +486,11 @@ describe('coodra uninstall integration', () => {
         steps: Array<{ step: string; action: string }>;
       };
       expect(payload.projectRoots).toEqual([repoDir]);
-      expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
-      const next = JSON.parse(readFileSync(join(repoDir, '.cursor', 'mcp.json'), 'utf8')) as {
-        mcpServers: Record<string, unknown>;
+      expect(payload.steps.find((s) => s.step === 'codex-config')?.action).toBe('merged');
+      const next = parseToml(readFileSync(join(repoDir, '.codex', 'config.toml'), 'utf8')) as {
+        mcp_servers: Record<string, unknown>;
       };
-      expect(next.mcpServers).not.toHaveProperty('coodra');
+      expect(next.mcp_servers).not.toHaveProperty('coodra');
     } finally {
       cwdSpy.mockRestore();
     }

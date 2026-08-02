@@ -32,7 +32,7 @@ Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](do
 | Path | What lives here | When to touch it |
 |---|---|---|
 | `apps/mcp-server` | The MCP server — 20 tools agents call | Adding/changing an agent-facing tool |
-| `apps/hooks-bridge` | Hono HTTP service that receives Claude Code / Cursor hooks | Adding a hook event handler, policy in-line behaviour |
+| `apps/hooks-bridge` | Hono HTTP service that receives Claude Code / Codex hooks | Adding a hook event handler, policy in-line behaviour |
 | `apps/sync-daemon` | Team-mode cloud sync (outbox + pullers) | Cloud-sync logic for a new table type |
 | `apps/web-v2` | Next.js admin/audit UI | UI changes for solo + team views |
 | `apps/web` | **Deprecated.** Kept only for team-mode Clerk auth surfaces not yet ported to web-v2 | Fixing team auth bugs (until v2 catches up) |

@@ -109,7 +109,6 @@ export async function runCommandInProcess(argv: readonly string[]): Promise<Comm
     filesIO: captureIo,
     graphifyIO: captureIo,
     graphifyArtifactIO: captureIo,
-    jiraIO: captureIo,
     wikiIO: captureIo,
   });
 

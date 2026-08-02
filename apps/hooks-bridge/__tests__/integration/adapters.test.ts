@@ -54,49 +54,6 @@ describe('per-agent adapter dispatch on POST /v1/hooks/{agent}', () => {
     });
   });
 
-  it('windsurf: happy path produces a HookEvent + decision response', async () => {
-    const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
-    const { hono } = buildApp({ env: makeEnv(), dispatch });
-
-    const res = await hono.request('/v1/hooks/windsurf', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        agent_action_name: 'pre_write_code',
-        trajectory_id: 'traj-1',
-        execution_id: 'exec-1',
-        tool_info: { file_path: 'src/x.ts' },
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { decision: string };
-    expect(body.decision).toBe('allow');
-    expect(dispatch).toHaveBeenCalledTimes(1);
-  });
-
-  it('cursor: happy path produces a HookEvent + decision response', async () => {
-    const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
-    const { hono } = buildApp({ env: makeEnv(), dispatch });
-
-    const res = await hono.request('/v1/hooks/cursor', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        conversation_id: 'conv-1',
-        event_type: 'pre_tool_use',
-        tool_name: 'Edit',
-        tool_call_id: 'call-1',
-        tool_input: { file_path: 'src/x.ts' },
-      }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { decision: string };
-    expect(body.decision).toBe('allow');
-    expect(dispatch).toHaveBeenCalledTimes(1);
-  });
-
   it('codex: happy path produces a HookEvent + Codex hook response', async () => {
     const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
     const { hono } = buildApp({ env: makeEnv(), dispatch });
@@ -176,36 +133,19 @@ describe('per-agent adapter dispatch on POST /v1/hooks/{agent}', () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('windsurf: non-JSON body → fail-open with decision=allow', async () => {
+  it('codex: non-JSON body → fail-open with hookSpecificOutput permissionDecision=allow', async () => {
     const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
     const { hono } = buildApp({ env: makeEnv(), dispatch });
 
-    const res = await hono.request('/v1/hooks/windsurf', {
+    const res = await hono.request('/v1/hooks/codex', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: 'this is not JSON',
     });
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { decision: string; reason: string };
-    expect(body.decision).toBe('allow');
-    expect(body.reason).toBe('invalid_hook_payload');
-    expect(dispatch).not.toHaveBeenCalled();
-  });
-
-  it('windsurf: unmapped event (post_read_code) → ack with decision=allow + dispatch NOT called', async () => {
-    const dispatch: DispatchHookEvent = vi.fn(async () => ({ permissionDecision: 'allow' as const }));
-    const { hono } = buildApp({ env: makeEnv(), dispatch });
-
-    const res = await hono.request('/v1/hooks/windsurf', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ agent_action_name: 'post_read_code', trajectory_id: 'traj' }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { decision: string };
-    expect(body.decision).toBe('allow');
+    const body = (await res.json()) as { hookSpecificOutput: { permissionDecision: string } };
+    expect(body.hookSpecificOutput.permissionDecision).toBe('allow');
     expect(dispatch).not.toHaveBeenCalled();
   });
 

@@ -5,8 +5,6 @@ import { agentTypeLabel } from '../../../lib/agent-label';
 describe('agentTypeLabel', () => {
   it('maps every canonical runs.agent_type value to its display name', () => {
     expect(agentTypeLabel('claude_code')).toBe('Claude Code');
-    expect(agentTypeLabel('cursor')).toBe('Cursor');
-    expect(agentTypeLabel('windsurf')).toBe('Windsurf');
     expect(agentTypeLabel('codex')).toBe('Codex');
     expect(agentTypeLabel('vscode_copilot')).toBe('VS Code Copilot');
     expect(agentTypeLabel('mcp_inspector')).toBe('MCP Inspector');

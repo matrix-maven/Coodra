@@ -18,12 +18,7 @@ import { detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { classifyMachineRuntimePath, recordMachineManifest } from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
-import {
-  classifyGeneratedPath,
-  ensureProjectConfig,
-  manifestPath,
-  recordManifestEntries,
-} from '../lib/project-store/index.js';
+import { classifyGeneratedPath, recordManifestEntries } from '../lib/project-store/index.js';
 import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalWidth } from '../ui/index.js';
 
 /**
@@ -34,16 +29,14 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  * config drifted (e.g. hooks got stripped) — can re-wire just that one without
  * re-running the whole init.
  *
- *   add    <agent>  — wire the Coodra bundle for one agent. Codex uses a
- *                     global native plugin; older adapters still use their
- *                     current MCP/instruction surfaces. Idempotent.
+ *   add    <agent>  — wire the Coodra bundle for one agent (a global native
+ *                     plugin for both Claude Code and Codex). Idempotent.
  *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
  *   remove <agent>  — strip ONLY this agent's Coodra-owned entries.
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
- * `<agent>` accepts claude | cursor | codex | windsurf | devin (alias for
- * windsurf) | all | detected.
+ * `<agent>` accepts claude | codex | all | detected.
  */
 
 export interface AgentCommandOptions {
@@ -83,8 +76,6 @@ interface AgentActionResult {
   readonly note?: string;
   readonly error?: string;
 }
-
-const PROJECT_SCOPED_AGENT_IDS = new Set<AgentAdapter['id']>(['cursor', 'windsurf']);
 
 function glyphForAction(action: string): string {
   if (action === 'failed') return pc.red('✗');
@@ -176,8 +167,6 @@ async function runWire(
     return io.exit(EXIT_ENVIRONMENT_PROBLEM);
   }
 
-  const needsProjectFiles = targets.adapters.some((adapter) => PROJECT_SCOPED_AGENT_IDS.has(adapter.id));
-
   const results: AgentActionResult[] = [];
   for (const adapter of targets.adapters) {
     const label = targets.labelById.get(adapter.id) ?? adapter.displayName;
@@ -191,42 +180,6 @@ async function runWire(
       });
     } catch (err) {
       results.push({ id: adapter.id, label, outcomes: [], error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  if (needsProjectFiles) {
-    // Phase 2: ensure `.coodra/config.json` + record repo-scoped generated
-    // files into the manifest so `coodra files status/clean` sees this
-    // agent's footprint. Native plugin adapters are global-only and use the
-    // machine manifest below instead.
-    try {
-      const cfg = await ensureProjectConfig({
-        root: resolved.projectRoot,
-        projectSlug: resolved.projectSlug,
-        mode: resolved.mode,
-        force,
-        dryRun,
-      });
-      const createdBy = `coodra agent ${mode} ${agentArg}`;
-      const paths = [
-        ...new Set([
-          ...cfg.outcomes.map((o) => o.path),
-          ...results
-            .filter((r) => PROJECT_SCOPED_AGENT_IDS.has(r.id as AgentAdapter['id']))
-            .flatMap((r) => r.outcomes.map((o) => o.path)),
-          manifestPath(resolved.projectRoot),
-        ]),
-      ];
-      await recordManifestEntries({
-        root: resolved.projectRoot,
-        projectSlug: resolved.projectSlug,
-        entries: paths.map((p) => classifyGeneratedPath(p, resolved.projectRoot, createdBy)),
-        dryRun,
-      });
-    } catch (err) {
-      io.writeStderr(
-        `${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${err instanceof Error ? err.message : String(err)}\n`,
-      );
     }
   }
 
@@ -520,9 +473,7 @@ export async function runAgentStatusCommand(
   io.writeStdout(`${commandTitle('Agent', 'wiring status', { width: terminalWidth(), indent: 0 })}\n`);
   let slot = 1;
   for (const s of statuses) {
-    const adapter = listAdapters().find((a) => a.id === s.id);
-    const heading = adapter?.aka !== undefined ? `${s.displayName} (${adapter.aka})` : s.displayName;
-    io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), heading)}\n`);
+    io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), s.displayName)}\n`);
     slot += 1;
     const detGlyph = s.detection.installed ? pc.green('✓') : pc.gray('✗');
     io.writeStdout(

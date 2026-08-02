@@ -15,9 +15,7 @@ import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
-import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
-import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
 import { readMachineManifest } from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import { SERVICES } from '../lib/services.js';
@@ -46,8 +44,7 @@ import { pc } from '../ui/index.js';
  *      deletion (deleting `data.db` out from under an open WAL handle
  *      is a corruption risk).
  *   1. Drop global native/plugin wiring: Claude Code settings,
- *      marketplace/cache entries, Codex personal marketplace/plugin bundle,
- *      and global Windsurf MCP entries.
+ *      marketplace/cache entries, and Codex personal marketplace/plugin bundle.
  *   2. With `--purge`: discover registered project roots from the local DB
  *      and machine manifest, then reverse project-local Coodra writes
  *      (`.codex/config.toml`, `.claude`/instruction blocks, `.coodra/`,
@@ -219,15 +216,6 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     }
   } else if (projectTargets.note !== undefined) {
     steps.push({ step: 'registered-projects', action: 'unchanged', notes: projectTargets.note });
-  }
-
-  // Step 1c: reverse global Windsurf MCP config once. Windsurf's MCP file is
-  // user-global, unlike Claude/Cursor/Codex project files.
-  try {
-    const result = await removeWindsurfMcpConfig({ dryRun, userHome });
-    steps.push({ step: 'windsurf-mcp', action: String(result.action), notes: result.notes ?? '' });
-  } catch (err) {
-    steps.push({ step: 'windsurf-mcp', action: 'failed', notes: err instanceof Error ? err.message : String(err) });
   }
 
   // Step 3: ~/.coodra/ purge (only on --purge)
@@ -604,12 +592,9 @@ async function removeProjectScopedFiles(args: {
   for (const [step, fn] of [
     ['claude-md', () => removeInstructionBlock({ cwd: root, filename: 'CLAUDE.md', dryRun })],
     ['claude-policy-projection', () => removeClaudePolicyProjection({ cwd: root, dryRun })],
-    ['cursor-mcp', () => removeCursorMcpConfig({ cwd: root, dryRun })],
-    ['cursor-rules', () => removeInstructionBlock({ cwd: root, filename: '.cursorrules', dryRun })],
     ['codex-policy-projection', () => removeCodexPolicyProjection({ cwd: root, dryRun })],
     ['codex-config', () => removeCodexConfig({ cwd: root, dryRun })],
     ['codex-agents-md', () => removeInstructionBlock({ cwd: root, filename: 'AGENTS.md', dryRun })],
-    ['windsurf-rules', () => removeInstructionBlock({ cwd: root, filename: '.windsurfrules', dryRun })],
   ] as const) {
     try {
       const result = await fn();

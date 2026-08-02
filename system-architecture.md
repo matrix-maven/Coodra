@@ -6,7 +6,7 @@
 - Solo mode = fully local (SQLite + sqlite-vec, zero external deps)
 - Team mode = cloud sync as optional add-on (Postgres + pgvector + Redis)
 - Same service codebase, different storage adapters per mode
-- Agents: Claude Code + Windsurf (full hooks) + any MCP-capable agent (read path only)
+- Agents: Claude Code + Codex (full hooks) + any MCP-capable agent (read path only)
 - Graphify: external CLI, orchestrated as a subprocess by Coodra CLI
 - LLM enrichment: Ollama local (default) + user API key override
 - Auth: no auth in solo mode, Clerk JWT in team mode
@@ -40,9 +40,9 @@ The previous AI plan was designed for a public SaaS at scale. Wrong mental model
 │  Everything on the developer's machine. Zero deps.        │
 │                                                           │
 │  Claude Code ──stdio──► MCP Server (:3100)               │
-│  Windsurf    ──HTTP──► MCP Server (:3100)                │
+│  Codex       ──stdio──► MCP Server (:3100)               │
 │  Claude Code ──HTTP──► Hooks Bridge (:3101)              │
-│  Windsurf    ──shell adapter──► Hooks Bridge (:3101)     │
+│  Codex       ──HTTP──► Hooks Bridge (:3101)              │
 │  Browser     ──HTTP──► Web App (:3000)                   │
 │                                                           │
 │  All services → SQLite WAL (~/.coodra/data.db)        │
@@ -123,73 +123,16 @@ Claude Code fires hooks as HTTP POST to the adapter script's target URL. Payload
 To **block**: respond with `{ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "..." } }`.
 To **allow**: respond with `{ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "allow" } }`.
 
-### 3.3 Windsurf Cascade Hook Payload Shape
-
-Windsurf fires hooks as **shell commands** (not HTTP). The hook receives JSON on stdin. Windsurf exposes 12 hook events total; Coodra maps the 9 that carry information about tool-use and session boundaries. The remaining 3 (`post_read_code`, `post_user_prompt`, `pre_cascade_response`) are ignored by default because they add noise without changing the run record — you can wire them later if you need finer traces.
-
-| Windsurf event | Maps to Coodra event | Blockable? |
-|---|---|---|
-| `pre_write_code` | `pre_tool_use` (tool: Edit/Write) | Yes — exit code 2 ¹ |
-| `pre_run_command` | `pre_tool_use` (tool: Bash) | Yes — exit code 2 ¹ |
-| `pre_mcp_tool_use` | `pre_tool_use` (tool: MCP:*) | Yes — exit code 2 ¹ |
-| `pre_read_code` | `pre_tool_use` (tool: Read) | Yes — exit code 2 ¹ |
-| `pre_user_prompt` | (governance layer, not tracked) | Yes — exit code 2 ¹ |
-| `post_write_code` | `post_tool_use` | No |
-| `post_run_command` | `post_tool_use` | No |
-| `post_mcp_tool_use` | `post_tool_use` | No |
-| `post_cascade_response` | `session_end` proxy | No |
-| `post_read_code`, `post_user_prompt`, `pre_cascade_response` | _not mapped_ (see above) | n/a |
-
-¹ Exit code 2 = block is specified in the official Windsurf Cascade Hooks documentation ([docs.windsurf.com/windsurf/cascade/hooks](https://docs.windsurf.com/windsurf/cascade/hooks)). Exit code 0 = allow. Any other non-zero code = error but action proceeds (same as allow). Only pre-hooks can block.
-
-Windsurf hook payload structure:
-```json
-{
-  "agent_action_name": "pre_write_code",
-  "trajectory_id": "traj-abc123",
-  "execution_id": "exec-xyz789",
-  "timestamp": "2026-04-16T10:00:00Z",
-  "model_name": "Claude Sonnet 4",
-  "tool_info": {
-    "file_path": "src/auth.ts",
-    "edits": [{ "old_string": "...", "new_string": "..." }]
-  }
-}
-```
-
-`trajectory_id` = session ID (maps to Claude Code's `session_id`).
-`execution_id` = turn ID (maps to Claude Code's `tool_use_id`).
-
-**Windsurf adapter shell script** (`~/.windsurf/hooks/coodra.sh`):
-```bash
-#!/bin/bash
-PAYLOAD=$(cat)
-RESPONSE=$(echo "$PAYLOAD" | curl -s -X POST \
-  "http://localhost:3101/v1/hooks/windsurf" \
-  -H "Content-Type: application/json" \
-  --data-binary @-)
-DECISION=$(echo "$RESPONSE" | python3 -c \
-  "import sys,json; print(json.load(sys.stdin).get('decision','allow'))")
-if [ "$DECISION" = "deny" ]; then
-  echo "$RESPONSE" | python3 -c \
-    "import sys,json; print(json.load(sys.stdin).get('reason','Blocked by policy'))" >&2
-  exit 2
-fi
-exit 0
-```
-
-The shell script is the **only agent-specific code outside the adapter layer**. Everything downstream of `POST /v1/hooks/windsurf` is agent-agnostic.
-
 ### 3.4 Normalized Internal HookEvent
 
-Both Claude Code and Windsurf payloads are normalized at ingress before any business logic:
+Both Claude Code and Codex payloads are normalized at ingress before any business logic:
 
 ```typescript
 interface HookEvent {
-  agentType: 'claude_code' | 'windsurf' | 'unknown';
+  agentType: 'claude_code' | 'codex' | 'unknown';
   eventPhase: 'pre' | 'post' | 'session_start' | 'session_end';
-  sessionId: string;        // trajectory_id (Windsurf) | session_id (Claude Code)
-  turnId?: string;          // execution_id (Windsurf) | tool_use_id (Claude Code)
+  sessionId: string;        // session_id (Claude Code / Codex)
+  turnId?: string;          // tool_use_id (Claude Code / Codex)
   toolName: string;         // normalized: Write | Edit | Bash | Read | MCP:github | etc.
   filePath?: string;        // extracted from tool_info
   toolInput: unknown;
@@ -210,7 +153,7 @@ stdio (Claude Code):
   Critical: NO stray output on stdout — any non-JSON-RPC bytes corrupt the stream
   Latency: zero network, sub-millisecond
 
-Streamable HTTP :3100 (Windsurf, VS Code Copilot, any HTTP MCP client):
+Streamable HTTP :3100 (VS Code Copilot, any HTTP MCP client):
   Agent connects to: http://localhost:3100
   Transport: MCP Streamable HTTP (chunked HTTP streaming, per MCP 2025-03-26 spec)
   Note: this is NOT browser SSE — it is for agent processes only. Do not apply
@@ -220,17 +163,12 @@ Streamable HTTP :3100 (Windsurf, VS Code Copilot, any HTTP MCP client):
 
 **SSE is used only in the web dashboard** (`/api/runs/[id]/events`) for browser → server one-way event streaming. That SSE stream is separate from and unrelated to MCP transport.
 
-Claude Code native plugin MCP config (plugin-scoped, not repo-root `.mcp.json`):
+Claude Code / Codex native plugin MCP config (plugin-scoped, not repo-root `.mcp.json`):
 ```json
 { "mcpServers": { "coodra": { "type": "stdio", "command": "node", "args": ["~/.coodra/bin/mcp-server.js"] } } }
 ```
 
-Windsurf config (`~/.windsurf/mcp_config.json`):
-```json
-{ "mcpServers": { "coodra": { "serverUrl": "http://localhost:3100" } } }
-```
-
-The MCP server process serves both simultaneously: a stdio handler (one goroutine per Claude Code spawn) and a persistent HTTP server on :3100.
+The MCP server process serves both simultaneously: a stdio handler (one goroutine per agent spawn) and a persistent HTTP server on :3100 for any HTTP-transport MCP client.
 
 ### 3.6 SSE for Live Run Dashboard
 
@@ -371,7 +309,7 @@ knowledge_edges   → unique(projectId, sourceType, sourceId, targetType, target
 > Retry dedupe (same toolUseId on the same tool/event in the same
 > session) still collapses to one row. Legacy callers that omit
 > toolUseId fall back to the `'no-turn'` sentinel; both
-> `apps/hooks-bridge` (Claude Code / Cursor / Windsurf turn ids) and
+> `apps/hooks-bridge` (Claude Code / Codex turn ids) and
 > `apps/mcp-server::check_policy` (optional `toolUseId` input field)
 > now thread the value through.
 
@@ -548,9 +486,9 @@ All services bind to `127.0.0.1`, not `0.0.0.0`. No external exposure. No TLS (l
 
 ```
 Claude Code   → 127.0.0.1:3101  (Hooks Bridge)
-Windsurf hook → 127.0.0.1:3101  (Hooks Bridge, via adapter script)
-Windsurf MCP  → 127.0.0.1:3100  (MCP Server, HTTP)
+Codex         → 127.0.0.1:3101  (Hooks Bridge)
 Claude MCP    → stdio            (no network at all)
+Codex MCP     → stdio            (no network at all)
 Browser       → 127.0.0.1:3000  (Web App)
 Hooks Bridge  → 127.0.0.1:3201  (Semantic Diff, internal call)
 Hooks Bridge  → 127.0.0.1:3200  (NL Assembly, internal call)
@@ -580,7 +518,7 @@ TLS terminated at the platform load balancer (Railway/Fly.io, Let's Encrypt, man
 
 ### Keep-Alive Connections
 
-The Windsurf adapter script uses `curl --keepalive-time 60` to reuse the TCP connection across multiple hook calls within the same session. Hono + Node.js HTTP keep-alive is enabled by default. This eliminates TCP setup overhead for repeated hook calls.
+Codex's hook runner reuses the TCP connection across multiple hook calls within the same session via standard HTTP keep-alive. Hono + Node.js HTTP keep-alive is enabled by default. This eliminates TCP setup overhead for repeated hook calls.
 
 ### HTTP Version
 
@@ -600,7 +538,6 @@ POST /v1/hooks/session-start
 POST /v1/hooks/pre-tool-use
 POST /v1/hooks/post-tool-use
 POST /v1/hooks/session-end
-POST /v1/hooks/windsurf        ← Windsurf normalized ingress
 GET  /v1/health
 POST /api/sync                 ← Cloud sync, internal
 POST /api/graphify/analyze     ← Graphify graph upload
@@ -763,7 +700,8 @@ Hooks Bridge (Hono, port 3101)
   ├── POST /v1/hooks/pre-tool-use      → preToolUseHandler
   ├── POST /v1/hooks/post-tool-use     → postToolUseHandler
   ├── POST /v1/hooks/session-end       → sessionEndHandler
-  ├── POST /v1/hooks/windsurf          → windsurfAdapter → routes above
+  ├── POST /v1/hooks/claude-code       → claudeCodeAdapter → routes above
+  ├── POST /v1/hooks/codex             → codexAdapter → routes above
   ├── GET  /v1/health
   ├── Worker: recordRunEventProcessor  (SQLite queue | BullMQ)
   └── Worker: assembleContextPackProcessor (SQLite queue | BullMQ)
@@ -891,7 +829,7 @@ Why this lives in the bridge, not in the agent:
 
 The MCP tools `get_feature_pack` and `save_context_pack` remain in the §24 manifest. They are now **on-demand surfaces** — the agent calls them mid-session when switching modules (refresh the pack against a new `filePath`) or when the user explicitly asks "save the context pack now". The autonomous default is the bridge's job; the manual override is the tool's job.
 
-Solo-mode v1 scope: this pattern fires only for Claude Code's hook envelope (which has a first-class `additionalContext` field). Cursor and Windsurf use stdin/stdout adapters that don't surface a context-injection slot the same way; they continue to rely on Pattern 19 + the agent's trigger contract. Wider agent coverage tracked as a follow-up.
+Solo-mode v1 scope: both Claude Code's and Codex's hook envelopes carry a first-class `additionalContext` field, and both response shapers forward it. Wider agent coverage tracked as a follow-up.
 
 ---
 
@@ -1064,7 +1002,7 @@ The `LOCAL_HOOK_SECRET` is generated on first `coodra team join` (Module 04 Phas
 
 #### Caveat 2 fix (Module 04 Phase 4, 2026-05-09): Hooks Bridge is local-only in both modes
 
-The original architecture proposed a cloud-deployed Hooks Bridge that local agents (Windsurf, Cursor) would call directly via HTTPS with `LOCAL_HOOK_SECRET`. **That bridge does not ship.** Each developer's local Hooks Bridge is the protocol layer:
+The original architecture proposed a cloud-deployed Hooks Bridge that local agents would call directly via HTTPS with `LOCAL_HOOK_SECRET`. **That bridge does not ship.** Each developer's local Hooks Bridge is the protocol layer:
 - Local audit events (run_events, decisions, policy_decisions, context_packs) write to local SQLite first.
 - The sync daemon's outbox-worker pushes them to cloud Postgres asynchronously.
 - The cloud web app reads cloud Postgres directly.
@@ -1144,7 +1082,7 @@ These are deliberate gaps — not omissions. Each requires new information befor
 | Embedding model for vector search | Benchmark all-MiniLM-L6-v2 vs e5-small vs bge-small on context pack similarity quality |
 | Sync conflict resolution for packs/rules | Last-write-wins is safe for append-only records (runs, events, decisions) but **not** for governance documents (feature packs, policy rules) that team members actively edit. Until a proper merge strategy (three-way merge, CRDTs, or field-level versioning) is designed, **treat cloud Postgres as the single writer for feature pack and policy rule mutations in team mode**. Local services read these documents from the Sync Daemon's pull path and treat them as read-only cache. This avoids conflict entirely at the cost of requiring connectivity to edit governance docs. |
 | Graphify output format stability | Does Graphify's `graph.json` schema change across versions? Need versioning or a schema validation step in the adapter. |
-| Windsurf `post_cascade_response` as session end proxy | This event fires after each Cascade response, not only at IDE close. Need to decide if each response is a session segment or if session end requires a different signal. |
+| ~~Windsurf `post_cascade_response` as session end proxy~~ | **MOOT — Coodra dropped Windsurf/Cursor/Devin/Cascade/Codeium support.** Coodra supports only native Claude Code and Codex plugins now; this question no longer applies. |
 | sqlite-vec upgrade path to team Postgres | When a solo user upgrades to team mode, local sqlite-vec embeddings must be migrated to pgvector. Recommended: re-embed from stored text (the source text is always persisted; re-running the embedding model is cheap). Direct float32 blob export is theoretically possible but requires matching model + normalization exactly. |
 | MCP remote transport (future) | When remote MCP over HTTP becomes important for team setups, the MCP server needs HTTPS + Clerk auth on the `/mcp` endpoint. Design deferred until team mode reaches GA. |
 | Sync table subset | Explicitly define which tables are synced local → cloud: `runs`, `run_events`, `context_packs`, `policy_decisions` (append-only, safe to replicate). Not synced: `feature_packs`, `policy_rules` (cloud is the single writer for these in team mode; local is a pull-only cache). If the sync scope expands, consider a change-data-capture (CDC) or logical-replication-driven approach instead of polling `WHERE synced_at IS NULL`. |
@@ -1189,17 +1127,9 @@ These are deliberate gaps — not omissions. Each requires new information befor
 
 The endpoint, transport, exact tool names, OAuth shape, and per-IDE wiring are documented in `External api and library reference.md → Atlassian Remote MCP (Rovo)`. That reference is the source of truth for the wire details; this section is the source of truth for how Coodra leverages them.
 
-### 22.3 Wiring (`coodra jira enable`)
+### 22.3 Wiring (removed — redesign pending)
 
-Rovo is a **remote** Streamable HTTP MCP server at `https://mcp.atlassian.com/v1/mcp/authv2` (the `/v1/mcp/authv2` IDE-auth variant of `https://mcp.atlassian.com/v1/mcp`; the legacy `/v1/sse` endpoint is deprecated and unsupported after 2026-06-30 — Coodra wires Streamable HTTP only). `coodra jira enable` writes the server entry into each detected agent's config, the same per-IDE dispatch as `coodra graphify enable` (the `9·Core` substrate: JSON writer `external-mcp-merge.ts`, TOML writer `external-codex-merge.ts`) via a sibling `jira-wire.ts`. The one structural difference from Graphify: Graphify was **stdio** (`{ command, args }`); Rovo is **remote** (`url`). The writers therefore gain a remote/`url` entry shape per client:
-
-- **Claude Code**: Jira/Rovo is surfaced through native/plugin-scoped Coodra MCP wiring; repo-root `.mcp.json` is user-owned and not created, checked, or edited by Coodra.
-- **Cursor**: `{ "Atlassian": { "url": "https://mcp.atlassian.com/v1/mcp/authv2" } }` (Cursor infers remote from `url`).
-- **Windsurf** (`~/.codeium/windsurf/mcp_config.json`): `{ "atlassian": { "serverUrl": "https://mcp.atlassian.com/v1/mcp/authv2" } }`.
-- **Codex** (`config.toml`): `experimental_use_rmcp_client = true` + `[mcp_servers.atlassian]` with `url = "https://mcp.atlassian.com/v1/mcp/authv2"`.
-All four target agents (Claude Code, Cursor, Windsurf, Codex) support native remote MCP, so Coodra writes the **native** entry for each — **no `mcp-remote` shim** (decision 2026-05-31). A purely stdio-only client (none of the four) is simply unsupported for Jira rather than wired through a Node proxy process.
-
-`disable` strips only the `atlassian` entry; `status` probes presence. Idempotent, never-clobber — identical guarantees to the Graphify writer.
+Rovo is a **remote** Streamable HTTP MCP server at `https://mcp.atlassian.com/v1/mcp/authv2`. The original `coodra jira enable/disable/status` commands wired the `atlassian` server entry directly into each detected agent's config (mirroring `coodra graphify enable`'s per-IDE dispatch). That surface, along with the rest of the legacy Cursor/Windsurf/Devin/Cascade/Codeium support it was written against, has been removed — Coodra now supports only native Claude Code and Codex plugins, and a user who wants Rovo today wires it directly via their agent's own native MCP/connector settings. A Coodra-managed Jira integration (a project-scoped site/project config so the agent doesn't have to be told which Jira instance/project to use every session) is planned as a redesign, not yet implemented.
 
 ### 22.4 Rovo's Jira tools (agent-facing; NOT Coodra-owned)
 
@@ -1721,7 +1651,7 @@ Denies edits when the run's associated PR is already closed/merged. Prevents an 
   "decision": "require_confirmation"
 }
 ```
-Returns `permissionDecision: "ask"` (Windsurf/Claude Code will prompt the developer) when the PR currently has failing check runs whose names match. Useful as a "are you sure?" guard on push.
+Returns `permissionDecision: "ask"` (Claude Code / Codex will prompt the developer) when the PR currently has failing check runs whose names match. Useful as a "are you sure?" guard on push.
 
 **Implementation:** the policy engine gains a `GitHubConditionEvaluator` injected at construction (DI, §16 pattern 5). In solo mode without GitHub integration, all four conditions evaluate to `allow` (fail-open). In team mode with GitHub integration, they hit the Repository Graph Index (Postgres cache), not GitHub directly — hot path latency is unchanged.
 
@@ -1878,13 +1808,13 @@ All of it flows into the NL Assembly LLM during context pack enrichment, so the 
 
 ### 24.1 The Gap This Section Closes
 
-The MCP protocol lets a server expose tools, each with a `name`, a `description`, an `inputSchema`, and (optionally) an `outputSchema`. Clients like Claude Code, Cursor, and Copilot Chat call `tools/list` at connection time and receive the full manifest. Then — critically — the **agent's planner decides which tools to call and when, based almost entirely on the description string**.
+The MCP protocol lets a server expose tools, each with a `name`, a `description`, an `inputSchema`, and (optionally) an `outputSchema`. Clients like Claude Code, Codex, and Copilot Chat call `tools/list` at connection time and receive the full manifest. Then — critically — the **agent's planner decides which tools to call and when, based almost entirely on the description string**.
 
 This produces three hard requirements that previous sections left implicit:
 
 1. **Every tool must have a description that reads like a call-site comment an agent would follow.** A description like *"returns a feature pack"* will never be called. A description like *"Call this before editing any file"* will.
 2. **The set of advertised tools must be a coherent, discoverable manifest.** A tool that only exists in code but not in `tools/list` is invisible. A tool that exists in `tools/list` but has a broken handler corrupts the agent's trust.
-3. **The agent needs a trigger contract** — a per-event mapping of "when this happens, call this tool" — that lives in `CLAUDE.md` / `.windsurfrules` / `.cursor/rules`. This section defines what the architecture exposes; `CLAUDE.md §5` defines what the agent is instructed to do with it.
+3. **The agent needs a trigger contract** — a per-event mapping of "when this happens, call this tool" — that lives in `CLAUDE.md` / `AGENTS.md`. This section defines what the architecture exposes; `CLAUDE.md §5` defines what the agent is instructed to do with it.
 
 ### 24.2 Discovery Flow — the `tools/list` Handshake
 
@@ -2099,7 +2029,7 @@ Coodra advertises **zero** `jira_*` tools. Jira is consumed Direct: `coodra jira
 
 ### 24.6 Agent Trigger Taxonomy — what fires which tool
 
-This table is the **source-of-truth mapping** the `CLAUDE.md §5 Agent Trigger Contract` turns into directive instructions. It is exposed here so that non-Claude agents (Cursor, Copilot, future clients) can mechanically translate the same rules into their own ruleset formats.
+This table is the **source-of-truth mapping** the `CLAUDE.md §5 Agent Trigger Contract` turns into directive instructions. It is exposed here so that non-Claude agents (Codex, Copilot, future clients) can mechanically translate the same rules into their own ruleset formats.
 
 | Agent event / user intent | Tool(s) to call | Precondition |
 |---|---|---|

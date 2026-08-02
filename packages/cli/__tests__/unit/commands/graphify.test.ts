@@ -15,18 +15,18 @@ import type { GraphifyPythonResolver } from '../../../src/lib/init/graphify-pyth
 /**
  * Locks the Module 09 Track 9B `coodra graphify {enable,disable,status}`
  * command surface. The handlers operate over filesystem state only (no
- * DB, no daemon), wiring Graphify's own stdio MCP server into each
- * agent's config via the 9·Core substrate.
+ * DB, no daemon). Claude Code is native-plugin-managed (Coodra's plugin
+ * bundles Graphify automatically) — `graphify enable --ide claude` is a
+ * no-op that never touches repo-root `.mcp.json`. Codex is the only
+ * remaining explicit-wiring target: a real `[mcp_servers.graphify]` TOML
+ * write via the 9·Core substrate.
  *
- *   - enable writes a `graphify` entry; preserves `coodra` + siblings.
- *   - --python overrides the interpreter; Windsurf gets an absolute
- *     graph path (its config is global, no project anchor).
- *   - Codex (TOML) gets a real `[mcp_servers.graphify]` write — same as
- *     the three JSON agents.
+ *   - enable writes a `graphify` entry into Codex's config.toml; preserves
+ *     `coodra` + siblings.
  *   - enable wires only the `graphify` MCP entry (no recipe seeding —
  *     retired in ADR-015; Graphify is query-only).
  *   - disable strips only the `graphify` entry.
- *   - status is a read-only probe across all four agents.
+ *   - status is a read-only probe across both agents.
  *   - bad / empty IDE selection exits user-recoverable (1).
  */
 
@@ -106,9 +106,11 @@ describe('runGraphifyEnableCommand', () => {
     await writeFile(join(cwd, 'graphify-out', 'graph.json'), JSON.stringify({ nodes: [], links: [] }));
 
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', cwd, userHome: home, json: true }, c.io)).rejects.toThrow();
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
+    await expect(enable({ ide: 'codex', cwd, userHome: home, json: true }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { args: string[] } };
+    };
+    expect(parsed.mcp_servers.graphify.args).toEqual(['-m', 'graphify.serve', 'graphify-out/graph.json']);
     const record = JSON.parse(await readFile(join(cwd, '.coodra', 'graphify.json'), 'utf8'));
     expect(record.managedByCoodra).toBe(false);
     expect(record.outputDir).toBe('graphify-out');
@@ -129,10 +131,12 @@ describe('runGraphifyEnableCommand', () => {
     };
 
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', cwd, userHome: home, install: false, readPrompt }, c.io)).rejects.toThrow();
+    await expect(enable({ ide: 'codex', cwd, userHome: home, install: false, readPrompt }, c.io)).rejects.toThrow();
     expect(asked.some((q) => /Migrate to Coodra-managed/.test(q))).toBe(true);
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', '.coodra/graphify/out/graph.json']);
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { args: string[] } };
+    };
+    expect(parsed.mcp_servers.graphify.args).toEqual(['-m', 'graphify.serve', '.coodra/graphify/out/graph.json']);
     const record = JSON.parse(await readFile(join(cwd, '.coodra', 'graphify.json'), 'utf8'));
     expect(record.managedByCoodra).toBe(true);
   });
@@ -151,24 +155,20 @@ describe('runGraphifyEnableCommand', () => {
 
   it('--python overrides the interpreter on the written entry', async () => {
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', python: '.venv/bin/python3', cwd, userHome: home }, c.io)).rejects.toThrow();
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.graphify.command).toBe('.venv/bin/python3');
+    await expect(enable({ ide: 'codex', python: '.venv/bin/python3', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { command: string } };
+    };
+    expect(parsed.mcp_servers.graphify.command).toBe('.venv/bin/python3');
   });
 
   it('--graph overrides the graph path on the written entry', async () => {
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', graph: 'out/g.json', cwd, userHome: home }, c.io)).rejects.toThrow();
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.graphify.args).toEqual(['-m', 'graphify.serve', 'out/g.json']);
-  });
-
-  it('Windsurf gets an absolute graph path (global config has no project anchor)', async () => {
-    const c = makeIO();
-    await expect(enable({ ide: 'windsurf', cwd, userHome: home }, c.io)).rejects.toThrow();
-    const wsPath = join(home, '.codeium', 'windsurf', 'mcp_config.json');
-    const parsed = JSON.parse(await readFile(wsPath, 'utf8'));
-    expect(parsed.mcpServers.graphify.args[2]).toBe(join(cwd, '.coodra', 'graphify', 'out', 'graph.json'));
+    await expect(enable({ ide: 'codex', graph: 'out/g.json', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { args: string[] } };
+    };
+    expect(parsed.mcp_servers.graphify.args).toEqual(['-m', 'graphify.serve', 'out/g.json']);
   });
 
   it('writes a real [mcp_servers.graphify] table into Codex config.toml for --ide codex', async () => {
@@ -183,56 +183,52 @@ describe('runGraphifyEnableCommand', () => {
   });
 
   it('preserves the `coodra` entry and any sibling MCP servers', async () => {
-    await mkdir(join(cwd, '.cursor'), { recursive: true });
+    await mkdir(join(cwd, '.codex'), { recursive: true });
     await writeFile(
-      join(cwd, '.cursor', 'mcp.json'),
-      JSON.stringify({ mcpServers: { coodra: { command: 'node' }, memory: { command: 'npx' } } }, null, 2),
+      join(cwd, '.codex', 'config.toml'),
+      '[mcp_servers.coodra]\ncommand = "node"\n\n[mcp_servers.memory]\ncommand = "npx"\n',
       'utf8',
     );
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', cwd, userHome: home }, c.io)).rejects.toThrow();
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(parsed.mcpServers.coodra.command).toBe('node');
-    expect(parsed.mcpServers.memory.command).toBe('npx');
-    expect(parsed.mcpServers.graphify.command).toBe('python3');
+    await expect(enable({ ide: 'codex', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { coodra: { command: string }; memory: { command: string }; graphify: { command: string } };
+    };
+    expect(parsed.mcp_servers.coodra.command).toBe('node');
+    expect(parsed.mcp_servers.memory.command).toBe('npx');
+    expect(parsed.mcp_servers.graphify.command).toBe('python3');
   });
 
   it('is idempotent — a second enable is a no-op', async () => {
     const first = makeIO();
-    await expect(enable({ ide: 'cursor', json: true, cwd, userHome: home }, first.io)).rejects.toThrow();
+    await expect(enable({ ide: 'codex', json: true, cwd, userHome: home }, first.io)).rejects.toThrow();
     expect(JSON.parse(first.stdout()).results[0].action).toBe('wrote');
     const second = makeIO();
-    await expect(enable({ ide: 'cursor', json: true, cwd, userHome: home }, second.io)).rejects.toThrow();
+    await expect(enable({ ide: 'codex', json: true, cwd, userHome: home }, second.io)).rejects.toThrow();
     const report = JSON.parse(second.stdout());
     expect(report.results[0].action).toBe('unchanged');
   });
 
   it('leaves a drifted entry untouched without --force', async () => {
-    await mkdir(join(cwd, '.cursor'), { recursive: true });
-    await writeFile(
-      join(cwd, '.cursor', 'mcp.json'),
-      JSON.stringify({ mcpServers: { graphify: { command: 'custom' } } }, null, 2),
-      'utf8',
-    );
+    await mkdir(join(cwd, '.codex'), { recursive: true });
+    await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.graphify]\ncommand = "custom"\n', 'utf8');
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', cwd, userHome: home }, c.io)).rejects.toThrow();
-    expect(JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8')).mcpServers.graphify.command).toBe(
-      'custom',
-    );
+    await expect(enable({ ide: 'codex', cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { command: string } };
+    };
+    expect(parsed.mcp_servers.graphify.command).toBe('custom');
   });
 
   it('--force overwrites a drifted entry', async () => {
-    await mkdir(join(cwd, '.cursor'), { recursive: true });
-    await writeFile(
-      join(cwd, '.cursor', 'mcp.json'),
-      JSON.stringify({ mcpServers: { graphify: { command: 'custom' } } }, null, 2),
-      'utf8',
-    );
+    await mkdir(join(cwd, '.codex'), { recursive: true });
+    await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.graphify]\ncommand = "custom"\n', 'utf8');
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', force: true, cwd, userHome: home }, c.io)).rejects.toThrow();
-    expect(JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8')).mcpServers.graphify.command).toBe(
-      'python3',
-    );
+    await expect(enable({ ide: 'codex', force: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { command: string } };
+    };
+    expect(parsed.mcp_servers.graphify.command).toBe('python3');
   });
 
   it('--dry-run writes nothing to disk', async () => {
@@ -241,15 +237,13 @@ describe('runGraphifyEnableCommand', () => {
     await expect(readFile(join(cwd, '.mcp.json'), 'utf8')).rejects.toThrow();
   });
 
-  it('--ide all wires all four agents, Codex included', async () => {
+  it('--ide all wires Codex, leaves Claude untouched (native plugin)', async () => {
     const c = makeIO();
     await expect(enable({ ide: 'all', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     const report = JSON.parse(c.stdout());
     expect(report.ok).toBe(true);
     const byIde = Object.fromEntries(report.results.map((r: { ide: string; action: string }) => [r.ide, r.action]));
     expect(byIde.claude).toBe('unchanged');
-    expect(byIde.cursor).toBe('wrote');
-    expect(byIde.windsurf).toBe('wrote');
     expect(byIde.codex).toBe('wrote');
     // Codex's TOML config carries a real graphify table now.
     const codexCfg = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
@@ -290,7 +284,7 @@ describe('runGraphifyEnableCommand', () => {
 
   it('emits the install + graph-build prerequisites in human output', async () => {
     const c = makeIO();
-    await expect(enable({ ide: 'cursor', cwd, userHome: home }, c.io)).rejects.toThrow();
+    await expect(enable({ ide: 'codex', cwd, userHome: home }, c.io)).rejects.toThrow();
     const out = c.stdout().replace(ANSI, '');
     // Install line names the [mcp] extra (no semantic backend needed — Graphify is query-only now, ADR-015).
     expect(out).toContain('graphifyy[mcp]');
@@ -314,12 +308,14 @@ describe('runGraphifyEnableCommand', () => {
     });
     const c = makeIO();
     await expect(
-      enable({ ide: 'cursor', cwd, userHome: home, resolvePython: verifiedResolver }, c.io),
+      enable({ ide: 'codex', cwd, userHome: home, resolvePython: verifiedResolver }, c.io),
     ).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
-    const parsed = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { command: string } };
+    };
     // The wired command is the DETECTED interpreter, not bare python3.
-    expect(parsed.mcpServers.graphify.command).toBe('/uv/tools/graphifyy/bin/python');
+    expect(parsed.mcp_servers.graphify.command).toBe('/uv/tools/graphifyy/bin/python');
     const out = c.stdout().replace(ANSI, '');
     expect(out).toContain('verified');
     // No graph built in the tmp cwd → the verified notice flags the missing graph.
@@ -336,7 +332,7 @@ describe('runGraphifyEnableCommand', () => {
     });
     const c = makeIO();
     await expect(
-      enable({ ide: 'cursor', json: true, cwd, userHome: home, resolvePython: verifiedResolver }, c.io),
+      enable({ ide: 'codex', json: true, cwd, userHome: home, resolvePython: verifiedResolver }, c.io),
     ).rejects.toThrow();
     const report = JSON.parse(c.stdout());
     expect(report.python).toBe('/uv/py');
@@ -387,27 +383,24 @@ describe('runGraphifyDisableCommand', () => {
   });
 
   it('is a no-op when no `graphify` entry exists', async () => {
-    await writeFile(
-      join(cwd, '.mcp.json'),
-      JSON.stringify({ mcpServers: { coodra: { command: 'node' } } }, null, 2),
-      'utf8',
-    );
+    await mkdir(join(cwd, '.codex'));
+    await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.coodra]\ncommand = "node"\n', 'utf8');
     const c = makeIO();
-    await expect(runGraphifyDisableCommand({ ide: 'cursor', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    await expect(runGraphifyDisableCommand({ ide: 'codex', json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(JSON.parse(c.stdout()).results[0].action).toBe('unchanged');
   });
 
   it('--dry-run writes nothing to disk', async () => {
-    await writeFile(
-      join(cwd, '.mcp.json'),
-      JSON.stringify({ mcpServers: { graphify: { command: 'python3' } } }, null, 2),
-      'utf8',
-    );
+    await mkdir(join(cwd, '.codex'));
+    await writeFile(join(cwd, '.codex', 'config.toml'), '[mcp_servers.graphify]\ncommand = "python3"\n', 'utf8');
     const c = makeIO();
     await expect(
-      runGraphifyDisableCommand({ ide: 'cursor', dryRun: true, cwd, userHome: home }, c.io),
+      runGraphifyDisableCommand({ ide: 'codex', dryRun: true, cwd, userHome: home }, c.io),
     ).rejects.toThrow();
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.graphify.command).toBe('python3');
+    const parsed = parseToml(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')) as {
+      mcp_servers: { graphify: { command: string } };
+    };
+    expect(parsed.mcp_servers.graphify.command).toBe('python3');
   });
 
   it('exits user-recoverable (1) on an unknown --ide value', async () => {
@@ -432,7 +425,7 @@ describe('runGraphifyStatusCommand', () => {
     expect(c.exitCode()).toBe(0);
     const report = JSON.parse(c.stdout());
     expect(report.server).toBe('graphify');
-    expect(report.ides.map((i: { ide: string }) => i.ide)).toEqual(['claude', 'cursor', 'windsurf', 'codex']);
+    expect(report.ides.map((i: { ide: string }) => i.ide)).toEqual(['claude', 'codex']);
     expect(report.ides.every((i: { wired: boolean; exists: boolean }) => i.wired === false && i.exists === false)).toBe(
       true,
     );
@@ -480,13 +473,11 @@ describe('runGraphifyStatusCommand', () => {
     expect(claude).toMatchObject({ exists: false, wired: false, unreadable: false });
   });
 
-  it('renders a human-readable table naming all four agents', async () => {
+  it('renders a human-readable table naming both agents', async () => {
     const c = makeIO();
     await expect(runGraphifyStatusCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
     const out = c.stdout().replace(ANSI, '');
     expect(out).toContain('Claude Code');
-    expect(out).toContain('Cursor');
-    expect(out).toContain('Windsurf');
     expect(out).toContain('Codex');
   });
 });
@@ -501,8 +492,6 @@ describe('runGraphifyEnableCommand — enable → status round-trip', () => {
     await expect(runGraphifyStatusCommand({ json: true, cwd, userHome: home }, statusIo.io)).rejects.toThrow();
     const report = JSON.parse(statusIo.stdout());
     expect(report.ides.find((i: { ide: string }) => i.ide === 'claude')?.wired).toBe(false);
-    expect(
-      report.ides.filter((i: { ide: string }) => i.ide !== 'claude').every((i: { wired: boolean }) => i.wired),
-    ).toBe(true);
+    expect(report.ides.find((i: { ide: string }) => i.ide === 'codex')?.wired).toBe(true);
   });
 });

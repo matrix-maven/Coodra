@@ -44,15 +44,15 @@ import { recordArtifactsInManifest, renderScan } from './graphify-artifacts.js';
  * Coodra mints NO Work Packs from the graph. Graphify stays structural
  * context; Work Packs stay issue-bound records imported from planning tools.
  *
- * The per-IDE wiring is delegated to `lib/init/graphify-wire.ts`, which
- * sits on the 9·Core substrate: `external-mcp-merge.ts` for the JSON
- * agents (Claude Code / Cursor / Windsurf) and `external-codex-merge.ts`
- * for Codex's TOML config. All four agents get a real, idempotent,
- * never-clobber write.
+ * Claude Code is native-plugin-managed (the Coodra plugin bundles Graphify
+ * automatically). The per-IDE wiring in `lib/init/graphify-wire.ts` now
+ * only covers Codex's project-scoped `.codex/config.toml`, via
+ * `external-codex-merge.ts`'s idempotent, never-clobber TOML writer — for
+ * a custom graph path or a Codex install outside the Coodra plugin.
  */
 
 export interface GraphifyEnableOptions {
-  /** `--ide` — claude | cursor | windsurf | codex | all (comma-separated). Autodetect when omitted. */
+  /** `--ide` — claude | codex | all (comma-separated). Autodetect when omitted. */
   readonly ide?: string;
   /** `--python` — interpreter for `-m graphify.serve`. Omit to auto-detect a verified `graphifyy[mcp]` interpreter. */
   readonly python?: string;
@@ -287,11 +287,7 @@ export async function runGraphifyEnableCommand(
     return failSelection(io, selection.error, json);
   }
   if (selection.ides.length === 0) {
-    return failSelection(
-      io,
-      'No supported IDE detected. Pass --ide claude|cursor|windsurf|codex|all to wire one explicitly.',
-      json,
-    );
+    return failSelection(io, 'No supported IDE detected. Pass --ide claude|codex|all to wire one explicitly.', json);
   }
 
   // Install-first (2026-07-02): when nothing verified and the user didn't
@@ -417,11 +413,7 @@ export async function runGraphifyDisableCommand(
     return failSelection(io, selection.error, json);
   }
   if (selection.ides.length === 0) {
-    return failSelection(
-      io,
-      'No supported IDE detected. Pass --ide claude|cursor|windsurf|codex|all to target one explicitly.',
-      json,
-    );
+    return failSelection(io, 'No supported IDE detected. Pass --ide claude|codex|all to target one explicitly.', json);
   }
 
   const results: IdeActionResult[] = [];
@@ -506,8 +498,8 @@ function renderStatusRow(s: GraphifyIdeStatus): string {
 
 /**
  * `coodra graphify status` — read-only probe of whether the `graphify`
- * MCP entry is present in each agent config (Claude Code / Cursor /
- * Windsurf / Codex). Touches no disk state.
+ * MCP entry is present in each agent config (Claude Code / Codex).
+ * Touches no disk state.
  */
 /**
  * Decide WHERE this project's Graphify output lives, for `enable`.

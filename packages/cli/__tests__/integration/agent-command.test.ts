@@ -21,8 +21,7 @@ import { VERSION } from '../../src/version.js';
  * temp filesystems (no host config touched). Exercises the AgentAdapter
  * registry through the command layer: per-agent config surfaces, native
  * plugin surfaces, user-owned repo-root .mcp.json boundaries,
- * the devin→windsurf alias, force/repair, removal, dry-run, and the
- * unknown-agent error path.
+ * force/repair, removal, dry-run, and the unknown-agent error path.
  */
 
 interface Cap {
@@ -88,35 +87,6 @@ function parse(cap: Cap): {
 }
 
 describe('coodra agent add', () => {
-  it('add cursor — writes .cursor/mcp.json + .cursorrules without project .mcp.json', async () => {
-    const { io, cap } = makeIO();
-    const code = await run(() => runAgentAddCommand('cursor', baseOptions(), io));
-    expect(code).toBe(EXIT_OK);
-
-    // Root .mcp.json is user-owned and never created by Coodra.
-    expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
-    // Cursor's per-agent surfaces.
-    const cursorMcp = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(cursorMcp.mcpServers.coodra).toBeDefined();
-    expect(cursorMcp.mcpServers.coodra.env.COODRA_AGENT_TYPE).toBe('cursor');
-    const cursorrules = await readFile(join(cwd, '.cursorrules'), 'utf8');
-    expect(cursorrules).toContain('coodra:start');
-
-    const payload = parse(cap);
-    expect(payload.ok).toBe(true);
-    expect(payload.agents[0]?.id).toBe('cursor');
-
-    // Phase 2: agent add writes .coodra/config.json + records the manifest.
-    const config = JSON.parse(await readFile(join(cwd, '.coodra', 'config.json'), 'utf8'));
-    expect(config).toMatchObject({ version: 1, projectSlug: 'sample-app' });
-    const manifest = JSON.parse(await readFile(join(cwd, '.coodra', 'manifest.json'), 'utf8'));
-    const paths = manifest.entries.map((e: { path: string }) => e.path);
-    expect(paths).toEqual(expect.arrayContaining(['.cursor/mcp.json', '.cursorrules', '.coodra/config.json']));
-    expect(paths).not.toContain('.mcp.json');
-    const cursorEntry = manifest.entries.find((e: { path: string }) => e.path === '.cursor/mcp.json');
-    expect(cursorEntry).toMatchObject({ owner: 'agent:cursor', cleanup: 'ask' });
-  });
-
   it('add codex — installs the global native Codex plugin and does not write project agent files', async () => {
     const { io } = makeIO();
     await run(() => runAgentAddCommand('codex', baseOptions(), io));
@@ -210,26 +180,11 @@ describe('coodra agent add', () => {
     expect(graphifySkill).toContain('omit `project_path`');
   });
 
-  it('add devin — resolves to the windsurf adapter (label "Devin"), writes windsurf surfaces', async () => {
-    const { io, cap } = makeIO();
-    // windsurf writes a GLOBAL config under userHome/.codeium/windsurf/.
-    await run(() => runAgentAddCommand('devin', baseOptions(), io));
-    const windsurfMcp = JSON.parse(await readFile(join(userHome, '.codeium', 'windsurf', 'mcp_config.json'), 'utf8'));
-    expect(windsurfMcp.mcpServers.coodra).toBeDefined();
-    expect(windsurfMcp.mcpServers.coodra.env.COODRA_AGENT_TYPE).toBe('windsurf');
-    expect(await readFile(join(cwd, '.windsurfrules'), 'utf8')).toContain('coodra:start');
-
-    const payload = parse(cap);
-    expect(payload.agents[0]?.id).toBe('windsurf');
-    expect(payload.agents[0]?.label).toBe('Devin');
-  });
-
   it('add all — wires every agent in one pass', async () => {
     const { io, cap } = makeIO();
     await run(() => runAgentAddCommand('all', baseOptions(), io));
     const payload = parse(cap);
-    expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex', 'cursor', 'windsurf']);
-    expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(true);
+    expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex']);
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
     expect(existsSync(join(userHome, '.codex', 'plugins', 'coodra', '.codex-plugin', 'plugin.json'))).toBe(true);
     expect(
@@ -240,9 +195,9 @@ describe('coodra agent add', () => {
 
   it('--dry-run touches nothing on disk', async () => {
     const { io } = makeIO();
-    await run(() => runAgentAddCommand('cursor', baseOptions({ dryRun: true }), io));
-    expect(existsSync(join(cwd, '.cursor', 'mcp.json'))).toBe(false);
-    expect(existsSync(join(cwd, '.cursorrules'))).toBe(false);
+    await run(() => runAgentAddCommand('codex', baseOptions({ dryRun: true }), io));
+    expect(existsSync(join(userHome, '.codex', 'plugins', 'coodra'))).toBe(false);
+    expect(existsSync(join(userHome, '.agents', 'plugins', 'marketplace.json'))).toBe(false);
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
 
@@ -257,16 +212,17 @@ describe('coodra agent add', () => {
 describe('coodra agent repair', () => {
   it('force re-wires an already-wired agent (idempotent, exits 0)', async () => {
     const { io: io1 } = makeIO();
-    await run(() => runAgentAddCommand('cursor', baseOptions(), io1));
-    // Corrupt the cursor entry so repair has something to overwrite.
-    await writeFile(join(cwd, '.cursor', 'mcp.json'), JSON.stringify({ mcpServers: { coodra: { command: 'stale' } } }));
+    await run(() => runAgentAddCommand('codex', baseOptions(), io1));
+    // Corrupt the plugin-scoped MCP entry so repair has something to overwrite.
+    const mcpPath = join(userHome, '.codex', 'plugins', 'coodra', '.mcp.json');
+    await writeFile(mcpPath, JSON.stringify({ mcpServers: { coodra: { command: 'stale' } } }));
 
     const { io: io2, cap } = makeIO();
-    const code = await run(() => runAgentRepairCommand('cursor', baseOptions(), io2));
+    const code = await run(() => runAgentRepairCommand('codex', baseOptions(), io2));
     expect(code).toBe(EXIT_OK);
     // Repair (force) restored the canonical entry.
-    const cursorMcp = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
-    expect(cursorMcp.mcpServers.coodra.command).toBe('node');
+    const codexMcp = JSON.parse(await readFile(mcpPath, 'utf8'));
+    expect(codexMcp.mcpServers.coodra.command).toBe('node');
     expect(parse(cap).agents[0]?.outcomes.some((o) => o.action === 'forced')).toBe(true);
   });
 });
@@ -328,33 +284,12 @@ describe('coodra agent remove', () => {
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
-
-  it('strips only the agent surfaces, preserving other MCP servers in agent config', async () => {
-    const { io: io1 } = makeIO();
-    await run(() => runAgentAddCommand('cursor', baseOptions(), io1));
-    // Add a user-owned server to .cursor/mcp.json to prove it survives.
-    const cursorPath = join(cwd, '.cursor', 'mcp.json');
-    const withUser = JSON.parse(await readFile(cursorPath, 'utf8'));
-    withUser.mcpServers.other = { command: 'npx', args: ['x'] };
-    await writeFile(cursorPath, JSON.stringify(withUser));
-
-    const { io: io2 } = makeIO();
-    const code = await run(() => runAgentRemoveCommand('cursor', baseOptions(), io2));
-    expect(code).toBe(EXIT_OK);
-
-    const cursorMcp = JSON.parse(await readFile(cursorPath, 'utf8'));
-    expect(cursorMcp.mcpServers.coodra).toBeUndefined();
-    expect(cursorMcp.mcpServers.other).toBeDefined();
-    // .cursorrules coodra block gone.
-    expect(existsSync(join(cwd, '.cursorrules'))).toBe(false);
-    expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
-  });
 });
 
 describe('coodra agent status', () => {
   it('reports wired state after add and missing for un-wired agents', async () => {
     const { io: io1 } = makeIO();
-    await run(() => runAgentAddCommand('cursor', baseOptions(), io1));
+    await run(() => runAgentAddCommand('codex', baseOptions(), io1));
 
     const { io: io2, cap } = makeIO();
     const code = await run(() => runAgentStatusCommand(baseOptions(), io2));
@@ -362,10 +297,10 @@ describe('coodra agent status', () => {
     const payload = JSON.parse(cap.stdout.join('')) as {
       agents: Array<{ id: string; fullyWired: boolean; files: Array<{ label: string; state: string }> }>;
     };
-    const cursor = payload.agents.find((a) => a.id === 'cursor');
-    expect(cursor?.fullyWired).toBe(true);
     const codex = payload.agents.find((a) => a.id === 'codex');
-    expect(codex?.fullyWired).toBe(false);
-    expect(codex?.files.every((f) => f.state === 'missing')).toBe(true);
+    expect(codex?.fullyWired).toBe(true);
+    const claude = payload.agents.find((a) => a.id === 'claude');
+    expect(claude?.fullyWired).toBe(false);
+    expect(claude?.files.every((f) => f.state === 'missing')).toBe(true);
   });
 });

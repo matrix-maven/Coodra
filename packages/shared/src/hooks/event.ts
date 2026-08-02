@@ -15,14 +15,14 @@ import { runKeySegmentSchema } from '../idempotency.js';
  * Field shapes:
  *   - `agentType` — discriminator, set by the adapter.
  *   - `eventPhase` — normalized lifecycle stage. Cross-agent mapping:
- *       Claude Code        Windsurf              Cursor          → eventPhase
- *       PreToolUse         pre_*                 pre_tool_use    → 'pre'
- *       PostToolUse        post_*                post_tool_use   → 'post'
- *       SessionStart       (synthetic on conn)   session_start   → 'session_start'
- *       SessionEnd         post_cascade_response session_end     → 'session_end'
- *       Stop               (n/a)                 (n/a)           → 'turn_end'
- *       UserPromptSubmit   pre_user_prompt       (n/a today)     → 'user_prompt'
- *       ConfigChange       ConfigChange          ConfigChange    → 'config_change'
+ *       Claude Code        Codex                 → eventPhase
+ *       PreToolUse         PreToolUse            → 'pre'
+ *       PostToolUse        PostToolUse           → 'post'
+ *       SessionStart       SessionStart          → 'session_start'
+ *       SessionEnd         SessionEnd            → 'session_end'
+ *       Stop               Stop                  → 'turn_end'
+ *       UserPromptSubmit   UserPromptSubmit      → 'user_prompt'
+ *       ConfigChange       ConfigChange          → 'config_change'
  *
  *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
  *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
@@ -35,9 +35,8 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *   - `sessionId` — already passed through `normalizeSessionId` by the
  *      adapter; `runKeySegmentSchema.parse` re-validates here as a
  *      defence-in-depth check.
- *   - `turnId` — Claude Code `tool_use_id` / Windsurf `execution_id` /
- *      Cursor's tool-call id. Optional because session_start and
- *      session_end events don't carry a turn.
+ *   - `turnId` — Claude Code `tool_use_id`. Optional because
+ *      session_start and session_end events don't carry a turn.
  *   - `toolName` — normalized to the simple form the policy engine
  *      compares against (Write, Edit, Bash, Read, MCP:github, …).
  *   - `filePath` — extracted from the agent's `tool_input` shape if
@@ -59,7 +58,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  */
 export const HookEventSchema = z
   .object({
-    agentType: z.enum(['claude_code', 'windsurf', 'cursor', 'codex', 'unknown']),
+    agentType: z.enum(['claude_code', 'codex', 'unknown']),
     eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt', 'config_change']),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),

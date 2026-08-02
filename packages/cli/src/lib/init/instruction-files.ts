@@ -12,10 +12,8 @@ import type { WriteOutcome } from './types.js';
  *
  * Generates the Coodra **agent operating contract** into the per-agent
  * project instruction file:
- *   - Claude  → `<repo>/CLAUDE.md`        (Claude Code auto-reads at session start)
- *   - Cursor  → `<repo>/.cursorrules`     (Cursor applies it to every chat)
- *   - Codex   → `<repo>/AGENTS.md`        (Codex reads it on the first turn)
- *   - Windsurf→ `<repo>/.windsurfrules`   (Cascade applies it to everything)
+ *   - Claude → `<repo>/CLAUDE.md`  (Claude Code auto-reads at session start)
+ *   - Codex  → `<repo>/AGENTS.md`  (Codex reads it on the first turn)
  *
  * Why this matters: the agent has the `coodra__*` MCP tools wired via
  * native plugin MCP or agent-specific MCP config, but without an instruction
@@ -23,9 +21,9 @@ import type { WriteOutcome } from './types.js';
  * contract.
  *
  * The block is generated PER AGENT (2026-07-02): the shared contract is
- * identical across all four files, but each file names its own agent and
+ * identical across both files, but each file names its own agent and
  * pins the `agentType` value the agent must pass to `get_run_id` — this
- * is what attributes runs to "Codex" / "Cursor" / … on the dashboard
+ * is what attributes runs to "Codex" / "Claude Code" on the dashboard
  * instead of "unknown agent" when the client's MCP handshake name isn't
  * one the server recognises.
  *
@@ -45,22 +43,20 @@ import type { WriteOutcome } from './types.js';
 export const INSTRUCTION_BLOCK_START = '<!-- coodra:start -->';
 export const INSTRUCTION_BLOCK_END = '<!-- coodra:end -->';
 
-export type InstructionFileName = 'AGENTS.md' | '.windsurfrules' | '.cursorrules' | 'CLAUDE.md';
+export type InstructionFileName = 'AGENTS.md' | 'CLAUDE.md';
 
 /** Which agent each instruction file belongs to — drives the per-agent lines in the block. */
 const INSTRUCTION_FILE_AGENT: Readonly<
   Record<InstructionFileName, { readonly agentType: string; readonly displayName: string }>
 > = {
   'CLAUDE.md': { agentType: 'claude_code', displayName: 'Claude Code' },
-  '.cursorrules': { agentType: 'cursor', displayName: 'Cursor' },
   'AGENTS.md': { agentType: 'codex', displayName: 'Codex' },
-  '.windsurfrules': { agentType: 'windsurf', displayName: 'Windsurf' },
 };
 
 /**
  * Build the marker-wrapped agent operating contract for `projectSlug`,
  * targeted at the agent that reads `filename`. The contract body is
- * identical across all four agents; the per-agent parts are the agent's
+ * identical across both agents; the per-agent parts are the agent's
  * name and the pinned `agentType` it must pass to `get_run_id` so runs
  * are attributed correctly (a client whose MCP handshake name the server
  * doesn't recognise would otherwise land as "unknown agent").
@@ -94,7 +90,7 @@ Project slug: \`${projectSlug}\` — pass this as \`projectSlug\` to every tool 
    attributes this run to ${agent.displayName} on the Coodra dashboard.
    This file was generated for ${agent.displayName}. If you are a
    DIFFERENT agent reading it, pass YOUR own type instead — one of
-   \`"claude_code" | "cursor" | "windsurf" | "codex"\`.${sessionIdHint}
+   \`"claude_code" | "codex"\`.${sessionIdHint}
 2. \`coodra__work_pack_status { runId }\` — the local Work Pack inventory
    for this project under \`.coodra/work-packs/\`; read the relevant
    issue-bound pack before changing code.

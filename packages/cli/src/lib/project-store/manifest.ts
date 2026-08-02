@@ -217,14 +217,6 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'pids-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
-    test: (rel) => rel === '.cursor/mcp.json',
-    cls: { owner: 'agent:cursor', kind: 'mcp-config', cleanup: 'ask', safeToDelete: true },
-  },
-  {
-    test: (rel) => rel === '.cursorrules',
-    cls: { owner: 'agent:cursor', kind: 'instruction-file', cleanup: 'ask', safeToDelete: true },
-  },
-  {
     test: (rel) => rel === '.codex/config.toml',
     cls: { owner: 'agent:codex', kind: 'mcp-config', cleanup: 'ask', safeToDelete: true },
   },
@@ -237,16 +229,8 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'agent:claude', kind: 'instruction-file', cleanup: 'ask', safeToDelete: true },
   },
   {
-    test: (rel) => rel === '.windsurfrules',
-    cls: { owner: 'agent:windsurf', kind: 'instruction-file', cleanup: 'ask', safeToDelete: true },
-  },
-  {
     test: (_rel, base) => base === 'settings.json',
     cls: { owner: 'agent:claude', kind: 'hooks', cleanup: 'preserve', safeToDelete: false },
-  },
-  {
-    test: (_rel, base) => base === 'mcp_config.json',
-    cls: { owner: 'agent:windsurf', kind: 'mcp-config', cleanup: 'preserve', safeToDelete: false },
   },
 ];
 

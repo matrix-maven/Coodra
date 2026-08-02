@@ -680,8 +680,7 @@ export interface RecordPolicyDecisionArgs {
   readonly eventType: string;
   readonly toolName: string;
   /**
-   * Agent's per-invocation turn id (Claude Code `tool_use_id`,
-   * Cursor `tool_call_id`, Windsurf `execution_id`). Required for
+   * Agent's per-invocation turn id (Claude Code `tool_use_id`). Required for
    * audit-trail integrity — without it, distinct invocations of the
    * same tool within one session collide on the idempotency key.
    * Optional for backward compatibility; falls back to `'no-turn'`.

@@ -28,14 +28,7 @@
  */
 
 /** Canonical agent-type values the rest of the codebase consumes. */
-export type KnownAgentType =
-  | 'claude_code'
-  | 'cursor'
-  | 'windsurf'
-  | 'codex'
-  | 'vscode_copilot'
-  | 'mcp_inspector'
-  | 'unknown';
+export type KnownAgentType = 'claude_code' | 'codex' | 'vscode_copilot' | 'mcp_inspector' | 'unknown';
 
 /**
  * Readonly mapping `clientInfo.name` → canonical `runs.agent_type`.
@@ -43,12 +36,6 @@ export type KnownAgentType =
  * Keys are the exact `name` strings each client ships in its
  * initialize handshake:
  *   - Claude Code:   'claude-ai' (prior to 2026-02) or 'claude-code'
- *   - Cursor:        'cursor-vscode' (observed) / 'cursor'
- *   - Windsurf:      'windsurf' / 'codeium' / 'cascade' / 'devin'
- *                    (Windsurf is Codeium's product, its in-IDE agent is
- *                    Cascade, and post-acquisition builds identify under
- *                    Cognition's 'devin' branding — field report 2026-07-12
- *                    ran "windsurf (devin)")
  *   - Codex:         'codex-mcp-client' (observed — openai/codex names its
  *                    MCP client this, NOT 'codex'; missing it stamped every
  *                    Codex run 'unknown') / 'codex' / 'codex-cli'
@@ -62,12 +49,6 @@ export type KnownAgentType =
 export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Object.freeze({
   'claude-code': 'claude_code',
   'claude-ai': 'claude_code',
-  cursor: 'cursor',
-  'cursor-vscode': 'cursor',
-  windsurf: 'windsurf',
-  codeium: 'windsurf',
-  cascade: 'windsurf',
-  devin: 'windsurf',
   codex: 'codex',
   'codex-cli': 'codex',
   'codex-mcp-client': 'codex',
@@ -80,19 +61,11 @@ export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Obje
  * Clients rename across releases ('codex' → 'codex-mcp-client' is the
  * observed case that stamped every Codex run 'unknown'); a product-name
  * substring is far more stable than the exact string. Ordered — first
- * match wins. 'copilot' is checked before 'cursor'/'claude' so a name
- * like 'github-copilot-…' can never mis-bucket. 'codex' is checked LAST:
- * it is the most collision-prone token (field report 2026-07-12 —
- * Windsurf runs were mislabeled codex), so every other product token
- * gets first claim on a composite name.
+ * match wins. 'copilot' is checked before 'claude' so a name like
+ * 'github-copilot-…' can never mis-bucket.
  */
 const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentType: KnownAgentType]> = Object.freeze([
   ['copilot', 'vscode_copilot'],
-  ['windsurf', 'windsurf'],
-  ['codeium', 'windsurf'],
-  ['cascade', 'windsurf'],
-  ['devin', 'windsurf'],
-  ['cursor', 'cursor'],
   ['claude', 'claude_code'],
   ['codex', 'codex'],
 ]);
@@ -100,8 +73,6 @@ const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentTyp
 /** The canonical values accepted from the COODRA_AGENT_TYPE env stamp. */
 const KNOWN_AGENT_TYPES: ReadonlySet<string> = new Set<KnownAgentType>([
   'claude_code',
-  'cursor',
-  'windsurf',
   'codex',
   'vscode_copilot',
   'mcp_inspector',
@@ -138,10 +109,9 @@ export interface ResolveAgentTypeOptions {
    * When true, a valid `COODRA_AGENT_TYPE` env stamp WINS over the
    * clientInfo mapping. Set by the **stdio** transport: each agent
    * launches its own server process from its own config entry, and
-   * `coodra init` stamps that entry with the agent it was written for —
-   * the stamp is ground truth for "which config launched me", stronger
-   * than any name heuristic. (Field report 2026-07-12: Windsurf runs
-   * were mislabeled `codex`; explicit configuration must beat guessing.)
+   * `coodra agent add` stamps that entry with the agent it was written
+   * for — the stamp is ground truth for "which config launched me",
+   * stronger than any name heuristic.
    *
    * Leave false/absent for **HTTP**, where one process serves many
    * clients and a process-global env would mislabel all of them — there
@@ -159,13 +129,13 @@ export interface ResolveAgentTypeOptions {
  * stdio (`preferEnvStamp: true`): env stamp first, then clientInfo
  * mapping, then `'unknown'`.
  *
- * The env stamp exists for the stdio case: `coodra init` writes ONE MCP
- * config per agent (`.mcp.json`, `.cursor/mcp.json`, `.codex/config.toml`,
- * Windsurf's `mcp_config.json`) and each spawns its own server process, so
- * a per-entry `COODRA_AGENT_TYPE` is unambiguous — it identifies the agent
- * even when the client ships a `clientInfo.name` we've never seen. On a
- * shared HTTP process (where one env would cover many clients — the
- * reason the S8 design rejected env-only) the stamp stays a fallback.
+ * The env stamp exists for the stdio case: `coodra agent add` writes one
+ * native-plugin-scoped MCP entry per agent (Claude Code, Codex) and each
+ * spawns its own server process, so a per-entry `COODRA_AGENT_TYPE` is
+ * unambiguous — it identifies the agent even when the client ships a
+ * `clientInfo.name` we've never seen. On a shared HTTP process (where one
+ * env would cover many clients — the reason the S8 design rejected
+ * env-only) the stamp stays a fallback.
  */
 export function resolveAgentType(
   clientName: unknown,

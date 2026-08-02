@@ -47,8 +47,8 @@ function recipesRootForCwd(cwd: string): string {
  * `coodra wiki {build,generate,status,list,open,clean}` — Module 10 Deep Wiki.
  *
  * Coodra runs no LLM. `generate` writes a grounding snapshot + an
- * authoring recipe that the user's coding agent (Claude Code / Codex /
- * Cursor) executes against Coodra's wiki_* MCP tools; the result lands in
+ * authoring recipe that the user's coding agent (Claude Code / Codex)
+ * executes against Coodra's wiki_* MCP tools; the result lands in
  * the local SQLite store (and syncs to cloud in team mode) and renders in
  * the web app at `/wiki`. `status` / `list` read that store; `clean`
  * deletes a wiki; `open` opens the web view.

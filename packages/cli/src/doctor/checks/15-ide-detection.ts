@@ -5,13 +5,12 @@ import type { Check } from '../types.js';
 
 const IDE_DIRS = [
   { name: 'Claude Code', dir: '.claude' },
-  { name: 'Cursor', dir: '.cursor' },
-  { name: 'Windsurf', dir: '.windsurf' },
+  { name: 'Codex', dir: '.codex' },
 ];
 
 export const ideDetectionCheck: Check = {
   id: 15,
-  name: 'IDE detection (~/.claude, ~/.cursor, ~/.windsurf)',
+  name: 'IDE detection (~/.claude, ~/.codex)',
   severity: 'yellow',
   async run(_ctx) {
     const home = homedir();
@@ -30,7 +29,7 @@ export const ideDetectionCheck: Check = {
     return {
       status: 'yellow',
       detail: 'no supported IDE config directory found in $HOME',
-      remediation: 'Install Claude Code, Cursor, or Windsurf — hooks need an IDE to fire from.',
+      remediation: 'Install Claude Code or Codex — hooks need an IDE to fire from.',
     };
   },
 };

@@ -2,23 +2,14 @@ import { ADAPTERS } from './adapters.js';
 import type { AgentAdapter, AgentId } from './types.js';
 
 /**
- * Registry surface over the four adapters + the `devin` input alias.
- *
- * `devin` is Cognition's rebrand of the Windsurf/Cascade/Codeium family; it is
- * accepted everywhere a `windsurf` id is accepted and resolves to the same
- * adapter (same on-disk config paths, same `windsurf` agent_type — ADR: keep
- * `windsurf` in the DB, treat Devin as a display/input alias). `windsurf`
- * remains a first-class id.
+ * Registry surface over the two supported adapters (Claude Code, Codex).
  */
 
 /** Canonical display order (matches detect.ts IDE_ORDER). */
-export const AGENT_ORDER: readonly AgentId[] = ['claude', 'cursor', 'windsurf', 'codex'] as const;
+export const AGENT_ORDER: readonly AgentId[] = ['claude', 'codex'] as const;
 
 /** Input aliases → canonical id. */
 const AGENT_ALIASES: Readonly<Record<string, AgentId>> = {
-  devin: 'windsurf',
-  cascade: 'windsurf',
-  codeium: 'windsurf',
   claude_code: 'claude',
   'claude-code': 'claude',
 };
@@ -38,7 +29,7 @@ export interface ResolvedAgentInput {
   readonly adapter: AgentAdapter;
   /** The canonical id the input resolved to. */
   readonly id: AgentId;
-  /** Whether the caller typed an alias (e.g. `devin` for `windsurf`). */
+  /** Whether the caller typed an alias (e.g. `claude-code` for `claude`). */
   readonly viaAlias: boolean;
   /** User-facing label: the alias (title-cased) when one was typed, else the adapter's display name. */
   readonly label: string;

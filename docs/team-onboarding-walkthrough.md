@@ -130,7 +130,7 @@ Expected output:
 
 ```
 ✓ Detected project root: /Users/<you>/coodra-demo
-✓ Detected IDEs: claude, cursor, windsurf
+✓ Detected IDEs: claude, codex
 ✓ Resolved Coodra home: /Users/<you>/.coodra
 ✓ Applied migrations + seeded __global__ + registered project 'demo-app' (new id <uuid>)
 ✓ Seeded default policy

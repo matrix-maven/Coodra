@@ -1,18 +1,10 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { removeCodexConfig } from '../init/codex-merge.js';
-import { mergeCursorMcpConfig, removeCursorMcpConfig } from '../init/cursor-merge.js';
-import { type InstructionFileName, mergeInstructionFile, removeInstructionBlock } from '../init/instruction-files.js';
-import { buildCoodraMcpEntry } from '../init/mcp-merge.js';
+import { removeInstructionBlock } from '../init/instruction-files.js';
 import type { WriteOutcome } from '../init/types.js';
-import {
-  defaultWindsurfMcpConfigPath,
-  mergeWindsurfMcpConfig,
-  removeWindsurfMcpConfig,
-} from '../init/windsurf-merge.js';
 import { installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
 import { installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
-import { probeInstructionFile, probeMcpJson, toFileState } from './status-probes.js';
 import type {
   AgentAdapter,
   AgentContext,
@@ -21,7 +13,6 @@ import type {
   AgentPathContext,
   AgentRemoveContext,
   AgentStatus,
-  AgentTypeStamp,
 } from './types.js';
 
 async function detectDir(userHome: string, dir: string): Promise<AgentDetection> {
@@ -46,17 +37,6 @@ function buildStatus(
     files,
     fullyWired: files.every((f) => f.state === 'wired'),
   };
-}
-
-/** Build the per-agent MCP entry, stamping this adapter's agentType. */
-function mcpEntry(ctx: AgentContext, agentType: AgentTypeStamp) {
-  return buildCoodraMcpEntry({ ...ctx.mcpEntryOptions, agentType });
-}
-
-/** Shared helper: this agent's instruction file path + a fresh probe. */
-async function instructionFileState(cwd: string, filename: InstructionFileName): Promise<AgentFileState> {
-  const path = join(cwd, filename);
-  return { label: filename, path, state: toFileState(await probeInstructionFile(path)) };
 }
 
 // ---------------------------------------------------------------------------
@@ -116,46 +96,6 @@ const claudeAdapter: AgentAdapter = {
 };
 
 // ---------------------------------------------------------------------------
-// cursor — .cursor/mcp.json + .cursorrules
-// ---------------------------------------------------------------------------
-
-const cursorAdapter: AgentAdapter = {
-  id: 'cursor',
-  displayName: 'Cursor',
-  agentType: 'cursor',
-  detectionDir: '.cursor',
-  detect: (userHome) => detectDir(userHome, '.cursor'),
-  async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const mcpPath = join(ctx.cwd, '.cursor', 'mcp.json');
-    const files: AgentFileState[] = [
-      { label: '.cursor/mcp.json', path: mcpPath, state: toFileState(await probeMcpJson(mcpPath)) },
-      await instructionFileState(ctx.cwd, '.cursorrules'),
-    ];
-    return buildStatus(this, await this.detect(ctx.userHome), files);
-  },
-  async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    const mcp = await mergeCursorMcpConfig({
-      cwd: ctx.cwd,
-      entry: mcpEntry(ctx, 'cursor'),
-      force: ctx.force,
-      dryRun: ctx.dryRun,
-    });
-    const instr = await mergeInstructionFile({
-      cwd: ctx.cwd,
-      filename: '.cursorrules',
-      projectSlug: ctx.projectSlug,
-      dryRun: ctx.dryRun,
-    });
-    return [mcp, instr];
-  },
-  async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    const mcp = await removeCursorMcpConfig({ cwd: ctx.cwd, dryRun: ctx.dryRun });
-    const instr = await removeInstructionBlock({ cwd: ctx.cwd, filename: '.cursorrules', dryRun: ctx.dryRun });
-    return [mcp, instr];
-  },
-};
-
-// ---------------------------------------------------------------------------
 // codex — global Codex plugin via the local personal marketplace.
 // ---------------------------------------------------------------------------
 
@@ -209,53 +149,7 @@ const codexAdapter: AgentAdapter = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// windsurf — ~/.codeium/windsurf/mcp_config.json (GLOBAL, no cwd) + .windsurfrules
-// Public label is "Devin" (Cognition's rebrand of the Windsurf/Cascade/Codeium
-// family); `coodra agent add devin` resolves here. The config paths + agentType
-// stay `windsurf` — that's what the on-disk files and DB attribution use.
-// ---------------------------------------------------------------------------
-
-const windsurfAdapter: AgentAdapter = {
-  id: 'windsurf',
-  displayName: 'Windsurf',
-  aka: 'Devin',
-  agentType: 'windsurf',
-  detectionDir: '.windsurf',
-  detect: (userHome) => detectDir(userHome, '.windsurf'),
-  async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const mcpPath = defaultWindsurfMcpConfigPath(ctx.userHome);
-    const files: AgentFileState[] = [
-      { label: '~/.codeium/windsurf/mcp_config.json', path: mcpPath, state: toFileState(await probeMcpJson(mcpPath)) },
-      await instructionFileState(ctx.cwd, '.windsurfrules'),
-    ];
-    return buildStatus(this, await this.detect(ctx.userHome), files);
-  },
-  async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    const mcp = await mergeWindsurfMcpConfig({
-      entry: mcpEntry(ctx, 'windsurf'),
-      force: ctx.force,
-      dryRun: ctx.dryRun,
-      userHome: ctx.userHome,
-    });
-    const instr = await mergeInstructionFile({
-      cwd: ctx.cwd,
-      filename: '.windsurfrules',
-      projectSlug: ctx.projectSlug,
-      dryRun: ctx.dryRun,
-    });
-    return [mcp, instr];
-  },
-  async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    const mcp = await removeWindsurfMcpConfig({ dryRun: ctx.dryRun, userHome: ctx.userHome });
-    const instr = await removeInstructionBlock({ cwd: ctx.cwd, filename: '.windsurfrules', dryRun: ctx.dryRun });
-    return [mcp, instr];
-  },
-};
-
 export const ADAPTERS: Readonly<Record<import('./types.js').AgentId, AgentAdapter>> = {
   claude: claudeAdapter,
-  cursor: cursorAdapter,
   codex: codexAdapter,
-  windsurf: windsurfAdapter,
 };

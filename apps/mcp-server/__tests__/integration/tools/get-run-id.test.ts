@@ -167,7 +167,7 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
 
 // ---------------------------------------------------------------------------
 // agentType precedence — a KNOWN transport-resolved ctx.agentType beats the
-// input.agentType param (field fix 2026-07-12: Windsurf parroting a
+// input.agentType param (field fix 2026-07-12: an agent parroting a
 // Codex-authored AGENTS.md passed agentType: "codex" and mislabeled its runs)
 // ---------------------------------------------------------------------------
 
@@ -184,9 +184,9 @@ describe('get_run_id — agentType precedence (known transport identity beats th
     const registry = buildRegistry(h.handle, 'solo');
     const result = await registry.handleCall(
       'get_run_id',
-      { projectSlug: 'windsurf-proj', agentType: 'codex' },
+      { projectSlug: 'claude-proj', agentType: 'codex' },
       'sess_field',
-      { agentType: 'windsurf' },
+      { agentType: 'claude_code' },
     );
     const out = unwrap(result);
     expect(out.ok).toBe(true);
@@ -195,7 +195,7 @@ describe('get_run_id — agentType precedence (known transport identity beats th
       .from(sqliteSchema.runs)
       .where(eq(sqliteSchema.runs.sessionId, 'sess_field'));
     expect(runs).toHaveLength(1);
-    expect(runs[0]?.agentType).toBe('windsurf');
+    expect(runs[0]?.agentType).toBe('claude_code');
   });
 
   it('falls back to input.agentType when the transport resolved unknown (param fallback preserved)', async () => {

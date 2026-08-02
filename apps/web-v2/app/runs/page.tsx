@@ -79,8 +79,8 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
               Every <em>run</em>, every event.
             </h1>
             <p className="head__lede">
-              A run is one Claude / Cursor / Windsurf session against a project. Every tool call is a row; every row
-              carries a verdict. Nothing is reconstructed — it&apos;s recorded.
+              A run is one Claude Code / Codex session against a project. Every tool call is a row; every row carries a
+              verdict. Nothing is reconstructed — it&apos;s recorded.
             </p>
           </div>
           <div>

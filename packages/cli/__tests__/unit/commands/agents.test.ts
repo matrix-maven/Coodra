@@ -28,9 +28,9 @@ describe('buildAgentReports', () => {
     cwd = await mkdtemp(join(tmpdir(), 'coodra-agents-cwd-'));
   });
 
-  it('returns one report per agent (claude, cursor, windsurf, codex) in canonical order', async () => {
+  it('returns one report per agent (claude, codex) in canonical order', async () => {
     const reports = await buildAgentReports({ cwd, userHome });
-    expect(reports.map((r) => r.name)).toEqual(['claude', 'cursor', 'windsurf', 'codex']);
+    expect(reports.map((r) => r.name)).toEqual(['claude', 'codex']);
   });
 
   it('marks an agent as not-detected when its config dir is absent', async () => {
@@ -41,14 +41,14 @@ describe('buildAgentReports', () => {
 
   it('marks an agent as detected when its config dir exists', async () => {
     await mkdir(join(userHome, '.claude'));
-    await mkdir(join(userHome, '.cursor'));
+    await mkdir(join(userHome, '.codex'));
     const reports = await buildAgentReports({ cwd, userHome });
     const claude = reports.find((r) => r.name === 'claude');
-    const cursor = reports.find((r) => r.name === 'cursor');
+    const codex = reports.find((r) => r.name === 'codex');
     expect(claude?.detected).toBe(true);
-    expect(cursor?.detected).toBe(true);
+    expect(codex?.detected).toBe(true);
     expect(claude?.howToEnable).toBeNull();
-    expect(cursor?.howToEnable).toBeNull();
+    expect(codex?.howToEnable).toBeNull();
   });
 
   it('flags Claude plugin MCP as wired when it carries the coodra entry', async () => {
@@ -188,7 +188,7 @@ describe('runAgentsCommand', () => {
     ).rejects.toThrow();
     expect(captured.exit).toBe(0);
     const parsed = JSON.parse(captured.stdout.join('')) as Array<{ name: string; files: unknown[] }>;
-    expect(parsed.map((r) => r.name)).toEqual(['claude', 'cursor', 'windsurf', 'codex']);
+    expect(parsed.map((r) => r.name)).toEqual(['claude', 'codex']);
     expect(parsed.every((r) => Array.isArray(r.files))).toBe(true);
   });
 
@@ -214,8 +214,6 @@ describe('runAgentsCommand', () => {
     // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI for assertion.
     const out = captured.stdout.join('').replace(/\x1b\[[0-9;]*m/g, '');
     expect(out).toContain('Claude Code');
-    expect(out).toContain('Cursor');
-    expect(out).toContain('Windsurf');
     expect(out).toContain('Codex');
     expect(out).toContain('coodra init');
   });

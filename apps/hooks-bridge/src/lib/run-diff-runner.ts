@@ -53,7 +53,7 @@ const runnerLogger = createLogger('hooks-bridge.run-diff-runner');
 const execFileAsync = promisify(execFile);
 
 const GIT_TIMEOUT_MS = 15_000;
-/** Edit/Write tool names emitted by Claude Code, Cursor, and Windsurf. */
+/** Edit/Write tool names emitted by Claude Code and Codex. */
 const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
   'Edit',
   'edit_file',

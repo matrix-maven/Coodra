@@ -34,31 +34,28 @@ describe('coodra --help (snapshot-locked surface)', () => {
         metrics|roi [options]     Print Coodra ROI / value KPIs (knowledge captured,
                                   reuse, governance, modeled net value) for this
                                   machine.
-        agents [options]          Show per-agent wiring status (Claude Code, Cursor,
-                                  Windsurf, Codex). Read-only, same report as \`coodra
-                                  agent status\` — use \`coodra agent add|remove\` to
-                                  change wiring.
+        agents [options]          Show per-agent wiring status (Claude Code, Codex).
+                                  Read-only, same report as \`coodra agent status\` —
+                                  use \`coodra agent add|remove\` to change wiring.
         agent                     Wire, re-wire, or strip a single coding agent
-                                  (claude | cursor | codex | windsurf | devin).
+                                  (claude | codex).
         files                     Inspect or clean the files Coodra generated in this
                                   project (.coodra/manifest.json).
         graphify                  Wire Graphify's codebase-graph MCP server (a
                                   structural-query tool) into your agent config
-                                  (Claude Code / Cursor / Windsurf / Codex). Option C
-                                  per ADR-010 / ADR-015 — Coodra consumes Graphify by
+                                  (Claude Code / Codex). Claude Code is
+                                  native-plugin-managed; Codex also gets one via
+                                  \`coodra agent add codex\` and only needs explicit
+                                  wiring for a custom graph path. Option C per ADR-010
+                                  / ADR-015 — Coodra consumes Graphify by
                                   configuration, not code, and does not mint Work
                                   Packs from it.
         wiki                      Generate a DeepWiki-style, hierarchical/mind-map
                                   explanation of this codebase. Your coding agent
-                                  (Claude Code / Codex / Cursor) is the model; Coodra
-                                  ships the grounding, the MCP persistence tools, and
-                                  the web render.
+                                  (Claude Code / Codex) is the model; Coodra ships the
+                                  grounding, the MCP persistence tools, and the web
+                                  render.
         work                      Manage Coodra Work Packs under .coodra/work-packs/.
-        jira                      Wire Atlassian's Jira (Rovo) remote MCP server into
-                                  your agent config (Claude Code / Cursor / Windsurf /
-                                  Codex). Direct per ADR-016 — Coodra consumes Jira by
-                                  configuration, not code, and builds no Jira client,
-                                  OAuth, or jira_* tools.
         login [options]           Browser-handoff Clerk login. Writes
                                   ~/.coodra/clerk-token.json and switches mode to
                                   team.

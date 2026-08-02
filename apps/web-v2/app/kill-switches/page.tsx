@@ -96,7 +96,7 @@ export default async function KillSwitchesPage({
               <Field
                 label="Target (slug / tool / agent type)"
                 name="target"
-                placeholder="e.g. coodra · bash · cursor"
+                placeholder="e.g. coodra · bash · codex"
                 {...(scopedSlug !== null ? { defaultValue: scopedSlug } : {})}
               />
               <Field

@@ -572,8 +572,8 @@ function FreshTeamMemberBanner({ orgLabel }: { readonly orgLabel: string }) {
         </div>
         <p style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.55, marginTop: 6, maxWidth: 640 }}>
           No runs or decisions yet — this team's audit history is empty so far. When teammates use Coodra in their
-          editors (Claude Code, Cursor, Windsurf), their decisions and context packs appear here within seconds. If you
-          also want to run AI agents on your own machine, see{' '}
+          editors (Claude Code, Codex), their decisions and context packs appear here within seconds. If you also want
+          to run AI agents on your own machine, see{' '}
           <Link href="/onboarding/team/join" style={{ color: 'var(--accent)' }}>
             Connect to existing
           </Link>{' '}

@@ -10,8 +10,6 @@
 
 const AGENT_TYPE_LABELS: Readonly<Record<string, string>> = {
   claude_code: 'Claude Code',
-  cursor: 'Cursor',
-  windsurf: 'Windsurf',
   codex: 'Codex',
   vscode_copilot: 'VS Code Copilot',
   mcp_inspector: 'MCP Inspector',

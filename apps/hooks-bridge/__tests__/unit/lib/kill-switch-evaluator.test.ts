@@ -73,7 +73,7 @@ describe('createKillSwitchEvaluator', () => {
     const result = await evaluator.check({
       projectId: 'proj_demo',
       toolName: 'Bash',
-      agentType: 'cursor',
+      agentType: 'codex',
     });
     expect(result?.decision).toBe('allow');
     expect(result?.reason).toBe(`kill_switch_paused:${inserted.id}`);
@@ -140,19 +140,19 @@ describe('createKillSwitchEvaluator', () => {
   it('Fixture 6 — agent_type-scoped switch matches only the named agent', async () => {
     await insertKillSwitch(handle, {
       scope: 'agent_type',
-      target: 'cursor',
-      reason: 'block cursor',
+      target: 'codex',
+      reason: 'block codex',
       mode: 'soft',
     });
     const evaluator = createKillSwitchEvaluator({ db: handle });
 
-    const cursorMatch = await evaluator.check({
+    const codexMatch = await evaluator.check({
       projectId: 'proj_demo',
       toolName: 'Edit',
-      agentType: 'cursor',
+      agentType: 'codex',
     });
-    expect(cursorMatch?.decision).toBe('allow');
-    expect(cursorMatch?.matched.scope).toBe('agent_type');
+    expect(codexMatch?.decision).toBe('allow');
+    expect(codexMatch?.matched.scope).toBe('agent_type');
 
     const claudeMiss = await evaluator.check({
       projectId: 'proj_demo',

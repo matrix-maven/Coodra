@@ -16,12 +16,7 @@ const BASE = {
 } as const;
 
 describe('buildCoodraMcpEntry — COODRA_AGENT_TYPE stamp', () => {
-  it.each([
-    'claude_code',
-    'cursor',
-    'windsurf',
-    'codex',
-  ] as const)('stamps COODRA_AGENT_TYPE=%s when agentType is supplied', (agentType) => {
+  it.each(['claude_code', 'codex'] as const)('stamps COODRA_AGENT_TYPE=%s when agentType is supplied', (agentType) => {
     const entry = buildCoodraMcpEntry({ ...BASE, agentType });
     expect(entry.env?.COODRA_AGENT_TYPE).toBe(agentType);
   });

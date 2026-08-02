@@ -11,8 +11,7 @@ import {
 } from '../../../src/lib/init/instruction-files.js';
 
 /**
- * Locks the beta.95 instruction-file generator contract (AGENTS.md /
- * .windsurfrules):
+ * Locks the instruction-file generator contract (AGENTS.md / CLAUDE.md):
  *   1. Greenfield — absent file → created containing just the block.
  *   2. Idempotent — second merge with the same slug is 'unchanged'.
  *   3. Markers present → block content refreshed, content OUTSIDE the
@@ -24,7 +23,7 @@ import {
  *   7. The block embeds the project slug.
  */
 
-describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => {
+describe('mergeInstructionFile — AGENTS.md / CLAUDE.md generator', () => {
   let cwd: string;
 
   beforeEach(async () => {
@@ -45,8 +44,8 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   });
 
   it('is idempotent — a second merge with the same slug is unchanged', async () => {
-    await mergeInstructionFile({ cwd, filename: '.windsurfrules', projectSlug: 'p', dryRun: false });
-    const second = await mergeInstructionFile({ cwd, filename: '.windsurfrules', projectSlug: 'p', dryRun: false });
+    await mergeInstructionFile({ cwd, filename: 'CLAUDE.md', projectSlug: 'p', dryRun: false });
+    const second = await mergeInstructionFile({ cwd, filename: 'CLAUDE.md', projectSlug: 'p', dryRun: false });
     expect(second.action).toBe('unchanged');
   });
 
@@ -54,16 +53,16 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     const userAbove = '# My project rules\n\nAlways use tabs.\n\n';
     const userBelow = '\n\n## My extra section\n\nDeploy on Fridays.\n';
     const stale = `${INSTRUCTION_BLOCK_START}\nold coodra content\n${INSTRUCTION_BLOCK_END}`;
-    await writeFile(join(cwd, '.windsurfrules'), `${userAbove}${stale}${userBelow}`, 'utf8');
+    await writeFile(join(cwd, 'CLAUDE.md'), `${userAbove}${stale}${userBelow}`, 'utf8');
 
     const result = await mergeInstructionFile({
       cwd,
-      filename: '.windsurfrules',
+      filename: 'CLAUDE.md',
       projectSlug: 'refreshed',
       dryRun: false,
     });
     expect(result.action).toBe('merged');
-    const body = await readFile(join(cwd, '.windsurfrules'), 'utf8');
+    const body = await readFile(join(cwd, 'CLAUDE.md'), 'utf8');
     expect(body).toContain('Always use tabs.');
     expect(body).toContain('Deploy on Fridays.');
     expect(body).toContain('refreshed');
@@ -96,11 +95,11 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   });
 
   it('removeInstructionBlock keeps the file (minus the block) when it has user content', async () => {
-    await writeFile(join(cwd, '.windsurfrules'), '# User rules\n\nUse tabs.\n', 'utf8');
-    await mergeInstructionFile({ cwd, filename: '.windsurfrules', projectSlug: 'p', dryRun: false });
-    const result = await removeInstructionBlock({ cwd, filename: '.windsurfrules', dryRun: false });
+    await writeFile(join(cwd, 'CLAUDE.md'), '# User rules\n\nUse tabs.\n', 'utf8');
+    await mergeInstructionFile({ cwd, filename: 'CLAUDE.md', projectSlug: 'p', dryRun: false });
+    const result = await removeInstructionBlock({ cwd, filename: 'CLAUDE.md', dryRun: false });
     expect(result.action).toBe('merged');
-    const body = await readFile(join(cwd, '.windsurfrules'), 'utf8');
+    const body = await readFile(join(cwd, 'CLAUDE.md'), 'utf8');
     expect(body).toContain('Use tabs.');
     expect(body).not.toContain(INSTRUCTION_BLOCK_START);
   });
@@ -133,9 +132,7 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
   // 'codex-mcp-client' wasn't in the server's mapping table).
   it.each([
     ['CLAUDE.md', 'claude_code', 'Claude Code'],
-    ['.cursorrules', 'cursor', 'Cursor'],
     ['AGENTS.md', 'codex', 'Codex'],
-    ['.windsurfrules', 'windsurf', 'Windsurf'],
   ] as const)('%s pins agentType "%s" and names its agent %s', (filename, agentType, displayName) => {
     const block = buildInstructionBlock('slug-x', filename);
     expect(block).toContain(`agentType: "${agentType}"`);
@@ -151,15 +148,13 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     const body = await readFile(join(cwd, 'AGENTS.md'), 'utf8');
     expect(body).toContain('This file was generated for Codex.');
     expect(body).toContain('pass YOUR own type instead');
-    expect(body).toContain('`"claude_code" | "cursor" | "windsurf" | "codex"`');
+    expect(body).toContain('`"claude_code" | "codex"`');
     expect(body).not.toContain('ALWAYS pass');
   });
 
   it('only CLAUDE.md carries the agentSessionId (hooks-bridge reconciliation) hint', () => {
     expect(buildInstructionBlock('s', 'CLAUDE.md')).toContain('agentSessionId');
     expect(buildInstructionBlock('s', 'AGENTS.md')).not.toContain('agentSessionId');
-    expect(buildInstructionBlock('s', '.cursorrules')).not.toContain('agentSessionId');
-    expect(buildInstructionBlock('s', '.windsurfrules')).not.toContain('agentSessionId');
   });
 
   it('renders team workflow policy into managed instruction blocks', () => {
@@ -181,21 +176,6 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(block).toContain('- Auto-merge permitted after passing tests: no');
   });
 
-  // 0.2.0-beta.1: CLAUDE.md + .cursorrules added to InstructionFileName.
-  // These tests lock that the new filenames are accepted by the merger
-  // AND the remover.
-  it.each([
-    'CLAUDE.md' as const,
-    '.cursorrules' as const,
-  ])('greenfield: creates %s with the marker-wrapped block', async (filename) => {
-    const result = await mergeInstructionFile({ cwd, filename, projectSlug: 'four-agents', dryRun: false });
-    expect(result.action).toBe('wrote');
-    const body = await readFile(join(cwd, filename), 'utf8');
-    expect(body).toContain(INSTRUCTION_BLOCK_START);
-    expect(body).toContain('four-agents');
-    expect(body).toContain('coodra__get_run_id');
-  });
-
   it('preserves user content above an existing CLAUDE.md when appending the block', async () => {
     // Common case: the user already has a CLAUDE.md (Anthropic's
     // documented per-project memory file). Appending the Coodra block
@@ -210,10 +190,10 @@ describe('mergeInstructionFile — AGENTS.md / .windsurfrules generator', () => 
     expect(body.indexOf('@docs/architecture.md')).toBeLessThan(body.indexOf(INSTRUCTION_BLOCK_START));
   });
 
-  it('removeInstructionBlock strips the block from .cursorrules', async () => {
-    await mergeInstructionFile({ cwd, filename: '.cursorrules', projectSlug: 'p', dryRun: false });
-    const result = await removeInstructionBlock({ cwd, filename: '.cursorrules', dryRun: false });
+  it('removeInstructionBlock strips the block from AGENTS.md', async () => {
+    await mergeInstructionFile({ cwd, filename: 'AGENTS.md', projectSlug: 'p', dryRun: false });
+    const result = await removeInstructionBlock({ cwd, filename: 'AGENTS.md', dryRun: false });
     expect(result.action).toBe('merged');
-    await expect(readFile(join(cwd, '.cursorrules'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(cwd, 'AGENTS.md'), 'utf8')).rejects.toThrow();
   });
 });

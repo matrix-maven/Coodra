@@ -3,13 +3,9 @@ import type { AuthEnv } from '@coodra/shared/auth';
 import {
   adaptClaudeCode,
   adaptCodex,
-  adaptCursor,
-  adaptWindsurf,
   ClaudeCodeHookPayloadSchema,
   CodexHookPayloadSchema,
-  CursorHookPayloadSchema,
   type HookEvent,
-  WindsurfHookPayloadSchema,
 } from '@coodra/shared/hooks';
 import { Hono } from 'hono';
 
@@ -32,8 +28,8 @@ const appLogger = createLogger('hooks-bridge.app');
 
 /**
  * S6 placeholder. Returns the structured response the agent expects
- * (Claude Code uses `hookSpecificOutput`; Windsurf and Cursor use
- * `{ decision, reason? }`). S7 replaces this with the policy
+ * (Claude Code uses `hookSpecificOutput`; Codex uses its own
+ * command-hook envelope). S7 replaces this with the policy
  * evaluator + per-agent decision translator.
  */
 export type DispatchHookEvent = (event: HookEvent | null) => Promise<HookDispatchResult>;
@@ -43,14 +39,12 @@ export interface HookDispatchResult {
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
   readonly permissionDecisionReason?: string;
   /**
-   * Optional Markdown blob the bridge wants Claude Code to fold into
-   * the agent's turn-zero context (decision dec_83ba10c1, 2026-05-02
-   * — system-architecture §16 Pattern 20). Currently emitted only by
+   * Optional Markdown blob the bridge wants the agent to fold into
+   * its turn-zero context (decision dec_83ba10c1, 2026-05-02 —
+   * system-architecture §16 Pattern 20). Currently emitted only by
    * the SessionStart handler with the project's context primer.
-   * The Claude Code adapter forwards this verbatim to
-   * `hookSpecificOutput.additionalContext`. Cursor and Windsurf
-   * adapters ignore the field — neither's hook envelope has a first-
-   * class context-injection slot.
+   * Both the Claude Code and Codex response shapers forward this
+   * verbatim to `hookSpecificOutput.additionalContext`.
    */
   readonly additionalContext?: string;
 }
@@ -308,84 +302,6 @@ export function buildApp(deps: BuildAppDeps): AppHandle {
     );
     const result = await dispatch(event);
     return c.json(shapeCodexResponse(parse.data.hook_event_name, result));
-  });
-
-  // ---------------------------------------------------------------------
-  // POST /v1/hooks/windsurf
-  // ---------------------------------------------------------------------
-  hono.post('/v1/hooks/windsurf', auth, async (c) => {
-    let raw: unknown;
-    try {
-      raw = await c.req.json();
-    } catch {
-      appLogger.warn({ event: 'invalid_hook_body', agent: 'windsurf' }, 'request body is not JSON; failing open');
-      return c.json({ decision: 'allow', reason: 'invalid_hook_payload' });
-    }
-    const parse = WindsurfHookPayloadSchema.safeParse(raw);
-    if (!parse.success) {
-      appLogger.warn(
-        { event: 'invalid_hook_payload', agent: 'windsurf', issues: parse.error.issues },
-        'Windsurf payload failed Zod parse; failing open',
-      );
-      return c.json({ decision: 'allow', reason: 'invalid_hook_payload' });
-    }
-    const event = adaptWindsurf(parse.data);
-    if (event === null) {
-      // Unmapped event — ack but don't dispatch.
-      return c.json({ decision: 'allow' });
-    }
-    appLogger.info(
-      {
-        event: 'hook_ingress',
-        agent: event.agentType,
-        eventPhase: event.eventPhase,
-        sessionId: event.sessionId,
-        toolName: event.toolName,
-      },
-      'hook ingress',
-    );
-    const result = await dispatch(event);
-    return c.json({
-      decision: result.permissionDecision === 'deny' ? 'deny' : 'allow',
-      ...(result.permissionDecisionReason !== undefined ? { reason: result.permissionDecisionReason } : {}),
-    });
-  });
-
-  // ---------------------------------------------------------------------
-  // POST /v1/hooks/cursor
-  // ---------------------------------------------------------------------
-  hono.post('/v1/hooks/cursor', auth, async (c) => {
-    let raw: unknown;
-    try {
-      raw = await c.req.json();
-    } catch {
-      appLogger.warn({ event: 'invalid_hook_body', agent: 'cursor' }, 'request body is not JSON; failing open');
-      return c.json({ decision: 'allow', reason: 'invalid_hook_payload' });
-    }
-    const parse = CursorHookPayloadSchema.safeParse(raw);
-    if (!parse.success) {
-      appLogger.warn(
-        { event: 'invalid_hook_payload', agent: 'cursor', issues: parse.error.issues },
-        'Cursor payload failed Zod parse; failing open',
-      );
-      return c.json({ decision: 'allow', reason: 'invalid_hook_payload' });
-    }
-    const event = adaptCursor(parse.data);
-    appLogger.info(
-      {
-        event: 'hook_ingress',
-        agent: event.agentType,
-        eventPhase: event.eventPhase,
-        sessionId: event.sessionId,
-        toolName: event.toolName,
-      },
-      'hook ingress',
-    );
-    const result = await dispatch(event);
-    return c.json({
-      decision: result.permissionDecision === 'deny' ? 'deny' : 'allow',
-      ...(result.permissionDecisionReason !== undefined ? { reason: result.permissionDecisionReason } : {}),
-    });
   });
 
   return { hono, serverStartedAt };

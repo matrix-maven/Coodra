@@ -21,7 +21,7 @@ import { z } from 'zod';
  *     page's `relevantFiles`.
  *
  * The Coodra adaptation: **the coding agent IS the model** (Claude Code /
- * Codex / Cursor). Coodra ships the schema + the MCP persistence tools +
+ * Codex). Coodra ships the schema + the MCP persistence tools +
  * the web render; it runs no LLM, embeddings, or vector store of its own
  * (ADR-012/013/015/016 — "wire the agent, ship records and recipes, not
  * services"). This module is the single source of truth for the shape

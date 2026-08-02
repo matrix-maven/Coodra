@@ -130,33 +130,32 @@ describe('detectIDE', () => {
     expect(await detectIDE({ homeDir: home })).toEqual([]);
   });
 
-  it('detects claude, cursor, windsurf when their dirs exist', async () => {
+  it('detects claude, codex when their dirs exist', async () => {
     await mkdir(join(home, '.claude'));
-    await mkdir(join(home, '.cursor'));
-    await mkdir(join(home, '.windsurf'));
-    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'cursor', 'windsurf']);
+    await mkdir(join(home, '.codex'));
+    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'codex']);
   });
 
   it('returns only the IDE config dirs that exist', async () => {
-    await mkdir(join(home, '.cursor'));
-    expect(await detectIDE({ homeDir: home })).toEqual(['cursor']);
+    await mkdir(join(home, '.codex'));
+    expect(await detectIDE({ homeDir: home })).toEqual(['codex']);
   });
 });
 
 describe('resolveIdeSelection — --ide flag semantics', () => {
   // The flag is an explicit override: when set, it ignores detection
-  // entirely. Undefined → use detection. `all` → all four. A name (or
+  // entirely. Undefined → use detection. `all` → both. A name (or
   // comma-separated list of names) → exactly that list.
   it('undefined flag returns the detected list unchanged', () => {
-    const result = resolveIdeSelection({ flag: undefined, detected: ['claude', 'windsurf'] });
+    const result = resolveIdeSelection({ flag: undefined, detected: ['claude'] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'windsurf']);
+    if (result.ok) expect(result.ides).toEqual(['claude']);
   });
 
   it('`all` returns every supported IDE in canonical order, regardless of detection', () => {
     const result = resolveIdeSelection({ flag: 'all', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'cursor', 'windsurf', 'codex']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex']);
   });
 
   it('single-name flag returns exactly that IDE, regardless of detection', () => {
@@ -166,15 +165,15 @@ describe('resolveIdeSelection — --ide flag semantics', () => {
   });
 
   it('comma-separated flag returns the listed IDEs in canonical order', () => {
-    const result = resolveIdeSelection({ flag: 'cursor,claude,codex', detected: [] });
+    const result = resolveIdeSelection({ flag: 'codex,claude', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'cursor', 'codex']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex']);
   });
 
   it('is case-insensitive and tolerates whitespace', () => {
-    const result = resolveIdeSelection({ flag: ' Claude , WINDSURF ', detected: [] });
+    const result = resolveIdeSelection({ flag: ' Claude , CODEX ', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'windsurf']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex']);
   });
 
   it('rejects an unknown IDE name with a clear remediation', () => {
@@ -196,8 +195,8 @@ describe('resolveIdeSelection — --ide flag semantics', () => {
   });
 
   it('deduplicates repeated names', () => {
-    const result = resolveIdeSelection({ flag: 'claude,claude,cursor', detected: [] });
+    const result = resolveIdeSelection({ flag: 'claude,claude,codex', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'cursor']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex']);
   });
 });

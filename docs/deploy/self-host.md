@@ -9,7 +9,7 @@ The stack runs four long-lived services + one one-shot migration container:
 | `postgres` (pgvector/pgvector:pg16) | 5432 | Cloud audit store |
 | `cloud-migrate` (one-shot) | — | Runs `coodra cloud-migrate` once, then exits |
 | `mcp-server` | 3100 | MCP HTTP transport for AI agents |
-| `hooks-bridge` | 3101 | HTTP hook ingress for Claude Code / Cursor |
+| `hooks-bridge` | 3101 | HTTP hook ingress for Claude Code / Codex |
 | `sync-daemon` | — | Pushes local SQLite audit rows to cloud Postgres |
 
 Total time to a working stack on a fresh machine: **~10 minutes** (most of it the first Docker build).
@@ -85,7 +85,7 @@ Expected: zero RED, zero unexpected YELLOW. The sync-daemon's checks 24–27 sho
 
 ## 4. Wire your agents
 
-Point Claude Code / Cursor at:
+Point Claude Code / Codex at:
 
 - MCP transport: `http://<host>:3100/mcp`
 - Hooks ingress: `http://<host>:3101/hooks/<agent-type>`

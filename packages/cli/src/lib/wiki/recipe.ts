@@ -3,8 +3,8 @@ import type { WikiMode } from '@coodra/shared/wiki';
 /**
  * `lib/wiki/recipe.ts` — the Deep Wiki authoring recipe (Module 10).
  *
- * Coodra runs no LLM. The user's coding agent (Claude Code / Codex /
- * Cursor) is the model. `coodra wiki build` writes this recipe so the
+ * Coodra runs no LLM. The user's coding agent (Claude Code / Codex)
+ * is the model. `coodra wiki build` writes this recipe so the
  * agent knows exactly how to run the DeepWiki-style two-pass flow against
  * Coodra's MCP tools:
  *
