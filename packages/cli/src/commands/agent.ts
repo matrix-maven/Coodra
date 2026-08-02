@@ -49,6 +49,10 @@ export interface AgentCommandOptions {
   readonly coodraHome?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly settingsPath?: string;
+  /** `ClaudeCliRunner` override (tests) — see `AgentPathContext.claudeCliRunner`. */
+  readonly claudeCliRunner?: unknown;
+  /** `CodexCliRunner` override (tests) — see `AgentPathContext.codexCliRunner`. */
+  readonly codexCliRunner?: unknown;
 }
 
 export interface AgentIO {
@@ -157,6 +161,8 @@ async function runWire(
       ...(options.coodraHome !== undefined ? { coodraHome: options.coodraHome } : {}),
       ...(options.env !== undefined ? { env: options.env } : {}),
       ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+      ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
+      ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
       force,
       dryRun,
     });
@@ -211,7 +217,7 @@ async function runWire(
     }
 
     if (results.some((r) => r.id === 'codex' && r.error === undefined)) {
-      const paths = codexPluginPaths(userHome);
+      const paths = codexPluginPaths(userHome, resolved.coodraHome);
       machinePaths.push(
         paths.marketplaceRoot,
         paths.marketplacePath,
@@ -443,6 +449,8 @@ export async function runAgentRemoveCommand(
     bridgePort,
     dryRun,
     ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+    ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
+    ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
   };
 
   const results: AgentActionResult[] = [];
@@ -495,6 +503,8 @@ export async function runAgentStatusCommand(
     cwd,
     userHome,
     ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
+    ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
+    ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
   };
 
   const statuses: AgentStatus[] = [];

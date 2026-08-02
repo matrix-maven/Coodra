@@ -14,11 +14,11 @@ import { runGraphifyStatusCommand } from '../../../src/commands/graphify.js';
  * remaining subcommand here and it is a read-only probe across both
  * agents plus the graph artifact state.
  *
- * Codex's probe is pure filesystem (`~/.codex/plugins/coodra/.mcp.json`)
- * so it's exercised for real. Claude's probe falls back to a real `claude`
- * CLI detection when one is on $PATH (see `probeClaudePlugin`), which
- * would make tests depend on the host environment, so `createClaudeCliRunner`
- * is mocked to force the deterministic file-based path.
+ * Both probes fall back to the real `claude`/`codex` CLI when one is on
+ * $PATH (see `probeClaudePlugin`/`probeCodexPlugin`), which would make
+ * tests depend on the host environment, so `createClaudeCliRunner` and
+ * `createCodexCliRunner` are both mocked to force the deterministic
+ * file-based fallback path.
  */
 
 const { detect, isInstalled } = vi.hoisted(() => ({
@@ -26,11 +26,29 @@ const { detect, isInstalled } = vi.hoisted(() => ({
   isInstalled: vi.fn(async () => false),
 }));
 
+const { codexDetect, codexIsInstalled } = vi.hoisted(() => ({
+  codexDetect: vi.fn(async () => null as { path: string; viaPath: boolean } | null),
+  codexIsInstalled: vi.fn(async () => false),
+}));
+
 vi.mock('../../../src/lib/agents/claude-plugin.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/lib/agents/claude-plugin.js')>();
   return {
     ...actual,
     createClaudeCliRunner: () => ({ detect, isInstalled }),
+  };
+});
+
+vi.mock('../../../src/lib/agents/codex-plugin.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/lib/agents/codex-plugin.js')>();
+  return {
+    ...actual,
+    createCodexCliRunner: () => ({
+      detect: codexDetect,
+      isInstalled: codexIsInstalled,
+      installMarketplaceAndPlugin: async () => ({ ok: true }),
+      uninstallPlugin: async () => ({ ok: true }),
+    }),
   };
 });
 
@@ -77,6 +95,8 @@ describe('runGraphifyStatusCommand', () => {
     home = await mkdtemp(join(tmpdir(), 'coodra-graphify-status-home-'));
     detect.mockReset().mockResolvedValue(null);
     isInstalled.mockReset().mockResolvedValue(false);
+    codexDetect.mockReset().mockResolvedValue(null);
+    codexIsInstalled.mockReset().mockResolvedValue(false);
   });
 
   it('reports both agents as not-wired on a clean tree (--json)', async () => {
@@ -92,9 +112,10 @@ describe('runGraphifyStatusCommand', () => {
   });
 
   it('reports Codex as wired when the native plugin .mcp.json bundles graphify', async () => {
-    await mkdir(join(home, '.codex', 'plugins', 'coodra'), { recursive: true });
+    const codexPluginRoot = join(home, '.coodra', 'codex-marketplaces', 'coodra', 'plugins', 'coodra');
+    await mkdir(codexPluginRoot, { recursive: true });
     await writeFile(
-      join(home, '.codex', 'plugins', 'coodra', '.mcp.json'),
+      join(codexPluginRoot, '.mcp.json'),
       JSON.stringify({ mcpServers: { coodra: { command: 'node' }, graphify: { command: 'python' } } }, null, 2),
       'utf8',
     );

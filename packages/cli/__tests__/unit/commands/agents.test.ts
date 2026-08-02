@@ -23,6 +23,11 @@ describe('buildAgentReports', () => {
     return join(userHome, '.claude', 'plugins', 'cache', 'coodra', 'coodra', VERSION);
   }
 
+  /** COOD-11 follow-up: Coodra's own Codex marketplace source, not the shared personal marketplace. */
+  function codexPluginRoot(): string {
+    return join(userHome, '.coodra', 'codex-marketplaces', 'coodra', 'plugins', 'coodra');
+  }
+
   beforeEach(async () => {
     userHome = await mkdtemp(join(tmpdir(), 'coodra-agents-home-'));
     cwd = await mkdtemp(join(tmpdir(), 'coodra-agents-cwd-'));
@@ -138,9 +143,9 @@ describe('buildAgentReports', () => {
   });
 
   it('flags Codex plugin MCP as wired when it carries the coodra entry', async () => {
-    await mkdir(join(userHome, '.codex', 'plugins', 'coodra'), { recursive: true });
+    await mkdir(codexPluginRoot(), { recursive: true });
     await writeFile(
-      join(userHome, '.codex', 'plugins', 'coodra', '.mcp.json'),
+      join(codexPluginRoot(), '.mcp.json'),
       JSON.stringify({ mcpServers: { coodra: { command: 'node' } } }, null, 2),
       'utf8',
     );

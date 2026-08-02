@@ -32,6 +32,10 @@ export interface ResolveAgentContextOptions {
   readonly dryRun: boolean;
   /** ~/.claude/settings.json override (tests). */
   readonly settingsPath?: string;
+  /** `ClaudeCliRunner` override (tests) — see `AgentPathContext.claudeCliRunner`. */
+  readonly claudeCliRunner?: unknown;
+  /** `CodexCliRunner` override (tests) — see `AgentPathContext.codexCliRunner`. */
+  readonly codexCliRunner?: unknown;
 }
 
 export interface ResolvedAgentWiring {
@@ -107,6 +111,8 @@ export async function resolveAgentWiringContext(opts: ResolveAgentContextOptions
       localHookSecret,
     },
     ...(opts.settingsPath !== undefined ? { settingsPath: opts.settingsPath } : {}),
+    ...(opts.claudeCliRunner !== undefined ? { claudeCliRunner: opts.claudeCliRunner } : {}),
+    ...(opts.codexCliRunner !== undefined ? { codexCliRunner: opts.codexCliRunner } : {}),
     force: opts.force,
     dryRun: opts.dryRun,
   };

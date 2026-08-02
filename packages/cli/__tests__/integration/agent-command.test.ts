@@ -12,6 +12,7 @@ import {
   runAgentStatusCommand,
 } from '../../src/commands/agent.js';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../../src/exit-codes.js';
+import type { CodexCliRunner } from '../../src/lib/agents/codex-plugin.js';
 import { mergeCodexConfig } from '../../src/lib/init/codex-merge.js';
 import { mergeInstructionFile } from '../../src/lib/init/instruction-files.js';
 import { VERSION } from '../../src/version.js';
@@ -22,7 +23,34 @@ import { VERSION } from '../../src/version.js';
  * registry through the command layer: per-agent config surfaces, native
  * plugin surfaces, user-owned repo-root .mcp.json boundaries,
  * force/repair, removal, dry-run, and the unknown-agent error path.
+ *
+ * Every `baseOptions()` call below injects `codexCliRunner: noCodexCli()`.
+ * Without it, on any machine that has `codex` on PATH — found live,
+ * 2026-08-02, TWICE while writing this fix: the first attempt used
+ * `vi.mock('codex-plugin.js', ...)` to override the exported
+ * `defaultCodexCliRunner`, which does NOT work — `installCodexPlugin`'s
+ * default parameter closes over the REAL module's own internal binding at
+ * definition time, not the mocked export object, so it silently kept
+ * calling the real CLI. Both attempts registered a REAL `"coodra"`
+ * marketplace on the developer's actual `~/.codex/config.toml`, requiring
+ * manual `codex plugin remove`/`marketplace remove` cleanup on the real
+ * machine. The only reliable fix is passing an explicit fake runner through
+ * `AgentContext`/`AgentRemoveContext`/`AgentPathContext`.
  */
+function noCodexCli(): CodexCliRunner {
+  return {
+    detect: async () => null,
+    installMarketplaceAndPlugin: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+    uninstallPlugin: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+    isInstalled: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+  };
+}
 
 interface Cap {
   stdout: string[];
@@ -60,13 +88,28 @@ let userHome: string;
 let settingsPath: string;
 
 function baseOptions(extra: Partial<AgentCommandOptions> = {}): AgentCommandOptions {
-  return { cwd, userHome, coodraHome: home, env: {}, settingsPath, json: true, ...extra };
+  return {
+    cwd,
+    userHome,
+    coodraHome: home,
+    env: {},
+    settingsPath,
+    json: true,
+    codexCliRunner: noCodexCli(),
+    ...extra,
+  };
 }
 
 beforeEach(async () => {
   cwd = await mkdtemp(join(tmpdir(), 'coodra-agent-cwd-'));
-  home = await mkdtemp(join(tmpdir(), 'coodra-agent-home-'));
   userHome = await mkdtemp(join(tmpdir(), 'coodra-agent-userhome-'));
+  // Default coodraHome (~/.coodra) — kept nested under userHome, matching
+  // production default, so `probeCodexPlugin`'s file-based fallback (which
+  // always resolves paths off `codexPluginPaths(ctx.userHome)`, i.e. the
+  // DEFAULT coodraHome, since `AgentPathContext` has no coodraHome field)
+  // agrees with where `installCodexPlugin` actually wrote the source files.
+  home = join(userHome, '.coodra');
+  await mkdir(home, { recursive: true });
   settingsPath = join(userHome, '.claude', 'settings.json');
   await writeFile(join(cwd, 'package.json'), JSON.stringify({ name: 'sample-app' }));
   await mkdir(join(cwd, '.coodra'), { recursive: true });
@@ -95,12 +138,17 @@ describe('coodra agent add', () => {
     expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
     expect(existsSync(join(cwd, 'AGENTS.md'))).toBe(false);
 
-    const pluginRoot = join(userHome, '.codex', 'plugins', 'coodra');
-    const marketplace = JSON.parse(await readFile(join(userHome, '.agents', 'plugins', 'marketplace.json'), 'utf8'));
-    expect(marketplace.plugins.some((p: { name?: string }) => p.name === 'coodra')).toBe(true);
-    expect(marketplace.plugins.find((p: { name?: string }) => p.name === 'coodra')?.source.path).toBe(
-      './.codex/plugins/coodra',
+    const marketplaceRoot = join(home, 'codex-marketplaces', 'coodra');
+    const pluginRoot = join(marketplaceRoot, 'plugins', 'coodra');
+    const marketplace = JSON.parse(
+      await readFile(join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'), 'utf8'),
     );
+    expect(marketplace.name).toBe('coodra');
+    expect(marketplace.plugins.some((p: { name?: string }) => p.name === 'coodra')).toBe(true);
+    expect(marketplace.plugins.find((p: { name?: string }) => p.name === 'coodra')?.source).toEqual({
+      source: 'local',
+      path: './plugins/coodra',
+    });
     const manifest = JSON.parse(await readFile(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
     expect(manifest).toMatchObject({ name: 'coodra', skills: './skills/', mcpServers: './.mcp.json' });
     expect(manifest.hooks).toBeUndefined();
@@ -187,7 +235,9 @@ describe('coodra agent add', () => {
     const payload = parse(cap);
     expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex']);
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
-    expect(existsSync(join(userHome, '.codex', 'plugins', 'coodra', '.codex-plugin', 'plugin.json'))).toBe(true);
+    expect(
+      existsSync(join(home, 'codex-marketplaces', 'coodra', 'plugins', 'coodra', '.codex-plugin', 'plugin.json')),
+    ).toBe(true);
     expect(
       existsSync(join(home, 'claude-marketplaces', 'coodra', 'plugins', 'coodra', '.claude-plugin', 'plugin.json')),
     ).toBe(true);
@@ -197,8 +247,7 @@ describe('coodra agent add', () => {
   it('--dry-run touches nothing on disk', async () => {
     const { io } = makeIO();
     await run(() => runAgentAddCommand('codex', baseOptions({ dryRun: true }), io));
-    expect(existsSync(join(userHome, '.codex', 'plugins', 'coodra'))).toBe(false);
-    expect(existsSync(join(userHome, '.agents', 'plugins', 'marketplace.json'))).toBe(false);
+    expect(existsSync(join(home, 'codex-marketplaces', 'coodra'))).toBe(false);
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
 
@@ -254,7 +303,7 @@ describe('coodra agent repair', () => {
     const { io: io1 } = makeIO();
     await run(() => runAgentAddCommand('codex', baseOptions(), io1));
     // Corrupt the plugin-scoped MCP entry so repair has something to overwrite.
-    const mcpPath = join(userHome, '.codex', 'plugins', 'coodra', '.mcp.json');
+    const mcpPath = join(home, 'codex-marketplaces', 'coodra', 'plugins', 'coodra', '.mcp.json');
     await writeFile(mcpPath, JSON.stringify({ mcpServers: { coodra: { command: 'stale' } } }));
 
     const { io: io2, cap } = makeIO();
@@ -272,14 +321,13 @@ describe('coodra agent remove', () => {
     const { io: io1 } = makeIO();
     await run(() => runAgentAddCommand('codex', baseOptions(), io1));
 
-    const marketplacePath = join(userHome, '.agents', 'plugins', 'marketplace.json');
-    const marketplace = JSON.parse(await readFile(marketplacePath, 'utf8'));
-    marketplace.plugins.push({
-      name: 'other',
-      source: { source: 'local', path: './.codex/plugins/other' },
-      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
-    });
-    await writeFile(marketplacePath, JSON.stringify(marketplace));
+    // Coodra owns this whole marketplace directory outright (COOD-11
+    // follow-up) — there's no shared "personal" marketplace file to merge
+    // into/out of anymore, so removal is a directory delete, not a filtered
+    // rewrite of someone else's plugin list.
+    const marketplaceRoot = join(home, 'codex-marketplaces', 'coodra');
+    expect(existsSync(join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'))).toBe(true);
+
     await mergeCodexConfig({
       cwd,
       entry: {
@@ -296,10 +344,7 @@ describe('coodra agent remove', () => {
     const code = await run(() => runAgentRemoveCommand('codex', baseOptions(), io2));
     expect(code).toBe(EXIT_OK);
 
-    const nextMarketplace = JSON.parse(await readFile(marketplacePath, 'utf8'));
-    expect(nextMarketplace.plugins.some((p: { name?: string }) => p.name === 'coodra')).toBe(false);
-    expect(nextMarketplace.plugins.some((p: { name?: string }) => p.name === 'other')).toBe(true);
-    expect(existsSync(join(userHome, '.codex', 'plugins', 'coodra'))).toBe(false);
+    expect(existsSync(marketplaceRoot)).toBe(false);
     expect(await readFile(join(cwd, '.codex', 'config.toml'), 'utf8')).not.toContain('[mcp_servers.coodra]');
     expect(existsSync(join(cwd, 'AGENTS.md'))).toBe(false);
   });

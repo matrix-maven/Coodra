@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { EXIT_OK } from '../exit-codes.js';
 import { createClaudeCliRunner, probeClaudePlugin } from '../lib/agents/claude-plugin.js';
-import { probeCodexPlugin } from '../lib/agents/codex-plugin.js';
+import { createCodexCliRunner, probeCodexPlugin } from '../lib/agents/codex-plugin.js';
 import { resolveGraphifyPaths, scanGraphifyArtifacts } from '../lib/graphify/artifacts.js';
 import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
 import { pc } from '../ui/compat.js';
@@ -116,7 +116,7 @@ async function probeNativeManagedGraphify(args: {
 }): Promise<GraphifyAgentStatus[]> {
   let codexWired = false;
   try {
-    const codex = await probeCodexPlugin({ cwd: args.cwd, userHome: args.userHome });
+    const codex = await probeCodexPlugin({ cwd: args.cwd, userHome: args.userHome }, createCodexCliRunner(1200));
     codexWired = codex.mcp;
   } catch {
     // status remains best-effort

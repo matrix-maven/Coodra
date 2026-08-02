@@ -15,7 +15,8 @@ import type { WriteOutcome } from '../init/types.js';
  * native agent surfaces. Claude Code and Codex are the only supported
  * agents, both using global plugin bundles:
  *   - claude → ~/.coodra/claude-marketplaces/coodra + ~/.claude plugin registry/cache/settings
- *   - codex  → ~/.agents/plugins/marketplace.json + ~/.codex/plugins/coodra
+ *   - codex  → ~/.coodra/codex-marketplaces/coodra, registered/installed via `codex plugin`
+ *              (Coodra's own dedicated marketplace, not the user's "personal" one)
  */
 
 /** Canonical agent ids. */
@@ -58,6 +59,19 @@ export interface AgentPathContext {
   readonly userHome: string;
   /** Override for ~/.claude/settings.json (tests). */
   readonly settingsPath?: string;
+  /**
+   * Test-only override for `installClaudePlugin`/`removeClaudePlugin`/
+   * `probeClaudePlugin`'s CLI runner. Typed `unknown` here to avoid a
+   * type-only import cycle with `claude-plugin.ts` (which imports
+   * `AgentContext` etc. from this file); `adapters.ts` casts it back to
+   * `ClaudeCliRunner`. Without an explicit override, every real call
+   * defaults to `defaultClaudeCliRunner`, which shells out to the actual
+   * `claude` binary if one is on the calling machine's PATH — exactly
+   * what a test must never do unscoped by its own tmpdir fixtures.
+   */
+  readonly claudeCliRunner?: unknown;
+  /** Same as `claudeCliRunner`, for `codex-plugin.ts`'s `CodexCliRunner`. */
+  readonly codexCliRunner?: unknown;
 }
 
 /** Everything an adapter needs to WRITE the per-agent surfaces. */

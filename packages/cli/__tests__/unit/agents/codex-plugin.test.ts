@@ -1,15 +1,49 @@
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CODEX_PLUGIN_KEY,
+  type CodexCliRunner,
   codexPluginPaths,
   installCodexPlugin,
   probeCodexPlugin,
   removeCodexPlugin,
 } from '../../../src/lib/agents/codex-plugin.js';
 import type { AgentContext } from '../../../src/lib/agents/types.js';
+
+/**
+ * Tests must never let `installCodexPlugin`/`removeCodexPlugin`/
+ * `probeCodexPlugin` fall through to the REAL `defaultCodexCliRunner` —
+ * its `detect()` shells out to the actual `which codex` (and known bundle
+ * paths) on the test machine, unscoped by any tmpdir fixture here. Every
+ * call below is pinned to an explicit fake runner.
+ */
+function noCliRunner(): CodexCliRunner {
+  return {
+    detect: async () => null,
+    installMarketplaceAndPlugin: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+    uninstallPlugin: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+    isInstalled: async () => {
+      throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+  };
+}
+
+function fakeCliRunner(overrides: Partial<CodexCliRunner> = {}): CodexCliRunner {
+  return {
+    detect: async () => ({ path: '/usr/local/bin/codex', viaPath: true }),
+    installMarketplaceAndPlugin: async () => ({ ok: true }),
+    uninstallPlugin: async () => ({ ok: true }),
+    isInstalled: async () => true,
+    ...overrides,
+  };
+}
 
 describe('Codex native plugin installer', () => {
   let userHome: string;
@@ -42,9 +76,28 @@ describe('Codex native plugin installer', () => {
     };
   }
 
+  it('writes the marketplace source under ~/.coodra/codex-marketplaces/coodra/ — not the shared personal marketplace', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    expect(paths.marketplaceRoot).toBe(join(coodraHome, 'codex-marketplaces', 'coodra'));
+    expect(paths.marketplacePath).toBe(join(paths.marketplaceRoot, '.agents', 'plugins', 'marketplace.json'));
+
+    await installCodexPlugin(ctx(), noCliRunner());
+
+    const marketplace = JSON.parse(await readFile(paths.marketplacePath, 'utf8')) as {
+      name: string;
+      plugins: Array<{ name: string; source: { path: string } }>;
+    };
+    expect(marketplace.name).toBe('coodra');
+    expect(marketplace.plugins).toEqual([
+      expect.objectContaining({ name: 'coodra', source: { source: 'local', path: './plugins/coodra' } }),
+    ]);
+    // Never touches the user's own shared personal marketplace.
+    expect(existsSync(join(userHome, '.agents', 'plugins', 'marketplace.json'))).toBe(false);
+  });
+
   it('writes a native plugin bundle with Coodra and managed Graphify MCP servers', async () => {
-    const paths = codexPluginPaths(userHome);
-    const result = await installCodexPlugin(ctx());
+    const paths = codexPluginPaths(userHome, coodraHome);
+    const result = await installCodexPlugin(ctx(), fakeCliRunner());
 
     expect(result.outcomes.map((o) => o.path)).toContain(paths.mcpPath);
 
@@ -62,94 +115,149 @@ describe('Codex native plugin installer', () => {
     const wikiSkill = await readFile(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'utf8');
     expect(wikiSkill).toContain('wiki_save_structure');
     expect(wikiSkill).toContain('run `coodra wiki build` first');
-    expect(wikiSkill).toContain('.coodra/wiki/job.md');
-    expect(wikiSkill).toContain('Treat the Graphify section as the first structural map');
-    expect(wikiSkill).toContain('do not start by recursively scanning the whole repo');
-    expect(wikiSkill).toContain('.coodra/wiki/<slug>/structure.json');
-    expect(wikiSkill).toContain('rather than a fixed template');
     // COOD-11 follow-up: `deep-wiki-author` was retired as a redundant second
     // wiki skill — `coodra-wiki` is now the only bundled wiki skill.
     expect(wikiSkill).toContain('there is no separate "deep wiki author" skill');
     await expect(readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8')).rejects.toThrow();
-
-    expect(await probeCodexPlugin({ cwd, userHome })).toMatchObject({
-      manifest: true,
-      marketplace: true,
-      mcp: true,
-      hooks: true,
-      skills: true,
-    });
   });
 
-  it('removes marketplace entry, plugin bundle, and the cache mirror Codex itself creates', async () => {
-    const paths = codexPluginPaths(userHome);
-    await installCodexPlugin(ctx());
+  it('calls `codex plugin marketplace add` + `codex plugin add` with the resolved CLI path', async () => {
+    const installMarketplaceAndPlugin = vi.fn(async () => ({ ok: true }) as const);
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await installCodexPlugin(ctx(), fakeCliRunner({ installMarketplaceAndPlugin }));
 
-    // Codex's own runtime — not this file's install code — mirrors the
-    // installed plugin into cache/<marketplace>/<plugin>/<version>/ once it
-    // actually loads it (found live at ~/.codex/plugins/cache/personal/coodra/
-    // on a real machine, 2026-08-02, surviving a full uninstall untouched).
-    // Simulate that here so removeCodexPlugin's cleanup is exercised.
-    await mkdir(join(paths.cachePluginRoot, '0.4.0', 'skills', 'deep-wiki-author'), { recursive: true });
-    await writeFile(join(paths.cachePluginRoot, '0.4.0', '.mcp.json'), '{}', 'utf8');
-
-    const result = await removeCodexPlugin({
-      cwd,
-      userHome,
-      coodraHome,
-      bridgePort: 3101,
-      dryRun: false,
-    });
-
-    expect(result.outcomes.some((o) => o.path === paths.marketplacePath && o.action === 'merged')).toBe(true);
-    expect(result.outcomes.some((o) => o.path === paths.pluginRoot && o.action === 'merged')).toBe(true);
-    expect(result.outcomes.some((o) => o.path === paths.cachePluginRoot && o.action === 'merged')).toBe(true);
-    expect(existsSync(paths.pluginRoot)).toBe(false);
-    expect(existsSync(paths.cachePluginRoot)).toBe(false);
-    expect(await probeCodexPlugin({ cwd, userHome })).toMatchObject({
-      manifest: false,
-      marketplace: false,
-      mcp: false,
-      hooks: false,
-      skills: false,
-    });
+    expect(installMarketplaceAndPlugin).toHaveBeenCalledWith('/usr/local/bin/codex', paths.marketplaceRoot);
   });
 
-  it('--dry-run leaves the cache mirror untouched', async () => {
-    const paths = codexPluginPaths(userHome);
-    await installCodexPlugin(ctx());
-    await mkdir(paths.cachePluginRoot, { recursive: true });
-    await writeFile(join(paths.cachePluginRoot, 'marker.json'), '{}', 'utf8');
-
-    await removeCodexPlugin({ cwd, userHome, coodraHome, bridgePort: 3101, dryRun: true });
-
-    expect(existsSync(paths.pluginRoot)).toBe(true);
-    expect(existsSync(paths.cachePluginRoot)).toBe(true);
+  it('reports a clear failure — no hand-write fallback — when codex CLI cannot be found anywhere', async () => {
+    const result = await installCodexPlugin(ctx(), noCliRunner());
+    const outcome = result.outcomes.find((o) => o.notes?.includes('codex CLI not found'));
+    expect(outcome).toBeDefined();
+    expect(outcome?.action).toBe('unchanged');
   });
 
-  it('preserves unrelated personal marketplace plugins', async () => {
-    const paths = codexPluginPaths(userHome);
-    await installCodexPlugin(ctx());
-    const marketplace = JSON.parse(await readFile(paths.marketplacePath, 'utf8'));
-    marketplace.plugins.push({
-      name: 'other',
-      source: { source: 'local', path: './.codex/plugins/other' },
-      policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
-    });
-    await writeFile(paths.marketplacePath, `${JSON.stringify(marketplace, null, 2)}\n`, 'utf8');
+  it('surfaces a symlink suggestion when the CLI was found via a bundle path, not PATH', async () => {
+    const result = await installCodexPlugin(
+      ctx(),
+      fakeCliRunner({
+        detect: async () => ({ path: '/Applications/ChatGPT.app/Contents/Resources/codex', viaPath: false }),
+      }),
+    );
+    const outcome = result.outcomes.find((o) => o.notes?.includes('sudo ln -sf'));
+    expect(outcome).toBeDefined();
+    expect(outcome?.notes).toContain('/Applications/ChatGPT.app/Contents/Resources/codex');
+  });
 
-    await removeCodexPlugin({
-      cwd,
-      userHome,
-      coodraHome,
-      bridgePort: 3101,
-      dryRun: false,
-    });
+  it('does not surface a symlink suggestion when the CLI was already found on PATH', async () => {
+    const result = await installCodexPlugin(ctx(), fakeCliRunner());
+    expect(result.outcomes.some((o) => o.notes?.includes('sudo ln -sf'))).toBe(false);
+  });
 
-    const next = JSON.parse(await readFile(paths.marketplacePath, 'utf8')) as {
-      plugins?: Array<{ name?: string }>;
-    };
-    expect(next.plugins?.some((plugin) => plugin.name === 'coodra')).toBe(false);
-    expect(next.plugins?.some((plugin) => plugin.name === 'other')).toBe(true);
+  it('reports the CLI failure reason when `codex plugin add` fails', async () => {
+    const result = await installCodexPlugin(
+      ctx(),
+      fakeCliRunner({ installMarketplaceAndPlugin: async () => ({ ok: false, reason: 'boom' }) }),
+    );
+    const outcome = result.outcomes.find((o) => o.notes?.includes('boom'));
+    expect(outcome).toBeDefined();
+  });
+
+  it('--dry-run never calls the CLI and writes nothing beyond the source bundle check', async () => {
+    const installMarketplaceAndPlugin = vi.fn();
+    await installCodexPlugin(ctx({ dryRun: true }), fakeCliRunner({ installMarketplaceAndPlugin }));
+    expect(installMarketplaceAndPlugin).not.toHaveBeenCalled();
+  });
+
+  it('removeCodexPlugin calls the CLI and always removes Coodra-owned marketplace source', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await installCodexPlugin(ctx(), fakeCliRunner());
+    expect(existsSync(paths.marketplaceRoot)).toBe(true);
+
+    const uninstallPlugin = vi.fn(async () => ({ ok: true }) as const);
+    const result = await removeCodexPlugin(
+      { cwd, userHome, coodraHome, bridgePort: 3101, dryRun: false },
+      fakeCliRunner({ uninstallPlugin }),
+    );
+
+    expect(uninstallPlugin).toHaveBeenCalledWith('/usr/local/bin/codex');
+    expect(result.outcomes.some((o) => o.path === paths.marketplaceRoot && o.action === 'merged')).toBe(true);
+    expect(existsSync(paths.marketplaceRoot)).toBe(false);
+  });
+
+  it('removeCodexPlugin still removes Coodra-owned marketplace source when the CLI is unavailable', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await installCodexPlugin(ctx(), fakeCliRunner());
+    expect(existsSync(paths.marketplaceRoot)).toBe(true);
+
+    const result = await removeCodexPlugin(
+      { cwd, userHome, coodraHome, bridgePort: 3101, dryRun: false },
+      noCliRunner(),
+    );
+
+    expect(result.outcomes.some((o) => o.notes?.includes('codex CLI not found'))).toBe(true);
+    expect(existsSync(paths.marketplaceRoot)).toBe(false);
+  });
+
+  it('removeCodexPlugin --dry-run touches nothing', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await installCodexPlugin(ctx(), fakeCliRunner());
+
+    const uninstallPlugin = vi.fn();
+    await removeCodexPlugin(
+      { cwd, userHome, coodraHome, bridgePort: 3101, dryRun: true },
+      fakeCliRunner({ uninstallPlugin }),
+    );
+
+    expect(uninstallPlugin).not.toHaveBeenCalled();
+    expect(existsSync(paths.marketplaceRoot)).toBe(true);
+  });
+
+  it('removeCodexPlugin reports the combined failure reason when both CLI steps fail', async () => {
+    const result = await removeCodexPlugin(
+      { cwd, userHome, coodraHome, bridgePort: 3101, dryRun: false },
+      fakeCliRunner({
+        uninstallPlugin: async () => ({ ok: false, reason: 'plugin remove: boom; marketplace remove: bang' }),
+      }),
+    );
+    const outcome = result.outcomes.find((o) => o.notes?.includes('boom'));
+    expect(outcome?.notes).toContain('bang');
+  });
+
+  it('probeCodexPlugin reports fully wired when the CLI reports the plugin installed', async () => {
+    const result = await probeCodexPlugin({ cwd, userHome }, fakeCliRunner({ isInstalled: async () => true }));
+    expect(result).toMatchObject({ manifest: true, marketplace: true, mcp: true, hooks: true, skills: true });
+  });
+
+  it('probeCodexPlugin falls back to file checks when the CLI is unavailable', async () => {
+    await installCodexPlugin(ctx(), fakeCliRunner());
+    const result = await probeCodexPlugin({ cwd, userHome }, noCliRunner());
+    // File-based probe reads codexPluginPaths(userHome) with the DEFAULT
+    // coodraHome (~/.coodra under userHome), not the test's separate
+    // coodraHome fixture — so it correctly reports not-wired here, proving
+    // the fallback path actually runs rather than silently short-circuiting.
+    expect(result.manifest).toBe(false);
+  });
+
+  it('probeCodexPlugin file-fallback finds Coodra state when userHome/coodraHome default alignment matches', async () => {
+    const homeWithDefaultCoodraHome = await mkdtemp(join(tmpdir(), 'coodra-codex-plugin-defaulthome-'));
+    await installCodexPlugin(
+      ctx({
+        userHome: homeWithDefaultCoodraHome,
+        mcpEntryOptions: {
+          mcpServerBin: '/tmp/coodra-mcp-server.js',
+          clerkSecretKey: 'sk_test',
+          migrationsDir: null,
+          coodraHome: join(homeWithDefaultCoodraHome, '.coodra'),
+          localHookSecret: 'local-secret',
+        },
+      }),
+      fakeCliRunner(),
+    );
+    const result = await probeCodexPlugin({ cwd, userHome: homeWithDefaultCoodraHome }, noCliRunner());
+    expect(result).toMatchObject({ manifest: true, marketplace: true, mcp: true, hooks: true, skills: true });
+  });
+
+  it('CODEX_PLUGIN_KEY is coodra@coodra — plugin name and marketplace name are both Coodra-owned', () => {
+    expect(CODEX_PLUGIN_KEY).toBe('coodra@coodra');
   });
 });

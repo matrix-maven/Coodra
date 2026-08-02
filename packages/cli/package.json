@@ -1,6 +1,6 @@
 {
   "name": "@coodra/cli",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "private": false,
   "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
   "license": "MIT",

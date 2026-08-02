@@ -10,7 +10,7 @@ import {
 } from '@coodra/shared';
 import { EXIT_OK } from '../exit-codes.js';
 import { type ClaudeCliRunner, removeClaudePlugin } from '../lib/agents/claude-plugin.js';
-import { removeCodexPlugin } from '../lib/agents/codex-plugin.js';
+import { type CodexCliRunner, removeCodexPlugin } from '../lib/agents/codex-plugin.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
@@ -99,6 +99,8 @@ export interface UninstallIO {
   readonly userHome?: string;
   /** Test override so integration tests never invoke the real `claude` CLI. */
   readonly claudeCliRunner?: ClaudeCliRunner;
+  /** Test override so integration tests never invoke the real `codex` CLI. */
+  readonly codexCliRunner?: CodexCliRunner;
   /**
    * Daemon manager override. Tests inject a stub so the daemon-stop
    * step stays hermetic (never touches the host's real launchd /
@@ -203,6 +205,7 @@ export async function runUninstallCommand(options: UninstallOptions, ioOverride?
     dryRun,
     ...(io.settingsPath !== undefined ? { settingsPath: io.settingsPath } : {}),
     ...(io.claudeCliRunner !== undefined ? { claudeCliRunner: io.claudeCliRunner } : {}),
+    ...(io.codexCliRunner !== undefined ? { codexCliRunner: io.codexCliRunner } : {}),
     steps,
   });
 
@@ -401,6 +404,7 @@ async function removeGlobalNativePlugins(args: {
   readonly dryRun: boolean;
   readonly settingsPath?: string;
   readonly claudeCliRunner?: ClaudeCliRunner;
+  readonly codexCliRunner?: CodexCliRunner;
   readonly steps: UninstallStepResult[];
 }): Promise<void> {
   const ctx = {
@@ -424,7 +428,7 @@ async function removeGlobalNativePlugins(args: {
   }
 
   try {
-    const result = await removeCodexPlugin(ctx);
+    const result = await removeCodexPlugin(ctx, args.codexCliRunner ?? undefined);
     pushWriteOutcomes(args.steps, 'codex-plugin', result.outcomes);
   } catch (err) {
     args.steps.push({

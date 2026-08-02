@@ -1,29 +1,165 @@
+import { execFile as execFileCallback } from 'node:child_process';
+import { constants as fsConstants } from 'node:fs';
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
+const execFile = promisify(execFileCallback);
+
 export const CODEX_PLUGIN_NAME = 'coodra' as const;
+export const CODEX_MARKETPLACE_NAME = 'coodra' as const;
+export const CODEX_PLUGIN_KEY = `${CODEX_PLUGIN_NAME}@${CODEX_MARKETPLACE_NAME}` as const;
 
 /**
- * The default personal-marketplace name Codex assigns (matches the
- * fallback in `marketplaceJson` below). Codex's own runtime — not this
- * file — mirrors an installed plugin into
- * `~/.codex/plugins/cache/<marketplace-name>/<plugin-name>/<version>/`
- * once it actually loads it, independent of the source Coodra writes at
- * `pluginRoot`. `removeCodexPlugin` must clean this cache mirror too,
- * or an old Coodra version lingers there forever after uninstall (found
- * 2026-08-02: `~/.codex/plugins/coodra/` gone, but a stale
- * `~/.codex/plugins/cache/personal/coodra/0.4.0/` — including the
- * already-retired `deep-wiki-author` skill — survived uninstall
- * untouched). Scoped to the `coodra` leaf, not the whole
- * `cache/personal/` dir, since that marketplace namespace can hold the
- * user's other personal plugins too.
+ * Prefer Codex's own `codex plugin` CLI to register the marketplace and
+ * install/remove the plugin — it owns `~/.codex/config.toml` (marketplace
+ * registrations, per-plugin enable state) and the plugin cache directly,
+ * so Coodra never hand-writes or hand-deletes state Codex is responsible
+ * for. Verified live against `codex-cli 0.146.0-alpha.9.2` (2026-08-02):
+ * `codex plugin marketplace add <path>` requires the path to contain a
+ * nested `.agents/plugins/marketplace.json` (a bare `marketplace.json`
+ * at the root fails with "marketplace root does not contain a supported
+ * manifest"); `codex plugin add <plugin>@<marketplace>` installs AND
+ * enables in one step, is idempotent, and refreshes the cache in place
+ * on re-run when the source content changes — there is no separate
+ * enable call and no per-version cache directory to manage ourselves.
+ *
+ * Previously (through 0.4.5) this file wrote directly into the shared
+ * `~/.agents/plugins/marketplace.json` ("personal" marketplace) and
+ * hand-deleted `~/.codex/plugins/cache/personal/coodra/` on removal.
+ * Both were wrong: the personal marketplace is the user's own namespace
+ * (can hold their other plugins) — Coodra editing it directly risked
+ * clobbering unrelated entries — and hand-deleting a cache path Codex
+ * itself owns the format of is exactly the kind of guess this rewrite
+ * removes. Coodra's marketplace is now dedicated
+ * (`~/.coodra/codex-marketplaces/coodra/`, `codexPluginPaths().marketplaceRoot`),
+ * named `"coodra"` not `"personal"`, which also makes the cache path
+ * Codex assigns (`cache/$MARKETPLACE_NAME/$PLUGIN_NAME/`) become
+ * `cache/coodra/coodra/` — the same shape as Claude's own
+ * `cache/coodra/coodra/<version>/` mirror.
  */
-const CODEX_MARKETPLACE_NAME = 'personal' as const;
+export interface CodexCliRunner {
+  /**
+   * Resolves the codex binary: `which codex` first, then known bundle
+   * install locations (the ChatGPT desktop app does not add itself to
+   * PATH). `viaPath: false` means the caller should consider suggesting
+   * the user symlink it onto PATH for their own convenience — Coodra's
+   * own calls work fine either way since they always exec the resolved
+   * absolute path directly.
+   */
+  detect(userHome: string): Promise<{ readonly path: string; readonly viaPath: boolean } | null>;
+  installMarketplaceAndPlugin(
+    codexBin: string,
+    marketplaceRoot: string,
+  ): Promise<{ ok: true } | { ok: false; reason: string }>;
+  uninstallPlugin(codexBin: string): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Best-effort: is `coodra@coodra` reported installed by `codex plugin list --json`? */
+  isInstalled(codexBin: string): Promise<boolean>;
+}
+
+const CLI_TIMEOUT_MS = 15_000;
+
+/**
+ * Known locations for the Codex CLI binary when it's bundled inside the
+ * ChatGPT desktop app rather than symlinked onto PATH — confirmed live
+ * 2026-08-02: `/Applications/ChatGPT.app/Contents/Resources/codex`.
+ * macOS only; Windows/Linux bundle locations aren't verified, so this
+ * list intentionally stays short rather than guessing at unverified paths.
+ */
+function knownCodexBundlePaths(userHome: string): readonly string[] {
+  return [
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
+    join(userHome, 'Applications', 'ChatGPT.app', 'Contents', 'Resources', 'codex'),
+  ];
+}
+
+async function isExecutableFile(path: string): Promise<boolean> {
+  try {
+    await access(path, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function detectCodexCli(
+  userHome: string,
+  timeoutMs: number,
+): Promise<{ readonly path: string; readonly viaPath: boolean } | null> {
+  try {
+    const { stdout } = await execFile('which', ['codex'], { timeout: timeoutMs });
+    const path = stdout.trim();
+    if (path.length > 0) return { path, viaPath: true };
+  } catch {
+    // not on PATH — fall through to known bundle locations
+  }
+  for (const candidate of knownCodexBundlePaths(userHome)) {
+    if (await isExecutableFile(candidate)) return { path: candidate, viaPath: false };
+  }
+  return null;
+}
+
+/**
+ * Factory rather than a single constant so callers with a tight time
+ * budget (doctor's per-check timeout) can ask for a short-timeout runner —
+ * mirrors `createClaudeCliRunner`.
+ */
+export function createCodexCliRunner(timeoutMs: number = CLI_TIMEOUT_MS): CodexCliRunner {
+  return {
+    detect: (userHome) => detectCodexCli(userHome, timeoutMs),
+    async installMarketplaceAndPlugin(codexBin, marketplaceRoot) {
+      try {
+        await execFile(codexBin, ['plugin', 'marketplace', 'add', marketplaceRoot, '--json'], { timeout: timeoutMs });
+        await execFile(codexBin, ['plugin', 'add', CODEX_PLUGIN_KEY, '--json'], { timeout: timeoutMs });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+      }
+    },
+    async uninstallPlugin(codexBin) {
+      const pluginRemove = await execFile(codexBin, ['plugin', 'remove', CODEX_PLUGIN_KEY, '--json'], {
+        timeout: timeoutMs,
+      }).then(
+        () => ({ ok: true as const }),
+        (err) => ({ ok: false as const, reason: err instanceof Error ? err.message : String(err) }),
+      );
+      const marketRemove = await execFile(
+        codexBin,
+        ['plugin', 'marketplace', 'remove', CODEX_MARKETPLACE_NAME, '--json'],
+        { timeout: timeoutMs },
+      ).then(
+        () => ({ ok: true as const }),
+        (err) => ({ ok: false as const, reason: err instanceof Error ? err.message : String(err) }),
+      );
+      if (pluginRemove.ok && marketRemove.ok) return { ok: true };
+      const reasons = [
+        !pluginRemove.ok ? `plugin remove: ${pluginRemove.reason}` : null,
+        !marketRemove.ok ? `marketplace remove: ${marketRemove.reason}` : null,
+      ]
+        .filter((r): r is string => r !== null)
+        .join('; ');
+      return { ok: false, reason: reasons };
+    },
+    async isInstalled(codexBin) {
+      try {
+        const { stdout } = await execFile(codexBin, ['plugin', 'list', '--json'], { timeout: timeoutMs });
+        const parsed = JSON.parse(stdout) as {
+          installed?: ReadonlyArray<{ pluginId?: string; installed?: boolean }>;
+        };
+        return (parsed.installed ?? []).some((p) => p.pluginId === CODEX_PLUGIN_KEY && p.installed === true);
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+export const defaultCodexCliRunner: CodexCliRunner = createCodexCliRunner();
 
 export interface CodexPluginPaths {
   readonly marketplaceRoot: string;
@@ -34,23 +170,21 @@ export interface CodexPluginPaths {
   readonly hooksPath: string;
   readonly hookRunnerPath: string;
   readonly skillsRoot: string;
-  readonly cachePluginRoot: string;
 }
 
-export function codexPluginPaths(userHome: string): CodexPluginPaths {
-  const marketplaceRoot = join(userHome, '.agents', 'plugins');
-  const pluginRoot = join(userHome, '.codex', 'plugins', CODEX_PLUGIN_NAME);
+export function codexPluginPaths(userHome: string, coodraHome: string = join(userHome, '.coodra')): CodexPluginPaths {
+  const marketplaceRoot = join(coodraHome, 'codex-marketplaces', CODEX_MARKETPLACE_NAME);
+  const pluginRoot = join(marketplaceRoot, 'plugins', CODEX_PLUGIN_NAME);
   const skillsRoot = join(pluginRoot, 'skills');
   return {
     marketplaceRoot,
-    marketplacePath: join(marketplaceRoot, 'marketplace.json'),
+    marketplacePath: join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
     pluginRoot,
     manifestPath: join(pluginRoot, '.codex-plugin', 'plugin.json'),
     mcpPath: join(pluginRoot, '.mcp.json'),
     hooksPath: join(pluginRoot, 'hooks', 'hooks.json'),
     hookRunnerPath: join(pluginRoot, 'hooks', 'hook-runner.mjs'),
     skillsRoot,
-    cachePluginRoot: join(userHome, '.codex', 'plugins', 'cache', CODEX_MARKETPLACE_NAME, CODEX_PLUGIN_NAME),
   };
 }
 
@@ -58,7 +192,10 @@ export function buildCodexPluginMcpEntry(ctx: AgentContext): CoodraMcpEntry {
   return buildCoodraMcpEntry({ ...ctx.mcpEntryOptions, agentType: 'codex' });
 }
 
-export async function probeCodexPlugin(ctx: AgentPathContext): Promise<{
+export async function probeCodexPlugin(
+  ctx: AgentPathContext,
+  cliRunner: CodexCliRunner = defaultCodexCliRunner,
+): Promise<{
   readonly manifest: boolean;
   readonly marketplace: boolean;
   readonly mcp: boolean;
@@ -67,9 +204,13 @@ export async function probeCodexPlugin(ctx: AgentPathContext): Promise<{
   readonly paths: CodexPluginPaths;
 }> {
   const paths = codexPluginPaths(ctx.userHome);
+  const codex = await cliRunner.detect(ctx.userHome);
+  if (codex !== null && (await cliRunner.isInstalled(codex.path))) {
+    return { manifest: true, marketplace: true, mcp: true, hooks: true, skills: true, paths };
+  }
   const [manifest, marketplace, mcp, hooks, coodraContextSkill, coodraWikiSkillFile] = await Promise.all([
     fileContains(paths.manifestPath, `"name": "${CODEX_PLUGIN_NAME}"`),
-    fileContains(paths.marketplacePath, `"name": "${CODEX_PLUGIN_NAME}"`),
+    fileContains(paths.marketplacePath, `"name": "${CODEX_MARKETPLACE_NAME}"`),
     fileContainsAll(paths.mcpPath, [`"coodra"`, `"graphify"`]),
     fileContains(paths.hooksPath, `"SessionStart"`),
     fileContains(join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), 'name: coodra-context'),
@@ -79,14 +220,19 @@ export async function probeCodexPlugin(ctx: AgentPathContext): Promise<{
   return { manifest, marketplace, mcp, hooks, skills, paths };
 }
 
-export async function installCodexPlugin(ctx: AgentContext): Promise<{
+export async function installCodexPlugin(
+  ctx: AgentContext,
+  cliRunner: CodexCliRunner = defaultCodexCliRunner,
+): Promise<{
   readonly outcomes: WriteOutcome[];
   readonly paths: CodexPluginPaths;
 }> {
-  const paths = codexPluginPaths(ctx.userHome);
+  const coodraHome = ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra');
+  const paths = codexPluginPaths(ctx.userHome, coodraHome);
   const mcpEntry = buildCodexPluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra'));
-  const files = new Map<string, string>([
+  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome);
+  const sourceFiles = new Map<string, string>([
+    [paths.marketplacePath, marketplaceManifest()],
     [paths.manifestPath, pluginManifest()],
     [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],
     [paths.hooksPath, `${JSON.stringify(hooksConfig(), null, 2)}\n`],
@@ -97,91 +243,90 @@ export async function installCodexPlugin(ctx: AgentContext): Promise<{
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
     [join(paths.skillsRoot, 'coodra-jira-work', 'SKILL.md'), coodraJiraWorkSkill()],
-    [paths.marketplacePath, await marketplaceJson(paths.marketplacePath)],
   ]);
 
+  // The marketplace SOURCE — Coodra's own dedicated files — always lands on
+  // disk first; `codex plugin marketplace add` registers an *existing*
+  // local marketplace, it doesn't create one.
   const outcomes: WriteOutcome[] = [];
-  for (const [path, content] of files) {
+  for (const [path, content] of sourceFiles) {
     outcomes.push(await writeGenerated(path, content, ctx.force, ctx.dryRun));
+  }
+
+  if (ctx.dryRun) return { outcomes, paths };
+
+  const codex = await cliRunner.detect(ctx.userHome);
+  if (codex === null) {
+    outcomes.push({
+      path: paths.marketplaceRoot,
+      action: 'unchanged',
+      notes:
+        'codex CLI not found on PATH or at known install locations; cannot register the plugin — install Codex ' +
+        '(or add it to PATH if already installed, e.g. via `~/Applications/ChatGPT.app/Contents/Resources/codex`), ' +
+        'then re-run `coodra agent add codex`',
+    });
+    return { outcomes, paths };
+  }
+  if (!codex.viaPath) {
+    outcomes.push({
+      path: codex.path,
+      action: 'unchanged',
+      notes:
+        `found the Codex CLI at ${codex.path} (not on PATH — this install still works via the full path, but ` +
+        `\`codex\` alone won't work in your own shell). To fix that: sudo ln -sf ${codex.path} /usr/local/bin/codex`,
+    });
+  }
+  const result = await cliRunner.installMarketplaceAndPlugin(codex.path, paths.marketplaceRoot);
+  if (result.ok) {
+    outcomes.push({
+      path: paths.marketplacePath,
+      action: 'wrote',
+      notes: `installed via 'codex plugin add ${CODEX_PLUGIN_KEY}'`,
+    });
+  } else {
+    outcomes.push({
+      path: paths.marketplacePath,
+      action: 'unchanged',
+      notes: `'codex plugin marketplace add' / 'codex plugin add' failed (${result.reason})`,
+    });
   }
   return { outcomes, paths };
 }
 
-export async function removeCodexPlugin(ctx: AgentRemoveContext): Promise<{
+export async function removeCodexPlugin(
+  ctx: AgentRemoveContext,
+  cliRunner: CodexCliRunner = defaultCodexCliRunner,
+): Promise<{
   readonly outcomes: WriteOutcome[];
   readonly paths: CodexPluginPaths;
 }> {
-  const paths = codexPluginPaths(ctx.userHome);
+  const paths = codexPluginPaths(ctx.userHome, ctx.coodraHome);
   const outcomes: WriteOutcome[] = [];
-  outcomes.push(await removeMarketplaceEntry(paths.marketplacePath, ctx.dryRun));
-  outcomes.push(await removePath(paths.pluginRoot, ctx.dryRun, 'removed Coodra Codex plugin bundle'));
-  outcomes.push(await removePath(paths.cachePluginRoot, ctx.dryRun, 'removed all Coodra Codex plugin cache versions'));
+
+  if (!ctx.dryRun) {
+    const codex = await cliRunner.detect(ctx.userHome);
+    if (codex !== null) {
+      const result = await cliRunner.uninstallPlugin(codex.path);
+      outcomes.push({
+        path: paths.marketplacePath,
+        action: result.ok ? 'merged' : 'unchanged',
+        notes: result.ok
+          ? `removed ${CODEX_PLUGIN_KEY} via 'codex plugin remove' + 'codex plugin marketplace remove'`
+          : `codex plugin removal failed or plugin not installed via CLI (${result.reason})`,
+      });
+    } else {
+      outcomes.push({
+        path: paths.marketplacePath,
+        action: 'unchanged',
+        notes: 'codex CLI not found; could not ask Codex to remove its own plugin/marketplace registration or cache',
+      });
+    }
+  }
+
+  // Coodra's own marketplace SOURCE — fully owned, safe to remove directly
+  // regardless of whether the CLI call above succeeded.
+  outcomes.push(await removePath(paths.marketplaceRoot, ctx.dryRun, 'removed Coodra Codex marketplace source'));
   return { outcomes, paths };
-}
-
-async function marketplaceJson(path: string): Promise<string> {
-  const entry = {
-    name: CODEX_PLUGIN_NAME,
-    source: { source: 'local', path: './.codex/plugins/coodra' },
-    policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
-    category: 'Developer Tools',
-  };
-  try {
-    const raw = await readFile(path, 'utf8');
-    const parsed = JSON.parse(raw) as {
-      name?: string;
-      interface?: { displayName?: string };
-      plugins?: unknown[];
-      [key: string]: unknown;
-    };
-    const plugins = Array.isArray(parsed.plugins) ? parsed.plugins : [];
-    const filtered = plugins.filter((plugin) => {
-      return !(
-        typeof plugin === 'object' &&
-        plugin !== null &&
-        (plugin as { name?: unknown }).name === CODEX_PLUGIN_NAME
-      );
-    });
-    return `${JSON.stringify(
-      {
-        name: typeof parsed.name === 'string' ? parsed.name : 'personal',
-        interface:
-          typeof parsed.interface === 'object' && parsed.interface !== null
-            ? parsed.interface
-            : { displayName: 'Personal' },
-        ...parsed,
-        plugins: [...filtered, entry],
-      },
-      null,
-      2,
-    )}\n`;
-  } catch {
-    return `${JSON.stringify({ name: 'personal', interface: { displayName: 'Personal' }, plugins: [entry] }, null, 2)}\n`;
-  }
-}
-
-async function removeMarketplaceEntry(path: string, dryRun: boolean): Promise<WriteOutcome> {
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>;
-  } catch {
-    return { path, action: 'unchanged', notes: 'Codex personal marketplace does not exist; nothing to remove' };
-  }
-
-  const plugins = Array.isArray(parsed.plugins) ? parsed.plugins : [];
-  const filtered = plugins.filter((plugin) => {
-    return !(
-      typeof plugin === 'object' &&
-      plugin !== null &&
-      (plugin as { name?: unknown }).name === CODEX_PLUGIN_NAME
-    );
-  });
-  if (filtered.length === plugins.length) {
-    return { path, action: 'unchanged', notes: 'Coodra is not present in the Codex personal marketplace' };
-  }
-
-  if (!dryRun) await writeFile(path, `${JSON.stringify({ ...parsed, plugins: filtered }, null, 2)}\n`, 'utf8');
-  return { path, action: 'merged', notes: 'removed Coodra from the Codex personal marketplace' };
 }
 
 async function removePath(path: string, dryRun: boolean, note: string): Promise<WriteOutcome> {
@@ -214,6 +359,25 @@ async function writeGenerated(path: string, content: string, force: boolean, dry
     }
     return { path, action: 'wrote', notes: 'created Coodra Codex plugin file' };
   }
+}
+
+function marketplaceManifest(): string {
+  return `${JSON.stringify(
+    {
+      name: CODEX_MARKETPLACE_NAME,
+      interface: { displayName: 'Coodra' },
+      plugins: [
+        {
+          name: CODEX_PLUGIN_NAME,
+          source: { source: 'local', path: './plugins/coodra' },
+          policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
+          category: 'Developer Tools',
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 function pluginManifest(): string {

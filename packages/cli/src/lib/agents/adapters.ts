@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import { removeCodexConfig } from '../init/codex-merge.js';
 import { removeInstructionBlock } from '../init/instruction-files.js';
 import type { WriteOutcome } from '../init/types.js';
-import { installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
-import { installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
+import { type ClaudeCliRunner, installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
+import { type CodexCliRunner, installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
 import type {
   AgentAdapter,
   AgentContext,
@@ -52,7 +52,7 @@ const claudeAdapter: AgentAdapter = {
   postWireNote: 'Restart Claude Code or run /reload-plugins, then confirm Coodra appears as coodra@coodra in /plugin.',
   detect: (userHome) => detectDir(userHome, '.claude'),
   async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const probe = await probeClaudePlugin(ctx);
+    const probe = await probeClaudePlugin(ctx, ctx.claudeCliRunner as ClaudeCliRunner | undefined);
     const files: AgentFileState[] = [
       {
         label: 'Claude user plugin enablement',
@@ -88,10 +88,10 @@ const claudeAdapter: AgentAdapter = {
     return buildStatus(this, await this.detect(ctx.userHome), files);
   },
   async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    return (await installClaudePlugin(ctx)).outcomes;
+    return (await installClaudePlugin(ctx, ctx.claudeCliRunner as ClaudeCliRunner | undefined)).outcomes;
   },
   async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    return (await removeClaudePlugin(ctx)).outcomes;
+    return (await removeClaudePlugin(ctx, ctx.claudeCliRunner as ClaudeCliRunner | undefined)).outcomes;
   },
 };
 
@@ -105,15 +105,15 @@ const codexAdapter: AgentAdapter = {
   agentType: 'codex',
   detectionDir: '.codex',
   postWireNote:
-    'The files above are everything Coodra writes for Codex (no separate cache mirror, unlike Claude Code). ' +
-    'Restart Codex, install/enable the Coodra plugin from the Personal marketplace if prompted — that step is ' +
-    "Codex's own bookkeeping, not something Coodra writes — then review/trust bundled hooks with /hooks.",
+    'Coodra registers its own dedicated Codex marketplace (not your personal one) and installs the Coodra plugin ' +
+    "via `codex plugin add` when the codex CLI is available — that's real installation, not just a file write. " +
+    'Restart Codex, then review/trust bundled hooks with /hooks.',
   detect: (userHome) => detectDir(userHome, '.codex'),
   async status(ctx: AgentPathContext): Promise<AgentStatus> {
-    const probe = await probeCodexPlugin(ctx);
+    const probe = await probeCodexPlugin(ctx, ctx.codexCliRunner as CodexCliRunner | undefined);
     const files: AgentFileState[] = [
       {
-        label: '~/.agents/plugins/marketplace.json',
+        label: 'Coodra Codex marketplace',
         path: probe.paths.marketplacePath,
         state: probe.marketplace ? 'wired' : 'missing',
       },
@@ -141,10 +141,10 @@ const codexAdapter: AgentAdapter = {
     return buildStatus(this, await this.detect(ctx.userHome), files);
   },
   async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    return (await installCodexPlugin(ctx)).outcomes;
+    return (await installCodexPlugin(ctx, ctx.codexCliRunner as CodexCliRunner | undefined)).outcomes;
   },
   async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
-    const plugin = await removeCodexPlugin(ctx);
+    const plugin = await removeCodexPlugin(ctx, ctx.codexCliRunner as CodexCliRunner | undefined);
     const legacyMcp = await removeCodexConfig({ cwd: ctx.cwd, dryRun: ctx.dryRun });
     const legacyInstr = await removeInstructionBlock({ cwd: ctx.cwd, filename: 'AGENTS.md', dryRun: ctx.dryRun });
     return [...plugin.outcomes, legacyMcp, legacyInstr];

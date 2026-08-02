@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { createClaudeCliRunner, probeClaudePlugin } from '../../lib/agents/claude-plugin.js';
-import { probeCodexPlugin } from '../../lib/agents/codex-plugin.js';
+import { createCodexCliRunner, probeCodexPlugin } from '../../lib/agents/codex-plugin.js';
 import { defaultClaudeSettingsPath } from '../../lib/init/claude-settings-merge.js';
 import type { Check } from '../types.js';
 
@@ -24,7 +24,7 @@ async function probeNativePluginMcp(
   ctx: Parameters<Check['run']>[0],
 ): Promise<{ status: 'green'; detail: string } | null> {
   const userHome = ctx.env.HOME || ctx.env.USERPROFILE || homedir();
-  const codex = await probeCodexPlugin({ cwd: ctx.cwd, userHome });
+  const codex = await probeCodexPlugin({ cwd: ctx.cwd, userHome }, createCodexCliRunner(Math.min(ctx.timeoutMs, 1200)));
   if (codex.mcp) {
     return { status: 'green', detail: `native Codex plugin provides Coodra MCP at ${codex.paths.mcpPath}` };
   }

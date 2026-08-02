@@ -196,9 +196,9 @@ async function codexReport(input: BuildReportsInput): Promise<AgentReport> {
     files: [
       await fileContainsState({
         path: plugin.marketplacePath,
-        label: '~/.agents/plugins/marketplace.json',
+        label: 'Coodra Codex marketplace',
         needle: '"name": "coodra"',
-        wiredNote: 'coodra marketplace entry present',
+        wiredNote: 'coodra marketplace registered',
         missingNote: 'missing',
         partialNote: 'no coodra marketplace entry',
       }),

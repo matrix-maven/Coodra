@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runUninstallCommand, type UninstallIO } from '../../src/commands/uninstall.js';
 import { EXIT_OK } from '../../src/exit-codes.js';
 import type { ClaudeCliRunner } from '../../src/lib/agents/claude-plugin.js';
+import type { CodexCliRunner } from '../../src/lib/agents/codex-plugin.js';
 import type { DaemonManager } from '../../src/lib/daemon/index.js';
 import { mergeCodexConfig } from '../../src/lib/init/codex-merge.js';
 
@@ -32,6 +33,20 @@ interface Capture {
 type StubDaemonManager = DaemonManager & { readonly calls: Array<{ op: string; unit: string }> };
 
 const noopClaudeCliRunner: ClaudeCliRunner = {
+  detect: async () => null,
+  installMarketplaceAndPlugin: async () => ({ ok: false, reason: 'test noop' }),
+  uninstallPlugin: async () => ({ ok: false, reason: 'test noop' }),
+  isInstalled: async () => false,
+};
+
+/**
+ * Same hermeticity requirement as `noopClaudeCliRunner`, for Codex. Without
+ * this, `removeGlobalNativePlugins` falls back to `removeCodexPlugin`'s own
+ * default parameter (`defaultCodexCliRunner`), which shells out to the real
+ * `codex` binary if one is on the test machine's PATH — see the incident
+ * documented in `agent-command.test.ts`'s `noCodexCli()`.
+ */
+const noopCodexCliRunner: CodexCliRunner = {
   detect: async () => null,
   installMarketplaceAndPlugin: async () => ({ ok: false, reason: 'test noop' }),
   uninstallPlugin: async () => ({ ok: false, reason: 'test noop' }),
@@ -80,6 +95,7 @@ function makeIo(args: {
     settingsPath: args.settingsPath,
     userHome: args.homePath.replace(/\/\.coodra$/, ''),
     claudeCliRunner: noopClaudeCliRunner,
+    codexCliRunner: noopCodexCliRunner,
     daemonManager: args.daemonManager ?? makeStubDaemonManager(),
   };
 }
