@@ -12,10 +12,8 @@ import type { WriteOutcome } from './types.js';
  *
  * **Project-scoped, not global.** Cursor reads MCP servers from either
  * `~/.cursor/mcp.json` (global) or `<repo>/.cursor/mcp.json`
- * (project-scoped). We write the PROJECT file — same model as Codex
- * (`.codex/config.toml`) and Claude Code (`.mcp.json`): repo-scoped,
- * uninstall removes it cleanly, never touches the user's shared global
- * Cursor config.
+ * (project-scoped). We write the PROJECT file, never the user's shared
+ * global Cursor config.
  *
  * The file shape matches `.mcp.json` / Windsurf MCP config —
  * `{ "mcpServers": { "<name>": { command, args, env } } }` — so we
@@ -23,7 +21,7 @@ import type { WriteOutcome } from './types.js';
  * canonical comparator from `mcp-merge.ts`. This module only owns the
  * project-scoped path resolution.
  *
- * Merge contract mirrors `mergeMcpJson` (spec §11 Decision 3): never
+ * Merge contract mirrors Coodra's external-MCP writer discipline: never
  * destroys user edits — an existing drifted `coodra` entry is preserved
  * unless `--force`; every other server entry in the file is left
  * untouched.

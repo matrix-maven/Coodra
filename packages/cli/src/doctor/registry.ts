@@ -51,7 +51,7 @@ import type { Check } from './types.js';
  *   - 5  __global__ sentinel    — F7 invariant for unregistered cwds
  *   - 11 hooks-bridge /healthz  — bridge is the autonomy in-path
  *   - 12 project registered     — the cwd has a working .coodra/config.json
- *   - 14 .mcp.json validity     — Claude Code can spawn the MCP server
+ *   - 14 MCP wiring             — native plugin MCP present
  *   - 20 LOCAL_HOOK_SECRET set  — bridge auth contract
  *
  * Everything else: debug invariants (6/7/8), redundant probes (10/17/18),

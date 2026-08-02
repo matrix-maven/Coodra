@@ -33,7 +33,7 @@ import { defaultWindsurfMcpConfigPath } from './windsurf-merge.js';
  * The structural difference from Graphify: Graphify is **stdio**
  * (`{ command, args }`); Rovo is **remote** (`url`). The native remote
  * entry shape differs per client, so `buildJiraEntry` is per-IDE:
- *   - Claude Code → `{ type: 'http', url }`
+ *   - Claude Code → native/plugin-scoped MCP; repo-root `.mcp.json` is user-owned
  *   - Cursor      → `{ url }`
  *   - Windsurf    → `{ serverUrl }`
  *   - Codex       → `{ url }` table + the top-level
@@ -42,7 +42,7 @@ import { defaultWindsurfMcpConfigPath } from './windsurf-merge.js';
  * no `npx mcp-remote` shim. All four target agents support native remote.
  *
  * The idempotent never-clobber merge lives in the 9·Core substrate —
- * `external-mcp-merge.ts` (JSON: Claude Code / Cursor / Windsurf) and
+ * `external-mcp-merge.ts` (JSON: Cursor / Windsurf) and
  * `external-codex-merge.ts` (TOML: Codex). OAuth is each client's own
  * native flow (`/mcp` in Claude Code); Coodra wires nothing auth-related.
  */
@@ -104,6 +104,7 @@ export async function findForeignAtlassianServer(options: {
   readonly userHome: string;
 }): Promise<ForeignAtlassianServer | null> {
   const configPath = jiraConfigPath(options.ide, options.cwd, options.userHome);
+  if (configPath === null) return null;
   const key =
     options.ide === 'codex'
       ? await findExternalCodexServerByContent({
@@ -121,14 +122,16 @@ export async function findForeignAtlassianServer(options: {
 }
 
 /**
- * Resolve the agent's MCP-config path for `ide`. Claude Code, Cursor and
- * Codex are project-scoped (under `cwd`); Windsurf's config is global
- * (under `userHome`). Identical resolution to `graphifyConfigPath`.
+ * Resolve the agent's MCP-config path for `ide`. Coodra does not create or
+ * edit Claude Code repo-root `.mcp.json`; Claude uses native/plugin-scoped
+ * MCP wiring. Cursor and Codex are project-scoped (under `cwd`); Windsurf's
+ * config is global (under `userHome`). Identical resolution to
+ * `graphifyConfigPath`.
  */
-export function jiraConfigPath(ide: IDE, cwd: string, userHome: string): string {
+export function jiraConfigPath(ide: IDE, cwd: string, userHome: string): string | null {
   switch (ide) {
     case 'claude':
-      return join(cwd, '.mcp.json');
+      return null;
     case 'cursor':
       return join(cwd, '.cursor', 'mcp.json');
     case 'windsurf':
@@ -174,6 +177,7 @@ export interface WireJiraOptions {
  */
 export async function wireJira(options: WireJiraOptions): Promise<WriteOutcome> {
   const filePath = jiraConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
   const entry = buildJiraEntry(options.ide);
   if (options.ide === 'codex') {
     return mergeExternalCodexServer({
@@ -208,6 +212,7 @@ export async function unwireJira(options: {
   readonly dryRun: boolean;
 }): Promise<WriteOutcome> {
   const filePath = jiraConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return claudeNativePluginOutcome(options.cwd);
   if (options.ide === 'codex') {
     return removeExternalCodexServer({ filePath, name: JIRA_SERVER_NAME, dryRun: options.dryRun });
   }
@@ -237,10 +242,19 @@ export async function readJiraPresence(options: {
   readonly userHome: string;
 }): Promise<JiraServerPresence> {
   const filePath = jiraConfigPath(options.ide, options.cwd, options.userHome);
+  if (filePath === null) return { exists: false, wired: false, unreadable: false, foreignKey: null };
   const base =
     options.ide === 'codex'
       ? await readExternalCodexServerPresence({ filePath, name: JIRA_SERVER_NAME })
       : await readExternalMcpServerPresence({ filePath, name: JIRA_SERVER_NAME });
   const foreign = await findForeignAtlassianServer(options);
   return { ...base, foreignKey: foreign?.key ?? null };
+}
+
+function claudeNativePluginOutcome(_cwd: string): WriteOutcome {
+  return {
+    path: 'Claude Code native plugin',
+    action: 'unchanged',
+    notes: 'Claude Code uses native/plugin-scoped MCP; repo-root .mcp.json is user-owned and not managed by Coodra',
+  };
 }

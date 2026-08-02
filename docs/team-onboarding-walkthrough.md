@@ -133,17 +133,16 @@ Expected output:
 ✓ Detected IDEs: claude, cursor, windsurf
 ✓ Resolved Coodra home: /Users/<you>/.coodra
 ✓ Applied migrations + seeded __global__ + registered project 'demo-app' (new id <uuid>)
-✓ Seeded default policy with 25 baseline rules
-✓ Resolved mcp-server runtime: bundled
+✓ Seeded default policy
+✓ Recorded machine/plugin wiring in ~/.coodra/manifest.json
 
   + .coodra/config.json (wrote projectSlug='demo-app')
-  + .mcp.json (created baseline .mcp.json with coodra entry)
-  + ~/.coodra/.env (persisted Coodra runtime config)
-  ! ~/.claude/settings.json (overwrote Coodra hook entries)
-  + docs/feature-packs/demo-app/{meta.json,spec.md,implementation.md,techstack.md}
+  + .coodra/manifest.json (registered project identity)
+  + .coodra/{recipes,graphify,wiki,work-packs}/
+  ! native Claude/Codex plugin wiring (managed outside the repo)
 
 Coodra is ready (project 'demo-app').
-  → Restart your IDE so it picks up .mcp.json.
+  → Restart your IDE so it picks up the native Coodra plugin wiring.
   → Run `coodra doctor` to verify the install.
   → Run `coodra start` to launch the MCP server + Hooks Bridge daemons.
 ```
@@ -151,10 +150,9 @@ Coodra is ready (project 'demo-app').
 ### What `init` wrote
 
 - `.coodra/config.json` — pins the project slug.
-- `.mcp.json` — Claude Code / Cursor / Windsurf use this to spawn the Coodra MCP server.
-- `.env` — Clerk sentinels + `LOCAL_HOOK_SECRET` + ports. **Note**: `COODRA_MODE` is intentionally NOT in this file (per Phase 4 H5) — your `~/.coodra/.env::COODRA_MODE=team` from `team setup` governs.
-- `~/.claude/settings.json` — wires Coodra hooks into Claude Code's hook events.
-- `docs/feature-packs/demo-app/` — seed feature pack the agent reads at session start.
+- Native agent/plugin MCP wiring — Claude Code / Codex use the Coodra plugin; repo-root `.mcp.json` is user-owned and not managed by Coodra.
+- `~/.coodra/.env` — machine runtime env such as hook secret, ports, and optional LLM backend keys.
+- `.coodra/{recipes,graphify,wiki,work-packs}/` — project-local Coodra artifacts.
 
 ---
 
@@ -211,7 +209,7 @@ You'll see the three services with PIDs + healthcheck status.
 
 This is where the agent actually does something.
 
-1. **Restart Claude Code** so it picks up the new `.mcp.json` from your demo project.
+1. **Restart Claude Code** so it picks up the native Coodra plugin wiring for your demo project.
 2. Open `~/coodra-demo` in Claude Code.
 3. Start a session. Try a basic prompt: *"Edit README.md to add a project description."*
 4. Claude Code's hooks fire on `SessionStart`, `PreToolUse`, `PostToolUse`, `SessionEnd`. The bridge audits each event into local SQLite. The agent uses the `coodra__*` MCP tools to record decisions and save context packs.

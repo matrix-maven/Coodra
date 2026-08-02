@@ -9,8 +9,8 @@
  * human-readable `✓`/`⚠` progress UI. Scripted callers piping init or
  * doctor output got JSON garbage mixed with checkmarks. Root cause:
  * the shared logger defaults to pino's stdout when no destination is
- * configured; mcp-server's stdio transport sets `COODRA_LOG_DESTINATION=stderr`
- * via .mcp.json, but the CLI binary had no equivalent hook.
+ * configured; MCP stdio transports set `COODRA_LOG_DESTINATION=stderr`,
+ * but the CLI binary had no equivalent hook.
  *
  * Defaulting to stderr in the CLI binary keeps stdout JSON-clean for
  * scripted consumers while preserving any explicit user override

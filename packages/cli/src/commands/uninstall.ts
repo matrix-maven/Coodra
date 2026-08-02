@@ -17,7 +17,6 @@ import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
 import { removeCursorMcpConfig } from '../lib/init/cursor-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
-import { removeMcpJson } from '../lib/init/mcp-merge.js';
 import { removeWindsurfMcpConfig } from '../lib/init/windsurf-merge.js';
 import { readMachineManifest } from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -51,8 +50,9 @@ import { pc } from '../ui/index.js';
  *      and global Windsurf MCP entries.
  *   2. With `--purge`: discover registered project roots from the local DB
  *      and machine manifest, then reverse project-local Coodra writes
- *      (`.mcp.json`, `.codex/config.toml`, `.claude`/instruction blocks,
- *      `.coodra/`, legacy `docs/context-packs/`, etc.).
+ *      (`.codex/config.toml`, `.claude`/instruction blocks, `.coodra/`,
+ *      legacy `docs/context-packs/`, etc.). Repo-root `.mcp.json` is
+ *      user-owned and is never edited by uninstall.
  *   3. With `--remove-data` (and NOT `--purge`): delete the SQLite
  *      store — `data.db` + its `-wal` / `-shm` sidecars — while
  *      preserving `config.json` and the packs. The narrow "forget my
@@ -600,17 +600,6 @@ async function removeProjectScopedFiles(args: {
   readonly steps: UninstallStepResult[];
 }): Promise<void> {
   const { root, prefix, dryRun, steps } = args;
-
-  try {
-    const result = await removeMcpJson({ cwd: root, dryRun });
-    steps.push({ step: `${prefix}mcp-json`, action: String(result.action), notes: result.notes ?? '' });
-  } catch (err) {
-    steps.push({
-      step: `${prefix}mcp-json`,
-      action: 'failed',
-      notes: err instanceof Error ? err.message : String(err),
-    });
-  }
 
   for (const [step, fn] of [
     ['claude-md', () => removeInstructionBlock({ cwd: root, filename: 'CLAUDE.md', dryRun })],

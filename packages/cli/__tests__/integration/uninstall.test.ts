@@ -208,7 +208,7 @@ describe('coodra uninstall integration', () => {
     expect(next.hooks.PreToolUse?.[0]?.matcher).toBe('OtherTool');
   });
 
-  it('Fixture 2 — default uninstall preserves project .mcp.json', async () => {
+  it('Fixture 2 — default uninstall leaves user-owned project .mcp.json untouched', async () => {
     writeFileSync(
       join(projectCwd, '.mcp.json'),
       JSON.stringify({
@@ -236,7 +236,7 @@ describe('coodra uninstall integration', () => {
     expect(next.mcpServers).toHaveProperty('otherServer');
   });
 
-  it('Fixture 2b — --purge removes coodra entry from .mcp.json and preserves other servers', async () => {
+  it('Fixture 2b — --purge leaves user-owned project .mcp.json untouched', async () => {
     writeFileSync(
       join(projectCwd, '.mcp.json'),
       JSON.stringify({
@@ -260,7 +260,7 @@ describe('coodra uninstall integration', () => {
     const next = JSON.parse(readFileSync(join(projectCwd, '.mcp.json'), 'utf8')) as {
       mcpServers: Record<string, unknown>;
     };
-    expect(next.mcpServers).not.toHaveProperty('coodra');
+    expect(next.mcpServers).toHaveProperty('coodra');
     expect(next.mcpServers).toHaveProperty('otherServer');
   });
 

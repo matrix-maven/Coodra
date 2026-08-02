@@ -9,7 +9,6 @@ import {
   ACCEPTED_AGENT_TOKENS,
   type AgentAdapter,
   type AgentStatus,
-  ensureProjectMcpJson,
   listAdapters,
   resolveAgentInput,
   resolveAgentWiringContext,
@@ -39,8 +38,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  *                     global native plugin; older adapters still use their
  *                     current MCP/instruction surfaces. Idempotent.
  *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
- *   remove <agent>  — strip ONLY this agent's Coodra-owned entries. The
- *                     project .mcp.json is left for `coodra uninstall`.
+ *   remove <agent>  — strip ONLY this agent's Coodra-owned entries.
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
@@ -179,7 +177,6 @@ async function runWire(
   }
 
   const needsProjectFiles = targets.adapters.some((adapter) => PROJECT_SCOPED_AGENT_IDS.has(adapter.id));
-  const mcpJson = needsProjectFiles ? await ensureProjectMcpJson(resolved.context) : null;
 
   const results: AgentActionResult[] = [];
   for (const adapter of targets.adapters) {
@@ -214,7 +211,6 @@ async function runWire(
       const paths = [
         ...new Set([
           ...cfg.outcomes.map((o) => o.path),
-          ...(mcpJson !== null ? [mcpJson.path] : []),
           ...results
             .filter((r) => PROJECT_SCOPED_AGENT_IDS.has(r.id as AgentAdapter['id']))
             .flatMap((r) => r.outcomes.map((o) => o.path)),
@@ -316,7 +312,6 @@ async function runWire(
           projectRoot: resolved.projectRoot,
           mode: resolved.mode,
           dryRun,
-          ...(mcpJson !== null ? { mcpJson } : {}),
           agents: results,
           ...(projectionOutcome !== null ? { policyProjection: projectionOutcome } : {}),
         },
@@ -329,11 +324,6 @@ async function runWire(
 
   io.writeStdout(`${commandTitle('Agent', `${mode} · Coodra wiring`, { width: terminalWidth(), indent: 0 })}\n`);
   io.writeStdout(`  ${pc.gray(`project root: ${resolved.projectRoot}`)}${dryRun ? pc.gray('  (dry-run)') : ''}\n`);
-  if (mcpJson !== null) {
-    io.writeStdout(
-      `  ${glyphForAction(mcpJson.action)} .mcp.json: ${mcpJson.action} ${pc.gray(`(${mcpJson.notes ?? ''})`)}\n`,
-    );
-  }
   let slot = 1;
   for (const r of results) {
     io.writeStdout(`${sectionHead(String(slot).padStart(2, '0'), r.label)}\n`);
@@ -497,9 +487,6 @@ export async function runAgentRemoveCommand(
       io.writeStdout(`  ${glyphForAction(o.action)} ${o.path}: ${o.action} ${pc.gray(`(${o.notes ?? ''})`)}\n`);
     }
   }
-  io.writeStdout(
-    `\n${hintLine('The project `.mcp.json` is preserved — run `coodra uninstall` to remove all Coodra project files.')}\n`,
-  );
   return io.exit(EXIT_OK);
 }
 

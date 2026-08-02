@@ -217,10 +217,6 @@ const RULES: ReadonlyArray<{ test: (rel: string, base: string) => boolean; cls: 
     cls: { owner: 'coodra', kind: 'pids-dir', cleanup: 'preserve', safeToDelete: false },
   },
   {
-    test: (rel) => rel === '.mcp.json',
-    cls: { owner: 'coodra', kind: 'mcp-config', cleanup: 'ask', safeToDelete: true },
-  },
-  {
     test: (rel) => rel === '.cursor/mcp.json',
     cls: { owner: 'agent:cursor', kind: 'mcp-config', cleanup: 'ask', safeToDelete: true },
   },

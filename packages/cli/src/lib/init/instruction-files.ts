@@ -17,11 +17,10 @@ import type { WriteOutcome } from './types.js';
  *   - Codex   → `<repo>/AGENTS.md`        (Codex reads it on the first turn)
  *   - Windsurf→ `<repo>/.windsurfrules`   (Cascade applies it to everything)
  *
- * Why this matters: the agent has the `coodra__*` MCP tools wired
- * via `.mcp.json` / `.codex/config.toml` / `.cursor/mcp.json` /
- * `~/.codeium/windsurf/mcp_config.json`, but without an instruction
- * file it doesn't know WHEN to call them. The instruction file IS the
- * trigger contract.
+ * Why this matters: the agent has the `coodra__*` MCP tools wired via
+ * native plugin MCP or agent-specific MCP config, but without an instruction
+ * file it doesn't know WHEN to call them. The instruction file IS the trigger
+ * contract.
  *
  * The block is generated PER AGENT (2026-07-02): the shared contract is
  * identical across all four files, but each file names its own agent and

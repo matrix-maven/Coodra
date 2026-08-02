@@ -19,8 +19,8 @@ import { VERSION } from '../../src/version.js';
 /**
  * End-to-end coverage for `coodra agent add/status/remove/repair` against real
  * temp filesystems (no host config touched). Exercises the AgentAdapter
- * registry through the command layer: legacy per-agent surfaces, native
- * plugin surfaces, the project-level .mcp.json for project-scoped agents,
+ * registry through the command layer: per-agent config surfaces, native
+ * plugin surfaces, user-owned repo-root .mcp.json boundaries,
  * the devin→windsurf alias, force/repair, removal, dry-run, and the
  * unknown-agent error path.
  */
@@ -88,14 +88,13 @@ function parse(cap: Cap): {
 }
 
 describe('coodra agent add', () => {
-  it('add cursor — writes .cursor/mcp.json + .cursorrules + the project .mcp.json', async () => {
+  it('add cursor — writes .cursor/mcp.json + .cursorrules without project .mcp.json', async () => {
     const { io, cap } = makeIO();
     const code = await run(() => runAgentAddCommand('cursor', baseOptions(), io));
     expect(code).toBe(EXIT_OK);
 
-    // The project-level MCP registration.
-    const mcpJson = JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8'));
-    expect(mcpJson.mcpServers.coodra).toBeDefined();
+    // Root .mcp.json is user-owned and never created by Coodra.
+    expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
     // Cursor's per-agent surfaces.
     const cursorMcp = JSON.parse(await readFile(join(cwd, '.cursor', 'mcp.json'), 'utf8'));
     expect(cursorMcp.mcpServers.coodra).toBeDefined();
@@ -112,9 +111,8 @@ describe('coodra agent add', () => {
     expect(config).toMatchObject({ version: 1, projectSlug: 'sample-app' });
     const manifest = JSON.parse(await readFile(join(cwd, '.coodra', 'manifest.json'), 'utf8'));
     const paths = manifest.entries.map((e: { path: string }) => e.path);
-    expect(paths).toEqual(
-      expect.arrayContaining(['.mcp.json', '.cursor/mcp.json', '.cursorrules', '.coodra/config.json']),
-    );
+    expect(paths).toEqual(expect.arrayContaining(['.cursor/mcp.json', '.cursorrules', '.coodra/config.json']));
+    expect(paths).not.toContain('.mcp.json');
     const cursorEntry = manifest.entries.find((e: { path: string }) => e.path === '.cursor/mcp.json');
     expect(cursorEntry).toMatchObject({ owner: 'agent:cursor', cleanup: 'ask' });
   });
@@ -331,7 +329,7 @@ describe('coodra agent remove', () => {
     expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
 
-  it('strips only the agent surfaces, preserving the project .mcp.json + other MCP servers', async () => {
+  it('strips only the agent surfaces, preserving other MCP servers in agent config', async () => {
     const { io: io1 } = makeIO();
     await run(() => runAgentAddCommand('cursor', baseOptions(), io1));
     // Add a user-owned server to .cursor/mcp.json to prove it survives.
@@ -349,8 +347,7 @@ describe('coodra agent remove', () => {
     expect(cursorMcp.mcpServers.other).toBeDefined();
     // .cursorrules coodra block gone.
     expect(existsSync(join(cwd, '.cursorrules'))).toBe(false);
-    // The project .mcp.json (project-level registration) is left for `coodra uninstall`.
-    expect(JSON.parse(await readFile(join(cwd, '.mcp.json'), 'utf8')).mcpServers.coodra).toBeDefined();
+    expect(existsSync(join(cwd, '.mcp.json'))).toBe(false);
   });
 });
 

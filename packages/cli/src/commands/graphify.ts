@@ -469,7 +469,7 @@ export async function runGraphifyDisableCommand(
 interface GraphifyIdeStatus {
   readonly ide: IDE;
   readonly displayName: string;
-  readonly configPath: string;
+  readonly configPath: string | null;
   readonly exists: boolean;
   readonly wired: boolean;
   readonly unreadable: boolean;
@@ -480,7 +480,12 @@ function renderStatusRow(s: GraphifyIdeStatus): string {
   const name = s.displayName.padEnd(13);
   let glyph: string;
   let note: string;
-  if (s.unreadable) {
+  if (s.configPath === null) {
+    glyph = s.nativeManaged ? pc.green('✓') : pc.gray('✗');
+    note = s.nativeManaged
+      ? 'managed by native Coodra plugin'
+      : 'uses native Coodra plugin; repo-root .mcp.json is user-owned';
+  } else if (s.unreadable) {
     glyph = pc.red('✗');
     note = `${s.configPath} — unreadable config`;
   } else if (s.nativeManaged) {

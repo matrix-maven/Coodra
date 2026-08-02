@@ -380,7 +380,7 @@ export async function runJiraDisableCommand(
 interface JiraIdeStatus {
   readonly ide: IDE;
   readonly displayName: string;
-  readonly configPath: string;
+  readonly configPath: string | null;
   readonly exists: boolean;
   readonly wired: boolean;
   readonly unreadable: boolean;
@@ -392,7 +392,10 @@ function renderStatusRow(s: JiraIdeStatus): string {
   const name = s.displayName.padEnd(13);
   let glyph: string;
   let note: string;
-  if (s.unreadable) {
+  if (s.configPath === null) {
+    glyph = pc.gray('✗');
+    note = 'uses native/plugin-scoped MCP; repo-root .mcp.json is user-owned';
+  } else if (s.unreadable) {
     glyph = pc.red('✗');
     note = `${s.configPath} — unreadable config`;
   } else if (s.wired) {

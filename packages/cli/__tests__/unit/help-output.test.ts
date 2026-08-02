@@ -93,12 +93,11 @@ describe('coodra --help (snapshot-locked surface)', () => {
         recipe|skill              Manage .coodra/recipes/<slug>/ — Agent Recipes the
                                   agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
-        uninstall [options]       Reverse \`coodra init\`: stop + remove the daemon
-                                  units (mcp-server, hooks-bridge, sync-daemon, web),
-                                  strip Coodra entries from ~/.claude/settings.json +
-                                  .mcp.json + per-agent files. Default-safe (preserves
-                                  data + config + project work); --remove-data drops
-                                  the SQLite store; --purge removes ~/.coodra/.
+        uninstall [options]       Tear down Coodra runtime/plugin wiring.
+                                  Default-safe: preserves ~/.coodra data and every
+                                  registered repo .coodra workspace; --remove-data
+                                  drops only the SQLite store; --purge also removes
+                                  registered project footprints and ~/.coodra/.
         upgrade [options]         Check for a newer @coodra/cli on npm. Does NOT
                                   self-update — prints the install command. After
                                   install, re-run to apply migrations + restart

@@ -13,10 +13,10 @@ import {
 /**
  * Locks the Module 09 9·Core MCP-config writer — the generalised
  * reader/writer for a single named MCP server entry inside any
- * `.mcp.json`-shaped config file. Unlike `mcp-merge.ts` (hardcoded to
- * the `coodra` key + `<cwd>/.mcp.json`), this module parameterises both
- * the entry `name` and the absolute `filePath`, so any external MCP
- * server (Graphify today, the Atlassian Rovo MCP next) can be wired in.
+ * `.mcp.json`-shaped config file. The module parameterises both the
+ * entry `name` and the absolute `filePath`, so any external MCP server
+ * (Graphify today, the Atlassian Rovo MCP next) can be wired into a
+ * Coodra-owned MCP-shaped config.
  *
  *   1. Greenfield — absent file → created, with the parent dir mkdir'd.
  *   2. Idempotent — a re-run that finds an identical entry is unchanged.

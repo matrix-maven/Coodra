@@ -88,14 +88,15 @@ pnpm --filter @coodra/db db:generate   # regenerate Drizzle migrations
 All of these are the same commands CI runs. If they pass locally they
 pass in CI.
 
-### Iterating on the MCP server (Claude Code subprocess staleness)
+### Iterating on the MCP server (native plugin subprocess staleness)
 
 Closes verification finding §8.2 (`docs/verification/2026-04-25-module-01-02-verification.md`).
 
-Claude Code's `.mcp.json` points at `apps/mcp-server/dist/index.js`. The
-IDE spawns this subprocess **once** at session start; rebuilds during
-the session do not reach the running process. If you `pnpm build`
-mid-session and don't restart, the IDE keeps using the old binary.
+The native Coodra Claude/Codex plugin points at the bundled Coodra MCP
+server. The agent spawns this subprocess **once** at session start;
+rebuilds during the session do not reach the running process. If you
+`pnpm build` mid-session and don't restart, the agent keeps using the old
+binary.
 
 Two workarounds:
 
@@ -103,17 +104,10 @@ Two workarounds:
    Code (or trigger an MCP reconnect from the IDE). The new dist takes
    effect on the next subprocess spawn.
 
-2. **Live-reload dev flow** — replace `.mcp.json` with the
-   `.mcp.dev.json` profile (or copy it over). It runs the server under
-   `tsx watch` directly from `src/`, so saving any file in
-   `apps/mcp-server/src/**` reloads the subprocess without an IDE
-   restart. Note: `tsx watch` adds ~200 ms boot overhead per reload —
-   fine for dev, not appropriate for production.
-
-```bash
-# One-shot dev profile swap
-cp .mcp.dev.json .mcp.json   # then restart Claude Code once
-```
+2. **Live-reload dev flow** — update the native plugin MCP entry in the
+   local plugin cache to point at a dev command such as `tsx watch`, then
+   restart the agent once. Do not create or commit a repo-root `.mcp.json`;
+   that file is user-owned MCP config.
 
 After the swap, edit a tool description, save, call the tool from a
 fresh Claude Code message — observe the new description.
@@ -137,7 +131,7 @@ The auth client routes through the solo-bypass branch (because the secret is the
 
 ### Iterating on Module 03 (Hooks Bridge)
 
-The Hooks Bridge is a separate Hono service on `127.0.0.1:3101`. Claude Code POSTs PreToolUse / PostToolUse / SessionStart / Stop / UserPromptSubmit events to it via the `hooks` block in `.mcp.json`. To run live:
+The Hooks Bridge is a separate Hono service on `127.0.0.1:3101`. Native Coodra plugins POST PreToolUse / PostToolUse / SessionStart / Stop / UserPromptSubmit events to it via plugin-managed hook wiring. To run live:
 
 ```bash
 # Terminal 1 — bridge in watch mode
@@ -150,7 +144,7 @@ LOCAL_HOOK_SECRET=$(openssl rand -hex 24) \
 # In your shell that launches Claude Code, export the same secret:
 export LOCAL_HOOK_SECRET=<paste from terminal 1>
 
-# Restart Claude Code so it re-reads .mcp.json with the new hooks block.
+# Restart Claude Code so it re-reads the native plugin hook wiring.
 # Trigger any agent action (read a file, bash command, etc.) and confirm
 # the bridge logs `hook_ingress` events.
 ```

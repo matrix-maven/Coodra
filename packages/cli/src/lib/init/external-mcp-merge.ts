@@ -7,16 +7,15 @@ import type { WriteOutcome } from './types.js';
  * `external-mcp-merge.ts` — generalised reader/writer for a single named
  * MCP server entry inside a `.mcp.json`-shaped config file.
  *
- * This is the Module 09 "9·Core" substrate: `mcp-merge.ts` is hardcoded
- * to the `coodra` key + `<cwd>/.mcp.json`; this module parameterises
- * both the entry key (`name`) and the absolute `filePath`, so any
+ * This is the Module 09 "9·Core" substrate: callers pass both the entry
+ * key (`name`) and the absolute `filePath`, so any
  * external MCP server (Graphify today; the Atlassian Rovo MCP next) can
  * be wired into any agent config that uses the `{ mcpServers: { … } }`
- * shape — Claude Code's `.mcp.json`, Cursor's `.cursor/mcp.json`,
- * Windsurf's `~/.codeium/windsurf/mcp_config.json`.
+ * shape — Cursor's `.cursor/mcp.json`, Windsurf's
+ * `~/.codeium/windsurf/mcp_config.json`, or plugin-scoped MCP files.
  *
- * Idempotency follows `mcp-merge.ts` exactly: a re-run that finds an
- * identical entry is a no-op; a drifted entry is preserved unless
+ * Idempotency follows Coodra's external-MCP writer discipline: a re-run
+ * that finds an identical entry is a no-op; a drifted entry is preserved unless
  * `--force` is passed; sibling entries are never touched.
  */
 

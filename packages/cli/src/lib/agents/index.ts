@@ -1,6 +1,5 @@
 export { ADAPTERS } from './adapters.js';
 export {
-  ensureProjectMcpJson,
   type ResolveAgentContextOptions,
   type ResolvedAgentWiring,
   resolveAgentWiringContext,

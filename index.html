@@ -1137,15 +1137,15 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="step__num">/02</div>
           <div class="step__body">
             <h4>Initialise the <em>project</em>.</h4>
-            <p>From your repo root, run <code>coodra init</code>. It writes <code>.coodra.json</code> (your project slug), seeds the default policy, drops <code>.mcp.json</code> so Claude Code launches the MCP server as a stdio subprocess, and wires hook adapters for Cursor + Windsurf.</p>
+            <p>From your repo root, run <code>coodra init</code>. It registers the project under <code>.coodra/</code>, seeds the default policy, and leaves repo-root <code>.mcp.json</code> to the user. Native Coodra plugins carry the MCP server and hook wiring.</p>
             <div class="code__head"><span>repo root</span><button class="code__head__copy" data-copy-target="code-init">copy</button></div>
 <pre class="code" id="code-init"><span class="ck">coodra</span> init
 <span class="cm"># picks the slug from git remote, asks which IDE,
 # defaults to --solo. Use --team to wire Clerk.</span>
 
 <span class="cm"># What it creates:</span>
-.coodra.json          <span class="cp">{"projectSlug":"my-app"}</span>
-.mcp.json             <span class="cp">Claude Code subprocess + hook routing</span>
+.coodra/config.json   <span class="cp">{"projectSlug":"my-app"}</span>
+.coodra/manifest.json <span class="cp">project registration ledger</span>
 ~/.coodra/data.db     <span class="cp">SQLite primary store</span>
 ~/.coodra/.env        <span class="cp">solo-mode env, ready to grow into team</span></pre>
           </div>
@@ -1457,7 +1457,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
                 <td><code>3100</code></td>
                 <td><code>127.0.0.1</code></td>
                 <td>SQLite (local)</td>
-                <td><code>coodra start</code> · <code>.mcp.json</code> subprocess</td>
+                <td><code>coodra start</code> · native plugin subprocess</td>
               </tr>
               <tr>
                 <td><code>hooks-bridge</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Hono HTTP · 5 Claude Code events</span></td>
@@ -1681,7 +1681,7 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
               <th>Key flags</th>
             </tr></thead>
             <tbody>
-              <tr><td><code>coodra init</code></td><td>Bootstrap a project. Writes <code>.coodra.json</code> + <code>.mcp.json</code>, seeds the default policy, wires hook adapters.</td><td><code>--solo</code> · <code>--team</code> · <code>--ide</code> · <code>--feature-pack</code> · <code>--force</code> · <code>--dry-run</code></td></tr>
+              <tr><td><code>coodra init</code></td><td>Bootstrap a project. Writes <code>.coodra/config.json</code> + <code>.coodra/manifest.json</code>, seeds the default policy, and leaves repo-root <code>.mcp.json</code> user-owned.</td><td><code>--solo</code> · <code>--team</code> · <code>--ide</code> · <code>--feature-pack</code> · <code>--force</code> · <code>--dry-run</code></td></tr>
               <tr><td><code>coodra start</code></td><td>Bring up all daemons. Picks launchd / fallback manager based on platform.</td><td><code>--no-mcp</code> · <code>--no-hooks</code> · <code>--no-sync</code> · <code>--no-web</code> · <code>--foreground</code> · <code>--tunnel</code></td></tr>
               <tr><td><code>coodra stop</code></td><td>Tear down daemons. <code>--uninstall</code> removes launchd plists.</td><td><code>--service</code> · <code>--uninstall</code></td></tr>
               <tr><td><code>coodra status</code></td><td>Health snapshot of each daemon + DB.</td><td><code>--json</code></td></tr>
@@ -1793,7 +1793,7 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
       <!-- HOOK EVENTS -->
       <div class="sub" id="hook-events">
         <h3 class="sub__title"><span class="sub__title__index">/08.1</span>Hook <em>events</em></h3>
-        <p class="sub__lede">Wired in <code>.mcp.json</code>. Body validated by <code>ClaudeCodeHookPayloadSchema</code>; fail-open on invalid JSON.</p>
+        <p class="sub__lede">Wired by native Coodra plugins. Body validated by <code>ClaudeCodeHookPayloadSchema</code>; fail-open on invalid JSON.</p>
 
         <div class="table-wrap">
           <table class="table">
@@ -1942,7 +1942,7 @@ cp deploy/.env.example deploy/.env
           <div class="lifecycle__row">
             <div class="lifecycle__num">/02</div>
             <div class="lifecycle__event">X-Local-Hook-Secret</div>
-            <div class="lifecycle__desc">Compared against <code>LOCAL_HOOK_SECRET</code>. Attaches <code>{ source: 'local-hook' }</code>. Used by <code>.mcp.json</code> subprocess.</div>
+            <div class="lifecycle__desc">Compared against <code>LOCAL_HOOK_SECRET</code>. Attaches <code>{ source: 'local-hook' }</code>. Used by the native plugin subprocess.</div>
             <div class="lifecycle__effect">local-hook</div>
           </div>
           <div class="lifecycle__row">
@@ -1979,7 +1979,7 @@ cp deploy/.env.example deploy/.env
           <div class="card__eyebrow">/ symptom</div>
           <h4 class="card__title">Agent never sees the <em>Feature Pack</em></h4>
           <div class="card__body">
-            <p>SessionStart isn't reaching the bridge. Confirm <code>.mcp.json</code> exists in the repo root, then:</p>
+            <p>SessionStart isn't reaching the bridge. Confirm the native Coodra plugin is installed, then:</p>
             <p><code>coodra status</code> shows hooks-bridge listening on <code>3101</code>?<br><code>curl 127.0.0.1:3101/healthz</code> returns <code>ok: true</code>?<br><code>tail ~/.coodra/logs/hooks-bridge.log</code> shows the inbound POST?</p>
             <p>If yes to all three but the agent still doesn't see it — check <code>X-Local-Hook-Secret</code> against <code>LOCAL_HOOK_SECRET</code>.</p>
           </div>
