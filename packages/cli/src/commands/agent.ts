@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { buildPolicyProjection, lookupProjectBySlug } from '@coodra/db';
+import { buildPolicyProjection, GLOBAL_PROJECT_ID, listProjects, lookupProjectBySlug } from '@coodra/db';
 import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
@@ -334,11 +334,7 @@ async function syncPolicyProjectionForAgents(args: {
       return {
         agents: uniqueAgents,
         written: [],
-        skippedReason:
-          `no registered Coodra project at ${args.resolved.projectRoot} — the agent plugin above is already ` +
-          `installed (that part is machine-global, not project-scoped). This step only syncs that project's ` +
-          `policy into the agent's config; run \`coodra init\` from your project's root directory, then ` +
-          '`coodra agent add` again there, to pick it up.',
+        skippedReason: await describeNoProjectHereReason(handle, args.resolved.projectRoot),
       };
     }
     const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
@@ -362,6 +358,43 @@ async function syncPolicyProjectionForAgents(args: {
   } finally {
     handle.close();
   }
+}
+
+const MAX_LISTED_PROJECTS = 5;
+
+/**
+ * `coodra agent add` opportunistically syncs the CURRENT directory's policy
+ * into the agent config it just wired — but the agent plugin install itself
+ * is machine-global, so this command is routinely run from `~` or some other
+ * directory that was never `coodra init`-ed. Naming that (often nonsensical)
+ * cwd in the skip message, or a bare "run coodra init first" with no
+ * indication of where, both read as instructions to init the wrong place.
+ * List whatever projects ARE registered so the user can tell at a glance
+ * whether this is "nothing registered anywhere yet" vs. "registered, just
+ * not here — go there instead."
+ */
+async function describeNoProjectHereReason(
+  handle: Awaited<ReturnType<typeof openLocalDb>>,
+  cwd: string,
+): Promise<string> {
+  // Every migrated DB carries the `__global__` sentinel row (F7's
+  // unregistered-cwd audit fallback) — it's never a real project a user
+  // can cd into, so it would be a confusing false positive here.
+  const registered = (await listProjects(handle)).filter((p) => p.id !== GLOBAL_PROJECT_ID);
+  if (registered.length === 0) {
+    return (
+      'no Coodra project registered yet (the agent plugin above is already installed — that part is ' +
+      "machine-global). Run `coodra init` in your project's repo folder, then `coodra agent add` there, to " +
+      'sync its policy.'
+    );
+  }
+  const names = registered.slice(0, MAX_LISTED_PROJECTS).map((p) => p.slug);
+  const more = registered.length > MAX_LISTED_PROJECTS ? `, +${registered.length - MAX_LISTED_PROJECTS} more` : '';
+  return (
+    `not synced — ${cwd} isn't a registered Coodra project. ${registered.length} registered elsewhere: ` +
+    `${names.join(', ')}${more}. cd into one and run \`coodra agent add\` again there, or run \`coodra init\` ` +
+    'here to register this directory.'
+  );
 }
 
 export function runAgentAddCommand(
