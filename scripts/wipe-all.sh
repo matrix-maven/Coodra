@@ -10,9 +10,9 @@
 # context_pack, policy/policy_rule/policy_decision, kill_switch,
 # feature_pack row, pending_jobs row.
 #
-# Filesystem materialisations under ~/.coodra/packs/ and
-# <repo>/docs/feature-packs/ are NOT touched — those are user content.
-# If you want to wipe them too, do it manually after this script runs.
+# Filesystem materialisations under ~/.coodra/packs/ are NOT touched —
+# those are user content. If you want to wipe them too, do it manually
+# after this script runs.
 
 set -euo pipefail
 

@@ -41,15 +41,11 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   (claude | codex).
         files                     Inspect or clean the files Coodra generated in this
                                   project (.coodra/manifest.json).
-        graphify                  Wire Graphify's codebase-graph MCP server (a
-                                  structural-query tool) into your agent config
-                                  (Claude Code / Codex). Claude Code is
-                                  native-plugin-managed; Codex also gets one via
-                                  \`coodra agent add codex\` and only needs explicit
-                                  wiring for a custom graph path. Option C per ADR-010
-                                  / ADR-015 — Coodra consumes Graphify by
-                                  configuration, not code, and does not mint Work
-                                  Packs from it.
+        graphify                  Graphify's codebase-graph MCP server (a
+                                  structural-query tool), Coodra-owned via the native
+                                  agent plugin. Option C per ADR-010 / ADR-015 —
+                                  Coodra consumes Graphify by configuration, not code,
+                                  and does not mint Work Packs from it.
         wiki                      Generate a DeepWiki-style, hierarchical/mind-map
                                   explanation of this codebase. Your coding agent
                                   (Claude Code / Codex) is the model; Coodra ships the

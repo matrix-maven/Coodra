@@ -130,12 +130,10 @@ const INTERACTIVE: ReadonlySet<string> = new Set([
   'coodra team migrate',
   'coodra team leave',
   'coodra team login',
-  // These two gate their prompts on `process.stdin.isTTY` — which is TRUE
-  // under Ink's raw-mode stdin, so running them in-process would fight Ink
-  // for input and hang. `files clean` prompts per ask-tier file,
-  // `graphify enable` prompts for legacy-layout migration + the install offer.
+  // `files clean` gates its per-ask-tier prompts on `process.stdin.isTTY`
+  // — which is TRUE under Ink's raw-mode stdin, so running it in-process
+  // would fight Ink for input and hang.
   'coodra files clean',
-  'coodra graphify enable',
 ]);
 
 /** First sentence of a commander description, capped — commander descriptions run long. */

@@ -132,4 +132,3 @@ Dockerfile                        # multi-stage, pnpm deploy, digest-pinned base
 - `system-architecture.md` §3.5 — transport matrix (stdio + HTTP in prod)
 - `system-architecture.md` §24 — tool manifest discipline
 - `essentialsforclaude/05-agent-trigger-contract.md` — what tool descriptions must teach the agent
-- `docs/feature-packs/02-mcp-server/` — full Module 02 Feature Pack

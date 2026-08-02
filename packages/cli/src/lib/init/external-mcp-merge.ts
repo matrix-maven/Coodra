@@ -1,6 +1,7 @@
 /**
  * `external-mcp-merge.ts` — shared MCP server entry shapes, consumed by
- * `external-codex-merge.ts`'s TOML writer and `graphify-wire.ts`.
+ * `agents/managed-capabilities.ts`'s Coodra-owned Graphify MCP entry
+ * builder.
  */
 
 /** stdio MCP server entry shape — `{ command, args?, env? }`. */

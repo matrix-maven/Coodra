@@ -737,20 +737,20 @@ function StepSixIntegrations() {
     <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 32, alignItems: 'start' }}>
       <div className="card" style={{ padding: 36 }}>
         <h2 className="card__title" style={{ marginBottom: 14 }}>
-          Optional · wire your <em>tools</em>.
+          Graphify is already <em>wired</em>.
         </h2>
         <p style={{ fontSize: 14, color: 'var(--ink-dim)', lineHeight: 1.6, marginBottom: 20 }}>
-          Coodra consumes external MCP servers by configuration, not code — it wires them next to the{' '}
-          <code style={inlineMono}>coodra</code> server in each agent config. Both are optional; skip now and wire them
-          any time from the Integrations page.
+          Coodra consumes external MCP servers by configuration, not code. The native agent plugin you just installed (
+          <code style={inlineMono}>coodra agent add &lt;agent&gt;</code>) already bundles Graphify&apos;s MCP server
+          alongside <code style={inlineMono}>coodra</code> — there is no separate wiring step. Build the graph so the
+          agent has something to query:
         </p>
 
         <FieldLabel>Graphify · codebase knowledge graph</FieldLabel>
-        <pre style={{ ...codeBlockStyle, padding: 22 }}>{`coodra graphify enable`}</pre>
+        <pre style={{ ...codeBlockStyle, padding: 22 }}>{`coodra graphify build`}</pre>
         <p style={{ marginTop: 14, fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-          Wires Graphify’s MCP server so the agent can ask structural questions (blast radius, “where is X defined?”).
-          Needs Graphify installed (<code style={inlineMono}>uv tool install graphifyy</code>) + a built graph (
-          <code style={inlineMono}>/graphify .</code>). The agent calls its query tools directly.
+          Or run <code style={inlineMono}>/graphify .</code> inside your agent — the agent can then answer structural
+          questions (blast radius, “where is X defined?”) via its query tools directly.
         </p>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 28 }}>

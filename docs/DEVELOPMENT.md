@@ -2,9 +2,8 @@
 
 This is the single page you need to get a local Coodra monorepo
 running, make a change, and ship it through the same pipeline CI uses.
-It is intentionally short: anything that would bloat it belongs in a
-Feature Pack (`docs/feature-packs/<id>/`) or in the canonical
-standing-context docs at the repo root (`system-architecture.md`,
+It is intentionally short: anything that would bloat it belongs in the
+canonical standing-context docs at the repo root (`system-architecture.md`,
 `essentialsforclaude/`, `module-wise plan.md`,
 `External api and library reference.md`, `implementation plan and strategy.md`).
 
@@ -325,9 +324,11 @@ The full sequence for shipping a module is documented in
 `CLAUDE.md`. The short version:
 
 1. Read the standing context. Ask clarifying questions *before*
-   writing code if the Feature Pack leaves anything ambiguous.
-2. Produce `docs/feature-packs/<NN>-<slug>/{spec,implementation,techstack}.md`
-   and get explicit approval before implementing.
+   writing code if the module's scope leaves anything ambiguous.
+2. Get explicit approval on the plan before implementing. (The old
+   `docs/feature-packs/<NN>-<slug>/` per-module spec directory is
+   retired; note the design decisions in the PR description and
+   `system-architecture.md` instead.)
 3. Implement slice-by-slice with tests landing in the same commit as
    the code they cover.
 4. Keep `External api and library reference.md` updated in the **same
@@ -401,4 +402,3 @@ and watch `run_events` populate.
 - Per-module workflow — `module-wise plan.md`
 - Dep pins + gotchas — `External api and library reference.md`
 - Session notes — `context_memory/current-session.md`
-- Feature Pack for this module — `docs/feature-packs/01-foundation/`

@@ -8,19 +8,18 @@
  *   - the wiki grounding path — communities become candidate sections and
  *     high-degree nodes become high-importance pages (ADR-017).
  *
- * The *wiring* surface (writing the `graphify` MCP entry into agent configs)
- * is a separate module — `@coodra/cli/lib/init/graphify-wire`.
+ * Graphify wiring itself is Coodra-owned: native Claude Code and Codex
+ * plugins bundle a managed `graphify` MCP entry automatically
+ * (`agents/managed-capabilities.ts`). There is no separate wiring module.
  */
 export {
   absOf,
   countGraph,
-  detectGraphifyLayout,
   GRAPHIFY_RECORD_REL,
   type GraphCommunitySummary,
   type GraphCounts,
   type GraphHubNode,
   type GraphifyArtifactScan,
-  type GraphifyLayoutDetection,
   type GraphifyPaths,
   type GraphifyRecord,
   type GraphSummary,

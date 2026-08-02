@@ -40,7 +40,6 @@ Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](do
 | `packages/db` | Drizzle schema + migrations (SQLite + Postgres) | DB schema changes — always via `pnpm db:generate`, never by hand |
 | `packages/shared` | Cross-cutting Zod schemas, auth helpers, logger | Anything imported by more than one app |
 | `packages/policy` | Pure policy-decision engine | New policy match types |
-| `docs/feature-packs/<NN>-<slug>/` | Per-module specs (spec, implementation, techstack) | Designing a new module |
 
 ---
 
@@ -63,7 +62,7 @@ A change is ready to merge when:
 2. **Tests**: every public function in the change has a unit test, and `pnpm test:unit` passes.
 3. **Lint**: `pnpm lint` passes (or, if you added auto-fixable formatting drift, run `pnpm lint:fix`).
 4. **Integration / E2E**: if your change touches a service boundary or migration, `pnpm test:integration` (and `pnpm test:e2e` for full-lifecycle changes) is green locally.
-5. **Documentation**: if you changed an architectural decision, public CLI flag, or MCP tool surface, the relevant `docs/feature-packs/<module>/` files are updated in the same PR. Note any new architectural decision in the PR description.
+5. **Documentation**: if you changed an architectural decision, public CLI flag, or MCP tool surface, `system-architecture.md` is updated in the same PR. Note any new architectural decision in the PR description.
 
 CI runs all of the above on every PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 

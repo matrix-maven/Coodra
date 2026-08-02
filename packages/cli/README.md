@@ -44,7 +44,10 @@ approve that native build script.
 | `coodra init [--project-slug] [--dry-run] [--force]` | Register the current project with Coodra: writes `<repo>/.coodra/config.json`, records `<repo>/.coodra/manifest.json`, and creates `<repo>/.coodra/{recipes,graphify,wiki,work-packs}/`. It does not create or modify the project's application `.env`, `.mcp.json`, `.codex/config.toml`, or per-agent instruction files. Install agent plugins first with `coodra agent add <agent>`, then run this command directly or through the installed agent's `/coodra init` skill. |
 | `coodra agent add codex [--dry-run] [--force]` | Install or repair the native global Coodra Codex plugin through the local personal plugin marketplace. The plugin bundles Coodra skills, the Deep Wiki authoring recipe, generated Coodra + managed Graphify MCP entries, and plugin hooks without writing project `.mcp.json`, `.codex/config.toml`, or `AGENTS.md`. |
 | `coodra wiki build [--slug] [--mode] [--force] [--json]` | Create/update the Coodra Wiki grounding/job files, scaffold the repo-local Markdown mirror under `.coodra/wiki/<slug>/`, record generated wiki artifacts in `.coodra/manifest.json`, and hand off to the bundled native-agent `deep-wiki-author` workflow. The agent saves canonical content through MCP first, then mirrors successful saves to disk. `generate` remains as a deprecated alias. |
-| `coodra graphify enable [--ide] [--python] [--install\|--no-install] [--force]` | Wire Graphify's own codebase-graph MCP server next to `coodra` in each agent config. Native Coodra plugins already point at the shared machine runtime and managed `.coodra/graphify/out/graph.json` graph path by default; this command remains the repair/custom path for non-plugin agents or pinned Python/path setups. Auto-detects a verified `graphifyy[mcp]` interpreter; when none is found it offers to install into `./.venv` (asks before touching an existing venv; `--install` skips the prompt). `disable` / `status` siblings included. |
+| `coodra graphify status [--json]` | Read-only check of whether Graphify's own codebase-graph MCP server is wired for Claude Code / Codex, plus the graph artifact state. Wiring itself is Coodra-owned end to end — `coodra agent add <agent>` installs the native plugin, which bundles a managed `graphify` MCP entry pointed at the shared machine runtime and `.coodra/graphify/out/graph.json` alongside `coodra`. There is no separate enable/disable step. |
+| `coodra graphify build [--slug] [--no-llm] [--no-viz] [--python] [--json]` | (Re)build the codebase graph into this project's resolved output dir via the installed `graphify` CLI. |
+| `coodra graphify open` | Open the interactive `graph.html` for the current project's graph. |
+| `coodra graphify clean [--force] [--json]` | Remove the generated graph artifacts. |
 | `coodra start [--no-mcp] [--no-hooks] [--foreground]` | Launch MCP Server + Hooks Bridge as background daemons via the platform's native manager (launchd / systemd) or detached fallback. Polls `/healthz` until ready. |
 | `coodra stop [--service <name>] [--uninstall]` | Stop running daemons. Idempotent. `--uninstall` also removes the daemon-manager unit. |
 | `coodra status [--json]` | Print unified project + service state for the current cwd: project slug + registration, mode, service health probes (MCP `/healthz` + bridge `/healthz`), recent run + last decision + open blockers. |
@@ -97,9 +100,7 @@ then `npm login && npm publish`.
 
 ## Documentation
 
-- Full spec — [`docs/feature-packs/08a-cli/spec.md`](../../docs/feature-packs/08a-cli/spec.md)
-- Implementation plan — [`docs/feature-packs/08a-cli/implementation.md`](../../docs/feature-packs/08a-cli/implementation.md)
-- Tech stack — [`docs/feature-packs/08a-cli/techstack.md`](../../docs/feature-packs/08a-cli/techstack.md)
+- Full architecture — [`system-architecture.md`](../../system-architecture.md)
 - Contributor dev-loop — [`docs/DEVELOPMENT.md` § Iterating on the CLI](../../docs/DEVELOPMENT.md)
 - The 11 ADRs — [`essentialsforclaude/11-adrs.md`](../../essentialsforclaude/11-adrs.md)
 

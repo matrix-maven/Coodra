@@ -86,13 +86,19 @@ EOF
 
 ```bash
 cd ~/projects/my-app
-coodra init --project-slug my-app --ide claude --no-graphify
+coodra init --project-slug my-app
+coodra agent add claude
 ```
 
-This (a) registers the project in your local SQLite, (b) seeds the 25-rule
-default policy chain, (c) scaffolds `docs/feature-packs/<slug>/`, (d) wires
-Claude Code hook entries in `~/.claude/settings.json`, (e) enqueues a
-`sync_to_cloud` job for the project.
+This (a) registers the project in your local SQLite, (b) seeds the
+default policy chain, (c) creates `.coodra/{config.json,manifest.json,
+recipes/,graphify/,wiki/,work-packs/}` (the old `docs/feature-packs/<slug>/`
+scaffold and repo-root `.mcp.json`/agent-config wiring described in an
+earlier version of this step are retired — `coodra agent add` now
+installs the native agent plugin instead), (d) enqueues a `sync_to_cloud`
+job for the project. Verify current `coodra init`/`coodra agent add`
+flags with `coodra init --help` / `coodra agent --help` before relying
+on this example — this guide may still drift from the CLI.
 
 ## Phase 4 · Admin runs `start`
 

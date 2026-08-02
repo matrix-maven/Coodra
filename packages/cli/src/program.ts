@@ -33,15 +33,7 @@ import {
   runFilesCleanCommand,
   runFilesStatusCommand,
 } from './commands/files.js';
-import {
-  type GraphifyDisableOptions,
-  type GraphifyEnableOptions,
-  type GraphifyIO,
-  type GraphifyStatusOptions,
-  runGraphifyDisableCommand,
-  runGraphifyEnableCommand,
-  runGraphifyStatusCommand,
-} from './commands/graphify.js';
+import { type GraphifyIO, type GraphifyStatusOptions, runGraphifyStatusCommand } from './commands/graphify.js';
 import {
   type GraphifyArtifactIO,
   type GraphifyArtifactOptions,
@@ -190,8 +182,6 @@ interface BuildProgramOptions {
   readonly runGraphifyOpen?: (options: GraphifyArtifactOptions, io?: GraphifyArtifactIO) => Promise<unknown>;
   readonly runGraphifyClean?: (options: GraphifyArtifactOptions, io?: GraphifyArtifactIO) => Promise<unknown>;
   readonly graphifyIO?: GraphifyIO;
-  readonly runGraphifyEnable?: (options: GraphifyEnableOptions, io?: GraphifyIO) => Promise<unknown>;
-  readonly runGraphifyDisable?: (options: GraphifyDisableOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly runGraphifyStatus?: (options: GraphifyStatusOptions, io?: GraphifyIO) => Promise<unknown>;
   readonly wikiIO?: WikiIO;
   readonly runWikiGenerate?: (options: WikiGenerateOptions, io?: WikiIO) => Promise<unknown>;
@@ -472,57 +462,20 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await filesCleanRunner(opts, options.filesIO);
     });
 
-  // Module 09 Track 9B (ADR-010, Option C) — `coodra graphify
-  // {enable,disable,status}` wires Graphify's own stdio MCP server into
-  // the agent config(s). Coodra consumes Graphify by configuration, not
-  // by code: the entry runs `python -m graphify.serve graphify-out/graph.json`.
-  const graphifyEnableRunner = options.runGraphifyEnable ?? runGraphifyEnableCommand;
-  const graphifyDisableRunner = options.runGraphifyDisable ?? runGraphifyDisableCommand;
+  // Module 09 Track 9B (ADR-010, Option C) — Graphify's own stdio MCP
+  // server (`python -m graphify.serve <graph.json>`) is Coodra-owned
+  // end to end: `coodra agent add <agent>` installs the native plugin,
+  // which bundles a managed `graphify` MCP entry alongside `coodra`
+  // automatically. There is no explicit per-IDE enable/disable wiring
+  // command anymore — `coodra graphify status` is read-only diagnostics.
   const graphifyStatusRunner = options.runGraphifyStatus ?? runGraphifyStatusCommand;
   const graphify = program
     .command('graphify')
     .description(
-      "Wire Graphify's codebase-graph MCP server (a structural-query tool) into your agent config " +
-        '(Claude Code / Codex). Claude Code is native-plugin-managed; Codex also gets one via ' +
-        '`coodra agent add codex` and only needs explicit wiring for a custom graph path. Option C per ' +
-        'ADR-010 / ADR-015 — Coodra consumes Graphify by configuration, not code, and does not mint Work Packs from it.',
+      "Graphify's codebase-graph MCP server (a structural-query tool), Coodra-owned via the native agent " +
+        'plugin. Option C per ADR-010 / ADR-015 — Coodra consumes Graphify by configuration, not code, and ' +
+        'does not mint Work Packs from it.',
     );
-  graphify
-    .command('enable')
-    .description(
-      'Add the `graphify` MCP server entry to each detected agent config so the agent can run structural queries. Idempotent; preserves the `coodra` entry and your edits.',
-    )
-    .option('--ide <ide>', 'IDE(s) to wire ("claude", "codex", or "all"; comma-separated).')
-    .option(
-      '--python <path>',
-      'Python interpreter for `-m graphify.serve`. Omit to auto-detect a verified graphifyy[mcp] interpreter (active venv → ./.venv → the `graphify` install → uv tool → python3); pass a path to pin one explicitly.',
-    )
-    .option(
-      '--graph <path>',
-      'Pin the Graphify graph JSON path. Omit to use the resolved layout: an existing graphify-out/ is kept, otherwise Coodra-managed .coodra/graphify/out/graph.json.',
-    )
-    .option('--force', 'Overwrite an existing drifted `graphify` entry with the baseline.')
-    .option(
-      '--install',
-      'If no verified graphifyy[mcp] interpreter is found, install it into ./.venv without asking (creates the venv when absent).',
-    )
-    .option('--no-install', 'Never offer to install graphifyy[mcp]; wire the entry and print the manual steps.')
-    .option('--dry-run', 'Report what would change without touching disk.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: GraphifyEnableOptions) => {
-      await graphifyEnableRunner(opts, options.graphifyIO);
-    });
-  graphify
-    .command('disable')
-    .description(
-      'Remove the `graphify` MCP server entry from each agent config. Idempotent. Leaves every other entry untouched.',
-    )
-    .option('--ide <ide>', 'IDE(s) to unwire ("claude", "codex", or "all"; comma-separated).')
-    .option('--dry-run', 'Report what would change without touching disk.')
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: GraphifyDisableOptions) => {
-      await graphifyDisableRunner(opts, options.graphifyIO);
-    });
   // Phase 3 — the artifact half: build / open / clean the graph output.
   const graphifyBuildRunner = options.runGraphifyBuild ?? runGraphifyBuildCommand;
   const graphifyOpenRunner = options.runGraphifyOpen ?? runGraphifyOpenCommand;

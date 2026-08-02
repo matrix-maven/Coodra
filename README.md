@@ -49,7 +49,7 @@ Three primitives, each delivered at the right moment in the session:
 
 | Primitive | When | What it carries |
 |---|---|---|
-| **Feature Pack** | Injected at session start (push) | Module blueprint: spec, conventions, permitted files, gotchas — authored in `docs/feature-packs/<slug>/` |
+| **Agent Recipe** | Pulled on demand, when the agent's task matches a recipe's trigger | Reusable task guidance (API development, security audit, language conventions) — authored in `.coodra/recipes/<slug>/` |
 | **Context Pack** | Saved at session end; queryable from any future session | Durable record of decisions, file changes, test results, open TODOs |
 | **Policy** | Evaluated before every write or shell command | Project-scoped allow / ask / deny rules; fail-open under load; audit-logged forever |
 
@@ -94,7 +94,7 @@ sequenceDiagram
   U->>A: Open IDE in project
   A->>H: SessionStart hook
   H->>D: open `runs` row, capture base SHA
-  H-->>A: Feature Pack as additionalContext
+  H-->>A: recipe index + session contract + recent decisions as additionalContext
   Note over A: Agent now knows the project
 
   U->>A: "Refactor the auth flow"
@@ -141,7 +141,7 @@ Switch any time: `coodra team setup` (admin, once per team) → `coodra invite <
 
 ## What you'll see in your first hour
 
-1. **At session start**, the agent's first response cites your project's conventions without you teaching it — that's the Feature Pack arriving as `additionalContext`.
+1. **At session start**, the agent's first response cites your project's recipes and recent decisions without you teaching it — that's the recipe index and decision history arriving as `additionalContext`.
 2. **Start a new session minutes later** and the agent already knows the decisions it made earlier. That's `query_decisions` + `search_packs_nl` reading what the previous session wrote.
 3. **In team mode**, a teammate's decision from yesterday shows up in your session today. The sync-daemon pulled it from your shared Postgres while you weren't looking.
 
@@ -176,17 +176,17 @@ Grouped by intent. Every tool ships a five-part description so the agent's plann
 | Group | Tools |
 |---|---|
 | **Identity** | `get_run_id` · `ping` |
-| **Architectural context** | `get_feature_pack` · `list_skills` · `get_skill` · `get_skill_file` |
+| **Agent Recipes** | `list_recipes` · `get_recipe` · `get_recipe_file` |
 | **Cross-session memory** | `save_context_pack` · `list_context_packs` · `read_context_pack` · `search_packs_nl` |
 | **Decisions** | `record_decision` · `query_decisions` |
 | **Policy + runs** | `check_policy` · `query_run_history` · `query_run_diff` |
 | **Deep Wiki** | `wiki_save_structure` · `wiki_save_page` · `wiki_status` |
 
-> **Graphify** is wired as its **own** MCP server alongside Coodra. `coodra install` creates one shared machine runtime at `~/.coodra/graphify-mcp/.venv`, seeds optional backend placeholders such as `ANTHROPIC_API_KEY` in `~/.coodra/.env`, and native Coodra plugins for Codex and Claude include a default managed `graphify` entry that points that runtime at each repo's `.coodra/graphify/out/graph.json`; `coodra graphify enable` remains the explicit repair/custom wiring path for project config files and non-plugin agents. The agent calls Graphify's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` tools directly for structural questions. Coodra mints no Feature Packs from the graph (ADR-015 retired the `seed_feature_packs_from_graph` + `build_codebase_graph` tools); Feature Packs stay human/agent-authored at module granularity.
+> **Graphify** is wired as its **own** MCP server alongside Coodra, Coodra-owned end to end. `coodra install` creates one shared machine runtime at `~/.coodra/graphify-mcp/.venv`, seeds optional backend placeholders such as `ANTHROPIC_API_KEY` in `~/.coodra/.env`, and native Coodra plugins for Codex and Claude include a default managed `graphify` entry that points that runtime at each repo's `.coodra/graphify/out/graph.json` — there is no separate manual wiring path. The agent calls Graphify's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` tools directly for structural questions. Coodra mints no Recipes or Work Packs from the graph (ADR-015 retired the graph-seeding tools); it stays structural context, queried live.
 
 > **Deep Wiki** is one canonical Coodra Wiki system, backed by Coodra DB and rendered at `/wiki`. `coodra wiki build` writes `.coodra/wiki/job.md`, `.coodra/wiki/job.json`, `.coodra/wiki/grounding.md`, scaffolds `.coodra/wiki/<slug>/` for the Markdown mirror, and reserves `.coodra/wiki/okf/` for portability. The agent follows the bundled `deep-wiki-author` recipe, makes an OpenWiki-style discovery plan from source evidence, Graphify, and Coodra context, derives sections/pages from real repo domains and relationships rather than a fixed template, saves structure/pages through `wiki_save_structure`, `wiki_save_page`, and `wiki_status`, then mirrors successful saves under `.coodra/wiki/<slug>/structure.json` and `.coodra/wiki/<slug>/<pageId>.md`. `coodra wiki generate` remains as a deprecated alias during the transition. Markdown files are a review/export mirror, not the source of truth; OKF is a portability format, not a second wiki engine.
 
-`check_policy` is load-bearing for guardrails. `record_decision` + `save_context_pack` are load-bearing for memory. `get_feature_pack` is load-bearing for context.
+`check_policy` is load-bearing for guardrails. `record_decision` + `save_context_pack` are load-bearing for memory. `get_recipe` is load-bearing for on-demand context.
 
 ---
 
@@ -231,7 +231,6 @@ packages/
   shared/        Cross-cutting Zod schemas, auth (Clerk + solo bypass), hook adapters
 
 docs/
-  feature-packs/   Per-module specs (spec.md / implementation.md / techstack.md)
   DEVELOPMENT.md   Local dev loop
   deploy/          Self-host stack docs (deploy/compose.yaml ships 5 services)
 ```
@@ -283,9 +282,9 @@ credentials.
 
 ## Status
 
-**`@coodra/cli@0.3.0`** — stable native-agent release.
+**`@coodra/cli@0.4.0`** — stable native-agent release.
 
-Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Feature Packs + on-demand Skills).
+Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Agent Recipes + Work Packs).
 
 In progress: `web-v2` admin UI polish, knowledge-layer cloud-sync conflict edge cases, multi-org isolation tightening (Phase G+1).
 

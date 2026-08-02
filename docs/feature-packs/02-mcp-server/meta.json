@@ -1,5 +1,0 @@
-{
-  "slug": "02-mcp-server",
-  "parentSlug": "01-foundation",
-  "sourceFiles": ["apps/mcp-server/**"]
-}

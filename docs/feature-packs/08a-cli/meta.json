@@ -1,6 +1,0 @@
-{
-  "slug": "08a-cli",
-  "parentSlug": "01-foundation",
-  "sourceFiles": ["packages/cli/**", "docs/feature-packs/08a-cli/**"],
-  "isActive": true
-}

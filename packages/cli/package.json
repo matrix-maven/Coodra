@@ -23,10 +23,6 @@
       "types": "./dist/lib/init/index.d.ts",
       "import": "./dist/lib/init/index.js"
     },
-    "./lib/init/graphify-wire": {
-      "types": "./dist/lib/init/graphify-wire.d.ts",
-      "import": "./dist/lib/init/graphify-wire.js"
-    },
     "./lib/graphify": {
       "types": "./dist/lib/graphify/index.d.ts",
       "import": "./dist/lib/graphify/index.js"

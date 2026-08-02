@@ -90,7 +90,6 @@ describe('command catalog', () => {
     // prompt-gated on stdin.isTTY (true under Ink raw mode) — must be
     // flagged interactive or the TUI would fight Ink for stdin and hang.
     expect(interactive).toContain('files-clean');
-    expect(interactive).toContain('graphify-enable');
     // a normal mutating command is NOT interactive — the TUI runs it in-process.
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'pause')?.interactive).toBe(false);
     expect(ALL_CATALOG_COMMANDS.find((c) => c.id === 'doctor')?.interactive).toBe(false);

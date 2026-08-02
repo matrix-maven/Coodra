@@ -3,9 +3,15 @@ import { closeSync, existsSync, openSync, readSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { DEFAULT_GRAPHIFY_PYTHON } from './graphify-wire.js';
 
 const pexec = promisify(execFile);
+
+/**
+ * Default Python interpreter for `-m graphify.serve` / `graphify build`.
+ * `python3` is present on macOS + modern Linux; bare `python`
+ * increasingly is not.
+ */
+const DEFAULT_GRAPHIFY_PYTHON = 'python3';
 
 /**
  * `graphify-python.ts` — auto-detect a Python interpreter that can

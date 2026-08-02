@@ -203,15 +203,18 @@ the new feature even though their cloud-backed metadata says it exists.
 puller pulls files lazily on first access via the `get_skill` /
 `get_skill_file` MCP tools. No more git-pull dependency. Not yet shipped.
 
-### What `init` writes today (and the legacy 3-file scaffold)
+### What `init` writes today (the legacy 3-file scaffold is gone)
 
-`coodra init` still scaffolds the old-style 3-file pack
-(`docs/feature-packs/<project-slug>/{spec,implementation,techstack}.md`).
-That's a vestige of M01 before the skill-style features layer landed. The
-`feature_packs` cloud table covers both — it tracks any directory under
-either `docs/features/` or `docs/feature-packs/`. The skill-style layer
-(`docs/features/<slug>/feature.md`) is the canonical going forward; the
-3-file layout is for projects that haven't migrated yet.
+`coodra init` no longer scaffolds the old-style 3-file pack
+(`docs/feature-packs/<project-slug>/{spec,implementation,techstack}.md`) —
+that flag/path was removed from `coodra init` (2026-07-29, COOD-15) and
+the `docs/feature-packs/` directory itself was removed from this repo
+(2026-08-02). `coodra init` now writes only `.coodra/{config.json,
+manifest.json,recipes/,graphify/,wiki/,work-packs/}`. The rest of this
+section's description of the `docs/features/` cloud-synced layer and the
+`feature_packs` table may itself be stale relative to the current Agent
+Recipes (`.coodra/recipes/`) naming — verify against `system-architecture.md`
+before relying on it.
 
 ---
 

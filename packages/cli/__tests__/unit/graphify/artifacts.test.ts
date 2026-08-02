@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   countGraph,
-  detectGraphifyLayout,
   LEGACY_PATHS,
   MANAGED_PATHS,
   readGraphifyRecord,
@@ -73,8 +72,6 @@ describe('graphify artifacts — record + path resolution', () => {
   });
 
   it('an existing graphify-out/ with no record → KEEPS legacy (never relocates silently)', async () => {
-    // This precedence must match `coodra graphify enable`, or build/open/clean
-    // would disagree with the wired MCP entry about where the graph lives.
     writeGraph('graphify-out', { nodes: [], links: [] });
     const paths = await resolveGraphifyPaths(root);
     expect(paths.outputDir).toBe(LEGACY_PATHS.outputDir);
@@ -99,22 +96,6 @@ describe('graphify artifacts — record + path resolution', () => {
   it('--dry-run writes no record', async () => {
     await writeGraphifyRecord(root, MANAGED_PATHS, { dryRun: true, now: CLOCK });
     expect(await readGraphifyRecord(root)).toBeNull();
-  });
-});
-
-describe('graphify artifacts — layout detection', () => {
-  it('reports which layouts exist on disk', async () => {
-    expect(await detectGraphifyLayout(root)).toMatchObject({
-      recorded: null,
-      managedPresent: false,
-      legacyPresent: false,
-    });
-
-    writeGraph('graphify-out', { nodes: [], links: [] });
-    expect(await detectGraphifyLayout(root)).toMatchObject({ legacyPresent: true, managedPresent: false });
-
-    writeGraph('.coodra/graphify/out', { nodes: [], links: [] });
-    expect(await detectGraphifyLayout(root)).toMatchObject({ legacyPresent: true, managedPresent: true });
   });
 });
 

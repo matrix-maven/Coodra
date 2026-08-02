@@ -29,7 +29,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       // COOD-23 — `coodra recipe` is primary; `skill` and `feature` stay aliases.
       // Phase 2 — generated-file manifest (files status/clean).
       'files',
-      // Module 09 Track 9B — Graphify MCP wiring (enable/disable/status).
+      // Module 09 Track 9B — Graphify MCP status (wiring is Coodra-owned; `coodra agent add` handles it).
       'graphify',
       'init',
       'install',
@@ -104,12 +104,13 @@ describe('buildProgram — full surface (post-S8)', () => {
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'migrate', 'remove', 'show']);
 
-    // Module 09 Track 9B — `coodra graphify {enable,disable,status}` (wiring),
-    // plus Phase 3's artifact half: {build,open,clean}.
+    // Module 09 Track 9B — `coodra graphify status` (read-only; wiring is
+    // Coodra-owned via `coodra agent add`), plus Phase 3's artifact half:
+    // {build,open,clean}.
     const graphifyCmd = program.commands.find((c) => c.name() === 'graphify');
     expect(graphifyCmd).toBeDefined();
     const graphifySub = graphifyCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(graphifySub).toEqual(['build', 'clean', 'disable', 'enable', 'open', 'status']);
+    expect(graphifySub).toEqual(['build', 'clean', 'open', 'status']);
 
     // Phase 2 — `coodra files {status,clean}` over the generated-file manifest.
     const filesCmd = program.commands.find((c) => c.name() === 'files');
@@ -245,42 +246,6 @@ describe('buildProgram — full surface (post-S8)', () => {
     };
     const program = buildProgram({ runStatus: fakeRunStatus });
     await expect(program.parseAsync(['node', 'coodra', 'status', '--json'])).rejects.toThrow('__exit__:0');
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ json: true });
-  });
-
-  it('wires `graphify enable` to the real runGraphifyEnable handler (Module 09 G3) — passes flags through', async () => {
-    const calls: Array<unknown> = [];
-    const fakeRun = async (opts: unknown) => {
-      calls.push(opts);
-      throw new Error('__exit__:0');
-    };
-    const program = buildProgram({ runGraphifyEnable: fakeRun });
-    await expect(
-      program.parseAsync([
-        'node',
-        'coodra',
-        'graphify',
-        'enable',
-        '--ide',
-        'claude',
-        '--python',
-        'python3',
-        '--dry-run',
-      ]),
-    ).rejects.toThrow('__exit__:0');
-    expect(calls).toHaveLength(1);
-    expect(calls[0]).toMatchObject({ ide: 'claude', python: 'python3', dryRun: true });
-  });
-
-  it('wires `graphify disable` to the real runGraphifyDisable handler (Module 09 G3)', async () => {
-    const calls: Array<unknown> = [];
-    const fakeRun = async (opts: unknown) => {
-      calls.push(opts);
-      throw new Error('__exit__:0');
-    };
-    const program = buildProgram({ runGraphifyDisable: fakeRun });
-    await expect(program.parseAsync(['node', 'coodra', 'graphify', 'disable', '--json'])).rejects.toThrow('__exit__:0');
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ json: true });
   });

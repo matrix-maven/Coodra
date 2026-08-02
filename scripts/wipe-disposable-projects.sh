@@ -87,9 +87,8 @@ DELETE FROM policies WHERE project_id IN ('$WIPE_SQL_LIST');
 -- kill_switches: project-scoped use 'target = projectSlug'
 DELETE FROM kill_switches WHERE scope = 'project' AND target IN ('$WIPE_SLUG_SQL_LIST');
 
--- feature_packs has no project FK — they live in <repo>/docs/feature-packs
--- on disk; the table is keyed by slug. We leave them alone — operator can
--- manually delete via /packs/[slug] if desired.
+-- feature_packs has no project FK; the table is keyed by slug. We leave
+-- them alone — operator can manually delete via /packs/[slug] if desired.
 
 -- Finally, projects rows themselves.
 DELETE FROM projects WHERE id IN ('$WIPE_SQL_LIST');

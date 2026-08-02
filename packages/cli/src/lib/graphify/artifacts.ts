@@ -17,8 +17,8 @@ import { z } from 'zod';
  * because it has a real consequence: Graphify intends `graphify-out/` to be
  * COMMITTED to git (it ships a merge driver so `graph.json` union-merges), while
  * `.coodra/` is typically gitignored. Moving the output under `.coodra/` trades
- * "shared with the team via git" for "clean repo root". We never migrate
- * silently — `coodra graphify enable` asks.
+ * "shared with the team via git" for "clean repo root". We never relocate an
+ * existing `graphify-out/` silently — see `resolveGraphifyPaths` below.
  *
  * `graph.json` is NetworkX **node-link** format: nodes carry `id`/`label`/
  * `community` (Leiden cluster) and the edge array is keyed **`links`**, NOT
@@ -118,9 +118,9 @@ export async function writeGraphifyRecord(
 }
 
 /**
- * The effective paths for this project. Precedence — and it MUST match what
- * `coodra graphify enable` decides, or `build`/`open`/`clean`/`status` would
- * disagree with the wired MCP entry about where the graph lives:
+ * The effective paths for this project. Precedence — shared by
+ * `build`/`open`/`clean`/`status` so they never disagree about where the
+ * graph lives:
  *
  *   1. a recorded choice in `.coodra/graphify.json` — honour it;
  *   2. an existing `graphify-out/graph.json` — keep it where it is (that
@@ -372,26 +372,4 @@ export async function scanGraphifyArtifacts(root: string, paths: GraphifyPaths):
     counts,
     ...(countsSkippedReason !== undefined ? { countsSkippedReason } : {}),
   };
-}
-
-export interface GraphifyLayoutDetection {
-  /** A record already pins the layout — no migration question to ask. */
-  readonly recorded: GraphifyRecord | null;
-  /** `.coodra/graphify/out/graph.json` present on disk. */
-  readonly managedPresent: boolean;
-  /** `graphify-out/graph.json` present on disk. */
-  readonly legacyPresent: boolean;
-}
-
-/**
- * Detect which output layouts actually exist so `graphify enable` can offer the
- * use / migrate / leave-unmanaged choice instead of guessing.
- */
-export async function detectGraphifyLayout(root: string): Promise<GraphifyLayoutDetection> {
-  const [recorded, managed, legacy] = await Promise.all([
-    readGraphifyRecord(root),
-    statFile(absOf(root, MANAGED_PATHS.graphJson)),
-    statFile(absOf(root, LEGACY_PATHS.graphJson)),
-  ]);
-  return { recorded, managedPresent: managed.exists, legacyPresent: legacy.exists };
 }

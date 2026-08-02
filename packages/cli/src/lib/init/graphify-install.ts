@@ -14,9 +14,8 @@ const pexec = promisify(execFile);
 
 /**
  * `graphify-install.ts` — plan + execute the `graphifyy[mcp]` install so
- * `coodra graphify enable` (and `coodra init --graphify`) can offer to
- * install the package instead of wiring a dead entry and printing manual
- * steps.
+ * `coodra install`'s shared machine runtime setup can install the package
+ * instead of wiring a dead entry and printing manual steps.
  *
  * Field report (2026-07-02): a user answered "Wire Graphify? y", got the
  * "no working interpreter found yet" notice, and the wired server (and

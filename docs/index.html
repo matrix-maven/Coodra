@@ -1266,7 +1266,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
         </div>
         <div class="kv__row">
           <div class="kv__k">feature pack</div>
-          <div class="kv__v">A module-level architectural blueprint, authored by humans in <code>docs/feature-packs/</code>. Loaded by <code>get_feature_pack</code> and injected at <code>SessionStart</code>. <small>Pattern-20 SessionStart additionalContext</small></div>
+          <div class="kv__v">Reusable task guidance, authored by humans or agents in <code>.coodra/recipes/&lt;slug&gt;/</code>. Pulled on demand via <code>list_recipes</code> / <code>get_recipe</code> when a task matches a recipe's trigger — not auto-injected.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">decision</div>
@@ -1306,7 +1306,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="card">
             <div class="card__eyebrow">→ before</div>
             <h4 class="card__title">Feature Pack</h4>
-            <p class="card__body">Human-authored. Lives in <code>docs/feature-packs/&lt;slug&gt;/</code>. Spec, tech-stack, implementation order. Loaded at SessionStart so the agent reads the blueprint before touching files.</p>
+            <p class="card__body">Human- or agent-authored. Lives in <code>.coodra/recipes/&lt;slug&gt;/</code>. Reusable guidance the agent pulls on demand via <code>list_recipes</code> / <code>get_recipe</code> when a task matches its trigger.</p>
             <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> human → agent.</p>
           </div>
           <div class="card">

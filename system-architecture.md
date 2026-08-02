@@ -879,10 +879,11 @@ structural context: ship the integration as wiring + recipes, not as a service.
 
 Coodra's leverage of Graphify is its **live structural-query layer**, consumed
 through Graphify's own MCP server (`query_graph` / `get_node` / `get_neighbors`
-/ `shortest_path`), wired alongside the `coodra` server via `coodra graphify
-enable`. The agent calls those tools directly for blast-radius and "where is X
-defined?" questions. Coodra mints **no** Feature Packs from the graph; Feature
-Packs stay human/agent-authored at module granularity. If agent-assisted
+/ `shortest_path`), bundled alongside the `coodra` server automatically by the
+native Claude Code / Codex plugin — no separate wiring step. The agent calls
+those tools directly for blast-radius and "where is X defined?" questions.
+Coodra mints **no** Feature Packs, Recipes, or Work Packs from the graph;
+those stay human/agent-authored at module granularity. If agent-assisted
 cold-start authoring is revisited, ADR-015 records its two preconditions:
 module granularity (not communities) and working `filePath`→`sourceFiles`
 resolution.
@@ -1129,7 +1130,7 @@ The endpoint, transport, exact tool names, OAuth shape, and per-IDE wiring are d
 
 ### 22.3 Wiring (removed — redesign pending)
 
-Rovo is a **remote** Streamable HTTP MCP server at `https://mcp.atlassian.com/v1/mcp/authv2`. The original `coodra jira enable/disable/status` commands wired the `atlassian` server entry directly into each detected agent's config (mirroring `coodra graphify enable`'s per-IDE dispatch). That surface, along with the rest of the legacy Cursor/Windsurf/Devin/Cascade/Codeium support it was written against, has been removed — Coodra now supports only native Claude Code and Codex plugins, and a user who wants Rovo today wires it directly via their agent's own native MCP/connector settings. A Coodra-managed Jira integration (a project-scoped site/project config so the agent doesn't have to be told which Jira instance/project to use every session) is planned as a redesign, not yet implemented.
+Rovo is a **remote** Streamable HTTP MCP server at `https://mcp.atlassian.com/v1/mcp/authv2`. The original `coodra jira enable/disable/status` commands wired the `atlassian` server entry directly into each detected agent's config (mirroring the per-IDE dispatch `coodra graphify enable` once used, before Graphify wiring also became Coodra-owned via the native plugin). That surface, along with the rest of the legacy Cursor/Windsurf/Devin/Cascade/Codeium support it was written against, has been removed — Coodra now supports only native Claude Code and Codex plugins, and a user who wants Rovo today wires it directly via their agent's own native MCP/connector settings. A Coodra-managed Jira integration (a project-scoped site/project config so the agent doesn't have to be told which Jira instance/project to use every session) is planned as a redesign, not yet implemented.
 
 ### 22.4 Rovo's Jira tools (agent-facing; NOT Coodra-owned)
 
@@ -1980,10 +1981,10 @@ These are the tools every project using Coodra exposes. They bind the agent to t
 
 #### `query_codebase_graph` — RETIRED (Module 09 / G1, 2026-05-21)
 
-> Removed in Module 09 (track 9B / phase G1). This tool and `apps/mcp-server/src/lib/graphify.ts` read `~/.coodra/graphify/<slug>/graph.json` — a path nothing ever populated, so the tool was permanently soft-failing. Structural queries ("blast radius", "where is X defined?", dependency paths) are now answered by **Graphify's own MCP server** (`query_graph` / `get_node` / `get_neighbors` / `shortest_path`), wired into the agent config via `coodra graphify enable`. Coodra does not wrap Graphify (ADR-010, Option C). See §17 and `docs/feature-packs/09-integrations/`.
+> Removed in Module 09 (track 9B / phase G1). This tool and `apps/mcp-server/src/lib/graphify.ts` read `~/.coodra/graphify/<slug>/graph.json` — a path nothing ever populated, so the tool was permanently soft-failing. Structural queries ("blast radius", "where is X defined?", dependency paths) are now answered by **Graphify's own MCP server** (`query_graph` / `get_node` / `get_neighbors` / `shortest_path`), bundled automatically into the native Claude Code / Codex plugin's agent config (`coodra graphify status` checks the wiring, read-only). Coodra does not wrap Graphify (ADR-010, Option C). See §17.
 
 #### `seed_feature_packs_from_graph` + `build_codebase_graph` — RETIRED (ADR-015, 2026-05-23)
-> Both tools were removed. Minting one draft Feature Pack per Leiden community produced hundreds of un-injectable shells (on a real 9,659-node repo: 588 communities, 73.5% single-file — config files and READMEs), and even the module-sized ones were unreachable because `get_feature_pack`'s `filePath` resolution was never implemented and seeded packs carried `parentSlug=null`. The premise was wrong: a code-graph community is a navigation aid, not a Feature Pack boundary. Graphify remains wired as a **query-only** MCP server (`query_graph` / `get_node` / `get_neighbors` / `shortest_path`) via `coodra graphify enable`; Feature Packs stay human/agent-authored at module granularity. See ADR-015 and `docs/feature-packs/09-integrations/`.
+> Both tools were removed. Minting one draft Feature Pack per Leiden community produced hundreds of un-injectable shells (on a real 9,659-node repo: 588 communities, 73.5% single-file — config files and READMEs), and even the module-sized ones were unreachable because `get_feature_pack`'s `filePath` resolution was never implemented and seeded packs carried `parentSlug=null`. The premise was wrong: a code-graph community is a navigation aid, not a Feature Pack boundary. Graphify remains wired as a **query-only** MCP server (`query_graph` / `get_node` / `get_neighbors` / `shortest_path`), bundled automatically by the native agent plugin; Agent Recipes and Work Packs stay human/agent-authored at module granularity. See ADR-015.
 
 #### `get_run_id`
 > Call this at the START of any session that will write code, if the current `runId` is not already in context from a session-start hook. Returns the current in-progress session's runId (UUID) which binds all subsequent tool calls, decisions, and context packs to a single durable record. Most other tools accept this runId as an argument. Call once per session and reuse the value.
@@ -2040,8 +2041,8 @@ This table is the **source-of-truth mapping** the `CLAUDE.md §5 Agent Trigger C
 | About to run a shell command | `check_policy { toolName: 'Bash', toolInput: { command } }` | Always |
 | Chose a library / designed an API / made an implementation decision | `record_decision` | Immediately, not batched |
 | User asked "what was done before on X?" | `search_packs_nl { query: X }`, `query_run_history` | Before answering from memory |
-| User asked "what does this code do?" / "where is X defined?" | Graphify MCP's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` — when the `graphify` server is wired (`coodra graphify enable`) | Before reading files one by one |
-| User asks a structural/blast-radius question ("what depends on X?", "where is Y defined?") | Graphify's own MCP — `query_graph` / `get_node` / `get_neighbors` / `shortest_path` | Graphify wired via `coodra graphify enable` |
+| User asked "what does this code do?" / "where is X defined?" | Graphify MCP's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` — when the `graphify` server is wired (bundled automatically by the native plugin; `coodra graphify status` checks) | Before reading files one by one |
+| User asks a structural/blast-radius question ("what depends on X?", "where is Y defined?") | Graphify's own MCP — `query_graph` / `get_node` / `get_neighbors` / `shortest_path` | Graphify wired automatically by the native agent plugin |
 | User referenced a Jira key (PROJ-123) | `getJiraIssue` (Rovo) | Atlassian Rovo MCP wired (`coodra jira enable`) |
 | User asked "what am I assigned?" | `searchJiraIssuesUsingJql` (Rovo) — `assignee = currentUser() AND statusCategory != Done` | Atlassian Rovo MCP wired |
 | User referenced a PR number | `github_get_pr` or `github_get_pr_context` if reviews needed | GitHub integration active |

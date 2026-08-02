@@ -24,7 +24,8 @@ const execFileAsync = promisify(execFile);
 
 /**
  * `coodra graphify build | open | clean` — the artifact half of the Graphify
- * integration (the wiring half is `enable`/`disable`/`status` in graphify.ts).
+ * integration (the read-only wiring status probe is `status` in graphify.ts;
+ * wiring itself is Coodra-owned via `coodra agent add`, no explicit path).
  *
  * `build` is a THIN wrapper: it resolves the user's installed `graphify`
  * executable, sets `GRAPHIFY_OUT` to the project's resolved output directory,
@@ -392,7 +393,7 @@ export async function runGraphifyCleanCommand(
 
   // Legacy `graphify-out/` is meant to be committed to git — require --force.
   if (!paths.managedByCoodra && !options.force && targets.length > 0) {
-    const error = `'${paths.outputDir}' is Graphify's own (git-committed) output directory. Re-run with --force to delete it, or migrate to Coodra-managed output with \`coodra graphify enable\`.`;
+    const error = `'${paths.outputDir}' is Graphify's own (git-committed) output directory. Re-run with --force to delete it.`;
     if (json) io.writeStdout(`${JSON.stringify({ ok: false, command: 'clean', error, deleted: [] }, null, 2)}\n`);
     else io.writeStderr(`${pc.yellow('⚠')} ${error}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);

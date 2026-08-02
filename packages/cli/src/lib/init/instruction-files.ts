@@ -120,12 +120,13 @@ lost if the session is interrupted.
 \`coodra__query_run_history\` — not from memory.
 
 ### Before structural refactors
-When the **Graphify** integration is active (the \`graphify\` MCP server is wired
-via \`coodra graphify enable\`), call its tools — \`query_graph\`, \`get_node\`,
-\`get_neighbors\`, \`shortest_path\` — for blast radius and "where is X defined?"
-queries before reading files one by one. If Graphify is not wired, fall back to
-reading the files directly. (Coodra's old \`coodra__query_codebase_graph\` tool
-was retired in Module 09 / G1 — see ADR-010.)
+When the **Graphify** integration is active (the \`graphify\` MCP server is
+bundled automatically by the native Coodra plugin — \`coodra graphify status\`
+checks), call its tools — \`query_graph\`, \`get_node\`, \`get_neighbors\`,
+\`shortest_path\` — for blast radius and "where is X defined?" queries before
+reading files one by one. If Graphify is not wired, fall back to reading the
+files directly. (Coodra's old \`coodra__query_codebase_graph\` tool was
+retired in Module 09 / G1 — see ADR-010.)
 
 ### At the end of the session
 \`coodra__save_context_pack { runId, title, content }\` — a markdown summary

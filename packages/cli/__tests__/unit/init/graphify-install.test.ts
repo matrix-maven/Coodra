@@ -11,9 +11,9 @@ import {
 import type { GraphifyPythonResolution } from '../../../src/lib/init/graphify-python.js';
 
 /**
- * Locks the install-first flow (2026-07-02): `coodra graphify enable` /
- * `coodra init --graphify` offer to install `graphifyy[mcp]` BEFORE
- * wiring, ask consent before touching an existing `.venv`, and wire the
+ * Locks the install-first flow (2026-07-02): `coodra install`'s shared
+ * machine runtime setup offers to install `graphifyy[mcp]` BEFORE wiring,
+ * asks consent before touching an existing `.venv`, and wires the
  * verified venv interpreter on success. All subprocesses are stubbed.
  */
 
