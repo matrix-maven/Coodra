@@ -8,6 +8,23 @@ import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types
 
 export const CODEX_PLUGIN_NAME = 'coodra' as const;
 
+/**
+ * The default personal-marketplace name Codex assigns (matches the
+ * fallback in `marketplaceJson` below). Codex's own runtime — not this
+ * file — mirrors an installed plugin into
+ * `~/.codex/plugins/cache/<marketplace-name>/<plugin-name>/<version>/`
+ * once it actually loads it, independent of the source Coodra writes at
+ * `pluginRoot`. `removeCodexPlugin` must clean this cache mirror too,
+ * or an old Coodra version lingers there forever after uninstall (found
+ * 2026-08-02: `~/.codex/plugins/coodra/` gone, but a stale
+ * `~/.codex/plugins/cache/personal/coodra/0.4.0/` — including the
+ * already-retired `deep-wiki-author` skill — survived uninstall
+ * untouched). Scoped to the `coodra` leaf, not the whole
+ * `cache/personal/` dir, since that marketplace namespace can hold the
+ * user's other personal plugins too.
+ */
+const CODEX_MARKETPLACE_NAME = 'personal' as const;
+
 export interface CodexPluginPaths {
   readonly marketplaceRoot: string;
   readonly marketplacePath: string;
@@ -17,6 +34,7 @@ export interface CodexPluginPaths {
   readonly hooksPath: string;
   readonly hookRunnerPath: string;
   readonly skillsRoot: string;
+  readonly cachePluginRoot: string;
 }
 
 export function codexPluginPaths(userHome: string): CodexPluginPaths {
@@ -32,6 +50,7 @@ export function codexPluginPaths(userHome: string): CodexPluginPaths {
     hooksPath: join(pluginRoot, 'hooks', 'hooks.json'),
     hookRunnerPath: join(pluginRoot, 'hooks', 'hook-runner.mjs'),
     skillsRoot,
+    cachePluginRoot: join(userHome, '.codex', 'plugins', 'cache', CODEX_MARKETPLACE_NAME, CODEX_PLUGIN_NAME),
   };
 }
 
@@ -96,6 +115,7 @@ export async function removeCodexPlugin(ctx: AgentRemoveContext): Promise<{
   const outcomes: WriteOutcome[] = [];
   outcomes.push(await removeMarketplaceEntry(paths.marketplacePath, ctx.dryRun));
   outcomes.push(await removePath(paths.pluginRoot, ctx.dryRun, 'removed Coodra Codex plugin bundle'));
+  outcomes.push(await removePath(paths.cachePluginRoot, ctx.dryRun, 'removed all Coodra Codex plugin cache versions'));
   return { outcomes, paths };
 }
 

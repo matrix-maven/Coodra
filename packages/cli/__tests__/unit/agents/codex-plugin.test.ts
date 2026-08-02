@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -81,9 +81,17 @@ describe('Codex native plugin installer', () => {
     });
   });
 
-  it('removes marketplace entry and plugin bundle', async () => {
+  it('removes marketplace entry, plugin bundle, and the cache mirror Codex itself creates', async () => {
     const paths = codexPluginPaths(userHome);
     await installCodexPlugin(ctx());
+
+    // Codex's own runtime — not this file's install code — mirrors the
+    // installed plugin into cache/<marketplace>/<plugin>/<version>/ once it
+    // actually loads it (found live at ~/.codex/plugins/cache/personal/coodra/
+    // on a real machine, 2026-08-02, surviving a full uninstall untouched).
+    // Simulate that here so removeCodexPlugin's cleanup is exercised.
+    await mkdir(join(paths.cachePluginRoot, '0.4.0', 'skills', 'deep-wiki-author'), { recursive: true });
+    await writeFile(join(paths.cachePluginRoot, '0.4.0', '.mcp.json'), '{}', 'utf8');
 
     const result = await removeCodexPlugin({
       cwd,
@@ -95,7 +103,9 @@ describe('Codex native plugin installer', () => {
 
     expect(result.outcomes.some((o) => o.path === paths.marketplacePath && o.action === 'merged')).toBe(true);
     expect(result.outcomes.some((o) => o.path === paths.pluginRoot && o.action === 'merged')).toBe(true);
+    expect(result.outcomes.some((o) => o.path === paths.cachePluginRoot && o.action === 'merged')).toBe(true);
     expect(existsSync(paths.pluginRoot)).toBe(false);
+    expect(existsSync(paths.cachePluginRoot)).toBe(false);
     expect(await probeCodexPlugin({ cwd, userHome })).toMatchObject({
       manifest: false,
       marketplace: false,
@@ -103,6 +113,18 @@ describe('Codex native plugin installer', () => {
       hooks: false,
       skills: false,
     });
+  });
+
+  it('--dry-run leaves the cache mirror untouched', async () => {
+    const paths = codexPluginPaths(userHome);
+    await installCodexPlugin(ctx());
+    await mkdir(paths.cachePluginRoot, { recursive: true });
+    await writeFile(join(paths.cachePluginRoot, 'marker.json'), '{}', 'utf8');
+
+    await removeCodexPlugin({ cwd, userHome, coodraHome, bridgePort: 3101, dryRun: true });
+
+    expect(existsSync(paths.pluginRoot)).toBe(true);
+    expect(existsSync(paths.cachePluginRoot)).toBe(true);
   });
 
   it('preserves unrelated personal marketplace plugins', async () => {

@@ -44,7 +44,11 @@ import { hintLine, pc } from '../ui/index.js';
  *      deletion (deleting `data.db` out from under an open WAL handle
  *      is a corruption risk).
  *   1. Drop global native/plugin wiring: Claude Code settings,
- *      marketplace/cache entries, and Codex personal marketplace/plugin bundle.
+ *      marketplace/cache entries, and Codex personal marketplace/plugin
+ *      bundle + cache mirror (Codex's own runtime, not this code, mirrors
+ *      an installed plugin into `cache/personal/coodra/<version>/`; left
+ *      alone, an old version lingers there forever — see
+ *      `codex-plugin.ts::removeCodexPlugin`).
  *   2. With `--purge`: discover registered project roots from the local DB
  *      and machine manifest, then reverse project-local Coodra writes
  *      (`.codex/config.toml`, `.claude`/instruction blocks, `.coodra/`,
