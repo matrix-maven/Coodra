@@ -144,14 +144,11 @@ describe('Claude Code native plugin installer', () => {
     expect(wikiSkill).toContain('do not start by recursively scanning the whole repo');
     expect(wikiSkill).toContain('.coodra/wiki/<slug>/structure.json');
     expect(wikiSkill).toContain('rather than a fixed template');
-    const deepWikiSkill = await readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
-    expect(deepWikiSkill).toContain('name: deep-wiki-author');
-    expect(deepWikiSkill).toContain('coodra__wiki_save_structure');
-    expect(deepWikiSkill).toContain('coodra__wiki_save_page');
-    expect(deepWikiSkill).toContain('Graph-first planning');
-    expect(deepWikiSkill).toContain('Markdown mirror');
-    const cachedDeepWikiSkill = await readFile(join(paths.cacheSkillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8');
-    expect(cachedDeepWikiSkill).toContain('coodra__wiki_status');
+    // COOD-11 follow-up: `deep-wiki-author` was retired as a redundant second
+    // wiki skill — `coodra-wiki` is now the only bundled wiki skill.
+    expect(wikiSkill).toContain('there is no separate "deep wiki author" skill');
+    await expect(readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8')).rejects.toThrow();
+    await expect(readFile(join(paths.cacheSkillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8')).rejects.toThrow();
 
     const hooks = await readFile(paths.hooksPath, 'utf8');
     expect(hooks).toContain('"type": "mcp_tool"');

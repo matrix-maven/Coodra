@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import { lookupProjectBySlug, sqliteSchema } from '@coodra/db';
-import { generateFeaturesIndex, renderFeatureMd } from '@coodra/shared/features';
 import {
   WIKI_GROUNDING_RELPATH,
   WIKI_ID_RE,
@@ -22,26 +21,9 @@ import { openLocalDb } from '../lib/open-local-db.js';
 import { classifyGeneratedPath, readProjectConfig, recordManifestEntries } from '../lib/project-store/index.js';
 import { assembleGrounding, renderGroundingMarkdown } from '../lib/wiki/grounding.js';
 import { assembleKnowledgeGrounding, type KnowledgeGrounding } from '../lib/wiki/knowledge.js';
-import {
-  buildWikiJob,
-  deepWikiFeatureFrontmatter,
-  renderDeepWikiFeatureBody,
-  renderWikiRecipe,
-} from '../lib/wiki/recipe.js';
+import { buildWikiJob, renderWikiRecipe } from '../lib/wiki/recipe.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, terminalWidth } from '../ui/index.js';
-
-const RECIPE_MD_NAME = 'recipe.md';
-
-function recipesRootForCwd(cwd: string): string {
-  const recipes = join(cwd, '.coodra', 'recipes');
-  if (existsSync(recipes)) return recipes;
-  const skills = join(cwd, 'docs', 'skills');
-  if (existsSync(skills)) return skills;
-  const legacy = join(cwd, 'docs', 'features');
-  if (existsSync(legacy)) return legacy;
-  return recipes;
-}
 
 /**
  * `coodra wiki {build,generate,status,list,open,clean}` — Module 10 Deep Wiki.
@@ -122,8 +104,6 @@ export interface WikiGenerateOptions {
   readonly mode?: string;
   readonly cwd?: string;
   readonly json?: boolean;
-  /** Overwrite the `deep-wiki-author` Agent Recipe if it already exists. */
-  readonly force?: boolean;
 }
 
 export async function runWikiGenerateCommand(
@@ -177,38 +157,6 @@ export async function runWikiGenerateCommand(
   mkdirSync(mirrorDir, { recursive: true });
   mkdirSync(join(cwd, WIKI_OKF_DIR_RELPATH), { recursive: true });
 
-  // 3. Scaffold the `deep-wiki-author` Agent Recipe (pulled on trigger).
-  //    Idempotent unless --force: a recipe.md the user has edited is preserved.
-  //    MUST use the resolved recipes dir so the scaffold and the index that
-  //    `generateFeaturesIndex` writes land in the SAME directory.
-  const featureDir = join(recipesRootForCwd(cwd), 'deep-wiki-author');
-  const featurePath = join(featureDir, RECIPE_MD_NAME);
-  let featureWritten = false;
-  if (!existsSync(featurePath) || options.force === true) {
-    mkdirSync(featureDir, { recursive: true });
-    const fm = deepWikiFeatureFrontmatter();
-    writeFileSync(
-      featurePath,
-      renderFeatureMd({
-        frontmatter: {
-          name: fm.name,
-          description: fm.description,
-          whenNotToUse: fm.whenNotToUse,
-          maturity: fm.maturity,
-        },
-        body: renderDeepWikiFeatureBody(),
-      }),
-      'utf8',
-    );
-    featureWritten = true;
-    // Refresh the features index so the bridge/MCP surface the new recipe.
-    try {
-      generateFeaturesIndex({ projectCwd: cwd, projectSlug });
-    } catch {
-      // Non-fatal: the recipe still works via .coodra/wiki/job.md.
-    }
-  }
-
   await recordManifestEntries({
     root: cwd,
     projectSlug,
@@ -219,7 +167,6 @@ export async function runWikiGenerateCommand(
       classifyGeneratedPath(jobMdPath, cwd, 'coodra wiki build'),
       classifyGeneratedPath(mirrorDir, cwd, 'coodra wiki build'),
       classifyGeneratedPath(join(cwd, WIKI_OKF_DIR_RELPATH), cwd, 'coodra wiki build'),
-      ...(featureWritten ? [classifyGeneratedPath(featurePath, cwd, 'coodra wiki build')] : []),
     ],
   });
 
@@ -241,7 +188,6 @@ export async function runWikiGenerateCommand(
           job: WIKI_JOB_RELPATH,
           recipe: WIKI_JOB_MD_RELPATH,
           markdownMirror: relative(cwd, mirrorDir).split(sep).join('/'),
-          featureScaffolded: featureWritten,
         },
         null,
         2,
@@ -257,16 +203,10 @@ export async function runWikiGenerateCommand(
   io.writeStdout(
     `  ${pc.green('✓')} Recipe      ${pc.gray(`${WIKI_JOB_MD_RELPATH} (slug "${slug}", mode "${mode}")`)}\n`,
   );
-  const featureRel = relative(cwd, featurePath).split(sep).join('/');
-  io.writeStdout(
-    featureWritten
-      ? `  ${pc.green('✓')} Recipe      ${pc.gray(`${featureRel} — pulled when you ask the agent to build the wiki`)}\n`
-      : `  ${pc.yellow('◌')} Recipe      ${pc.gray(`${featureRel} already exists (use --force to refresh)`)}\n`,
-  );
   io.writeStdout('\n');
   io.writeStdout(`  ${pc.bold('Next:')} open your coding agent in this project and invoke the bundled wiki skill:\n`);
   io.writeStdout('\n');
-  io.writeStdout(`      ${pc.cyan('Use deep-wiki-author. Read .coodra/wiki/job.md and build the deep wiki by')}\n`);
+  io.writeStdout(`      ${pc.cyan('Use coodra-wiki. Read .coodra/wiki/job.md and build the deep wiki by')}\n`);
   io.writeStdout(`      ${pc.cyan('calling the coodra__wiki_save_structure and coodra__wiki_save_page MCP tools.')}\n`);
   io.writeStdout(`      ${pc.cyan(`Mirror successful saves under .coodra/wiki/${slug}/ after the MCP calls.`)}\n`);
   io.writeStdout('\n');

@@ -557,7 +557,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--mode <mode>',
       'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
     )
-    .option('--force', 'Overwrite the deep-wiki-author Agent Recipe if it already exists.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: WikiGenerateOptions) => {
       await wikiGenerateRunner(opts, options.wikiIO);
@@ -570,7 +569,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       '--mode <mode>',
       'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
     )
-    .option('--force', 'Overwrite the deep-wiki-author Agent Recipe if it already exists.')
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: WikiGenerateOptions) => {
       await wikiGenerateRunner(opts, options.wikiIO);

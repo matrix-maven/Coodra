@@ -13,9 +13,14 @@ import type { WikiMode } from '@coodra/shared/wiki';
  *   PASS 2 — author each pending page's Markdown (with Mermaid + code
  *            citations) via `wiki_save_page`; resume via `wiki_status`.
  *
- * The same recipe text backs both the per-run `.coodra/wiki/job.md`
- * (self-contained, read by any agent) and the bundled `deep-wiki-author`
- * Feature (pulled on trigger when the user asks to "generate the wiki").
+ * This same recipe text is what `coodra-wiki` (the bundled native-plugin
+ * skill, COOD-11) tells the agent to read from `.coodra/wiki/job.md` once
+ * it exists — self-contained, so any agent can follow it without the
+ * Skill-triggering mechanism. There is no separate authoring skill; a
+ * `deep-wiki-author` skill/recipe used to be bundled and scaffolded
+ * alongside `coodra-wiki`, but it only ever restated this same content
+ * behind a second name, so it was retired as drift from COOD-11's own
+ * "only one canonical wiki implementation" acceptance criterion.
  */
 
 export interface WikiJobDescriptor {
@@ -270,42 +275,4 @@ export function renderWikiRecipe(args: {
   lines.push('');
 
   return `${lines.join('\n')}\n`;
-}
-
-/** The `deep-wiki-author` Feature frontmatter (pulled on trigger). */
-export function deepWikiFeatureFrontmatter(): {
-  readonly name: string;
-  readonly description: string;
-  readonly whenNotToUse: string;
-  readonly maturity: 'stable';
-} {
-  return {
-    name: 'deep-wiki-author',
-    description:
-      'Use this when the user asks to generate, build, refresh, or update the Deep Wiki / codebase wiki / architecture docs for this project (e.g. "generate the deep wiki", "build the wiki", "document the architecture"). Drives the two-pass Coodra Wiki flow: plan a hierarchical WikiStructure, then author each page (Markdown + Mermaid) via Coodra’s wiki_save_structure / wiki_save_page / wiki_status MCP tools, reading the latest job at .coodra/wiki/job.md.',
-    whenNotToUse:
-      'Don’t use for editing a single existing doc, issue-bound Work Packs, or Context Packs (session recaps). Those are separate surfaces.',
-    maturity: 'stable',
-  };
-}
-
-/** The `deep-wiki-author` Feature body — the stable recipe, pointing at the per-run job. */
-export function renderDeepWikiFeatureBody(): string {
-  const recipe = renderWikiRecipe({
-    projectSlug: '<this project>',
-    slug: '<see .coodra/wiki/job.md>',
-    mode: 'comprehensive',
-    groundingPath: '.coodra/wiki/grounding.md',
-    includeJobHeader: false,
-  });
-  return [
-    '# deep-wiki-author',
-    '',
-    'Generate a DeepWiki-style, hierarchical/mind-map explanation of this codebase. **You are the model** — Coodra stores the result and renders it in its web app; it runs no LLM of its own.',
-    '',
-    'The user runs `coodra wiki build` first, which writes the per-run job (`.coodra/wiki/job.md` — read it for the exact `slug` and `mode`) and the grounding snapshot (`.coodra/wiki/grounding.md`). `coodra wiki generate` is a deprecated alias. Then follow the recipe below.',
-    '',
-    recipe.trimEnd(),
-    '',
-  ].join('\n');
 }

@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
-import { deepWikiFeatureFrontmatter, renderDeepWikiFeatureBody } from '../wiki/recipe.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
@@ -49,15 +48,15 @@ export async function probeCodexPlugin(ctx: AgentPathContext): Promise<{
   readonly paths: CodexPluginPaths;
 }> {
   const paths = codexPluginPaths(ctx.userHome);
-  const [manifest, marketplace, mcp, hooks, coodraContextSkill, deepWikiAuthorSkill] = await Promise.all([
+  const [manifest, marketplace, mcp, hooks, coodraContextSkill, coodraWikiSkillFile] = await Promise.all([
     fileContains(paths.manifestPath, `"name": "${CODEX_PLUGIN_NAME}"`),
     fileContains(paths.marketplacePath, `"name": "${CODEX_PLUGIN_NAME}"`),
     fileContainsAll(paths.mcpPath, [`"coodra"`, `"graphify"`]),
     fileContains(paths.hooksPath, `"SessionStart"`),
     fileContains(join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), 'name: coodra-context'),
-    fileContains(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'name: deep-wiki-author'),
+    fileContains(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'name: coodra-wiki'),
   ]);
-  const skills = coodraContextSkill && deepWikiAuthorSkill;
+  const skills = coodraContextSkill && coodraWikiSkillFile;
   return { manifest, marketplace, mcp, hooks, skills, paths };
 }
 
@@ -77,7 +76,6 @@ export async function installCodexPlugin(ctx: AgentContext): Promise<{
     [join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), coodraContextSkill()],
     [join(paths.skillsRoot, 'coodra-recipe', 'SKILL.md'), coodraSkillSkill()],
     [join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), coodraWikiSkill()],
-    [join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), deepWikiAuthorSkill()],
     [join(paths.skillsRoot, 'coodra-graphify', 'SKILL.md'), coodraGraphifySkill()],
     [join(paths.skillsRoot, 'coodra-jira-work', 'SKILL.md'), coodraJiraWorkSkill()],
     [paths.marketplacePath, await marketplaceJson(paths.marketplacePath)],
@@ -538,29 +536,19 @@ Use this skill when the user asks for a reusable project Agent Recipe, or when a
 function coodraWikiSkill(): string {
   return `---
 name: coodra-wiki
-description: Generate, update, inspect, or use the Coodra project wiki stored under .coodra/wiki.
+description: Use this when the user asks to generate, update, refresh, inspect, or use the Coodra project wiki / Deep Wiki / codebase wiki / architecture docs for this project (e.g. "generate the deep wiki", "build the wiki", "document the architecture"), or wants wiki-grounded implementation context. Drives the two-pass Coodra Wiki flow end to end — this is the only wiki skill; there is no separate "deep wiki author" skill.
 ---
 
 Use this skill when the user asks for wiki generation, architecture documentation, codebase explanations, or wiki-grounded implementation context.
 
 1. If \`.coodra/wiki/job.md\` or \`.coodra/wiki/grounding.md\` is missing, run \`coodra wiki build\` first. That command creates the bounded grounding bundle and includes Graphify communities, god nodes, and \`GRAPH_REPORT.md\` when \`.coodra/graphify/out/graph.json\` exists.
-2. Read \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` before planning. Treat the Graphify section as the first structural map; do not start by recursively scanning the whole repo unless the grounding explicitly says the file list is truncated or a page needs verification.
+2. Read \`.coodra/wiki/job.md\` and \`.coodra/wiki/grounding.md\` before planning — \`job.md\` contains the full two-pass authoring recipe (plan the structure, then author each page). Treat the Graphify section as the first structural map; do not start by recursively scanning the whole repo unless the grounding explicitly says the file list is truncated or a page needs verification.
 3. When the managed Graphify MCP server is available, query it without \`project_path\` for neighbours/dependency paths that the grounding summary does not already include.
 4. Save wiki structure/pages through Coodra's \`wiki_save_structure\`, \`wiki_save_page\`, and \`wiki_status\` MCP tools before writing mirror files.
 5. Mirror successful saves under \`.coodra/wiki/<slug>/structure.json\` and \`.coodra/wiki/<slug>/<pageId>.md\`.
 6. Derive the wiki shape from this repo's real graph, domains, and workflows rather than a fixed template.
 7. Use existing wiki records as grounding, but verify claims against targeted source files before editing.
 `;
-}
-
-function deepWikiAuthorSkill(): string {
-  const fm = deepWikiFeatureFrontmatter();
-  return `---
-name: ${fm.name}
-description: ${fm.description}
----
-
-${renderDeepWikiFeatureBody()}`;
 }
 
 function coodraGraphifySkill(): string {

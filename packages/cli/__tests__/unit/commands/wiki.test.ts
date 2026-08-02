@@ -13,7 +13,7 @@ import {
   type WikiIO,
 } from '../../../src/commands/wiki.js';
 import { assembleGrounding, type GroundingResult, renderGroundingMarkdown } from '../../../src/lib/wiki/grounding.js';
-import { buildWikiJob, deepWikiFeatureFrontmatter, renderWikiRecipe } from '../../../src/lib/wiki/recipe.js';
+import { buildWikiJob, renderWikiRecipe } from '../../../src/lib/wiki/recipe.js';
 
 /** An IO that captures stdout/stderr and turns exit() into a throw we can assert on. */
 function captureIO(): { io: WikiIO; out: () => string; err: () => string; code: () => number | null } {
@@ -310,13 +310,6 @@ describe('wiki recipe', () => {
     expect(md).toContain('SPLIT them into two pages');
     expect(md).not.toContain('Prefer fewer, deeper pages');
   });
-
-  it('the deep-wiki-author feature frontmatter has a trigger description', () => {
-    const fm = deepWikiFeatureFrontmatter();
-    expect(fm.name).toBe('deep-wiki-author');
-    expect(fm.description.toLowerCase()).toContain('deep wiki');
-    expect(fm.maturity).toBe('stable');
-  });
 });
 
 describe('coodra wiki build/generate', () => {
@@ -327,7 +320,7 @@ describe('coodra wiki build/generate', () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it('writes grounding + job + recipe + scaffolds the feature (json mode)', async () => {
+  it('writes grounding + job + recipe (json mode)', async () => {
     const cap = captureIO();
     await run(() => runWikiGenerateCommand({ cwd: dir, slug: 'my-wiki', mode: 'concise', json: true }, cap.io));
     expect(cap.code()).toBe(0);
@@ -335,7 +328,6 @@ describe('coodra wiki build/generate', () => {
       ok: boolean;
       slug: string;
       mode: string;
-      featureScaffolded: boolean;
       grounding: { path: string };
       job: string;
       recipe: string;
@@ -344,7 +336,6 @@ describe('coodra wiki build/generate', () => {
     expect(report.ok).toBe(true);
     expect(report.slug).toBe('my-wiki');
     expect(report.mode).toBe('concise');
-    expect(report.featureScaffolded).toBe(true);
     expect(report.grounding.path).toBe('.coodra/wiki/grounding.md');
     expect(report.job).toBe('.coodra/wiki/job.json');
     expect(report.recipe).toBe('.coodra/wiki/job.md');
@@ -354,8 +345,7 @@ describe('coodra wiki build/generate', () => {
     expect(existsSync(join(dir, '.coodra', 'wiki', 'job.md'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'my-wiki'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'okf'))).toBe(true);
-    const feature = readFileSync(join(dir, '.coodra', 'recipes', 'deep-wiki-author', 'recipe.md'), 'utf8');
-    expect(feature).toContain('deep-wiki-author');
+    expect(existsSync(join(dir, '.coodra', 'recipes', 'deep-wiki-author'))).toBe(false);
     const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki', 'job.json'), 'utf8')) as {
       slug: string;
       mode: string;
