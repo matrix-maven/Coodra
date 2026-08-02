@@ -20,7 +20,11 @@ import { detectLanguages, detectProjectRoot } from '../lib/detect.js';
 import { ensureGraphifyLlmEnvTemplate } from '../lib/graphify/env-template.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
-import { readMachineManifest } from '../lib/machine-store/manifest.js';
+import {
+  classifyMachineRuntimePath,
+  readMachineManifest,
+  recordMachineManifest,
+} from '../lib/machine-store/manifest.js';
 import { openLocalDb } from '../lib/open-local-db.js';
 import {
   classifyGeneratedPath,
@@ -283,6 +287,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
   // off).
   const dataDb = `${coodraHome}/data.db`;
   const outcomes: WriteOutcome[] = [];
+  let registeredProjectForManifest: { id: string; slug: string; cwd: string } | null = null;
   if (!dryRun) {
     const handle = await openLocalDb(dataDb, { loadVecExtension: true });
     try {
@@ -397,6 +402,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
         ...(teamOrgId !== undefined && teamOrgId.length > 0 ? { orgId: teamOrgId } : {}),
         ...(cloudIdHint !== undefined ? { idOverride: cloudIdHint } : {}),
       });
+      registeredProjectForManifest = { id: projectResult.id, slug: projectSlug, cwd: root };
       const policyResult = await ensureDefaultPolicy(handle, projectResult.id);
       io.writeStdout(
         `${pc.green('✓')} Applied migrations + seeded __global__ + registered project '${projectSlug}' ` +
@@ -519,6 +525,14 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
       entries: generatedPaths.map((p) => classifyGeneratedPath(p, root, 'coodra init')),
       dryRun,
     });
+    if (registeredProjectForManifest !== null) {
+      await recordMachineManifest({
+        home: coodraHome,
+        entries: globalRuntimePaths.map((p) => classifyMachineRuntimePath(coodraHome, p, 'coodra init')),
+        registeredProjects: [registeredProjectForManifest],
+        dryRun,
+      });
+    }
   } catch (err) {
     io.writeStderr(`${pc.yellow('⚠')} Could not update .coodra/manifest.json: ${(err as Error).message}\n`);
   }

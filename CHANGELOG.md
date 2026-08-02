@@ -10,7 +10,7 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ### Fixed
 
-- **2026-08-01 — `coodra uninstall --purge` now cleans every registered project root, not only the current directory.** The command reads local `projects.cwd` rows before deleting `~/.coodra`, removes Coodra-owned project wiring, and purges `.coodra/` plus legacy `docs/context-packs/` from each registered project root. This fixes the field case where Coodra had been initialized in multiple repos, but running uninstall from `~` only removed machine state and left repo-local Coodra artifacts behind.
+- **2026-08-01 — `coodra uninstall` now has machine-level and purge-level cleanup semantics.** Plain `coodra uninstall` stops/removes daemon units and strips global native agent/plugin wiring (Claude Code marketplace/cache/settings, Codex personal marketplace/plugin bundle, global Windsurf MCP) while preserving `~/.coodra`, registered repo `.coodra/` workspaces, wiki, Graphify output, work packs, and policy/config files for reinstall. `coodra uninstall --purge` discovers every registered project root from the local DB plus the machine manifest, removes Coodra-owned repo wiring (`.mcp.json`, `.codex/config.toml`, `.claude/settings.json` policy projection blocks, instruction blocks), deletes each repo `.coodra/` plus legacy `docs/context-packs/`, and finally removes `~/.coodra`. `coodra init` now records registered projects into the machine manifest so purge can still find project roots if the DB is unreadable; `coodra project list` remains the viewing surface for registered projects.
 
 ## [0.3.0] — 2026-07-31
 

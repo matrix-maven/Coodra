@@ -1,11 +1,16 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
+import {
+  COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN,
+  COODRA_CODEX_NATIVE_PERMISSIONS_END,
+  COODRA_POLICY_PROJECTION_BEGIN,
+  COODRA_POLICY_PROJECTION_END,
+} from '@coodra/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
 import { runUninstallCommand, type UninstallIO } from '../../src/commands/uninstall.js';
 import { EXIT_OK } from '../../src/exit-codes.js';
+import type { ClaudeCliRunner } from '../../src/lib/agents/claude-plugin.js';
 import type { DaemonManager } from '../../src/lib/daemon/index.js';
 import { mergeCursorMcpConfig } from '../../src/lib/init/cursor-merge.js';
 
@@ -24,6 +29,13 @@ interface Capture {
  * daemons during the test run.
  */
 type StubDaemonManager = DaemonManager & { readonly calls: Array<{ op: string; unit: string }> };
+
+const noopClaudeCliRunner: ClaudeCliRunner = {
+  detect: async () => null,
+  installMarketplaceAndPlugin: async () => ({ ok: false, reason: 'test noop' }),
+  uninstallPlugin: async () => ({ ok: false, reason: 'test noop' }),
+  isInstalled: async () => false,
+};
 
 function makeStubDaemonManager(): StubDaemonManager {
   const calls: Array<{ op: string; unit: string }> = [];
@@ -44,9 +56,9 @@ function makeStubDaemonManager(): StubDaemonManager {
   };
 }
 
-// `cwd` omitted → the command falls back to detectProjectRoot(process.cwd())
-// (the field-bug regression path exercised in Fixture 7). `daemonManager`
-// omitted → a fresh benign stub so the test never touches host daemons.
+// `cwd` is accepted by older fixtures but uninstall cleanup is now registry-
+// driven; `daemonManager` omitted → a fresh benign stub so the test never
+// touches host daemons.
 function makeIo(args: {
   homePath: string;
   cwd?: string;
@@ -65,6 +77,8 @@ function makeIo(args: {
     ...(args.cwd !== undefined ? { cwd: args.cwd } : {}),
     bridgePort: 3101,
     settingsPath: args.settingsPath,
+    userHome: args.homePath.replace(/\/\.coodra$/, ''),
+    claudeCliRunner: noopClaudeCliRunner,
     daemonManager: args.daemonManager ?? makeStubDaemonManager(),
   };
 }
@@ -80,6 +94,41 @@ async function expectExit(p: () => Promise<unknown>): Promise<number> {
     const m = (err as Error).message.match(/^__exit__:(\d+)$/);
     if (!m) throw err;
     return Number(m[1]);
+  }
+}
+
+async function seedProjectsDb(
+  dbPath: string,
+  projects: ReadonlyArray<{ id: string; slug: string; name: string; cwd: string | null }>,
+): Promise<void> {
+  rmSync(dbPath, { force: true });
+  const { createSqliteDb } = await import('@coodra/db');
+  const handle = createSqliteDb({ path: dbPath, loadVecExtension: false });
+  try {
+    handle.raw.exec(`
+      CREATE TABLE projects (
+        id text PRIMARY KEY,
+        slug text NOT NULL,
+        org_id text NOT NULL DEFAULT '__solo__',
+        name text NOT NULL,
+        cwd text,
+        created_at integer NOT NULL DEFAULT (unixepoch() * 1000),
+        updated_at integer NOT NULL DEFAULT (unixepoch() * 1000)
+      );
+      CREATE TABLE runs (
+        id text PRIMARY KEY,
+        project_id text,
+        started_at integer NOT NULL
+      );
+    `);
+    const stmt = handle.raw.prepare(
+      'INSERT INTO projects (id, slug, org_id, name, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    );
+    for (const project of projects) {
+      stmt.run(project.id, project.slug, '__solo__', project.name, project.cwd, Date.now(), Date.now());
+    }
+  } finally {
+    handle.close();
   }
 }
 
@@ -159,7 +208,7 @@ describe('coodra uninstall integration', () => {
     expect(next.hooks.PreToolUse?.[0]?.matcher).toBe('OtherTool');
   });
 
-  it('Fixture 2 — removes coodra entry from .mcp.json; preserves other servers', async () => {
+  it('Fixture 2 — default uninstall preserves project .mcp.json', async () => {
     writeFileSync(
       join(projectCwd, '.mcp.json'),
       JSON.stringify({
@@ -169,6 +218,10 @@ describe('coodra uninstall integration', () => {
         },
       }),
     );
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'current', slug: 'current', name: 'Current', cwd: projectCwd },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
 
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
@@ -179,8 +232,108 @@ describe('coodra uninstall integration', () => {
     const next = JSON.parse(readFileSync(join(projectCwd, '.mcp.json'), 'utf8')) as {
       mcpServers: Record<string, unknown>;
     };
+    expect(next.mcpServers).toHaveProperty('coodra');
+    expect(next.mcpServers).toHaveProperty('otherServer');
+  });
+
+  it('Fixture 2b — --purge removes coodra entry from .mcp.json and preserves other servers', async () => {
+    writeFileSync(
+      join(projectCwd, '.mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          coodra: { command: 'node', args: ['/path/to/runtime'] },
+          otherServer: { command: 'other', args: [] },
+        },
+      }),
+    );
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'current', slug: 'current', name: 'Current', cwd: projectCwd },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ json: true, purge: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+
+    const next = JSON.parse(readFileSync(join(projectCwd, '.mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, unknown>;
+    };
     expect(next.mcpServers).not.toHaveProperty('coodra');
     expect(next.mcpServers).toHaveProperty('otherServer');
+  });
+
+  it('Fixture 2c — --purge removes repo policy projection blocks without deleting unrelated settings', async () => {
+    mkdirSync(join(projectCwd, '.codex'), { recursive: true });
+    mkdirSync(join(projectCwd, '.claude'), { recursive: true });
+    writeFileSync(
+      join(projectCwd, '.codex', 'config.toml'),
+      [
+        'model = "gpt-5"',
+        'default_permissions = "coodra-project"',
+        '',
+        COODRA_POLICY_PROJECTION_BEGIN,
+        '[coodra.policy_projection]',
+        'projection_hash = "sha256:test"',
+        COODRA_POLICY_PROJECTION_END,
+        '',
+        COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN,
+        '[permissions.coodra-project]',
+        'description = "Coodra"',
+        COODRA_CODEX_NATIVE_PERMISSIONS_END,
+      ].join('\n'),
+    );
+    writeFileSync(
+      join(projectCwd, '.claude', 'settings.json'),
+      JSON.stringify({
+        theme: 'dark',
+        permissions: {
+          allow: ['Bash(npm test:*)', 'Read(README.md)'],
+          deny: ['Read(.env)'],
+          disableAutoMode: 'disable',
+          disableBypassPermissionsMode: 'disable',
+        },
+        coodra: {
+          policyProjection: {
+            nativePermissions: {
+              claude: {
+                allow: ['Bash(npm test:*)'],
+                ask: [],
+                deny: ['Read(.env)'],
+              },
+            },
+          },
+        },
+      }),
+    );
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'current', slug: 'current', name: 'Current', cwd: projectCwd },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
+
+    const cap: Capture = { stdout: [], stderr: [], exitCode: null };
+    const code = await expectExit(() =>
+      runUninstallCommand({ json: true, purge: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+    );
+    expect(code).toBe(EXIT_OK);
+
+    const codexRaw = readFileSync(join(projectCwd, '.codex', 'config.toml'), 'utf8');
+    expect(codexRaw).toContain('model = "gpt-5"');
+    expect(codexRaw).not.toContain('default_permissions = "coodra-project"');
+    expect(codexRaw).not.toContain(COODRA_POLICY_PROJECTION_BEGIN);
+    expect(codexRaw).not.toContain(COODRA_CODEX_NATIVE_PERMISSIONS_BEGIN);
+
+    const claudeSettings = JSON.parse(readFileSync(join(projectCwd, '.claude', 'settings.json'), 'utf8')) as {
+      theme: string;
+      coodra?: unknown;
+      permissions: { allow: string[]; deny: string[]; disableAutoMode?: string };
+    };
+    expect(claudeSettings.theme).toBe('dark');
+    expect(claudeSettings.coodra).toBeUndefined();
+    expect(claudeSettings.permissions.allow).toEqual(['Read(README.md)']);
+    expect(claudeSettings.permissions.deny).toEqual([]);
+    expect(claudeSettings.permissions.disableAutoMode).toBeUndefined();
   });
 
   it('Fixture 3 — default-safe: preserves ~/.coodra/data.db + config.json', async () => {
@@ -209,39 +362,11 @@ describe('coodra uninstall integration', () => {
     mkdirSync(join(projectCwd, 'docs', 'context-packs'), { recursive: true });
     mkdirSync(join(otherProject, '.coodra', 'work-packs'), { recursive: true });
     mkdirSync(join(otherProject, 'docs', 'context-packs'), { recursive: true });
-    rmSync(join(homePath, 'data.db'), { force: true });
-
-    // Build a tiny SQLite store with only the projects table shape listProjects
-    // reads. This keeps the fixture focused on registered cwd cleanup rather
-    // than full migration boot.
-    const { createSqliteDb } = await import('@coodra/db');
-    const handle = createSqliteDb({ path: join(homePath, 'data.db'), loadVecExtension: false });
-    try {
-      handle.raw.exec(`
-        CREATE TABLE projects (
-          id text PRIMARY KEY,
-          slug text NOT NULL,
-          org_id text NOT NULL DEFAULT '__solo__',
-          name text NOT NULL,
-          cwd text,
-          created_at integer NOT NULL DEFAULT (unixepoch() * 1000),
-          updated_at integer NOT NULL DEFAULT (unixepoch() * 1000)
-        );
-        CREATE TABLE runs (
-          id text PRIMARY KEY,
-          project_id text,
-          started_at integer NOT NULL
-        );
-      `);
-      const stmt = handle.raw.prepare(
-        'INSERT INTO projects (id, slug, org_id, name, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      );
-      stmt.run('current', 'current', '__solo__', 'Current', projectCwd, Date.now(), Date.now());
-      stmt.run('other', 'docling-advanced', '__solo__', 'Docling Advanced', otherProject, Date.now(), Date.now());
-      stmt.run('__global__', '__global__', '__solo__', 'Global', null, Date.now(), Date.now());
-    } finally {
-      handle.close();
-    }
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'current', slug: 'current', name: 'Current', cwd: projectCwd },
+      { id: 'other', slug: 'docling-advanced', name: 'Docling Advanced', cwd: otherProject },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
 
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
@@ -255,7 +380,9 @@ describe('coodra uninstall integration', () => {
     expect(existsSync(homePath)).toBe(false);
 
     const payload = JSON.parse(cap.stdout.join('')) as { steps: Array<{ step: string; action: string }> };
-    expect(payload.steps.find((s) => s.step === 'project-coodra-dir')?.action).toBe('merged');
+    expect(payload.steps.find((s) => s.step.includes('current') && s.step.endsWith('project-coodra-dir'))?.action).toBe(
+      'merged',
+    );
     expect(
       payload.steps.find((s) => s.step.includes('docling-advanced') && s.step.endsWith('project-coodra-dir'))?.action,
     ).toBe('merged');
@@ -291,7 +418,7 @@ describe('coodra uninstall integration', () => {
     }
   });
 
-  it('Fixture 6 — removes the coodra entry a real init wrote into .cursor/mcp.json (io.cwd honored)', async () => {
+  it('Fixture 6 — --purge removes the coodra entry a real init wrote into a registered project .cursor/mcp.json', async () => {
     // Write via the SAME writer `coodra init` uses, so the fixture matches
     // production bytes rather than a hand-rolled shape.
     const wrote = await mergeCursorMcpConfig({
@@ -302,18 +429,23 @@ describe('coodra uninstall integration', () => {
     });
     expect(wrote.action).toBe('wrote');
 
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'current', slug: 'current', name: 'Current', cwd: projectCwd },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
+
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
-      runUninstallCommand({ json: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
+      runUninstallCommand({ json: true, purge: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
     );
     expect(code).toBe(EXIT_OK);
 
     const payload = JSON.parse(cap.stdout.join('')) as {
-      projectRoot: string;
+      projectRoots: string[];
       steps: Array<{ step: string; action: string }>;
     };
-    // io.cwd is honored verbatim as the project root.
-    expect(payload.projectRoot).toBe(projectCwd);
+    // Purge acts on registered projects, independent of where the command runs.
+    expect(payload.projectRoots).toEqual([projectCwd]);
     expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
     const next = JSON.parse(readFileSync(join(projectCwd, '.cursor', 'mcp.json'), 'utf8')) as {
       mcpServers: Record<string, unknown>;
@@ -321,11 +453,9 @@ describe('coodra uninstall integration', () => {
     expect(next.mcpServers).not.toHaveProperty('coodra');
   });
 
-  it('Fixture 7 — THE FIELD BUG: run from a subdirectory still removes the entry at the project root', async () => {
-    // 2026-07-12: uninstall used the raw process.cwd(), so running it from
-    // a subdirectory inspected a DIFFERENT .cursor/mcp.json and truthfully
-    // reported "no coodra entry to remove" while the real entry persisted.
-    // It must now walk up to the same project root `coodra init` used.
+  it('Fixture 7 — --purge run from a subdirectory still removes registered project-root entries', async () => {
+    // Purge is registry-driven, not current-directory driven. Even if the
+    // command starts from a subdirectory, it cleans the registered project cwd.
     const repoDir = join(cwd, 'repo');
     const subDir = join(repoDir, 'sub');
     mkdirSync(join(repoDir, '.git'), { recursive: true }); // project-root marker
@@ -336,19 +466,25 @@ describe('coodra uninstall integration', () => {
       force: false,
       dryRun: false,
     });
+    await seedProjectsDb(join(homePath, 'data.db'), [
+      { id: 'repo', slug: 'repo', name: 'Repo', cwd: repoDir },
+      { id: '__global__', slug: '__global__', name: 'Global', cwd: null },
+    ]);
 
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(subDir);
     try {
       const cap: Capture = { stdout: [], stderr: [], exitCode: null };
-      // io.cwd deliberately UNDEFINED — the command must resolve the root itself.
-      const code = await expectExit(() => runUninstallCommand({ json: true }, makeIo({ homePath, settingsPath, cap })));
+      // io.cwd deliberately UNDEFINED — the command must use the project registry.
+      const code = await expectExit(() =>
+        runUninstallCommand({ json: true, purge: true }, makeIo({ homePath, settingsPath, cap })),
+      );
       expect(code).toBe(EXIT_OK);
 
       const payload = JSON.parse(cap.stdout.join('')) as {
-        projectRoot: string;
+        projectRoots: string[];
         steps: Array<{ step: string; action: string }>;
       };
-      expect(payload.projectRoot).toBe(repoDir);
+      expect(payload.projectRoots).toEqual([repoDir]);
       expect(payload.steps.find((s) => s.step === 'cursor-mcp')?.action).toBe('merged');
       const next = JSON.parse(readFileSync(join(repoDir, '.cursor', 'mcp.json'), 'utf8')) as {
         mcpServers: Record<string, unknown>;
@@ -359,7 +495,7 @@ describe('coodra uninstall integration', () => {
     }
   });
 
-  it('Fixture 8 — human output names the resolved project root right after the title', async () => {
+  it('Fixture 8 — human output lists registered project root count right after the title', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
       runUninstallCommand({ skipNpmHint: true }, makeIo({ homePath, cwd: projectCwd, settingsPath, cap })),
@@ -371,7 +507,7 @@ describe('coodra uninstall integration', () => {
       .split('\n')
       .filter((l) => l.length > 0);
     expect(lines[0]).toContain('coodra uninstall');
-    expect(lines[1]).toBe(`  project root: ${projectCwd}`);
+    expect(lines[1]).toBe('  project roots: 0');
   });
 
   it('Fixture 9 — THE PORT-3001 BUG: stops AND uninstalls every daemon unit, web included', async () => {

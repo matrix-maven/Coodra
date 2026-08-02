@@ -1229,7 +1229,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('uninstall')
     .description(
-      'Reverse `coodra init`: stop + remove the daemon units (mcp-server, hooks-bridge, sync-daemon, web), strip Coodra entries from ~/.claude/settings.json + .mcp.json + per-agent files. Default-safe (preserves data + config + project work); --remove-data drops the SQLite store; --purge removes ~/.coodra/.',
+      'Tear down Coodra runtime/plugin wiring. Default-safe: preserves ~/.coodra data and every registered repo .coodra workspace; --remove-data drops only the SQLite store; --purge also removes registered project footprints and ~/.coodra/.',
     )
     .option('--remove-data', 'Delete ~/.coodra/data.db (+ -wal/-shm) but keep config + packs.')
     .option('--purge', 'Remove ~/.coodra/ as well (data + config + logs + pids).')
