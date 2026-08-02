@@ -26,7 +26,7 @@ export function createGetRecipeToolRegistration(
       'slug, frontmatter, body, files: [{path, bytes, modifiedAt}] } where `body` is the full recipe markdown ' +
       '(expect 1-30 KB). Supporting file CONTENTS are NOT inlined — call `get_recipe_file(slug, path)` ' +
       'per file. Soft-failures: project_not_found / project_cwd_unknown / feature_not_found, each with howToFix. ' +
-      'Re-call when switching to a different recipe mid-session. (Former names `get_skill` and `get_feature` still work as aliases.)',
+      'Re-call when switching to a different recipe mid-session.',
     inputSchema: getFeatureInputSchema,
     outputSchema: getFeatureOutputSchema,
     idempotencyKey: getFeatureIdempotencyKey,

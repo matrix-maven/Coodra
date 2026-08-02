@@ -88,7 +88,15 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     wiki; agent is the model, Coodra is schema + persistence) → 20
     //   COOD-6 (2026-07-29): lifecycle_event added so native Codex plugin
     //     hooks can call Coodra MCP directly instead of the hooks bridge → 21
-    expect(tools.length).toBe(21);
+    //   Work Pack foundation (2026-07-31): work_pack_upsert + work_pack_status
+    //     added → 22 (this drift log was stale until now — count verified
+    //     directly against `registry.register(...)` call sites in
+    //     registerAllTools, not carried forward by arithmetic).
+    //   COOD-11 follow-up (2026-08-02): removed the six pre-rename
+    //     list_skills/get_skill/get_skill_file/list_features/get_feature/
+    //     get_feature_file aliases — unchanged count, aliases were always
+    //     excluded from tools/list by design → 22
+    expect(tools.length).toBe(22);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

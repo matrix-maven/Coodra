@@ -25,8 +25,7 @@ export function createGetRecipeFileToolRegistration(
       'Returns { ok: true, path, bytes, mediaType, content } where `content` is UTF-8 text. ' +
       'Soft-failure: project_not_found / project_cwd_unknown / feature_not_found / file_not_found / extension_blocked / file_too_large / path_escape, each with howToFix. ' +
       'Allowed extensions: .md, .txt, .json, .yaml/.yml, .toml, .csv, .tsv, .sql, .ts/.tsx/.js/.jsx/.mjs/.cjs, .py, .rs, .go, .java, .rb, .sh/.bash/.zsh, .html, .css, .xml. ' +
-      'Hard cap: 256 KB per file. PDFs / images return extension_blocked; use the pdf-viewer skill or summarise the file via the user. ' +
-      '(Former names `get_skill_file` and `get_feature_file` still work as aliases.)',
+      'Hard cap: 256 KB per file. PDFs / images return extension_blocked; use the pdf-viewer skill or summarise the file via the user.',
     inputSchema: getFeatureFileInputSchema,
     outputSchema: getFeatureFileOutputSchema,
     idempotencyKey: getFeatureFileIdempotencyKey,

@@ -40,8 +40,7 @@ export function createListRecipesToolRegistration(
       'Returns { ok: true, features: [{slug, description, whenNotToUse, maturity, fileCount, ...}] } sorted by ' +
       'slug (the `features` key is kept for back-compat), OR soft-failure with project_not_found / ' +
       'project_cwd_unknown / features_dir_missing. Call `get_recipe(slug)` only for recipes whose triggers match ' +
-      'the task — never load every recipe blindly. Re-run on unrecognised topics. (Former names `list_skills` and ' +
-      '`list_features` still work as aliases.)',
+      'the task — never load every recipe blindly. Re-run on unrecognised topics.',
     inputSchema: listFeaturesInputSchema,
     outputSchema: listFeaturesOutputSchema,
     idempotencyKey: listFeaturesIdempotencyKey,

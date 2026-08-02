@@ -282,7 +282,7 @@ credentials.
 
 ## Status
 
-**`@coodra/cli@0.4.2`** — stable native-agent release.
+**`@coodra/cli@0.4.3`** — stable native-agent release.
 
 Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Agent Recipes + Work Packs).
 

@@ -72,17 +72,14 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // @coodra/shared recipesRoot).
   // See packages/shared/src/features/types.ts for the format spec, and
   // apps/hooks-bridge/src/lib/features-index-loader.ts for the SessionStart
-  // injection that surfaces the index list to agents. Former tool names are
-  // registered as hidden aliases below so no agent config breaks on upgrade.
+  // injection that surfaces the index list to agents. The pre-rename tool
+  // names (list_skills/get_skill/get_skill_file, list_features/get_feature/
+  // get_feature_file) were removed as backward-compat aliases once the
+  // rename had shipped for a full cycle; call list_recipes/get_recipe/
+  // get_recipe_file directly.
   registry.register(createListRecipesToolRegistration({ db: deps.db }));
   registry.register(createGetRecipeToolRegistration({ db: deps.db }));
   registry.register(createGetRecipeFileToolRegistration({ db: deps.db }));
-  registry.registerAlias('list_skills', 'list_recipes');
-  registry.registerAlias('get_skill', 'get_recipe');
-  registry.registerAlias('get_skill_file', 'get_recipe_file');
-  registry.registerAlias('list_features', 'list_recipes');
-  registry.registerAlias('get_feature', 'get_recipe');
-  registry.registerAlias('get_feature_file', 'get_recipe_file');
   // Module 06 (Run Diff, 2026-05-09): surfaces run_diffs rows written
   // by the hooks-bridge SessionEnd runner. Server-side computation is
   // pure-deterministic (git diff, no LLM); the agent reads the

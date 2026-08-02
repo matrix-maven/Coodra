@@ -73,11 +73,10 @@ afterAll(async () => {
 describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)', () => {
   it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
-    // See `boot.test.ts` for the tool count drift log. 21 = the post-ADR-016
-    // 17 (post-ADR-015 15 + link_run_to_issue (J2) + prepare_jira_comment (J3))
-    // + Module 10 Deep Wiki's wiki_save_structure + wiki_save_page +
-    // wiki_status (2026-06-06) + COOD-6 lifecycle_event for native Codex hooks.
-    expect(tools.length).toBe(21);
+    // See `boot.test.ts` for the tool count drift log. 22 = 21 (post-ADR-016
+    // 17 + Module 10 Deep Wiki's three wiki_* tools + COOD-6 lifecycle_event)
+    // + Work Pack foundation's work_pack_upsert + work_pack_status.
+    expect(tools.length).toBe(22);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {
