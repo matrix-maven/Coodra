@@ -9,7 +9,7 @@ export function createLifecycleEventToolRegistration(
     name: 'lifecycle_event',
     title: 'Coodra: lifecycle_event',
     description:
-      'Call this only from Coodra-managed native agent plugin hooks, not during normal chat. Native Codex and Claude Code plugins use it to send lifecycle events through the bundled Coodra MCP server instead of the older HTTP hooks bridge. It normalizes the hook payload, resolves the current run, applies pre-tool policy checks, records lightweight activity, and returns hook JSON in hookOutput. Returns the agent-facing hook decision plus Coodra metadata for debugging.',
+      'Call this only from Coodra-managed native agent plugin hooks, not during normal chat. Native Codex, Claude Code, and Cursor plugins use it to send lifecycle events through the bundled Coodra MCP server instead of the older HTTP hooks bridge. It normalizes the hook payload, resolves the current run, applies pre-tool policy checks, records lightweight activity, and returns hook JSON in hookOutput. Returns the agent-facing hook decision plus Coodra metadata for debugging.',
     inputSchema: lifecycleEventInputSchema,
     outputSchema: lifecycleEventOutputSchema,
     idempotencyKey(input: LifecycleEventInput) {
@@ -18,7 +18,12 @@ export function createLifecycleEventToolRegistration(
           ? input.rawPayload
           : {};
       const eventName = typeof payload.hook_event_name === 'string' ? payload.hook_event_name : 'Unknown';
-      const sessionId = typeof payload.session_id === 'string' ? payload.session_id : 'unknown-session';
+      const sessionId =
+        typeof payload.session_id === 'string'
+          ? payload.session_id
+          : typeof payload.conversation_id === 'string'
+            ? payload.conversation_id
+            : 'unknown-session';
       const turnId =
         typeof payload.tool_use_id === 'string'
           ? payload.tool_use_id

@@ -130,10 +130,11 @@ describe('detectIDE', () => {
     expect(await detectIDE({ homeDir: home })).toEqual([]);
   });
 
-  it('detects claude, codex when their dirs exist', async () => {
+  it('detects claude, codex, cursor when their dirs exist', async () => {
     await mkdir(join(home, '.claude'));
     await mkdir(join(home, '.codex'));
-    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'codex']);
+    await mkdir(join(home, '.cursor'));
+    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'codex', 'cursor']);
   });
 
   it('returns only the IDE config dirs that exist', async () => {
@@ -155,7 +156,7 @@ describe('resolveIdeSelection — --ide flag semantics', () => {
   it('`all` returns every supported IDE in canonical order, regardless of detection', () => {
     const result = resolveIdeSelection({ flag: 'all', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'codex']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex', 'cursor']);
   });
 
   it('single-name flag returns exactly that IDE, regardless of detection', () => {

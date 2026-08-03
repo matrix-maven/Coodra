@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { adaptClaudeCode } from '../../../src/hooks/adapters/claude-code.js';
 import { adaptCodex } from '../../../src/hooks/adapters/codex.js';
+import { adaptCursor } from '../../../src/hooks/adapters/cursor.js';
 
 /**
  * Two semantically-equivalent fixtures (one per agent representing
@@ -48,7 +49,19 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       { now: FROZEN },
     );
 
-    for (const event of [cc, codex]) {
+    const cursor = adaptCursor(
+      {
+        hook_event_name: 'preToolUse',
+        conversation_id: 'cursor-session-1',
+        tool_name: 'Write',
+        tool_use_id: 'tool-uuid-1',
+        tool_input: { file_path: 'src/auth.ts' },
+        cwd: '/home/dev/myapp',
+      },
+      { now: FROZEN },
+    );
+
+    for (const event of [cc, codex, cursor]) {
       expect(event.eventPhase).toBe('pre');
       expect(['Write', 'apply_patch']).toContain(event.toolName);
       expect(event.filePath).toBe('src/auth.ts');
@@ -56,7 +69,7 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
     }
   });
 
-  it('PostToolUse → eventPhase=post across both agents', () => {
+  it('PostToolUse → eventPhase=post across all three agents', () => {
     const cc = adaptClaudeCode(
       { hook_event_name: 'PostToolUse', session_id: 'cc', tool_name: 'Bash', tool_input: { command: 'ls' } },
       { now: FROZEN },
@@ -65,8 +78,13 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       { hook_event_name: 'PostToolUse', session_id: 'codex', tool_name: 'Bash', tool_input: { command: 'ls' } },
       { now: FROZEN },
     );
+    const cursor = adaptCursor(
+      { hook_event_name: 'postToolUse', conversation_id: 'cursor', tool_name: 'Shell', tool_input: { command: 'ls' } },
+      { now: FROZEN },
+    );
     expect(cc.eventPhase).toBe('post');
     expect(codex.eventPhase).toBe('post');
+    expect(cursor.eventPhase).toBe('post');
   });
 
   it('SessionStart / SessionEnd → session_start / session_end uniformly (Phase 3 Fix A)', () => {
@@ -79,9 +97,13 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
     const ccEnd = adaptClaudeCode({ hook_event_name: 'SessionEnd', session_id: 'cc' }, { now: FROZEN });
     const codexStart = adaptCodex({ hook_event_name: 'SessionStart', session_id: 'codex' }, { now: FROZEN });
     const codexEnd = adaptCodex({ hook_event_name: 'SessionEnd', session_id: 'codex' }, { now: FROZEN });
+    const cursorStart = adaptCursor({ hook_event_name: 'sessionStart', conversation_id: 'cursor' }, { now: FROZEN });
+    const cursorEnd = adaptCursor({ hook_event_name: 'sessionEnd', conversation_id: 'cursor' }, { now: FROZEN });
     expect(ccStart.eventPhase).toBe('session_start');
     expect(ccEnd.eventPhase).toBe('session_end');
     expect(codexStart.eventPhase).toBe('session_start');
     expect(codexEnd.eventPhase).toBe('session_end');
+    expect(cursorStart.eventPhase).toBe('session_start');
+    expect(cursorEnd.eventPhase).toBe('session_end');
   });
 });

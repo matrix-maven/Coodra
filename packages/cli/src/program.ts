@@ -386,7 +386,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('agents')
     .description(
-      'Show per-agent wiring status (Claude Code, Codex). Read-only, same report as `coodra agent status` — use `coodra agent add|remove` to change wiring.',
+      'Show per-agent wiring status (Claude Code, Codex, Cursor). Read-only, same report as `coodra agent status` — use `coodra agent add|remove` to change wiring.',
     )
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentsOptions) => {
@@ -394,16 +394,20 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
 
   // Phase 1 — `coodra agent {add,status,remove,repair} <agent>` drives the
-  // AgentAdapter registry (lib/agents). Both Claude Code and Codex wire a
-  // global native plugin.
+  // AgentAdapter registry (lib/agents). Claude Code, Codex, and Cursor each
+  // wire a global native plugin.
   const agentAddRunner = options.runAgentAdd ?? runAgentAddCommand;
   const agentRemoveRunner = options.runAgentRemove ?? runAgentRemoveCommand;
   const agentRepairRunner = options.runAgentRepair ?? runAgentRepairCommand;
   const agentStatusRunner = options.runAgentStatus ?? runAgentStatusCommand;
-  const agent = program.command('agent').description('Wire, re-wire, or strip a single coding agent (claude | codex).');
+  const agent = program
+    .command('agent')
+    .description('Wire, re-wire, or strip a single coding agent (claude | codex | cursor).');
   agent
     .command('add <agent>')
-    .description('Wire the Coodra bundle for one agent as a global native plugin. Accepts claude|codex|all|detected.')
+    .description(
+      'Wire the Coodra bundle for one agent as a global native plugin. Accepts claude|codex|cursor|all|detected.',
+    )
     .option('--force', 'Overwrite existing Coodra entries with the current baseline.')
     .option('--dry-run', 'Print what would change without touching disk.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
@@ -428,7 +432,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
   agent
     .command('status')
-    .description('Per-agent Coodra wiring report (claude, codex). Read-only.')
+    .description('Per-agent Coodra wiring report (claude, codex, cursor). Read-only.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentCommandOptions) => {
       await agentStatusRunner(opts, options.agentIO);
@@ -525,7 +529,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   graphify
     .command('status')
     .description(
-      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Codex), plus the graph artifacts (path, size, node/link/community counts). Read-only.',
+      'Show whether the `graphify` MCP entry is present in each agent config (Claude Code / Codex / Cursor), plus the graph artifacts (path, size, node/link/community counts). Read-only.',
     )
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: GraphifyStatusOptions) => {
@@ -833,7 +837,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
     .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
     .option('--command-pattern <glob>', 'Shell command glob to match for Bash rules (e.g. "git push*--force*").')
-    .option('--agent-type <type>', 'Agent type to match: claude_code | codex | * (default: *).')
+    .option('--agent-type <type>', 'Agent type to match: claude_code | codex | cursor | * (default: *).')
     .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
     .option('--policy-name <name>', 'Target policy name (default: __default__).')
     .option('--json', 'Emit a structured JSON report.')

@@ -4,13 +4,14 @@ import { join } from 'node:path';
 import { EXIT_OK } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
+import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, type KvRow, kvBlock, sectionHead, terminalWidth } from '../ui/index.js';
 
 /**
  * `coodra agents` — read-only status surface for the multi-agent wiring.
  *
- * Lists each supported agent (Claude Code, Codex) with a per-file status:
+ * Lists each supported agent (Claude Code, Codex, Cursor) with a per-file status:
  *   ✓ wired   — file exists AND contains a managed coodra entry/block
  *   ◌ partial — file exists but no coodra entry/block (or vice versa)
  *   ✗ missing — file does not exist
@@ -44,7 +45,7 @@ export const DEFAULT_AGENTS_IO: AgentsIO = {
   },
 };
 
-type AgentName = 'claude' | 'codex';
+type AgentName = 'claude' | 'codex' | 'cursor';
 
 export interface AgentFileState {
   /** Display name of the file (`.mcp.json`, `~/.claude/settings.json`, etc.). */
@@ -123,7 +124,7 @@ export interface BuildReportsInput {
 }
 
 export async function buildAgentReports(input: BuildReportsInput): Promise<readonly AgentReport[]> {
-  return [await claudeReport(input), await codexReport(input)];
+  return [await claudeReport(input), await codexReport(input), await cursorReport(input)];
 }
 
 async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
@@ -231,6 +232,48 @@ async function codexReport(input: BuildReportsInput): Promise<AgentReport> {
     howToEnable: detected
       ? null
       : 'Install Codex CLI (github.com/openai/codex), then run `coodra init` (or `coodra init --ide codex`).',
+  };
+}
+
+async function cursorReport(input: BuildReportsInput): Promise<AgentReport> {
+  const cursorDir = join(input.userHome, '.cursor');
+  const detected = await pathExists(cursorDir);
+  const plugin = cursorPluginPaths(input.userHome);
+  return {
+    name: 'cursor',
+    displayName: 'Cursor',
+    detected,
+    detectionPath: `${cursorDir}/`,
+    files: [
+      await fileContainsState({
+        path: plugin.manifestPath,
+        label: 'Cursor plugin manifest',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra plugin manifest present',
+        missingNote: 'missing',
+        partialNote: 'plugin manifest does not match coodra',
+      }),
+      await mcpJsonState({ path: plugin.mcpPath, label: 'Cursor plugin MCP' }),
+      await fileContainsState({
+        path: plugin.hooksPath,
+        label: 'Cursor plugin hooks',
+        needle: '"sessionStart"',
+        wiredNote: 'coodra lifecycle hooks present',
+        missingNote: 'missing',
+        partialNote: 'no coodra lifecycle hooks',
+      }),
+      await fileContainsState({
+        path: join(plugin.skillsRoot, 'coodra-context', 'SKILL.md'),
+        label: 'Cursor plugin skills',
+        needle: 'name: coodra-context',
+        wiredNote: 'coodra skills present',
+        missingNote: 'missing',
+        partialNote: 'coodra context skill missing',
+      }),
+    ],
+    howToEnable: detected
+      ? null
+      : 'Install Cursor (cursor.com), then run `coodra init` (or `coodra init --ide cursor`).',
   };
 }
 

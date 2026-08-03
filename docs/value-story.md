@@ -36,7 +36,7 @@ quietly spends a hundred dollars of API budget before anyone notices.
 | **Context Pack** | A durable record of what was built and decided. | Amnesia. The next session *resumes* instead of restarting. |
 | **Policy** | Every agent action checked before it runs. | Unsafe writes and runaway loops — stopped before they cost you. |
 
-Around those: **MCP‑native** (works with Claude Code and Codex), a
+Around those: **MCP‑native** (works with Claude Code, Codex, and Cursor), a
 **local‑first store** (your code's history never has to leave your machine), and
 **optional team sync**.
 
@@ -158,9 +158,9 @@ This is access governance for AI agents — not just context injection.
 Coodra doesn't ask you to adopt a new IDE or rewrite your workflow. It wires into the
 tools you run:
 
-- **MCP‑native** — one server, 21 tools, consumed by Claude Code and Codex alike. A
-  hooks bridge adds zero‑effort Feature‑Pack injection and Context‑Pack capture on
-  both.
+- **MCP‑native** — one server, 21 tools, consumed by Claude Code, Codex, and Cursor
+  alike. Native plugin hooks add zero‑effort Feature‑Pack injection and Context‑Pack
+  capture on all three.
 - **Jira (via Atlassian's Rovo MCP)** — Coodra doesn't rebuild a Jira client; it wires
   Atlassian's own MCP and adds the leverage: **link a run to an issue** so history
   becomes ticket‑aware ("what work touched PROJ‑412?"), and **post the session summary

@@ -59,6 +59,15 @@ describe('mapAgentType', () => {
     expect(mapAgentType('github-copilot-chat-vscode')).toBe<KnownAgentType>('vscode_copilot');
   });
 
+  it('maps Cursor handshake names to cursor', () => {
+    expect(mapAgentType('cursor')).toBe<KnownAgentType>('cursor');
+    expect(mapAgentType('cursor-agent')).toBe<KnownAgentType>('cursor');
+  });
+
+  it('falls back to the cursor substring heuristic for a renamed client', () => {
+    expect(mapAgentType('cursor-desktop')).toBe<KnownAgentType>('cursor');
+  });
+
   it('maps MCP Inspector to mcp_inspector', () => {
     expect(mapAgentType('mcp-inspector')).toBe<KnownAgentType>('mcp_inspector');
   });

@@ -5,6 +5,7 @@ import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
+import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
 import {
   ACCEPTED_AGENT_TOKENS,
   type AgentAdapter,
@@ -36,7 +37,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
- * `<agent>` accepts claude | codex | all | detected.
+ * `<agent>` accepts claude | codex | cursor | all | detected.
  */
 
 export interface AgentCommandOptions {
@@ -192,7 +193,8 @@ async function runWire(
   try {
     const createdBy = `coodra agent ${mode} ${agentArg}`;
     const machinePaths: string[] = [];
-    const installedAgents: Array<{ id: 'claude' | 'codex'; pluginPath: string; marketplacePath?: string }> = [];
+    const installedAgents: Array<{ id: 'claude' | 'codex' | 'cursor'; pluginPath: string; marketplacePath?: string }> =
+      [];
 
     if (results.some((r) => r.id === 'claude' && r.error === undefined)) {
       const paths = claudePluginPaths(userHome, resolved.coodraHome);
@@ -233,6 +235,19 @@ async function runWire(
         pluginPath: paths.pluginRoot,
         marketplacePath: paths.marketplacePath,
       });
+    }
+
+    if (results.some((r) => r.id === 'cursor' && r.error === undefined)) {
+      const paths = cursorPluginPaths(userHome);
+      machinePaths.push(
+        paths.pluginRoot,
+        paths.manifestPath,
+        paths.mcpPath,
+        paths.hooksPath,
+        paths.hookRunnerPath,
+        paths.skillsRoot,
+      );
+      installedAgents.push({ id: 'cursor', pluginPath: paths.pluginRoot });
     }
 
     if (machinePaths.length > 0 || installedAgents.length > 0) {

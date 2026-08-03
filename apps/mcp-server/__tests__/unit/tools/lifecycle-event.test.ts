@@ -20,7 +20,7 @@ describe('lifecycle_event — manifest contract', () => {
 });
 
 describe('lifecycle_event — native agent input schema', () => {
-  it('accepts both Codex and Claude Code native plugin agents', () => {
+  it('accepts Codex, Claude Code, and Cursor native plugin agents', () => {
     expect(
       lifecycleEventInputSchema.safeParse({
         agentType: 'codex',
@@ -31,6 +31,12 @@ describe('lifecycle_event — native agent input schema', () => {
       lifecycleEventInputSchema.safeParse({
         agentType: 'claude_code',
         rawPayload: { hook_event_name: 'SessionStart', session_id: 's' },
+      }).success,
+    ).toBe(true);
+    expect(
+      lifecycleEventInputSchema.safeParse({
+        agentType: 'cursor',
+        rawPayload: { hook_event_name: 'sessionStart', conversation_id: 's' },
       }).success,
     ).toBe(true);
   });
@@ -75,6 +81,48 @@ describe('lifecycle_event — registry hook text output', () => {
       permissionDecision: 'allow',
       permissionDecisionReason: 'project_config_missing',
     });
+    expect(result.structuredContent).toMatchObject({
+      ok: true,
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'allow',
+      reason: 'project_config_missing',
+    });
+  });
+
+  it('returns Cursor-shaped hook JSON (permission/additional_context, not hookSpecificOutput) for Cursor hooks', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'coodra-lifecycle-cursor-cwd-'));
+    const registry = new ToolRegistry({
+      deps: makeFakeDeps(),
+      clock: () => new Date('2026-08-02T00:00:00.000Z'),
+    });
+    registry.register(createLifecycleEventToolRegistration({ db: fakeDb, mode: 'solo' }));
+
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'cursor',
+        rawPayload: {
+          hook_event_name: 'preToolUse',
+          conversation_id: 'cursor-session',
+          cwd,
+          tool_name: 'Shell',
+          tool_use_id: 'tool-123',
+          tool_input: { command: 'npm test' },
+        },
+      },
+      'mcp-session',
+      { agentType: 'cursor' },
+    );
+
+    expect(result.isError).toBeUndefined();
+    const text = JSON.parse(result.content[0]?.text ?? '{}') as {
+      permission?: string;
+      hookSpecificOutput?: unknown;
+      decision?: unknown;
+    };
+    expect(text.permission).toBe('allow');
+    expect(text.hookSpecificOutput).toBeUndefined();
+    expect(text.decision).toBeUndefined();
     expect(result.structuredContent).toMatchObject({
       ok: true,
       hookEventName: 'PreToolUse',

@@ -2,11 +2,11 @@ import { ADAPTERS } from './adapters.js';
 import type { AgentAdapter, AgentId } from './types.js';
 
 /**
- * Registry surface over the two supported adapters (Claude Code, Codex).
+ * Registry surface over the three supported adapters (Claude Code, Codex, Cursor).
  */
 
-/** Canonical display order (matches detect.ts IDE_ORDER). */
-export const AGENT_ORDER: readonly AgentId[] = ['claude', 'codex'] as const;
+/** Canonical display order. */
+export const AGENT_ORDER: readonly AgentId[] = ['claude', 'codex', 'cursor'] as const;
 
 /** Input aliases → canonical id. */
 const AGENT_ALIASES: Readonly<Record<string, AgentId>> = {

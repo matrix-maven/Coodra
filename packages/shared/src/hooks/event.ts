@@ -15,14 +15,17 @@ import { runKeySegmentSchema } from '../idempotency.js';
  * Field shapes:
  *   - `agentType` — discriminator, set by the adapter.
  *   - `eventPhase` — normalized lifecycle stage. Cross-agent mapping:
- *       Claude Code        Codex                 → eventPhase
- *       PreToolUse         PreToolUse            → 'pre'
- *       PostToolUse        PostToolUse           → 'post'
- *       SessionStart       SessionStart          → 'session_start'
- *       SessionEnd         SessionEnd            → 'session_end'
- *       Stop               Stop                  → 'turn_end'
- *       UserPromptSubmit   UserPromptSubmit      → 'user_prompt'
- *       ConfigChange       ConfigChange          → 'config_change'
+ *       Claude Code        Codex                 Cursor               → eventPhase
+ *       PreToolUse         PreToolUse            preToolUse           → 'pre'
+ *       PostToolUse        PostToolUse           postToolUse          → 'post'
+ *       SessionStart       SessionStart          sessionStart         → 'session_start'
+ *       SessionEnd         SessionEnd            sessionEnd           → 'session_end'
+ *       Stop               Stop                  stop                 → 'turn_end'
+ *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   → 'user_prompt'
+ *       ConfigChange       ConfigChange          (none)               → 'config_change'
+ *
+ *     Cursor has no ConfigChange-equivalent hook event — a Cursor
+ *     `HookEvent` never has `eventPhase: 'config_change'`.
  *
  *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
  *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
@@ -58,7 +61,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  */
 export const HookEventSchema = z
   .object({
-    agentType: z.enum(['claude_code', 'codex', 'unknown']),
+    agentType: z.enum(['claude_code', 'codex', 'cursor', 'unknown']),
     eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt', 'config_change']),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),

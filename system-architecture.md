@@ -125,7 +125,7 @@ To **allow**: respond with `{ "hookSpecificOutput": { "hookEventName": "PreToolU
 
 ### 3.4 Normalized Internal HookEvent
 
-Both Claude Code and Codex payloads are normalized at ingress before any business logic:
+Claude Code, Codex, and Cursor payloads are all normalized at ingress before any business logic:
 
 ```typescript
 interface HookEvent {
@@ -669,7 +669,7 @@ $ coodra start
 → Starts Web App (Next.js :3000)
 → Starts Semantic Diff (:3201, Python)
 → Starts NL Assembly (:3200, Python, optional — skips if Ollama absent)
-→ Writes native plugin hooks/MCP for Claude Code and Codex
+→ Writes native plugin hooks/MCP for Claude Code, Codex, and Cursor
 → Writes MCP configs only for agents whose Coodra-owned config surface requires it
 → Prints: "Coodra running at http://localhost:3000"
 ```

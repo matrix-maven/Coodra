@@ -11,6 +11,7 @@ import {
 import { EXIT_OK } from '../exit-codes.js';
 import { type ClaudeCliRunner, removeClaudePlugin } from '../lib/agents/claude-plugin.js';
 import { type CodexCliRunner, removeCodexPlugin } from '../lib/agents/codex-plugin.js';
+import { removeCursorPlugin } from '../lib/agents/cursor-plugin.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
@@ -433,6 +434,17 @@ async function removeGlobalNativePlugins(args: {
   } catch (err) {
     args.steps.push({
       step: 'codex-plugin',
+      action: 'failed',
+      notes: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const result = await removeCursorPlugin(ctx);
+    pushWriteOutcomes(args.steps, 'cursor-plugin', result.outcomes);
+  } catch (err) {
+    args.steps.push({
+      step: 'cursor-plugin',
       action: 'failed',
       notes: err instanceof Error ? err.message : String(err),
     });

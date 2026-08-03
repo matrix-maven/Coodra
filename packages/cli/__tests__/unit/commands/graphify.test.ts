@@ -8,17 +8,18 @@ import { runGraphifyStatusCommand } from '../../../src/commands/graphify.js';
 /**
  * Locks the Module 09 Track 9B `coodra graphify status` command surface.
  * Graphify wiring itself is Coodra-owned end to end — `coodra agent add
- * <agent>` installs the native Claude Code / Codex plugin, which bundles
- * a managed `graphify` MCP entry automatically alongside `coodra`. There
- * is no more `enable`/`disable` config-writing path; `status` is the only
- * remaining subcommand here and it is a read-only probe across both
- * agents plus the graph artifact state.
+ * <agent>` installs the native Claude Code / Codex / Cursor plugin, which
+ * bundles a managed `graphify` MCP entry automatically alongside `coodra`.
+ * There is no more `enable`/`disable` config-writing path; `status` is the
+ * only remaining subcommand here and it is a read-only probe across every
+ * agent plus the graph artifact state.
  *
- * Both probes fall back to the real `claude`/`codex` CLI when one is on
- * $PATH (see `probeClaudePlugin`/`probeCodexPlugin`), which would make
- * tests depend on the host environment, so `createClaudeCliRunner` and
+ * The Claude/Codex probes fall back to the real `claude`/`codex` CLI when
+ * one is on $PATH (see `probeClaudePlugin`/`probeCodexPlugin`), which would
+ * make tests depend on the host environment, so `createClaudeCliRunner` and
  * `createCodexCliRunner` are both mocked to force the deterministic
- * file-based fallback path.
+ * file-based fallback path. `probeCursorPlugin` has no CLI runner at all —
+ * it's a pure filesystem probe, so it needs no such mock.
  */
 
 const { detect, isInstalled } = vi.hoisted(() => ({
@@ -99,7 +100,7 @@ describe('runGraphifyStatusCommand', () => {
     codexIsInstalled.mockReset().mockResolvedValue(false);
   });
 
-  it('reports both agents as not-wired on a clean tree (--json)', async () => {
+  it('reports all agents as not-wired on a clean tree (--json)', async () => {
     const c = makeIO();
     await expect(runGraphifyStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
     expect(c.exitCode()).toBe(0);
@@ -108,6 +109,7 @@ describe('runGraphifyStatusCommand', () => {
     expect(report.agents).toEqual([
       { id: 'claude', displayName: 'Claude Code', wired: false },
       { id: 'codex', displayName: 'Codex', wired: false },
+      { id: 'cursor', displayName: 'Cursor', wired: false },
     ]);
   });
 
@@ -138,6 +140,21 @@ describe('runGraphifyStatusCommand', () => {
     expect(claude.wired).toBe(true);
   });
 
+  it('reports Cursor as wired when the local plugin mcp.json bundles graphify', async () => {
+    const cursorPluginRoot = join(home, '.cursor', 'plugins', 'local', 'coodra');
+    await mkdir(cursorPluginRoot, { recursive: true });
+    await writeFile(
+      join(cursorPluginRoot, 'mcp.json'),
+      JSON.stringify({ mcpServers: { coodra: { command: 'node' }, graphify: { command: 'python' } } }, null, 2),
+      'utf8',
+    );
+    const c = makeIO();
+    await expect(runGraphifyStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
+    const report = JSON.parse(c.stdout());
+    const cursor = report.agents.find((a: { id: string }) => a.id === 'cursor');
+    expect(cursor.wired).toBe(true);
+  });
+
   it('includes graph artifact state in the JSON report', async () => {
     const c = makeIO();
     await expect(runGraphifyStatusCommand({ json: true, cwd, userHome: home }, c.io)).rejects.toThrow();
@@ -145,12 +162,13 @@ describe('runGraphifyStatusCommand', () => {
     expect(report.artifacts).toBeDefined();
   });
 
-  it('renders a human-readable table naming both agents', async () => {
+  it('renders a human-readable table naming every agent', async () => {
     const c = makeIO();
     await expect(runGraphifyStatusCommand({ cwd, userHome: home }, c.io)).rejects.toThrow();
     const out = c.stdout().replace(ANSI, '');
     expect(out).toContain('Claude Code');
     expect(out).toContain('Codex');
+    expect(out).toContain('Cursor');
   });
 
   it('points at `coodra agent add` when an agent is not wired', async () => {

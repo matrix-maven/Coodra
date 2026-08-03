@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const lifecycleEventInputSchema = z
   .object({
-    agentType: z.enum(['codex', 'claude_code']).default('codex'),
+    agentType: z.enum(['codex', 'claude_code', 'cursor']).default('codex'),
     rawPayload: z
       .record(z.string(), z.unknown())
       .describe('Original native-agent hook payload. The tool validates the stable subset for the selected agent.'),

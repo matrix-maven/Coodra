@@ -33,9 +33,9 @@ describe('buildAgentReports', () => {
     cwd = await mkdtemp(join(tmpdir(), 'coodra-agents-cwd-'));
   });
 
-  it('returns one report per agent (claude, codex) in canonical order', async () => {
+  it('returns one report per agent (claude, codex, cursor) in canonical order', async () => {
     const reports = await buildAgentReports({ cwd, userHome });
-    expect(reports.map((r) => r.name)).toEqual(['claude', 'codex']);
+    expect(reports.map((r) => r.name)).toEqual(['claude', 'codex', 'cursor']);
   });
 
   it('marks an agent as not-detected when its config dir is absent', async () => {
@@ -193,7 +193,7 @@ describe('runAgentsCommand', () => {
     ).rejects.toThrow();
     expect(captured.exit).toBe(0);
     const parsed = JSON.parse(captured.stdout.join('')) as Array<{ name: string; files: unknown[] }>;
-    expect(parsed.map((r) => r.name)).toEqual(['claude', 'codex']);
+    expect(parsed.map((r) => r.name)).toEqual(['claude', 'codex', 'cursor']);
     expect(parsed.every((r) => Array.isArray(r.files))).toBe(true);
   });
 

@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { EXIT_OK } from '../exit-codes.js';
 import { createClaudeCliRunner, probeClaudePlugin } from '../lib/agents/claude-plugin.js';
 import { createCodexCliRunner, probeCodexPlugin } from '../lib/agents/codex-plugin.js';
+import { probeCursorPlugin } from '../lib/agents/cursor-plugin.js';
 import { resolveGraphifyPaths, scanGraphifyArtifacts } from '../lib/graphify/artifacts.js';
 import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
 import { pc } from '../ui/compat.js';
@@ -56,7 +57,7 @@ export const DEFAULT_GRAPHIFY_IO: GraphifyIO = {
 };
 
 interface GraphifyAgentStatus {
-  readonly id: 'claude' | 'codex';
+  readonly id: 'claude' | 'codex' | 'cursor';
   readonly displayName: string;
   readonly wired: boolean;
 }
@@ -131,8 +132,16 @@ async function probeNativeManagedGraphify(args: {
   } catch {
     // status remains best-effort
   }
+  let cursorWired = false;
+  try {
+    const cursor = await probeCursorPlugin({ cwd: args.cwd, userHome: args.userHome });
+    cursorWired = cursor.mcp;
+  } catch {
+    // status remains best-effort
+  }
   return [
     { id: 'claude', displayName: 'Claude Code', wired: claudeWired },
     { id: 'codex', displayName: 'Codex', wired: codexWired },
+    { id: 'cursor', displayName: 'Cursor', wired: cursorWired },
   ];
 }

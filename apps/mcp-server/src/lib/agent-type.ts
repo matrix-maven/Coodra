@@ -28,7 +28,7 @@
  */
 
 /** Canonical agent-type values the rest of the codebase consumes. */
-export type KnownAgentType = 'claude_code' | 'codex' | 'vscode_copilot' | 'mcp_inspector' | 'unknown';
+export type KnownAgentType = 'claude_code' | 'codex' | 'cursor' | 'vscode_copilot' | 'mcp_inspector' | 'unknown';
 
 /**
  * Readonly mapping `clientInfo.name` → canonical `runs.agent_type`.
@@ -39,6 +39,10 @@ export type KnownAgentType = 'claude_code' | 'codex' | 'vscode_copilot' | 'mcp_i
  *   - Codex:         'codex-mcp-client' (observed — openai/codex names its
  *                    MCP client this, NOT 'codex'; missing it stamped every
  *                    Codex run 'unknown') / 'codex' / 'codex-cli'
+ *   - Cursor:        'cursor' / 'cursor-agent' — NOT verified against a
+ *                    live handshake (no logged-in Cursor account available
+ *                    while this was written); the substring heuristic
+ *                    below is the real safety net if the exact name differs.
  *   - VS Code + Copilot Chat: 'github-copilot-chat-vscode' (observed)
  *   - MCP Inspector: 'mcp-inspector'
  *
@@ -52,6 +56,8 @@ export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Obje
   codex: 'codex',
   'codex-cli': 'codex',
   'codex-mcp-client': 'codex',
+  cursor: 'cursor',
+  'cursor-agent': 'cursor',
   'github-copilot-chat-vscode': 'vscode_copilot',
   'mcp-inspector': 'mcp_inspector',
 });
@@ -68,12 +74,14 @@ const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentTyp
   ['copilot', 'vscode_copilot'],
   ['claude', 'claude_code'],
   ['codex', 'codex'],
+  ['cursor', 'cursor'],
 ]);
 
 /** The canonical values accepted from the COODRA_AGENT_TYPE env stamp. */
 const KNOWN_AGENT_TYPES: ReadonlySet<string> = new Set<KnownAgentType>([
   'claude_code',
   'codex',
+  'cursor',
   'vscode_copilot',
   'mcp_inspector',
 ]);

@@ -46,7 +46,7 @@ export const getRunIdInputSchema = z
           'runs row. Omit to use the transport-generated sessionId (legacy).',
       ),
     agentType: z
-      .enum(['claude_code', 'codex', 'unknown'])
+      .enum(['claude_code', 'codex', 'cursor', 'unknown'])
       .optional()
       .describe(
         'Agent type stamp for the runs row. Fallback only: it applies when the transport ' +

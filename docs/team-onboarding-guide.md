@@ -111,7 +111,7 @@ coodra start
 Spins up three daemons via launchd (macOS) or systemd (Linux) or fallback
 process supervisor:
 
-- **MCP Server** on `127.0.0.1:3100` — agents (Claude Code, Codex) call its 26 tools.
+- **MCP Server** on `127.0.0.1:3100` — agents (Claude Code, Codex, Cursor) call its 26 tools.
 - **Hooks Bridge** on `127.0.0.1:3101` — fires SessionStart / PostToolUse / SessionEnd policy + audit work.
 - **Sync Daemon** — drains `pending_jobs` to cloud + pulls teammates' rows from cloud every ~10 s.
 

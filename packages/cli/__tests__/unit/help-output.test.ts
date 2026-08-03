@@ -34,11 +34,12 @@ describe('coodra --help (snapshot-locked surface)', () => {
         metrics|roi [options]     Print Coodra ROI / value KPIs (knowledge captured,
                                   reuse, governance, modeled net value) for this
                                   machine.
-        agents [options]          Show per-agent wiring status (Claude Code, Codex).
-                                  Read-only, same report as \`coodra agent status\` —
-                                  use \`coodra agent add|remove\` to change wiring.
+        agents [options]          Show per-agent wiring status (Claude Code, Codex,
+                                  Cursor). Read-only, same report as \`coodra agent
+                                  status\` — use \`coodra agent add|remove\` to change
+                                  wiring.
         agent                     Wire, re-wire, or strip a single coding agent
-                                  (claude | codex).
+                                  (claude | codex | cursor).
         files                     Inspect or clean the files Coodra generated in this
                                   project (.coodra/manifest.json).
         graphify                  Graphify's codebase-graph MCP server (a

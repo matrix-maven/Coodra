@@ -8,9 +8,10 @@ import {
 } from '../../../src/lib/agents/registry.js';
 
 /**
- * Locks the AgentAdapter registry contract: canonical ids (claude, codex),
- * the claude_code/claude-code → claude input aliases, case-insensitivity,
- * and the per-adapter surface identity (id / agentType / display label).
+ * Locks the AgentAdapter registry contract: canonical ids (claude, codex,
+ * cursor), the claude_code/claude-code → claude input aliases,
+ * case-insensitivity, and the per-adapter surface identity (id / agentType
+ * / display label).
  */
 
 describe('agent registry — resolveAgentInput', () => {
@@ -52,22 +53,25 @@ describe('agent registry — resolveAgentInput', () => {
 });
 
 describe('agent registry — adapters', () => {
-  it('exposes exactly the two adapters in canonical order', () => {
-    expect(AGENT_ORDER).toEqual(['claude', 'codex']);
-    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex']);
+  it('exposes exactly the three adapters in canonical order', () => {
+    expect(AGENT_ORDER).toEqual(['claude', 'codex', 'cursor']);
+    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex', 'cursor']);
   });
 
   it('each adapter carries the right agentType stamp + detection dir', () => {
     const byId = Object.fromEntries(listAdapters().map((a) => [a.id, a]));
     expect(byId.claude?.agentType).toBe('claude_code');
     expect(byId.codex?.agentType).toBe('codex');
+    expect(byId.cursor?.agentType).toBe('cursor');
     expect(byId.claude?.detectionDir).toBe('.claude');
     expect(byId.codex?.detectionDir).toBe('.codex');
+    expect(byId.cursor?.detectionDir).toBe('.cursor');
   });
 
   it('native plugin adapters carry post-wire notes', () => {
     expect(getAdapter('codex').postWireNote).toContain('Coodra plugin');
     expect(getAdapter('claude').postWireNote).toContain('coodra@coodra');
+    expect(getAdapter('cursor').postWireNote).toContain('Customize panel');
   });
 
   it('ACCEPTED_AGENT_TOKENS covers the canonical ids and the aliases', () => {

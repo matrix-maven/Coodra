@@ -5,6 +5,7 @@ import { removeInstructionBlock } from '../init/instruction-files.js';
 import type { WriteOutcome } from '../init/types.js';
 import { type ClaudeCliRunner, installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
 import { type CodexCliRunner, installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
+import { installCursorPlugin, probeCursorPlugin, removeCursorPlugin } from './cursor-plugin.js';
 import type {
   AgentAdapter,
   AgentContext,
@@ -151,7 +152,56 @@ const codexAdapter: AgentAdapter = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// cursor — global native Cursor plugin, a plain local plugin directory
+// Cursor discovers on its own (no marketplace/CLI registration step).
+// ---------------------------------------------------------------------------
+
+const cursorAdapter: AgentAdapter = {
+  id: 'cursor',
+  displayName: 'Cursor',
+  agentType: 'cursor',
+  detectionDir: '.cursor',
+  postWireNote:
+    'Cursor discovers local plugins automatically — reload the window or restart Cursor, then check the ' +
+    "Customize panel to approve Coodra's bundled MCP server the first time you're prompted.",
+  detect: (userHome) => detectDir(userHome, '.cursor'),
+  async status(ctx: AgentPathContext): Promise<AgentStatus> {
+    const probe = await probeCursorPlugin(ctx);
+    const files: AgentFileState[] = [
+      {
+        label: 'Cursor plugin manifest',
+        path: probe.paths.manifestPath,
+        state: probe.manifest ? 'wired' : 'missing',
+      },
+      {
+        label: 'Cursor plugin MCP',
+        path: probe.paths.mcpPath,
+        state: probe.mcp ? 'wired' : 'missing',
+      },
+      {
+        label: 'Cursor plugin hooks',
+        path: probe.paths.hooksPath,
+        state: probe.hooks ? 'wired' : 'missing',
+      },
+      {
+        label: 'Cursor plugin skills',
+        path: probe.paths.skillsRoot,
+        state: probe.skills ? 'wired' : 'missing',
+      },
+    ];
+    return buildStatus(this, await this.detect(ctx.userHome), files);
+  },
+  async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
+    return (await installCursorPlugin(ctx)).outcomes;
+  },
+  async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
+    return (await removeCursorPlugin(ctx)).outcomes;
+  },
+};
+
 export const ADAPTERS: Readonly<Record<import('./types.js').AgentId, AgentAdapter>> = {
   claude: claudeAdapter,
   codex: codexAdapter,
+  cursor: cursorAdapter,
 };

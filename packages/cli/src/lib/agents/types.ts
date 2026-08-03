@@ -12,18 +12,20 @@ import type { WriteOutcome } from '../init/types.js';
  *
  * Ownership boundary:
  * `coodra init` owns only `<repo>/.coodra/`. `coodra agent add` owns the
- * native agent surfaces. Claude Code and Codex are the only supported
- * agents, both using global plugin bundles:
+ * native agent surfaces. Claude Code, Codex, and Cursor are the
+ * supported agents, all using global plugin bundles:
  *   - claude → ~/.coodra/claude-marketplaces/coodra + ~/.claude plugin registry/cache/settings
  *   - codex  → ~/.coodra/codex-marketplaces/coodra, registered/installed via `codex plugin`
  *              (Coodra's own dedicated marketplace, not the user's "personal" one)
+ *   - cursor → ~/.cursor/plugins/local/coodra — a plain local plugin directory
+ *              Cursor discovers on its own; no marketplace/CLI registration step
  */
 
 /** Canonical agent ids. */
-export type AgentId = 'claude' | 'codex';
+export type AgentId = 'claude' | 'codex' | 'cursor';
 
 /** The COODRA_AGENT_TYPE stamp / runs.agent_type value for each agent. */
-export type AgentTypeStamp = 'claude_code' | 'codex';
+export type AgentTypeStamp = 'claude_code' | 'codex' | 'cursor';
 
 export interface AgentDetection {
   /** True when the agent's home config dir (e.g. ~/.claude) exists. */

@@ -1,16 +1,18 @@
 import {
   attestPolicyProjection,
+  type DbHandle,
   lookupProjectBySlug,
   renderPolicyProjectionDriftContext,
-  type DbHandle,
 } from '@coodra/db';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
 import {
   adaptClaudeCode,
   adaptCodex,
+  adaptCursor,
   ClaudeCodeHookPayloadSchema,
   CodexHookPayloadSchema,
+  CursorHookPayloadSchema,
   type HookEvent,
 } from '@coodra/shared/hooks';
 import { readCoodraProjectConfig } from '@coodra/shared/project-config';
@@ -94,6 +96,41 @@ function shapeHookOutput(
     }
   }
 
+  if (agentType === 'cursor') {
+    // Cursor's hook output schema is narrower than Claude/Codex's:
+    // `preToolUse` has no `"ask"` permission value (an upstream `ask`
+    // decision is already collapsed to `allow` before this function is
+    // called — see the `ask` → `allow` note in `packages/cli/src/lib/
+    // agents/cursor-plugin.ts`), `beforeSubmitPrompt`
+    // (canonicalized here as `UserPromptSubmit`) has no
+    // context-injection field at all (only `continue`/`user_message`,
+    // so Jira-work-intent context that Claude/Codex inject here is lost
+    // for Cursor — SessionStart still carries the main session
+    // contract), and `stop`'s only field is `followup_message` (no way
+    // to force a block the way Claude/Codex's `decision:'block'` can).
+    switch (hookEventName) {
+      case 'PreToolUse':
+        return {
+          permission: result.permissionDecision === 'deny' ? 'deny' : 'allow',
+          ...(result.permissionDecision === 'deny' && reason !== undefined
+            ? { user_message: reason, agent_message: reason }
+            : {}),
+        };
+      case 'SessionStart':
+      case 'PostToolUse':
+        return result.additionalContext !== undefined ? { additional_context: result.additionalContext } : {};
+      case 'UserPromptSubmit':
+        return {
+          continue: result.permissionDecision !== 'deny',
+          ...(result.permissionDecision === 'deny' && reason !== undefined ? { user_message: reason } : {}),
+        };
+      case 'Stop':
+      case 'SessionEnd':
+      default:
+        return {};
+    }
+  }
+
   switch (hookEventName) {
     case 'PreToolUse':
       return {
@@ -127,6 +164,64 @@ function shapeHookOutput(
     default:
       return {};
   }
+}
+
+/**
+ * Claude Code's and Codex's own native hook systems both already emit
+ * `hook_event_name` values in this exact canonical vocabulary
+ * (`PreToolUse`, `SessionStart`, ...), so every other check in this
+ * handler compares directly against `parsed.data.hook_event_name`
+ * without any translation. Cursor's real wire vocabulary is different
+ * (camelCase: `preToolUse`, `beforeSubmitPrompt`, ...) — `CursorHookPayloadSchema`
+ * keeps that real vocabulary for schema fidelity rather than forcing a
+ * lossy rename inside the hook-runner script, so this is the one place
+ * that translates it to the shared canonical name every other check in
+ * this handler (and `shapeHookOutput`'s per-agent dispatch) relies on.
+ */
+const CURSOR_EVENT_NAME_MAP: Readonly<Record<string, string>> = {
+  sessionStart: 'SessionStart',
+  beforeSubmitPrompt: 'UserPromptSubmit',
+  preToolUse: 'PreToolUse',
+  postToolUse: 'PostToolUse',
+  stop: 'Stop',
+  sessionEnd: 'SessionEnd',
+};
+
+function canonicalHookEventName(agentType: LifecycleEventInput['agentType'], raw: string): string {
+  return agentType === 'cursor' ? (CURSOR_EVENT_NAME_MAP[raw] ?? raw) : raw;
+}
+
+/**
+ * Parses `rawPayload` with the schema for `agentType` and adapts it into
+ * a `HookEvent` in one step. Doing parse+adapt together (rather than two
+ * separate `agentType === '...' ? ... : ...` ternaries sharing one
+ * `parsed` variable) is required, not stylistic — with three agent
+ * branches TypeScript can no longer correlate the discriminant across
+ * two separately-evaluated ternaries the way it can for a two-way
+ * boolean check, so `parsed.data` stops narrowing to the right payload
+ * type for `adaptClaudeCode`/`adaptCodex`/`adaptCursor`.
+ */
+function parseAndAdapt(
+  agentType: LifecycleEventInput['agentType'],
+  rawPayload: Record<string, unknown>,
+  now: () => Date,
+): { readonly event: HookEvent; readonly hookEventName: string } | null {
+  if (agentType === 'claude_code') {
+    const parsed = ClaudeCodeHookPayloadSchema.safeParse(rawPayload);
+    if (!parsed.success) return null;
+    return { event: adaptClaudeCode(parsed.data, { now }), hookEventName: parsed.data.hook_event_name };
+  }
+  if (agentType === 'cursor') {
+    const parsed = CursorHookPayloadSchema.safeParse(rawPayload);
+    if (!parsed.success) return null;
+    return {
+      event: adaptCursor(parsed.data, { now }),
+      hookEventName: canonicalHookEventName('cursor', parsed.data.hook_event_name),
+    };
+  }
+  const parsed = CodexHookPayloadSchema.safeParse(rawPayload);
+  if (!parsed.success) return null;
+  return { event: adaptCodex(parsed.data, { now }), hookEventName: parsed.data.hook_event_name };
 }
 
 function compactHookPayload(rawPayload: Record<string, unknown>): Record<string, unknown> {
@@ -221,11 +316,8 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     ctx: ToolContext,
   ): Promise<LifecycleEventOutput> {
     const rawPayload = compactHookPayload(input.rawPayload);
-    const parsed =
-      input.agentType === 'claude_code'
-        ? ClaudeCodeHookPayloadSchema.safeParse(rawPayload)
-        : CodexHookPayloadSchema.safeParse(rawPayload);
-    if (!parsed.success) {
+    const adapted = parseAndAdapt(input.agentType, rawPayload, ctx.now);
+    if (adapted === null) {
       const hookOutput = shapeHookOutput(input.agentType, 'Unknown', {
         permissionDecision: 'allow',
         reason: 'invalid_hook_payload',
@@ -241,10 +333,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       };
     }
 
-    const event =
-      input.agentType === 'claude_code'
-        ? adaptClaudeCode(parsed.data, { now: ctx.now })
-        : adaptCodex(parsed.data, { now: ctx.now });
+    const { event, hookEventName } = adapted;
     const projectConfig = await readCoodraProjectConfig(event.cwd);
     const projectSlug = projectConfig?.projectSlug ?? null;
     const runId = await resolveRunId({ deps, projectSlug, event, ctx });
@@ -252,7 +341,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
     let reason = projectSlug === null ? 'project_config_missing' : 'lifecycle_recorded';
 
-    if (projectSlug !== null && parsed.data.hook_event_name === 'PreToolUse' && event.toolName.length > 0) {
+    if (projectSlug !== null && hookEventName === 'PreToolUse' && event.toolName.length > 0) {
       const checkPolicy = createCheckPolicyHandler({ db: deps.db });
       const policy = await checkPolicy(
         {
@@ -278,10 +367,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     if (runId !== null) {
       await ctx.runRecorder.record({
         runId,
-        toolName: event.toolName.length > 0 ? event.toolName : parsed.data.hook_event_name,
+        toolName: event.toolName.length > 0 ? event.toolName : hookEventName,
         phase: eventRecordPhase(event),
         sessionId: event.sessionId,
-        idempotencyKey: idempotencyFor(event, parsed.data.hook_event_name),
+        idempotencyKey: idempotencyFor(event, hookEventName),
         input: event.toolInput ?? {},
         decision: permissionDecision,
         reason,
@@ -289,7 +378,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     }
 
     if (
-      parsed.data.hook_event_name === 'PostToolUse' &&
+      hookEventName === 'PostToolUse' &&
       typeof event.turnId === 'string' &&
       event.turnId.length > 0 &&
       event.toolName.length > 0
@@ -301,7 +390,6 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       });
     }
 
-    const hookEventName = parsed.data.hook_event_name;
     const workIntent = hookEventName === 'UserPromptSubmit' ? parseJiraWorkIntent(event.toolInput) : null;
     let policyProjectionContext: string | null = null;
     if (hookEventName === 'SessionStart' && projectSlug !== null && projectConfig !== null) {
