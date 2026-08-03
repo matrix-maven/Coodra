@@ -220,6 +220,7 @@ describe('runAgentsCommand', () => {
     const out = captured.stdout.join('').replace(/\x1b\[[0-9;]*m/g, '');
     expect(out).toContain('Claude Code');
     expect(out).toContain('Codex');
-    expect(out).toContain('coodra init');
+    expect(out).toContain('Cursor');
+    expect(out).toContain('coodra agent add');
   });
 });

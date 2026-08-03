@@ -24,14 +24,17 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
 
 /**
  * `coodra agent add|status|remove|repair` — the per-agent wiring surface,
- * driven by the AgentAdapter registry (lib/agents). Where `coodra init` wires
- * every detected agent in one onboarding pass, this command targets a single
- * agent (or `all` / `detected`) so a user who installs an IDE later — or whose
- * config drifted (e.g. hooks got stripped) — can re-wire just that one without
- * re-running the whole init.
+ * driven by the AgentAdapter registry (lib/agents). This is the ONLY
+ * command that wires native agent plugins — `coodra init` is a separate,
+ * project-local-only step (`<repo>/.coodra/{config.json,manifest.json,...}`)
+ * and never touches an agent's own config. `coodra agent add all` (or
+ * `detected`) wires every applicable agent in one pass for onboarding;
+ * `coodra agent add <agent>` targets a single one so a user who installs
+ * an IDE later — or whose config drifted (e.g. hooks got stripped) — can
+ * re-wire just that one.
  *
  *   add    <agent>  — wire the Coodra bundle for one agent (a global native
- *                     plugin for both Claude Code and Codex). Idempotent.
+ *                     plugin for Claude Code, Codex, or Cursor). Idempotent.
  *   repair <agent>  — force re-wire to the current baseline (drift/self-heal).
  *   remove <agent>  — strip ONLY this agent's Coodra-owned entries.
  *   status          — read-only per-agent wiring report (same data `coodra

@@ -16,7 +16,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, sectionHead, terminalWidth
  *   ◌ partial — file exists but no coodra entry/block (or vice versa)
  *   ✗ missing — file does not exist
  *
- * Companion to `coodra init` (which writes the files) and
+ * Companion to `coodra agent add` (which writes the files) and
  * `coodra uninstall` (which removes them). The TUI's /02 catalog picks
  * up this command automatically.
  */
@@ -87,7 +87,9 @@ export async function runAgentsCommand(options: AgentsOptions = {}, io: AgentsIO
     renderAgent(report, idx + 1, io);
     io.writeStdout('\n');
   });
-  io.writeStdout(hintLine('Run `coodra init` to wire detected agents, `coodra uninstall` to strip Coodra files.'));
+  io.writeStdout(
+    hintLine('Run `coodra agent add <agent>` to wire a detected agent, `coodra uninstall` to strip Coodra files.'),
+  );
   io.writeStdout('\n');
   return io.exit(EXIT_OK);
 }
@@ -179,9 +181,7 @@ async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
         partialNote: 'coodra context skill missing',
       }),
     ],
-    howToEnable: detected
-      ? null
-      : 'Install Claude Code (claude.ai/code), then run `coodra init` (or `coodra init --ide claude`).',
+    howToEnable: detected ? null : 'Install Claude Code (claude.ai/code), then run `coodra agent add claude`.',
   };
 }
 
@@ -229,9 +229,7 @@ async function codexReport(input: BuildReportsInput): Promise<AgentReport> {
         partialNote: 'coodra context skill missing',
       }),
     ],
-    howToEnable: detected
-      ? null
-      : 'Install Codex CLI (github.com/openai/codex), then run `coodra init` (or `coodra init --ide codex`).',
+    howToEnable: detected ? null : 'Install Codex CLI (github.com/openai/codex), then run `coodra agent add codex`.',
   };
 }
 
@@ -271,9 +269,7 @@ async function cursorReport(input: BuildReportsInput): Promise<AgentReport> {
         partialNote: 'coodra context skill missing',
       }),
     ],
-    howToEnable: detected
-      ? null
-      : 'Install Cursor (cursor.com), then run `coodra init` (or `coodra init --ide cursor`).',
+    howToEnable: detected ? null : 'Install Cursor (cursor.com), then run `coodra agent add cursor`.',
   };
 }
 
@@ -302,7 +298,7 @@ async function mcpJsonState(input: FileLabelInput): Promise<AgentFileState> {
       path: input.path,
       exists: true,
       wired,
-      notes: wired ? 'coodra MCP entry present' : 'no coodra entry — run `coodra init`',
+      notes: wired ? 'coodra MCP entry present' : 'no coodra entry — run `coodra agent add`',
     };
   } catch {
     return { label: input.label, path: input.path, exists: true, wired: false, notes: 'unreadable JSON' };
