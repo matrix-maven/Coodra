@@ -487,7 +487,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   graphify
     .command('build')
     .description(
-      "Run Graphify to (re)build the codebase graph into this project's resolved output dir. Thin wrapper around your installed `graphify` — the richer path is `/graphify .` inside your agent (semantic extraction via the host LLM).",
+      "Run Graphify to (re)build the codebase graph into this project's resolved output dir. Thin wrapper around your installed `graphify`.",
     )
     .option(
       '--no-llm',
@@ -536,7 +536,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
       await graphifyStatusRunner(opts, options.graphifyIO);
     });
 
-  // Module 10 (Deep Wiki) — `coodra wiki {build,generate,status,list,open,clean}`.
+  // Module 10 (Deep Wiki) — `coodra wiki {build,status,list,open,clean}`.
   // Coodra runs no LLM: `build` writes a grounding snapshot + an authoring
   // recipe the user's coding agent runs against the wiki_* MCP tools; the
   // result lands in the local store and renders in the web app at /wiki.
@@ -556,18 +556,6 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .description(
       'Create/update the grounding snapshot + authoring recipe (.coodra/wiki/job.md) and invoke the native agent wiki workflow.',
     )
-    .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
-    .option(
-      '--mode <mode>',
-      'Wiki shape: "comprehensive" (sections + pages) or "concise" (flat). Default comprehensive.',
-    )
-    .option('--json', 'Emit a structured JSON report.')
-    .action(async (opts: WikiGenerateOptions) => {
-      await wikiGenerateRunner(opts, options.wikiIO);
-    });
-  wiki
-    .command('generate')
-    .description('Deprecated alias for `coodra wiki build`.')
     .option('--slug <slug>', 'Wiki slug within the project (kebab-case; default: the project slug).')
     .option(
       '--mode <mode>',

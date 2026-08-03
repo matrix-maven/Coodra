@@ -304,7 +304,7 @@ describe('coodra graphify build', () => {
     const payload = JSON.parse(cap.stdout.join(''));
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain('graphifyy');
-    expect(payload.error).toContain('/graphify .'); // points at the richer assistant path
+    expect(payload.error).toContain('--bin <path>');
   });
 });
 

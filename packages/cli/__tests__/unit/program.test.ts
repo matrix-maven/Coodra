@@ -157,11 +157,12 @@ describe('buildProgram — full surface (post-S8)', () => {
     await defaultProgram.parseAsync(['node', 'coodra', 'graphify', 'build']);
     expect((defaultSeen as unknown as { viz?: boolean }).viz).not.toBe(false);
 
-    // Module 10 — `coodra wiki {build,generate,status,list,open,clean}`.
+    // Module 10 — `coodra wiki {build,status,list,open,clean}`. The
+    // deprecated `generate` alias for `build` was removed 2026-08-02.
     const wikiCmd = program.commands.find((c) => c.name() === 'wiki');
     expect(wikiCmd).toBeDefined();
     const wikiSub = wikiCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(wikiSub).toEqual(['build', 'clean', 'generate', 'list', 'open', 'status']);
+    expect(wikiSub).toEqual(['build', 'clean', 'list', 'open', 'status']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {

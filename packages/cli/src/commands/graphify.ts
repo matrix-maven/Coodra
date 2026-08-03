@@ -103,7 +103,7 @@ export async function runGraphifyStatusCommand(
     hintLine(
       anyMissing
         ? '  Run `coodra agent add <agent>` to install the native plugin (bundles Graphify automatically).'
-        : '  Graphify is wired. Build the graph with `coodra graphify build` (or `/graphify .` in your agent).',
+        : '  Graphify is wired. Build the graph with `coodra graphify build`.',
     ),
   );
   io.writeStdout('\n');

@@ -31,10 +31,10 @@ const execFileAsync = promisify(execFile);
  * executable, sets `GRAPHIFY_OUT` to the project's resolved output directory,
  * and invokes it. Coodra reimplements nothing (ADR-010/015: consume Graphify by
  * configuration, not code) — this exists so the managed output path is applied
- * consistently. The RICHER build path remains the assistant skill (`/graphify .`
- * inside your agent), which does semantic extraction using the host LLM; this
- * headless wrapper is the CI / no-assistant convenience, and `--code-only`
- * forwards Graphify's own structural-only mode.
+ * consistently. Coodra installs and manages only Graphify's Python package
+ * (structural CLI + MCP server, see `lib/init/graphify-python.js`) — it does
+ * not install or wire any native agent-plugin/slash-command surface Graphify
+ * itself might separately ship, so this command never suggests one.
  */
 
 export interface GraphifyArtifactOptions {
@@ -183,9 +183,9 @@ export async function runGraphifyBuildCommand(
     const notFound = /ENOENT|not found|command not found/i.test(message);
     const needsKey = /no LLM API key|API key found/i.test(message);
     const detail = notFound
-      ? `could not run '${bin}'. Install Graphify (\`uv tool install graphifyy\` or \`pip install "graphifyy[mcp]"\`), or pass --bin <path>. The richer path is the assistant skill: run \`/graphify .\` inside your agent.`
+      ? `could not run '${bin}'. Install Graphify (\`uv tool install graphifyy\` or \`pip install "graphifyy[mcp]"\`), or pass --bin <path>.`
       : needsKey
-        ? `graphify needs an LLM backend for a full build. Key-free options: \`coodra graphify build --no-llm\` (structural re-extract) or \`--backend ollama\` (local model). The richest path is \`/graphify .\` inside your agent, which uses its own model session. Original error: ${message}`
+        ? `graphify needs an LLM backend for a full build. Key-free options: \`coodra graphify build --no-llm\` (structural re-extract) or \`--backend ollama\` (local model). Original error: ${message}`
         : `graphify build failed: ${message}`;
     if (json) io.writeStdout(`${JSON.stringify({ ok: false, command: 'build', error: detail }, null, 2)}\n`);
     else io.writeStderr(`${pc.red('coodra graphify build')}: ${detail}\n`);
@@ -333,7 +333,7 @@ export async function runGraphifyOpenCommand(
   const scan = await scanGraphifyArtifacts(root, paths);
 
   if (!scan.graphHtml.exists) {
-    const error = `no graph.html at ${paths.graphHtml}. Build the graph first: \`coodra graphify build\` (or \`/graphify .\` inside your agent).`;
+    const error = `no graph.html at ${paths.graphHtml}. Build the graph first: \`coodra graphify build\`.`;
     if (json) io.writeStdout(`${JSON.stringify({ ok: false, command: 'open', error }, null, 2)}\n`);
     else io.writeStderr(`${pc.red('coodra graphify open')}: ${error}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
@@ -430,9 +430,7 @@ export async function runGraphifyCleanCommand(
   } else {
     for (const p of reported) io.writeStdout(`  ${pc.green('•')} ${dryRun ? 'would remove' : 'removed'} ${p}\n`);
   }
-  io.writeStdout(
-    `\n${hintLine('Rebuild any time with `coodra graphify build` or `/graphify .` inside your agent.')}\n`,
-  );
+  io.writeStdout(`\n${hintLine('Rebuild any time with `coodra graphify build`.')}\n`);
   return io.exit(EXIT_OK);
 }
 
