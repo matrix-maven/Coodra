@@ -991,11 +991,9 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   // .coodra/recipes/<slug>/, legacy docs/skills and docs/features still read). The mutating
   // subcommands always re-index on success; consumers (bridge, MCP, web) read
   // INDEX.json so users never have to remember to run `recipe index` after a
-  // normal add/remove/edit. Former `coodra skill` and `coodra feature` names
-  // stay as aliases.
+  // normal add/remove/edit.
   const skill = program
     .command('recipe')
-    .aliases(['skill', 'feature'])
     .description('Manage .coodra/recipes/<slug>/ — Agent Recipes the agent loads on demand.');
 
   const featureAddRunner = options.runFeatureAdd ?? runFeatureAddCommand;

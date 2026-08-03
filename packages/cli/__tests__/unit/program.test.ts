@@ -95,12 +95,12 @@ describe('buildProgram — full surface (post-S8)', () => {
     const templateSub = templateCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(templateSub).toEqual(['install', 'list']);
 
-    // COOD-23 — Agent Recipes admin under `coodra recipe`; `skill` and
-    // `feature` stay as Commander aliases.
+    // COOD-23 — Agent Recipes admin under `coodra recipe`. The `skill`/
+    // `feature` Commander aliases were removed (2026-08-02) — they only
+    // added confusion, not a real second identity for the command.
     const featureCmd = program.commands.find((c) => c.name() === 'recipe');
     expect(featureCmd).toBeDefined();
-    expect(featureCmd?.aliases()).toContain('skill');
-    expect(featureCmd?.aliases()).toContain('feature');
+    expect(featureCmd?.aliases()).toEqual([]);
     const featureSub = featureCmd?.commands.map((c) => c.name()).sort() ?? [];
     expect(featureSub).toEqual(['add', 'edit', 'index', 'list', 'migrate', 'remove', 'show']);
 

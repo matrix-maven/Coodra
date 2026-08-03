@@ -84,7 +84,7 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   audit.
         template                  Manage reusable Coodra templates (bundled +
                                   user-installed).
-        recipe|skill              Manage .coodra/recipes/<slug>/ — Agent Recipes the
+        recipe                    Manage .coodra/recipes/<slug>/ — Agent Recipes the
                                   agent loads on demand.
         run                       Inspect + cancel rows in the \`runs\` table.
         uninstall [options]       Tear down Coodra runtime/plugin wiring.
