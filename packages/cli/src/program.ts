@@ -549,7 +549,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .command('wiki')
     .description(
       'Generate a DeepWiki-style, hierarchical/mind-map explanation of this codebase. Your coding agent (Claude ' +
-        'Code / Codex) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
+        'Code / Codex / Cursor) is the model; Coodra ships the grounding, the MCP persistence tools, and the web render.',
     );
   wiki
     .command('build')

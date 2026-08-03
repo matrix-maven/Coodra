@@ -49,9 +49,9 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   and does not mint Work Packs from it.
         wiki                      Generate a DeepWiki-style, hierarchical/mind-map
                                   explanation of this codebase. Your coding agent
-                                  (Claude Code / Codex) is the model; Coodra ships the
-                                  grounding, the MCP persistence tools, and the web
-                                  render.
+                                  (Claude Code / Codex / Cursor) is the model; Coodra
+                                  ships the grounding, the MCP persistence tools, and
+                                  the web render.
         work                      Manage Coodra Work Packs under .coodra/work-packs/.
         login [options]           Browser-handoff Clerk login. Writes
                                   ~/.coodra/clerk-token.json and switches mode to

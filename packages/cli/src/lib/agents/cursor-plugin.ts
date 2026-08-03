@@ -435,7 +435,7 @@ Use this skill when the user asks to work on, import, resume, or implement a Jir
 4. Use Atlassian Rovo MCP to fetch the Jira issue. If the user asked for related work, also fetch bounded parent/epic, subtasks, blockers, blocked-by links, and same-epic tasks relevant to implementation.
 5. Call \`coodra__work_pack_upsert\` before editing code.
 6. Call \`coodra__save_context_pack\` with \`workPackSlug\` set to the slug to create the initial linked Context Pack.
-7. Implement the change using \`.coodra/work-packs/<slug>/\` as the local work record, call \`record_decision\` for material choices, and finish with a concise user-facing recap. The Coodra SessionEnd hook updates the linked Work Pack with the implementation overview and changed files.
+7. Implement the change using \`.coodra/work-packs/<slug>/\` as the local work record, call \`record_decision\` for material choices, and finish with a concise user-facing recap. Before ending the session, call \`coodra__save_context_pack\` yourself with \`workPackSlug\` set to the slug and a recap of what changed — SessionEnd does not auto-save this for you.
 `;
 }
 
