@@ -22,10 +22,12 @@ const queryDecisionsIdempotencyKey: IdempotencyKeyBuilder<QueryDecisionsInput> =
   const slug = typeof input?.projectSlug === 'string' && input.projectSlug.length > 0 ? input.projectSlug : 'probe';
   const query = typeof input?.query === 'string' && input.query.length > 0 ? input.query : 'any';
   const runId = typeof input?.runId === 'string' && input.runId.length > 0 ? input.runId : 'any';
+  const workPackId = typeof input?.workPackId === 'string' && input.workPackId.length > 0 ? input.workPackId : 'any';
+  const includeRelated = input?.includeRelated === true ? 'rel' : 'norel';
   const limit = typeof input?.limit === 'number' ? input.limit : 10;
   return {
     kind: 'readonly',
-    key: `readonly:query_decisions:${slug}:${query}:${runId}:${limit}`.slice(0, 200),
+    key: `readonly:query_decisions:${slug}:${query}:${runId}:${workPackId}:${includeRelated}:${limit}`.slice(0, 200),
   };
 };
 
@@ -36,11 +38,10 @@ export function createQueryDecisionsToolRegistration(
     name: 'query_decisions',
     title: 'Coodra: query_decisions',
     description:
-      'Call this when the user asks "what did we decide about X?" or "any prior decisions on Y?" or you need to reconcile your current approach against decisions recorded in earlier sessions. ' +
-      'Returns the chronological (most-recent-first) list of decisions logged via record_decision for this project, optionally narrowed by a substring against description+rationale or by an exact runId. ' +
-      "Use alongside query_run_history when answering 'what happened recently' and as the cross-session memory primitive that search_packs_nl cannot serve until M05 ships embeddings. " +
-      'Returns { ok: true, decisions: [...] } on success (possibly empty), or { ok: false, error: "project_not_found", howToFix } if the projectSlug is not registered. ' +
-      'Default limit 10, max 200.',
+      'Call this when the user asks "what did we decide about X?", you need to reconcile your current approach against earlier decisions, or you are composing a sync-back summary for an external tracker/PR. ' +
+      'Returns decisions logged via record_decision for this project — most-recent-first by default, or BM25-ranked best-match-first when query is set (matched against description+rationale) — optionally narrowed by runId, issueRef, or workPackId (every run tied to that pack, plus any explicitly tagged via workPackSlugs). ' +
+      'Add includeRelated:true to also pull decisions from packs related to workPackId. ' +
+      'Returns { ok: true, decisions: [...] } (possibly empty), or { ok: false, error: "project_not_found", howToFix }. Default limit 10, max 200.',
     inputSchema: queryDecisionsInputSchema,
     outputSchema: queryDecisionsOutputSchema,
     idempotencyKey: queryDecisionsIdempotencyKey,

@@ -5,10 +5,17 @@ import { z } from 'zod';
  *
  * Module 05 reshape (2026-05-08): the embedding-supplied semantic-KNN
  * path was removed alongside the abandoned Python NL Assembly service.
- * Search is now keyword-only (LIKE over title + content_excerpt + first
- * 2KB of content) ordered by recency. Agents apply their own relevance
- * ranking after reading candidates with `read_context_pack` — see
- * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.3.
+ *
+ * BM25 full-text search (2026-08-03): search is now ranked, not just
+ * keyword-matched — backed by SQLite FTS5 (`context_packs_fts`,
+ * `packages/db/drizzle/sqlite/0024_fts_search.sql`) / Postgres generated
+ * `tsvector` (`context_packs.search_vector`,
+ * `packages/db/drizzle/postgres/0026_fts_search.sql`) over title +
+ * content_excerpt, replacing the earlier LIKE-substring implementation.
+ * `score` (previously always `null`) is now the real bm25()/ts_rank()
+ * value; results are ordered best-match-first. Vector/semantic search
+ * remains out of scope — `context_packs.summaryEmbedding`/
+ * `context_packs_vec` stay unused infrastructure for a later phase.
  *
  * The wire shape is intentionally narrower than pre-M05:
  *   - `embedding: number[]` — REMOVED
@@ -32,7 +39,7 @@ export const searchPacksNlInputSchema = z
       .min(1, 'query is required')
       .max(MAX_QUERY_LEN, `query must be at most ${MAX_QUERY_LEN} characters`)
       .describe(
-        'Keyword(s) to LIKE-match against title + content_excerpt + first 2KB of content. Single token or short phrase works best; for semantic exploration call list_context_packs and reason over titles instead.',
+        'Keyword(s) to BM25-rank against title + content_excerpt. Every word must appear (implicit AND); for semantic exploration call list_context_packs and reason over titles instead.',
       ),
     limit: z
       .number()
@@ -40,7 +47,9 @@ export const searchPacksNlInputSchema = z
       .positive()
       .max(MAX_LIMIT)
       .optional()
-      .describe(`Max results (default 50, capped at ${MAX_LIMIT}). Ordered by created_at DESC.`),
+      .describe(
+        `Max results (default 50, capped at ${MAX_LIMIT}). Ordered by relevance (bm25/ts_rank), best match first.`,
+      ),
     runId: z
       .string()
       .min(1)
@@ -58,7 +67,7 @@ const packResultSchema = z
     id: z.string().min(1),
     title: z.string(),
     excerpt: z.string(),
-    /** Always null post-M05 — search is keyword-only, no relevance score is computed. Agent ranks. */
+    /** Relevance score, higher = more relevant, normalized consistently across dialects (SQLite's bm25() is natively negative-lower-is-better; negated in the handler so this field always means "higher is better," matching Postgres ts_rank()'s native convention). */
     score: z.number().nullable(),
     savedAt: z.string().datetime(),
     runId: z.string().min(1),

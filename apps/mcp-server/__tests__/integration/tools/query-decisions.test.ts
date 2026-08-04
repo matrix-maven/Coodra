@@ -81,13 +81,23 @@ function unwrap(result: { readonly content: ReadonlyArray<{ type: string; text: 
   return parsed.data;
 }
 
-function seedRun(h: Harness, id: string, projectId: string): void {
+function seedRun(h: Harness, id: string, projectId: string, opts?: { workPackId?: string; issueRef?: string }): void {
   h.handle.raw
     .prepare(
-      `INSERT INTO runs (id, project_id, session_id, agent_type, mode, status, started_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO runs (id, project_id, session_id, agent_type, mode, status, started_at, work_pack_id, issue_ref)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, projectId, `sess_${id}`, 'claude_code', 'solo', 'in_progress', 1000);
+    .run(
+      id,
+      projectId,
+      `sess_${id}`,
+      'claude_code',
+      'solo',
+      'in_progress',
+      1000,
+      opts?.workPackId ?? null,
+      opts?.issueRef ?? null,
+    );
 }
 
 function seedDecision(
@@ -359,6 +369,68 @@ describe('query_decisions — scopes to project (no cross-project leak)', () => 
 });
 
 // ---------------------------------------------------------------------------
+// workPackId filter — spans every run tied to a Work Pack
+// ---------------------------------------------------------------------------
+
+describe('query_decisions — workPackId filter spans multiple runs', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('returns decisions from every run tied to the same workPackId, excludes other packs and unlinked runs', async () => {
+    seedRun(h, 'run_session_1', h.projectA, { workPackId: 'wp_1' });
+    seedRun(h, 'run_session_2', h.projectA, { workPackId: 'wp_1' });
+    seedRun(h, 'run_other_pack', h.projectA, { workPackId: 'wp_2' });
+    seedRun(h, 'run_unlinked', h.projectA);
+    seedDecision(h, 'dec_s1', 'run_session_1', 'first session decision', 'r', null, 1000);
+    seedDecision(h, 'dec_s2', 'run_session_2', 'second session decision', 'r', null, 2000);
+    seedDecision(h, 'dec_other', 'run_other_pack', 'other pack decision', 'r', null, 3000);
+    seedDecision(h, 'dec_unlinked', 'run_unlinked', 'unlinked decision', 'r', null, 4000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', workPackId: 'wp_1' }, 'sess_qd'),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions.map((d) => d.id)).toEqual(['dec_s2', 'dec_s1']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// issueRef filter
+// ---------------------------------------------------------------------------
+
+describe('query_decisions — issueRef filter', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('returns only decisions whose run is bound to the given issueRef, case-insensitively', async () => {
+    seedRun(h, 'run_bound', h.projectA, { issueRef: 'PROJ-412' });
+    seedRun(h, 'run_other', h.projectA, { issueRef: 'PROJ-999' });
+    seedDecision(h, 'dec_bound', 'run_bound', 'bound decision', 'r', null, 1000);
+    seedDecision(h, 'dec_other', 'run_other', 'other decision', 'r', null, 2000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', issueRef: 'proj-412' }, 'sess_qd'),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions.map((d) => d.id)).toEqual(['dec_bound']);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // alternatives JSON parse
 // ---------------------------------------------------------------------------
 
@@ -440,5 +512,176 @@ describe('query_decisions — ISO timestamp', () => {
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     expect(out.decisions[0]?.createdAt).toBe(new Date(1700000000 * 1000).toISOString());
+  });
+});
+
+// ---------------------------------------------------------------------------
+// coodra-work redesign round 2 — work_pack_decision_links + includeRelated
+// ---------------------------------------------------------------------------
+
+function seedWorkPack(h: Harness, id: string, projectId: string, slug: string): void {
+  h.handle.raw
+    .prepare(
+      `INSERT INTO work_packs
+        (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(id, projectId, slug, `pack ${slug}`, 'task', 'draft', '', '', '', '{}');
+}
+
+function seedDecisionWorkPackLink(h: Harness, id: string, workPackId: string, decisionId: string): void {
+  h.handle.raw
+    .prepare('INSERT INTO work_pack_decision_links (id, work_pack_id, decision_id) VALUES (?, ?, ?)')
+    .run(id, workPackId, decisionId);
+}
+
+function seedWorkPackRelationship(
+  h: Harness,
+  id: string,
+  projectId: string,
+  sourceWorkPackId: string,
+  targetWorkPackId: string,
+): void {
+  h.handle.raw
+    .prepare(
+      `INSERT INTO work_pack_relationships
+        (id, project_id, source_work_pack_id, target_work_pack_id, target_external_key, relationship_type)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+    .run(id, projectId, sourceWorkPackId, targetWorkPackId, 'placeholder', 'relates_to');
+}
+
+describe('query_decisions — workPackId matches the direct work_pack_decision_links tag too', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('returns a decision tagged via work_pack_decision_links even when its run.work_pack_id points elsewhere', async () => {
+    seedWorkPack(h, 'wp_1', h.projectA, 'pack-1');
+    seedWorkPack(h, 'wp_2', h.projectA, 'pack-2');
+    // run bound to pack-2, but the decision is explicitly tagged to pack-1 too.
+    h.handle.raw
+      .prepare(
+        `INSERT INTO runs (id, project_id, session_id, agent_type, mode, status, started_at, work_pack_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('run_tagged', h.projectA, 'sess_run_tagged', 'claude_code', 'solo', 'in_progress', 1000, 'wp_2');
+    seedDecision(h, 'dec_tagged', 'run_tagged', 'cross-tagged decision', 'r', null, 1000);
+    seedDecisionWorkPackLink(h, 'link_1', 'wp_1', 'dec_tagged');
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', workPackId: 'wp_1' }, 'sess_qd'),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions.map((d) => d.id)).toEqual(['dec_tagged']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BM25 full-text search (2026-08-03) — real ranking, not just substring match
+// ---------------------------------------------------------------------------
+
+describe('query_decisions — BM25 ranking', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('ranks the decision with denser term matches first, overriding recency order', async () => {
+    seedRun(h, 'run_x', h.projectA);
+    // Older but denser match should outrank the newer, thinner match —
+    // proves this is relevance-ranked, not still createdAt DESC.
+    seedDecision(h, 'dec_strong', 'run_x', 'retry retry retry policy', 'retry retry logic everywhere', null, 1000);
+    seedDecision(h, 'dec_weak', 'run_x', 'pick bar', 'mentions retry once in passing', null, 2000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', query: 'retry' }, 'sess_qd'),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions.map((d) => d.id)).toEqual(['dec_strong', 'dec_weak']);
+  });
+
+  it('requires every word in a multi-word query to appear (implicit AND)', async () => {
+    seedRun(h, 'run_x', h.projectA);
+    seedDecision(h, 'dec_both', 'run_x', 'storage layout', 'atomic-rename storage with cockatiel retries', null, 1000);
+    seedDecision(h, 'dec_one', 'run_x', 'storage layout', 'atomic-rename storage, no retry library', null, 2000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', query: 'storage cockatiel' }, 'sess_qd'),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions.map((d) => d.id)).toEqual(['dec_both']);
+  });
+});
+
+describe('query_decisions — includeRelated pulls decisions from related packs', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('surfaces a decision recorded on a related pack when includeRelated is true', async () => {
+    seedWorkPack(h, 'wp_1', h.projectA, 'pack-1');
+    seedWorkPack(h, 'wp_2', h.projectA, 'pack-2');
+    seedWorkPackRelationship(h, 'rel_1', h.projectA, 'wp_1', 'wp_2');
+    seedRun(h, 'run_pack1', h.projectA, { workPackId: 'wp_1' });
+    seedDecision(h, 'dec_pack1', 'run_pack1', 'remove UserPromptSubmit Jira phrase detection', 'r', null, 1000);
+
+    const registry = buildRegistry(h);
+
+    const withoutRelated = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', workPackId: 'wp_2' }, 'sess_qd'),
+    );
+    expect(withoutRelated.ok).toBe(true);
+    if (withoutRelated.ok) expect(withoutRelated.decisions).toEqual([]);
+
+    const withRelated = unwrap(
+      await registry.handleCall(
+        'query_decisions',
+        { projectSlug: 'slug-a', workPackId: 'wp_2', includeRelated: true },
+        'sess_qd',
+      ),
+    );
+    expect(withRelated.ok).toBe(true);
+    if (!withRelated.ok) return;
+    expect(withRelated.decisions.map((d) => d.id)).toEqual(['dec_pack1']);
+  });
+
+  it('does not pull decisions from unrelated packs even with includeRelated true', async () => {
+    seedWorkPack(h, 'wp_1', h.projectA, 'pack-1');
+    seedWorkPack(h, 'wp_2', h.projectA, 'pack-2');
+    seedWorkPack(h, 'wp_3', h.projectA, 'pack-3');
+    // pack-1 and pack-2 are related; pack-3 is not related to either.
+    seedWorkPackRelationship(h, 'rel_1', h.projectA, 'wp_1', 'wp_2');
+    seedRun(h, 'run_pack3', h.projectA, { workPackId: 'wp_3' });
+    seedDecision(h, 'dec_pack3', 'run_pack3', 'unrelated decision', 'r', null, 1000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'query_decisions',
+        { projectSlug: 'slug-a', workPackId: 'wp_1', includeRelated: true },
+        'sess_qd',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.decisions).toEqual([]);
   });
 });

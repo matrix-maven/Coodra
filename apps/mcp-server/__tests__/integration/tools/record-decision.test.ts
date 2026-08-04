@@ -343,3 +343,118 @@ describe('record_decision — run_id ON DELETE SET NULL preserves history', () =
     expect(rows[0]?.description).toBe('persists past run deletion');
   });
 });
+
+// ---------------------------------------------------------------------------
+// coodra-work redesign round 2 — work_pack_decision_links (many-to-many)
+// ---------------------------------------------------------------------------
+
+function seedWorkPack(h: Harness, id: string, slug: string): void {
+  h.handle.raw
+    .prepare('INSERT INTO work_packs (id, project_id, slug, title) VALUES (?, ?, ?, ?)')
+    .run(id, h.projectId, slug, `pack ${slug}`);
+}
+
+describe('record_decision — work_pack_decision_links', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it("auto-links to the run's current Work Pack (runs.work_pack_id) with no workPackSlugs passed", async () => {
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    h.handle.raw.prepare('UPDATE runs SET work_pack_id = ? WHERE id = ?').run('wp_1', h.runId);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'auto-link decision', rationale: 'r' },
+        'sess_rd',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackDecisionLinks)
+      .where(eq(sqliteSchema.workPackDecisionLinks.decisionId, out.decisionId));
+    expect(links.map((l) => l.workPackId)).toEqual(['wp_1']);
+  });
+
+  it("workPackSlugs additively links to a second, related pack alongside the run's own pack", async () => {
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    seedWorkPack(h, 'wp_2', 'pack-2');
+    h.handle.raw.prepare('UPDATE runs SET work_pack_id = ? WHERE id = ?').run('wp_1', h.runId);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'cross-pack decision', rationale: 'r', workPackSlugs: ['pack-2'] },
+        'sess_rd',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackDecisionLinks)
+      .where(eq(sqliteSchema.workPackDecisionLinks.decisionId, out.decisionId));
+    expect(links.map((l) => l.workPackId).sort()).toEqual(['wp_1', 'wp_2']);
+  });
+
+  it('skips (does not error) an unresolvable workPackSlugs entry', async () => {
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'dangling slug', rationale: 'r', workPackSlugs: ['does-not-exist'] },
+        'sess_rd',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackDecisionLinks)
+      .where(eq(sqliteSchema.workPackDecisionLinks.decisionId, out.decisionId));
+    expect(links).toHaveLength(0);
+  });
+
+  it('re-recording an idempotent-hit decision with a new workPackSlugs entry adds the new link', async () => {
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    const registry = buildRegistry(h);
+    const first = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'same decision twice', rationale: 'r' },
+        'sess_rd',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const second = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'same decision twice', rationale: 'ignored', workPackSlugs: ['pack-1'] },
+        'sess_rd',
+      ),
+    );
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.decisionId).toBe(first.decisionId);
+    expect(second.created).toBe(false);
+
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackDecisionLinks)
+      .where(eq(sqliteSchema.workPackDecisionLinks.decisionId, first.decisionId));
+    expect(links.map((l) => l.workPackId)).toEqual(['wp_1']);
+  });
+});

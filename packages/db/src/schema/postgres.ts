@@ -557,6 +557,64 @@ export const decisions = pgTable(
 );
 
 /**
+ * coodra-work redesign, round 2 — direct many-to-many links from a
+ * decision/context pack to the Work Pack(s) it belongs to, written at
+ * record time. Mirrors `workPackExternalLinks`'s exact shape.
+ *
+ * Before this, a decision's Work Pack membership was derivable only
+ * transitively (decisions.run_id -> runs.id -> runs.work_pack_id), which
+ * has two problems: (1) `runs.work_pack_id` is a single mutable column,
+ * so a run touching two packs in sequence silently reassigns every
+ * earlier decision on that run when queried transitively; (2) a related
+ * pack can never see another pack's decisions, since the join only ever
+ * reaches runs bound to the pack being queried. These tables fix both —
+ * stable at write time, and explicitly many-to-many so a decision or
+ * Context Pack can be tagged to more than one pack. The old transitive
+ * `runs.work_pack_id` columns are unchanged and still used by
+ * `work_pack_status`'s primary-pack resume flow and as a query_decisions
+ * fallback for decisions recorded before this migration.
+ */
+export const workPackDecisionLinks = pgTable(
+  'work_pack_decision_links',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    workPackId: text('work_pack_id')
+      .notNull()
+      .references(() => workPacks.id, { onDelete: 'cascade' }),
+    decisionId: text('decision_id')
+      .notNull()
+      .references(() => decisions.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('work_pack_decision_links_pair_uk').on(t.workPackId, t.decisionId),
+    index('work_pack_decision_links_decision_idx').on(t.decisionId),
+  ],
+);
+
+export const workPackContextPackLinks = pgTable(
+  'work_pack_context_pack_links',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    workPackId: text('work_pack_id')
+      .notNull()
+      .references(() => workPacks.id, { onDelete: 'cascade' }),
+    contextPackId: text('context_pack_id')
+      .notNull()
+      .references(() => contextPacks.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('work_pack_context_pack_links_pair_uk').on(t.workPackId, t.contextPackId),
+    index('work_pack_context_pack_links_context_pack_idx').on(t.contextPackId),
+  ],
+);
+
+/**
  * Module 08b S1 — kill switches (postgres mirror of sqlite.ts::killSwitches).
  *
  * Same shape, dialect-appropriate timestamp columns. The schema-parity test
@@ -710,6 +768,10 @@ export type SyncEvent = typeof syncEvents.$inferSelect;
 export type NewSyncEvent = typeof syncEvents.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type WorkPackDecisionLink = typeof workPackDecisionLinks.$inferSelect;
+export type NewWorkPackDecisionLink = typeof workPackDecisionLinks.$inferInsert;
+export type WorkPackContextPackLink = typeof workPackContextPackLinks.$inferSelect;
+export type NewWorkPackContextPackLink = typeof workPackContextPackLinks.$inferInsert;
 export type KillSwitch = typeof killSwitches.$inferSelect;
 export type NewKillSwitch = typeof killSwitches.$inferInsert;
 export type RunDiff = typeof runDiffs.$inferSelect;

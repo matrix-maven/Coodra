@@ -7,10 +7,9 @@ import { type SearchPacksNlInput, searchPacksNlInputSchema, searchPacksNlOutputS
 /**
  * Registration factory for `coodra__search_packs_nl`.
  *
- * Module 05 reshape (2026-05-08): description rewritten to match the
- * keyword-only LIKE search. The agent does relevance ranking after
- * reading candidates with `read_context_pack` — see
- * `docs/feature-packs/05-agent-driven-nl-assembly/spec.md` §5.3.
+ * BM25 full-text search (2026-08-03): description rewritten — this is now
+ * real ranked search (bm25()/ts_rank()) over title + content_excerpt, not
+ * LIKE-substring ordered by recency. See `handler.ts`'s top docblock.
  *
  * §24.3 anatomy is enforced by
  * `@coodra/shared/test-utils::assertManifestDescriptionValid`.
@@ -35,9 +34,9 @@ export function createSearchPacksNlToolRegistration(
     name: 'search_packs_nl',
     title: 'Coodra: search_packs_nl',
     description:
-      'Call this when the user asks "what was done before?", "has X been tried?", or "what is the current state of Y?" — or when you are unsure whether prior work on a topic exists. ' +
-      'Searches Context Pack titles, excerpts, and the first 2KB of body content by keyword. Returns up to 50 matches ordered by recency, not relevance. ' +
-      'Use the `source` field to prefer agent-authored narratives ("agent") over bridge auto-summaries ("bridge_auto"). Apply your own relevance ranking after reading candidates with read_context_pack. ' +
+      'Call this when the user asks "what was done before?", "has X been tried?", "remember when we...", or "what is the current state of Y?" — or when you are unsure whether prior work on a topic exists. ' +
+      'BM25-ranked keyword search over Context Pack titles + excerpts. Every word in `query` must appear. Returns up to 50 matches, best match first via `score` (higher = more relevant). ' +
+      'Use the `source` field to prefer agent-authored narratives ("agent") over bridge auto-summaries ("bridge_auto"). ' +
       'Returns { ok: true, packs: [...] }. Soft-failure: project_not_found.',
     inputSchema: searchPacksNlInputSchema,
     outputSchema: searchPacksNlOutputSchema,

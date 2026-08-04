@@ -41,11 +41,12 @@ export function createLinkRunToIssueToolRegistration(
     name: 'link_run_to_issue',
     title: 'Coodra: link_run_to_issue',
     description:
-      'Call this when the user names or references a Jira issue this session is for — e.g. "work on PROJ-123", a ' +
-      "branch like feature/PROJ-123, or after you confirm the issue via Rovo's getJiraIssue. Binds the current run " +
-      'to that issue key (runs.issueRef) so Coodra history becomes Jira-aware: query_run_history and query_decisions ' +
-      'can then answer "what touched PROJ-412?". Records a local link only — no Jira API call. Returns ' +
-      '{ ok: true, runId, issueRef, previousIssueRef, updated } or { ok: false, error: "run_not_found", howToFix }.',
+      'Call this when the user names or references a tracker issue this session is for — e.g. "work on PROJ-123", a ' +
+      "branch like feature/PROJ-123, or after you confirm the issue via the provider's own MCP (Rovo for Jira, or " +
+      'another tracker). Binds the current run to that issue key (runs.issueRef) so Coodra history becomes ' +
+      'issue-aware: query_run_history and query_decisions can then answer "what touched PROJ-412?". Records a local ' +
+      'link only — no provider API call. Returns { ok: true, runId, issueRef, previousIssueRef, updated } or ' +
+      '{ ok: false, error: "run_not_found", howToFix }.',
     inputSchema: linkRunToIssueInputSchema,
     outputSchema: linkRunToIssueOutputSchema,
     idempotencyKey: linkRunToIssueIdempotencyKey,

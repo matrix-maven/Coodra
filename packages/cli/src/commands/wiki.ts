@@ -1,16 +1,20 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, sep } from 'node:path';
 
 import { lookupProjectBySlug, sqliteSchema } from '@coodra/db';
 import {
+  parseWikiPageFrontmatter,
+  scoreWikiCorpus,
   WIKI_GROUNDING_RELPATH,
   WIKI_ID_RE,
   WIKI_JOB_MD_RELPATH,
   WIKI_JOB_RELPATH,
-  WIKI_OKF_DIR_RELPATH,
   type WikiMode,
+  type WikiScorableEntry,
   wikiDir,
+  wikiMdDir,
   wikiModeSchema,
+  wikiStructureSchema,
 } from '@coodra/shared/wiki';
 import { and, desc, eq } from 'drizzle-orm';
 
@@ -155,7 +159,6 @@ export async function runWikiGenerateCommand(
   );
   const mirrorDir = wikiDir(cwd, slug);
   mkdirSync(mirrorDir, { recursive: true });
-  mkdirSync(join(cwd, WIKI_OKF_DIR_RELPATH), { recursive: true });
 
   await recordManifestEntries({
     root: cwd,
@@ -166,7 +169,6 @@ export async function runWikiGenerateCommand(
       classifyGeneratedPath(jobJsonPath, cwd, 'coodra wiki build'),
       classifyGeneratedPath(jobMdPath, cwd, 'coodra wiki build'),
       classifyGeneratedPath(mirrorDir, cwd, 'coodra wiki build'),
-      classifyGeneratedPath(join(cwd, WIKI_OKF_DIR_RELPATH), cwd, 'coodra wiki build'),
     ],
   });
 
@@ -208,7 +210,7 @@ export async function runWikiGenerateCommand(
   io.writeStdout('\n');
   io.writeStdout(`      ${pc.cyan('Use coodra-wiki. Read .coodra/wiki/job.md and build the deep wiki by')}\n`);
   io.writeStdout(`      ${pc.cyan('calling the coodra__wiki_save_structure and coodra__wiki_save_page MCP tools.')}\n`);
-  io.writeStdout(`      ${pc.cyan(`Mirror successful saves under .coodra/wiki/${slug}/ after the MCP calls.`)}\n`);
+  io.writeStdout(`      ${pc.cyan(`Mirror successful saves under .coodra/wiki/${slug}/md/ after the MCP calls.`)}\n`);
   io.writeStdout('\n');
   io.writeStdout(
     `${hintLine('  (A vague "generate the deep wiki" can make agents free-write root files instead of')}\n`,
@@ -456,4 +458,187 @@ export async function runWikiCleanCommand(
   } finally {
     handle.close();
   }
+}
+
+// ---------------------------------------------------------------------------
+// ask
+// ---------------------------------------------------------------------------
+
+export interface WikiAskOptions {
+  readonly slug?: string;
+  readonly limit?: number;
+  /** Skip the local Markdown mirror and rank against the DB directly. */
+  readonly refresh?: boolean;
+  readonly cwd?: string;
+  readonly json?: boolean;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+interface WikiAskResultRow {
+  readonly pageId: string;
+  readonly title: string;
+  readonly score: number;
+  readonly excerpt: string;
+  readonly filePath?: string;
+}
+
+/** Read every page file under a connected-Markdown mirror dir, `index.md` excluded. */
+function loadLocalWikiCorpus(mdDir: string): WikiScorableEntry[] {
+  const files = readdirSync(mdDir).filter((f) => f.endsWith('.md') && f !== 'index.md');
+  const entries: WikiScorableEntry[] = [];
+  for (const file of files) {
+    const raw = readFileSync(join(mdDir, file), 'utf8');
+    const { frontmatter, body } = parseWikiPageFrontmatter(raw);
+    const pageId = typeof frontmatter?.pageId === 'string' ? frontmatter.pageId : basename(file, '.md');
+    const title = typeof frontmatter?.title === 'string' ? frontmatter.title : pageId;
+    const description = typeof frontmatter?.description === 'string' ? frontmatter.description : '';
+    entries.push({ pageId, title, description, body });
+  }
+  return entries;
+}
+
+/**
+ * DB-fallback read for `wiki ask`. Per-page `title`/`description` live
+ * only inside `wikis.structureJson` (no queryable column — see
+ * `packages/db/src/schema/sqlite.ts`), so this parses that JSON blob in
+ * application code and joins it in-memory with `wikiPages.contentMarkdown`
+ * (filtered to `state: 'authored'` — pending rows are empty noise).
+ * Distinct from `loadWikis`, which only selects `state` for progress
+ * counts, not content.
+ */
+async function loadWikiForAsk(
+  dataDb: string,
+  projectSlug: string,
+  slug: string,
+): Promise<{ projectFound: boolean; wikiFound: boolean; entries: WikiScorableEntry[] }> {
+  const handle = await openLocalDb(dataDb);
+  try {
+    const project = await lookupProjectBySlug(handle, projectSlug);
+    if (project === null) return { projectFound: false, wikiFound: false, entries: [] };
+
+    const matched = await handle.db
+      .select({ id: sqliteSchema.wikis.id, structureJson: sqliteSchema.wikis.structureJson })
+      .from(sqliteSchema.wikis)
+      .where(and(eq(sqliteSchema.wikis.projectId, project.id), eq(sqliteSchema.wikis.slug, slug)))
+      .limit(1);
+    const wiki = matched[0];
+    if (wiki === undefined) return { projectFound: true, wikiFound: false, entries: [] };
+
+    const pageMeta = new Map<string, { readonly title: string; readonly description: string }>();
+    try {
+      const structureParse = wikiStructureSchema.safeParse(JSON.parse(wiki.structureJson));
+      if (structureParse.success) {
+        for (const page of structureParse.data.pages) {
+          pageMeta.set(page.id, { title: page.title, description: page.description });
+        }
+      }
+    } catch {
+      // Malformed/legacy structureJson — degrade to pageId-only metadata
+      // below rather than aborting the whole fallback path.
+    }
+
+    const pages = await handle.db
+      .select({
+        pageId: sqliteSchema.wikiPages.pageId,
+        contentMarkdown: sqliteSchema.wikiPages.contentMarkdown,
+        state: sqliteSchema.wikiPages.state,
+      })
+      .from(sqliteSchema.wikiPages)
+      .where(eq(sqliteSchema.wikiPages.wikiId, wiki.id));
+
+    const entries: WikiScorableEntry[] = [];
+    for (const page of pages) {
+      if (page.state !== 'authored') continue;
+      const meta = pageMeta.get(page.pageId);
+      entries.push({
+        pageId: page.pageId,
+        title: meta?.title ?? page.pageId,
+        description: meta?.description ?? '',
+        body: page.contentMarkdown,
+      });
+    }
+    return { projectFound: true, wikiFound: true, entries };
+  } finally {
+    handle.close();
+  }
+}
+
+/**
+ * `coodra wiki ask "<question>"` — pure retrieval, never a synthesized
+ * answer (Coodra runs no LLM). Ranks Deep Wiki pages against `question`:
+ * local connected-Markdown mirror first (`.coodra/wiki/<slug>/md/`, no
+ * DB touched at all — a directly testable invariant), DB fallback when
+ * that mirror is missing, empty, or `--refresh` is passed. The same
+ * fallback condition transparently covers pre-existing flat-layout
+ * mirrors too (their files sit one level up from `md/`, so the local
+ * check naturally finds nothing there) — no special-case migration
+ * needed. The calling coding agent reads the ranked files/excerpts this
+ * prints and composes the actual answer.
+ */
+export async function runWikiAskCommand(
+  question: string,
+  options: WikiAskOptions = {},
+  io: WikiIO = DEFAULT_WIKI_IO,
+): Promise<never> {
+  const { cwd, projectSlug } = await resolveProject(options.cwd);
+  const slug = toWikiSlug(options.slug ?? projectSlug);
+  const scoreOpts = options.limit !== undefined ? { limit: options.limit } : undefined;
+
+  const mdDir = wikiMdDir(cwd, slug);
+  let source: 'local' | 'db' = 'local';
+  let results: WikiAskResultRow[] = [];
+  let resolved = false;
+
+  if (options.refresh !== true && existsSync(mdDir)) {
+    const localEntries = loadLocalWikiCorpus(mdDir);
+    if (localEntries.length > 0) {
+      resolved = true;
+      results = scoreWikiCorpus(localEntries, question, scoreOpts).map((r) => ({
+        ...r,
+        filePath: relative(cwd, join(mdDir, `${r.pageId}.md`))
+          .split(sep)
+          .join('/'),
+      }));
+    }
+  }
+
+  if (!resolved) {
+    source = 'db';
+    const env = options.env ?? process.env;
+    const dataDb = resolveCoodraDataDb(resolveCoodraHome({ env }));
+    const { projectFound, wikiFound, entries } = await loadWikiForAsk(dataDb, projectSlug, slug);
+    if (!projectFound || !wikiFound) {
+      const msg = `No wiki "${slug}" found locally or in the DB. Run ${pc.cyan('coodra wiki build')} first, then have your agent author it.`;
+      if (options.json === true) {
+        io.writeStdout(`${JSON.stringify({ ok: false, error: 'no_wiki', message: msg }, null, 2)}\n`);
+      } else {
+        io.writeStderr(`${pc.red('✗')} ${msg}\n`);
+      }
+      return io.exit(EXIT_USER_RECOVERABLE);
+    }
+    results = scoreWikiCorpus(entries, question, scoreOpts);
+  }
+
+  if (options.json === true) {
+    io.writeStdout(`${JSON.stringify({ ok: true, question, slug, source, results }, null, 2)}\n`);
+    return io.exit(EXIT_OK);
+  }
+
+  io.writeStdout(`${commandTitle('Deep Wiki', `ask — ${slug}`, { width: terminalWidth(), indent: 0 })}\n\n`);
+  if (results.length === 0) {
+    io.writeStdout(`  ${pc.yellow('◌')} ${pc.gray('No matching pages.')}\n\n`);
+    return io.exit(EXIT_OK);
+  }
+  io.writeStdout(`  ${pc.gray(`source: ${source}`)}\n\n`);
+  results.forEach((r, i) => {
+    io.writeStdout(
+      `  ${pc.bold(`${i + 1}.`)} ${pc.bold(r.title)} ${pc.gray(`(${r.pageId}, score ${r.score.toFixed(1)})`)}\n`,
+    );
+    if (r.filePath !== undefined) io.writeStdout(`     ${pc.cyan(r.filePath)}\n`);
+    io.writeStdout(`     ${pc.gray(r.excerpt)}\n\n`);
+  });
+  io.writeStdout(
+    `${hintLine('  This is retrieval only — open the listed files and answer from them; Coodra does not generate answers itself.')}\n\n`,
+  );
+  return io.exit(EXIT_OK);
 }

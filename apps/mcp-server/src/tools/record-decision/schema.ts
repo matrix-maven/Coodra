@@ -30,6 +30,13 @@ const MAX_ALTERNATIVE_LEN = 512 as const;
 const MAX_CONTEXT = 4096 as const;
 const MAX_IMPACT_ITEMS = 30 as const;
 const MAX_IMPACT_LEN = 512 as const;
+const MAX_WORK_PACK_SLUGS = 10 as const;
+
+const workPackSlugSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case');
 
 export const recordDecisionInputSchema = z
   .object({
@@ -54,6 +61,16 @@ export const recordDecisionInputSchema = z
     confidence: z.enum(['high', 'medium', 'low']).optional(),
     /** M05 — can this be undone without major cost. Stored as boolean (NULL = unknown). */
     reversible: z.boolean().optional(),
+    /**
+     * coodra-work redesign, round 2. This decision always links to the
+     * run's current Work Pack (runs.work_pack_id) if one is set — no
+     * change needed for existing callers. Pass additional slugs here
+     * only when this decision also matters to another (typically
+     * related) pack, e.g. a decision made while working Pack 1 that a
+     * concurrently-started Pack 2 should already know about. Additive:
+     * does not replace the run's own pack link.
+     */
+    workPackSlugs: z.array(workPackSlugSchema).max(MAX_WORK_PACK_SLUGS).optional(),
   })
   .strict()
   .describe('Input for coodra__record_decision.');

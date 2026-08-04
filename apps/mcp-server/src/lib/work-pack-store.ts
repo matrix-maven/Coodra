@@ -3,8 +3,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 
+import { toSqliteFtsQuery } from './fts-query.js';
 import { selectRunProjectId } from './wiki-store.js';
 
 export interface WorkPackSourceInput {
@@ -53,7 +54,10 @@ function json(value: unknown): string {
   return JSON.stringify(value ?? {});
 }
 
-async function selectProjectContext(db: DbHandle, runId: string): Promise<{
+async function selectProjectContext(
+  db: DbHandle,
+  runId: string,
+): Promise<{
   projectId: string;
   projectSlug: string;
   cwd: string | null;
@@ -239,10 +243,7 @@ export async function upsertWorkPack(db: DbHandle, args: UpsertWorkPackArgs): Pr
         updatedAt: now,
       })
       .onConflictDoUpdate({
-        target: [
-          sqliteSchema.workPackExternalLinks.workPackId,
-          sqliteSchema.workPackExternalLinks.externalWorkItemId,
-        ],
+        target: [sqliteSchema.workPackExternalLinks.workPackId, sqliteSchema.workPackExternalLinks.externalWorkItemId],
         set: { syncDirection: 'bidirectional', syncState: 'synced', updatedAt: now },
       });
 
@@ -442,9 +443,90 @@ export async function upsertWorkPack(db: DbHandle, args: UpsertWorkPackArgs): Pr
   };
 }
 
-export async function listWorkPackStatus(db: DbHandle, projectId: string | null) {
+interface RankedId {
+  readonly id: string;
+  readonly rank: number;
+}
+
+// Same ceiling/rationale as query_decisions' FTS_CANDIDATE_CAP.
+const FTS_CANDIDATE_CAP = 500 as const;
+
+/**
+ * Resolves work pack ids matching `query`, ranked best-first, via
+ * `work_packs_fts`/`work_packs.search_vector` — see `packages/db/drizzle/
+ * {sqlite,postgres}/00{24,26}_fts_search.sql`. Rank is normalized so
+ * higher is always more relevant (SQLite's bm25() is natively
+ * negative-lower-is-better; negated here to match Postgres's ts_rank()).
+ * `projectId === null` means unscoped (no runId was supplied to
+ * work_pack_status) — matches `listWorkPackStatus`'s existing no-runId
+ * behavior of listing across every project.
+ */
+async function selectWorkPackIdsByQuery(db: DbHandle, projectId: string | null, query: string): Promise<RankedId[]> {
   if (db.kind === 'sqlite') {
-    const query = db.db
+    const ftsQuery = toSqliteFtsQuery(query);
+    const rows = db.db.all<{ id: string; rank: number }>(sql`
+      SELECT wp.id AS id, bm25(work_packs_fts) AS rank
+      FROM work_packs_fts
+      JOIN work_packs wp ON wp.id = work_packs_fts.work_pack_id
+      WHERE work_packs_fts MATCH ${ftsQuery}
+        ${projectId === null ? sql`` : sql`AND wp.project_id = ${projectId}`}
+      ORDER BY rank
+      LIMIT ${FTS_CANDIDATE_CAP}
+    `);
+    return rows.map((row) => ({ id: row.id, rank: -row.rank }));
+  }
+  const rows = (await db.db.execute(sql`
+    SELECT wp.id AS id, ts_rank(wp.search_vector, plainto_tsquery('english', ${query})) AS rank
+    FROM work_packs wp
+    WHERE wp.search_vector @@ plainto_tsquery('english', ${query})
+      ${projectId === null ? sql`` : sql`AND wp.project_id = ${projectId}`}
+    ORDER BY rank DESC
+    LIMIT ${FTS_CANDIDATE_CAP}
+  `)) as unknown as { id: string; rank: number }[];
+  return rows.map((row) => ({ id: row.id, rank: row.rank }));
+}
+
+interface WorkPackStatusRow {
+  readonly id: string;
+  readonly slug: string;
+  readonly title: string;
+  readonly packType: string;
+  readonly status: string;
+  readonly updatedAt: Date;
+  readonly externalKey: string | null;
+  readonly externalStatus: string | null;
+  readonly syncState: string | null;
+}
+
+/** Reorders `rows` to match `rankedIds`'s best-first order (higher rank = more relevant). */
+function sortByRank(rows: WorkPackStatusRow[], rankedIds: ReadonlyArray<RankedId>): WorkPackStatusRow[] {
+  const rankById = new Map(rankedIds.map((r) => [r.id, r.rank]));
+  return [...rows].sort((a, b) => (rankById.get(b.id) ?? 0) - (rankById.get(a.id) ?? 0));
+}
+
+export async function listWorkPackStatus(
+  db: DbHandle,
+  projectId: string | null,
+  query?: string,
+): Promise<WorkPackStatusRow[]> {
+  let rankedIds: RankedId[] | undefined;
+  if (query !== undefined) {
+    rankedIds = await selectWorkPackIdsByQuery(db, projectId, query);
+    if (rankedIds.length === 0) return [];
+  }
+
+  if (db.kind === 'sqlite') {
+    const conditions = [];
+    if (projectId !== null) conditions.push(eq(sqliteSchema.workPacks.projectId, projectId));
+    if (rankedIds !== undefined)
+      conditions.push(
+        inArray(
+          sqliteSchema.workPacks.id,
+          rankedIds.map((r) => r.id),
+        ),
+      );
+    const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
+    let selectQuery = db.db
       .select({
         id: sqliteSchema.workPacks.id,
         slug: sqliteSchema.workPacks.slug,
@@ -464,12 +546,24 @@ export async function listWorkPackStatus(db: DbHandle, projectId: string | null)
       .leftJoin(
         sqliteSchema.externalWorkItems,
         eq(sqliteSchema.externalWorkItems.id, sqliteSchema.workPackExternalLinks.externalWorkItemId),
-      );
-    return projectId === null
-      ? query.orderBy(desc(sqliteSchema.workPacks.updatedAt))
-      : query.where(eq(sqliteSchema.workPacks.projectId, projectId)).orderBy(desc(sqliteSchema.workPacks.updatedAt));
+      )
+      .$dynamic();
+    if (where !== undefined) selectQuery = selectQuery.where(where);
+    if (rankedIds === undefined) selectQuery = selectQuery.orderBy(desc(sqliteSchema.workPacks.updatedAt));
+    const rows = (await selectQuery) as WorkPackStatusRow[];
+    return rankedIds !== undefined ? sortByRank(rows, rankedIds) : rows;
   }
-  const query = db.db
+  const conditions = [];
+  if (projectId !== null) conditions.push(eq(postgresSchema.workPacks.projectId, projectId));
+  if (rankedIds !== undefined)
+    conditions.push(
+      inArray(
+        postgresSchema.workPacks.id,
+        rankedIds.map((r) => r.id),
+      ),
+    );
+  const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
+  let selectQuery = db.db
     .select({
       id: postgresSchema.workPacks.id,
       slug: postgresSchema.workPacks.slug,
@@ -489,8 +583,10 @@ export async function listWorkPackStatus(db: DbHandle, projectId: string | null)
     .leftJoin(
       postgresSchema.externalWorkItems,
       eq(postgresSchema.externalWorkItems.id, postgresSchema.workPackExternalLinks.externalWorkItemId),
-    );
-  return projectId === null
-    ? query.orderBy(desc(postgresSchema.workPacks.updatedAt))
-    : query.where(eq(postgresSchema.workPacks.projectId, projectId)).orderBy(desc(postgresSchema.workPacks.updatedAt));
+    )
+    .$dynamic();
+  if (where !== undefined) selectQuery = selectQuery.where(where);
+  if (rankedIds === undefined) selectQuery = selectQuery.orderBy(desc(postgresSchema.workPacks.updatedAt));
+  const rows = (await selectQuery) as WorkPackStatusRow[];
+  return rankedIds !== undefined ? sortByRank(rows, rankedIds) : rows;
 }

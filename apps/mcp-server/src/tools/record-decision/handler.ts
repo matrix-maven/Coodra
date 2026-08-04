@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
 import type { RecordDecisionInput, RecordDecisionOutput } from './schema.js';
@@ -60,6 +60,7 @@ function computeIdempotencyKey(runId: string, description: string): string {
 interface RunAttribution {
   readonly projectId: string;
   readonly orgId: string | null;
+  readonly workPackId: string | null;
 }
 
 async function selectRunAttribution(db: DbHandle, runId: string): Promise<RunAttribution | null> {
@@ -69,26 +70,90 @@ async function selectRunAttribution(db: DbHandle, runId: string): Promise<RunAtt
         projectId: sqliteSchema.runs.projectId,
         runOrgId: sqliteSchema.runs.orgId,
         projectOrgId: sqliteSchema.projects.orgId,
+        workPackId: sqliteSchema.runs.workPackId,
       })
       .from(sqliteSchema.runs)
       .innerJoin(sqliteSchema.projects, eq(sqliteSchema.projects.id, sqliteSchema.runs.projectId))
       .where(eq(sqliteSchema.runs.id, runId))
       .limit(1);
     const row = rows[0];
-    return row ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId } : null;
+    return row
+      ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId, workPackId: row.workPackId }
+      : null;
   }
   const rows = await db.db
     .select({
       projectId: postgresSchema.runs.projectId,
       runOrgId: postgresSchema.runs.orgId,
       projectOrgId: postgresSchema.projects.orgId,
+      workPackId: postgresSchema.runs.workPackId,
     })
     .from(postgresSchema.runs)
     .innerJoin(postgresSchema.projects, eq(postgresSchema.projects.id, postgresSchema.runs.projectId))
     .where(eq(postgresSchema.runs.id, runId))
     .limit(1);
   const row = rows[0];
-  return row ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId } : null;
+  return row ? { projectId: row.projectId, orgId: row.runOrgId ?? row.projectOrgId, workPackId: row.workPackId } : null;
+}
+
+async function selectWorkPackIdBySlug(db: DbHandle, projectId: string, slug: string): Promise<string | null> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ id: sqliteSchema.workPacks.id })
+      .from(sqliteSchema.workPacks)
+      .where(and(eq(sqliteSchema.workPacks.projectId, projectId), eq(sqliteSchema.workPacks.slug, slug)))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  }
+  const rows = await db.db
+    .select({ id: postgresSchema.workPacks.id })
+    .from(postgresSchema.workPacks)
+    .where(and(eq(postgresSchema.workPacks.projectId, projectId), eq(postgresSchema.workPacks.slug, slug)))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Links a decision to one or more Work Packs via the many-to-many
+ * `work_pack_decision_links` table (coodra-work redesign, round 2).
+ * Idempotent per (workPackId, decisionId) pair — safe to call again on
+ * an idempotent-hit decision re-record, e.g. to add a new pack link to
+ * an already-recorded decision.
+ */
+async function linkDecisionToWorkPacks(
+  db: DbHandle,
+  args: { readonly orgId: string | null; readonly projectId: string; readonly decisionId: string },
+  workPackIds: ReadonlySet<string>,
+): Promise<void> {
+  for (const workPackId of workPackIds) {
+    if (db.kind === 'sqlite') {
+      await db.db
+        .insert(sqliteSchema.workPackDecisionLinks)
+        .values({
+          id: `wpdl_${randomUUID()}`,
+          orgId: args.orgId,
+          projectId: args.projectId,
+          workPackId,
+          decisionId: args.decisionId,
+        })
+        .onConflictDoNothing({
+          target: [sqliteSchema.workPackDecisionLinks.workPackId, sqliteSchema.workPackDecisionLinks.decisionId],
+        });
+      continue;
+    }
+    await db.db
+      .insert(postgresSchema.workPackDecisionLinks)
+      .values({
+        id: `wpdl_${randomUUID()}`,
+        orgId: args.orgId,
+        projectId: args.projectId,
+        workPackId,
+        decisionId: args.decisionId,
+      })
+      .onConflictDoNothing({
+        target: [postgresSchema.workPackDecisionLinks.workPackId, postgresSchema.workPackDecisionLinks.decisionId],
+      });
+  }
 }
 
 interface ExistingDecisionRow {
@@ -277,6 +342,33 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
           sessionId: ctx.sessionId,
         },
         'record_decision: idempotency key collided — returning existing decisionId',
+      );
+    }
+
+    // coodra-work redesign, round 2 — always link to the run's current
+    // Work Pack (if any), plus any explicitly-named related packs. Runs
+    // even on an idempotent hit so a later call can add a new pack link
+    // to an already-recorded decision; safe no-op via ON CONFLICT.
+    const workPackIdsToLink = new Set<string>();
+    if (runAttribution.workPackId !== null) workPackIdsToLink.add(runAttribution.workPackId);
+    if (input.workPackSlugs !== undefined) {
+      for (const slug of input.workPackSlugs) {
+        const resolved = await selectWorkPackIdBySlug(deps.db, runAttribution.projectId, slug);
+        if (resolved !== null) {
+          workPackIdsToLink.add(resolved);
+        } else {
+          handlerLogger.info(
+            { event: 'record_decision_work_pack_slug_not_found', runId: input.runId, slug, sessionId: ctx.sessionId },
+            'record_decision: workPackSlugs entry did not resolve to a Work Pack; skipping that link',
+          );
+        }
+      }
+    }
+    if (workPackIdsToLink.size > 0) {
+      await linkDecisionToWorkPacks(
+        deps.db,
+        { orgId: actor?.orgId ?? runAttribution.orgId, projectId: runAttribution.projectId, decisionId: id },
+        workPackIdsToLink,
       );
     }
 

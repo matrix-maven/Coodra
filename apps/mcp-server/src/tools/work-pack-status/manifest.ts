@@ -5,7 +5,7 @@ import { type WorkPackStatusInput, workPackStatusInputSchema, workPackStatusOutp
 
 const workPackStatusIdempotencyKey: IdempotencyKeyBuilder<WorkPackStatusInput> = (input) => ({
   kind: 'readonly',
-  key: `readonly:work_pack_status:${input.runId ?? '*'}`.slice(0, 200),
+  key: `readonly:work_pack_status:${input.runId ?? '*'}:${input.query ?? '*'}`.slice(0, 200),
 });
 
 export function createWorkPackStatusToolRegistration(
@@ -16,9 +16,11 @@ export function createWorkPackStatusToolRegistration(
     title: 'Coodra: work_pack_status',
     description:
       'List Coodra Work Packs and their linked Jira status/sync state so an agent can resume issue-bound work. ' +
-      'Pass runId to scope the read to the current project; omit it only for an operator-wide inspection. This is ' +
-      'read-only and intentionally does not contact Jira. If the agent needs fresh Jira fields, it should call ' +
-      'Atlassian Rovo MCP first, then call work_pack_upsert to persist the refreshed local Work Pack map.',
+      'Pass runId to scope the read to the current project; omit it only for an operator-wide inspection. Pass query ' +
+      'for BM25-ranked keyword search against title + spec/implementation/sync markdown, best match first — useful ' +
+      'to find a pack by topic instead of browsing every pack by recency. This is read-only and intentionally does ' +
+      'not contact Jira. If the agent needs fresh Jira fields, it should call Atlassian Rovo MCP first, then call ' +
+      'work_pack_upsert to persist the refreshed local Work Pack map.',
     inputSchema: workPackStatusInputSchema,
     outputSchema: workPackStatusOutputSchema,
     idempotencyKey: workPackStatusIdempotencyKey,

@@ -38,6 +38,8 @@ const SCHEMA_TABLES = [
   'team_invites',
   'wiki_pages',
   'wikis',
+  'work_pack_context_pack_links',
+  'work_pack_decision_links',
   'work_pack_external_links',
   'work_pack_relationships',
   'work_packs',

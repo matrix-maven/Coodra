@@ -6,7 +6,9 @@ import {
   wikiDir,
   wikiDocsRoot,
   wikiJobPath,
-  wikiPagePath,
+  wikiMdDir,
+  wikiMdIndexPath,
+  wikiPageMdPath,
   wikiStructurePath,
 } from '../../../src/wiki/paths.js';
 
@@ -25,8 +27,16 @@ describe('wiki paths', () => {
     expect(wikiStructurePath(ROOT, 'coodra')).toBe('/repo/.coodra/wiki/coodra/structure.json');
   });
 
-  it('computes a page path from a kebab page id', () => {
-    expect(wikiPagePath(ROOT, 'coodra', 'mcp-server')).toBe('/repo/.coodra/wiki/coodra/mcp-server.md');
+  it('computes the connected-Markdown dir', () => {
+    expect(wikiMdDir(ROOT, 'coodra')).toBe('/repo/.coodra/wiki/coodra/md');
+  });
+
+  it('computes a page md path from a kebab page id', () => {
+    expect(wikiPageMdPath(ROOT, 'coodra', 'mcp-server')).toBe('/repo/.coodra/wiki/coodra/md/mcp-server.md');
+  });
+
+  it('computes the md index path', () => {
+    expect(wikiMdIndexPath(ROOT, 'coodra')).toBe('/repo/.coodra/wiki/coodra/md/index.md');
   });
 
   it('computes the job path', () => {

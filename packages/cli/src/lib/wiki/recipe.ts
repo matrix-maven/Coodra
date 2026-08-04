@@ -153,7 +153,7 @@ export function renderWikiRecipe(args: {
     lines.push(`| wiki slug | \`${slug}\` |`);
     lines.push(`| mode | \`${mode}\` |`);
     lines.push(`| grounding | \`${groundingPath}\` |`);
-    lines.push(`| markdown mirror | \`.coodra/wiki/${slug}/\` |`);
+    lines.push(`| markdown mirror | \`.coodra/wiki/${slug}/md/\` |`);
     lines.push('');
     lines.push(
       'You (the coding agent) generate this wiki. Coodra runs no model — you are the model; Coodra stores the result and renders it in its web app. Follow the two passes below exactly.',
@@ -164,7 +164,7 @@ export function renderWikiRecipe(args: {
   lines.push('## ⚠ Critical — source of truth + Markdown mirror');
   lines.push('');
   lines.push(
-    `The canonical wiki exists in Coodra's store, written through the MCP tools. Also maintain a repo-local Markdown mirror under \`.coodra/wiki/${slug}/\` for review, portability, and OKF export. Do NOT write root-level \`DEEP_WIKI.md\`, \`WIKI_INDEX.md\`, \`.coodra/wiki-structure.json\`, \`docs/wiki/*\`, or \`openwiki/\` output. Files are useful as a mirror only; the MCP saves are what make \`coodra wiki status\` and \`/wiki\` work.`,
+    `The canonical wiki exists in Coodra's store, written through the MCP tools. Also maintain a repo-local, connected-Markdown mirror under \`.coodra/wiki/${slug}/md/\` — cross-linked pages with real frontmatter, walkable without the DB — for review, portability, and \`coodra wiki ask\` (which reads this mirror directly before falling back to the DB). Do NOT write root-level \`DEEP_WIKI.md\`, \`WIKI_INDEX.md\`, \`.coodra/wiki-structure.json\`, \`docs/wiki/*\`, or \`openwiki/\` output. Files are useful as a mirror only; the MCP saves are what make \`coodra wiki status\` and \`/wiki\` work.`,
   );
   lines.push('');
   lines.push('- `coodra__get_run_id`  → bind a run');
@@ -212,6 +212,25 @@ export function renderWikiRecipe(args: {
     `After \`wiki_save_structure\` succeeds, mirror the exact structure JSON to \`.coodra/wiki/${slug}/structure.json\`. This mirror must match the saved structure; do not create it before the MCP save succeeds.`,
   );
   lines.push('');
+  lines.push(
+    `Also write \`.coodra/wiki/${slug}/md/index.md\` — a table of contents for the connected-Markdown mirror, generated from the structure you just saved (sections → pages, each linked to its future \`<pageId>.md\` with a one-line description). Write it once, here, right after the structure save succeeds; you have everything it needs already in memory, so it does not need to wait for pass 2. Shape:`,
+  );
+  lines.push('');
+  lines.push('```md');
+  lines.push('---');
+  lines.push('type: wiki-index');
+  lines.push(`wikiId: "<wikiId>"`);
+  lines.push(`slug: "${slug}"`);
+  lines.push('title: "<structure.title>"');
+  lines.push('description: "<structure.description>"');
+  lines.push('updatedAt: "<ISO timestamp>"');
+  lines.push('---');
+  lines.push('');
+  lines.push('## <Section title>');
+  lines.push('');
+  lines.push('- [<Page title>](./<pageId>.md) — <page.description, one line>');
+  lines.push('```');
+  lines.push('');
 
   lines.push('## Pass 2 — author every page');
   lines.push('');
@@ -235,7 +254,32 @@ export function renderWikiRecipe(args: {
   lines.push('```');
   lines.push('');
   lines.push(
-    `4. After \`wiki_save_page\` returns \`ok: true\`, mirror the exact Markdown body to \`.coodra/wiki/${slug}/<pageId>.md\`. Include a short frontmatter block with \`pageId\`, \`wikiId\`, \`title\`, \`state: authored\`, and \`updatedAt\`, then the same Markdown sent to the MCP tool. Do not write or update the mirror file when the MCP save returns an error.`,
+    `4. After \`wiki_save_page\` returns \`ok: true\`, mirror the page to \`.coodra/wiki/${slug}/md/<pageId>.md\`: a frontmatter block, then the same Markdown sent to the MCP tool, then a rendered "Related pages" section. Do not write or update the mirror file when the MCP save returns an error. Shape:`,
+  );
+  lines.push('');
+  lines.push('```md');
+  lines.push('---');
+  lines.push('type: wiki-page');
+  lines.push('pageId: "<this page id>"');
+  lines.push(`wikiId: "<wikiId>"`);
+  lines.push('title: "<page.title>"');
+  lines.push('description: "<page.description>"');
+  lines.push('importance: "<page.importance>"');
+  lines.push('parentId: "<page.parentId, or null>"');
+  lines.push('relatedPageIds: ["<page.relatedPageIds…>"]');
+  lines.push('state: authored');
+  lines.push('updatedAt: "<ISO timestamp>"');
+  lines.push('---');
+  lines.push('');
+  lines.push('<the same Markdown sent to wiki_save_page>');
+  lines.push('');
+  lines.push('## Related pages');
+  lines.push('');
+  lines.push('- [<related page title>](./<relatedPageId>.md)');
+  lines.push('```');
+  lines.push('');
+  lines.push(
+    'Resolve each related-page title and the frontmatter fields from the `WikiStructure` you already saved in pass 1 — no extra read-back needed. Omit the "Related pages" section entirely when `relatedPageIds` is empty.',
   );
   lines.push('');
   lines.push('### Mermaid rules — the server lint-gates every diagram');

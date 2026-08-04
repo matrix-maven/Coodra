@@ -3,6 +3,18 @@ import { z } from 'zod';
 export const workPackStatusInputSchema = z
   .object({
     runId: z.string().min(1).max(256).optional().describe('Optional run id to scope results to the current project.'),
+    // BM25 full-text search (2026-08-03) — matches search_packs_nl/
+    // query_decisions' query semantics against work_packs_fts/search_vector
+    // (title + spec/implementation/sync markdown). Every word must appear;
+    // results order by relevance instead of updatedAt when set.
+    query: z
+      .string()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe(
+        'Optional BM25-ranked keyword search against title + spec/implementation/sync markdown. Best match first.',
+      ),
   })
   .strict()
   .describe('Input for coodra__work_pack_status.');

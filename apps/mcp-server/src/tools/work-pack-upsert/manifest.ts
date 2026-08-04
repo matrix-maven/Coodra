@@ -23,11 +23,12 @@ export function createWorkPackUpsertToolRegistration(
     name: 'work_pack_upsert',
     title: 'Coodra: work_pack_upsert',
     description:
-      'Persist an agent-mediated Jira import as a Coodra Work Pack. Use this after the active agent has read the ' +
-      'issue through Atlassian Rovo MCP; do not call this as a Jira client and do not put Atlassian credentials in ' +
-      'Coodra. The tool upserts external_work_items, work_packs, link and relationship rows, records a sync event, ' +
-      'and mirrors files under .coodra/work-packs/<slug>/ when the project cwd is known. Include bounded related ' +
-      'tasks/subtasks/blockers so later agent sessions can resume the implementation map intelligently.',
+      'Persist an agent-mediated import (Jira issue, GitHub/GitLab PR, or a manually-created pack) as a Coodra Work ' +
+      'Pack. Use this after the active agent has read the item through its own provider MCP (Rovo, GitHub, GitLab); ' +
+      'do not call this as a provider client and do not put provider credentials in Coodra. The tool upserts ' +
+      'external_work_items, work_packs, link and relationship rows, records a sync event, and mirrors files under ' +
+      '.coodra/work-packs/<slug>/ when the project cwd is known. Include bounded related tasks/subtasks/blockers so ' +
+      'later agent sessions can resume the implementation map intelligently.',
     inputSchema: workPackUpsertInputSchema,
     outputSchema: workPackUpsertOutputSchema,
     idempotencyKey: workPackUpsertIdempotencyKey,

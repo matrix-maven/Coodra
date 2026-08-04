@@ -78,8 +78,9 @@ export function createLinkRunToIssueHandler(deps: LinkRunToIssueHandlerDeps) {
     input: LinkRunToIssueInput,
     ctx: ToolContext,
   ): Promise<LinkRunToIssueOutput> {
-    // Jira project keys are uppercase by convention; normalise so the
-    // stored key is canonical regardless of how the agent typed it.
+    // Tracker issue keys are conventionally uppercase (Jira, Linear, ...);
+    // normalise so the stored key is canonical regardless of how the agent
+    // typed it. Harmless no-op for references that aren't case-shaped.
     const issueRef = input.issueRef.toUpperCase();
 
     const run = await selectRun(deps.db, input.runId);

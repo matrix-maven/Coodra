@@ -55,6 +55,12 @@ const tablePairs = [
   ['work_pack_relationships', sq.workPackRelationships, pg.workPackRelationships],
   ['sync_events', sq.syncEvents, pg.syncEvents],
   ['decisions', sq.decisions, pg.decisions],
+  // coodra-work redesign, round 2 (2026-08-03) — direct many-to-many
+  // decision/context-pack <-> Work Pack links, added in the same commit
+  // as the schema change so this table never repeats the `decisions`
+  // parity gap documented above.
+  ['work_pack_decision_links', sq.workPackDecisionLinks, pg.workPackDecisionLinks],
+  ['work_pack_context_pack_links', sq.workPackContextPackLinks, pg.workPackContextPackLinks],
   ['kill_switches', sq.killSwitches, pg.killSwitches],
   ['run_diffs', sq.runDiffs, pg.runDiffs],
   ['audit_events', sq.auditEvents, pg.auditEvents],
@@ -103,6 +109,8 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(sq.workPacks).toBeDefined();
     expect(sq.workPackExternalLinks).toBeDefined();
     expect(sq.workPackRelationships).toBeDefined();
+    expect(sq.workPackDecisionLinks).toBeDefined();
+    expect(sq.workPackContextPackLinks).toBeDefined();
     expect(sq.syncEvents).toBeDefined();
     expect(sq.wikis).toBeDefined();
     expect(sq.wikiPages).toBeDefined();
@@ -129,6 +137,8 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(pg.workPacks).toBeDefined();
     expect(pg.workPackExternalLinks).toBeDefined();
     expect(pg.workPackRelationships).toBeDefined();
+    expect(pg.workPackDecisionLinks).toBeDefined();
+    expect(pg.workPackContextPackLinks).toBeDefined();
     expect(pg.syncEvents).toBeDefined();
     expect(pg.wikis).toBeDefined();
     expect(pg.wikiPages).toBeDefined();

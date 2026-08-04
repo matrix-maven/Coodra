@@ -11,17 +11,22 @@ import { resolve } from 'node:path';
  * under the project root, used by:
  *
  *   - the CLI's grounding bundle + job file (`coodra wiki build`),
- *   - the agent's Markdown mirror after successful MCP saves,
- *   - `coodra wiki export` when materialising portable bundles.
+ *   - the agent's connected-Markdown mirror after successful MCP saves,
+ *   - `coodra wiki ask` reading that mirror as its local, DB-free corpus.
  *
  * Layout, repo-root-relative:
  *
- *   .coodra/wiki/grounding.md              — active grounding bundle
- *   .coodra/wiki/job.json                  — active generation job descriptor
- *   .coodra/wiki/job.md                    — active agent-readable recipe
- *   .coodra/wiki/<wikiSlug>/structure.json — WikiStructure mirror
- *   .coodra/wiki/<wikiSlug>/<pageId>.md    — one Markdown body per page
- *   .coodra/wiki/okf/                      — portable OKF import/export bundles
+ *   .coodra/wiki/grounding.md                 — active grounding bundle
+ *   .coodra/wiki/job.json                     — active generation job descriptor
+ *   .coodra/wiki/job.md                       — active agent-readable recipe
+ *   .coodra/wiki/<wikiSlug>/structure.json    — WikiStructure mirror (machine envelope)
+ *   .coodra/wiki/<wikiSlug>/md/index.md       — connected-Markdown table of contents
+ *   .coodra/wiki/<wikiSlug>/md/<pageId>.md    — one connected-Markdown body per page
+ *
+ * The `md/` subtree (frontmatter + rendered cross-links, see
+ * `packages/shared/src/wiki/md-mirror.ts`) is the walkable corpus
+ * `coodra wiki ask` reads directly, no DB required, before falling back
+ * to the DB store.
  */
 
 /** Repo-root-relative root for wiki working artifacts. */
@@ -30,8 +35,6 @@ export const WIKI_WORK_DIRNAME = '.coodra/wiki' as const;
 export const WIKI_GROUNDING_RELPATH = '.coodra/wiki/grounding.md' as const;
 /** Repo-root-relative path of the active agent-readable job recipe. */
 export const WIKI_JOB_MD_RELPATH = '.coodra/wiki/job.md' as const;
-/** Repo-root-relative directory for portable OKF import/export bundles. */
-export const WIKI_OKF_DIR_RELPATH = '.coodra/wiki/okf' as const;
 /** Repo-root-relative root for the wiki Markdown mirror. */
 export const WIKI_DOCS_DIRNAME = WIKI_WORK_DIRNAME;
 /** Repo-root-relative path of the active generation job descriptor. */
@@ -54,13 +57,23 @@ export function wikiStructurePath(projectRoot: string, wikiSlug: string): string
   return resolve(wikiDir(projectRoot, wikiSlug), WIKI_STRUCTURE_FILENAME);
 }
 
+/** Absolute path to `<projectRoot>/.coodra/wiki/<wikiSlug>/md` — the connected-Markdown corpus. */
+export function wikiMdDir(projectRoot: string, wikiSlug: string): string {
+  return resolve(wikiDir(projectRoot, wikiSlug), 'md');
+}
+
 /**
- * Absolute path to a page's Markdown file. `pageId` is already validated
- * kebab-case (see `WIKI_ID_RE`), so it is filesystem-safe with no
- * traversal risk.
+ * Absolute path to a page's connected-Markdown file. `pageId` is already
+ * validated kebab-case (see `WIKI_ID_RE`), so it is filesystem-safe with
+ * no traversal risk.
  */
-export function wikiPagePath(projectRoot: string, wikiSlug: string, pageId: string): string {
-  return resolve(wikiDir(projectRoot, wikiSlug), `${pageId}.md`);
+export function wikiPageMdPath(projectRoot: string, wikiSlug: string, pageId: string): string {
+  return resolve(wikiMdDir(projectRoot, wikiSlug), `${pageId}.md`);
+}
+
+/** Absolute path to a wiki's connected-Markdown table of contents. */
+export function wikiMdIndexPath(projectRoot: string, wikiSlug: string): string {
+  return resolve(wikiMdDir(projectRoot, wikiSlug), 'index.md');
 }
 
 /** Absolute path to `<projectRoot>/.coodra/wiki/job.json`. */

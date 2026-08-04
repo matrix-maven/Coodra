@@ -10,6 +10,13 @@
  */
 
 export {
+  type ParsedWikiPageMd,
+  parseWikiPageFrontmatter,
+  scoreWikiCorpus,
+  type WikiAskResult,
+  type WikiScorableEntry,
+} from './md-mirror.js';
+export {
   extractMermaidBlocks,
   lintMarkdownMermaid,
   lintMermaid,
@@ -23,13 +30,14 @@ export {
   WIKI_GROUNDING_RELPATH,
   WIKI_JOB_MD_RELPATH,
   WIKI_JOB_RELPATH,
-  WIKI_OKF_DIR_RELPATH,
   WIKI_STRUCTURE_FILENAME,
   WIKI_WORK_DIRNAME,
   wikiDir,
   wikiDocsRoot,
   wikiJobPath,
-  wikiPagePath,
+  wikiMdDir,
+  wikiMdIndexPath,
+  wikiPageMdPath,
   wikiStructurePath,
 } from './paths.js';
 export {

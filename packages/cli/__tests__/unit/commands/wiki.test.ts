@@ -6,6 +6,7 @@ import { createSqliteDb, migrateSqlite, sqliteSchema } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  runWikiAskCommand,
   runWikiCleanCommand,
   runWikiGenerateCommand,
   runWikiListCommand,
@@ -249,10 +250,28 @@ describe('wiki recipe', () => {
     });
     expect(md).toContain('source of truth + Markdown mirror');
     expect(md).toContain('.coodra/wiki/demo/structure.json');
-    expect(md).toContain('.coodra/wiki/demo/<pageId>.md');
+    expect(md).toContain('.coodra/wiki/demo/md/<pageId>.md');
     expect(md).toContain('DEEP_WIKI.md');
     expect(md).toContain('docs/wiki/*');
     expect(md).toContain('Preflight');
+  });
+
+  it('instructs a connected-Markdown mirror: enriched frontmatter, rendered cross-links, and an index.md', () => {
+    const md = renderWikiRecipe({
+      projectSlug: 'demo',
+      slug: 'demo',
+      mode: 'comprehensive',
+      groundingPath: '.coodra/wiki/grounding.md',
+      includeJobHeader: true,
+    });
+    // Per-page mirror.
+    expect(md).toContain('type: wiki-page');
+    expect(md).toContain('relatedPageIds');
+    expect(md).toContain('## Related pages');
+    // Wiki-level index, written right after the structure save.
+    expect(md).toContain('.coodra/wiki/demo/md/index.md');
+    expect(md).toContain('type: wiki-index');
+    expect(md).not.toContain('OKF');
   });
 
   it('comprehensive mode uses discovery planning instead of a fixed template', () => {
@@ -344,7 +363,10 @@ describe('coodra wiki build/generate', () => {
     expect(existsSync(join(dir, '.coodra', 'wiki', 'job.json'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'job.md'))).toBe(true);
     expect(existsSync(join(dir, '.coodra', 'wiki', 'my-wiki'))).toBe(true);
-    expect(existsSync(join(dir, '.coodra', 'wiki', 'okf'))).toBe(true);
+    // The dead OKF export scaffold is retired — the connected-Markdown
+    // mirror now lives under the agent-written `md/` subdir instead, not
+    // pre-created by `coodra wiki build` (same as the flat mirror never was).
+    expect(existsSync(join(dir, '.coodra', 'wiki', 'okf'))).toBe(false);
     expect(existsSync(join(dir, '.coodra', 'recipes', 'deep-wiki-author'))).toBe(false);
     const job = JSON.parse(readFileSync(join(dir, '.coodra', 'wiki', 'job.json'), 'utf8')) as {
       slug: string;
@@ -360,9 +382,9 @@ describe('coodra wiki build/generate', () => {
         expect.objectContaining({ path: '.coodra/wiki/job.json', kind: 'wiki-working-artifact', cleanup: 'safe' }),
         expect.objectContaining({ path: '.coodra/wiki/job.md', kind: 'wiki-working-artifact', cleanup: 'safe' }),
         expect.objectContaining({ path: '.coodra/wiki/my-wiki', kind: 'wiki-markdown-mirror', cleanup: 'safe' }),
-        expect.objectContaining({ path: '.coodra/wiki/okf', kind: 'wiki-okf-dir', cleanup: 'safe' }),
       ]),
     );
+    expect(manifest.entries.some((e) => e.path === '.coodra/wiki/okf')).toBe(false);
   });
 
   it('defaults the slug from the directory basename and uses comprehensive mode', async () => {
@@ -457,5 +479,272 @@ describe('coodra wiki status / list / clean (DB-backed)', () => {
     const cap2 = captureIO();
     await run(() => runWikiListCommand({ cwd, env, json: true }, cap2.io));
     expect((JSON.parse(cap2.out()) as { wikis: unknown[] }).wikis).toHaveLength(0);
+  });
+});
+
+describe('coodra wiki ask', () => {
+  function writeLocalPage(
+    dir: string,
+    slug: string,
+    pageId: string,
+    fields: { title: string; description: string; relatedPageIds?: string[] },
+    body: string,
+  ): void {
+    const mdDir = join(dir, '.coodra', 'wiki', slug, 'md');
+    mkdirSync(mdDir, { recursive: true });
+    const related = fields.relatedPageIds ?? [];
+    const lines = [
+      '---',
+      'type: wiki-page',
+      `pageId: ${pageId}`,
+      `wikiId: wiki_${slug}`,
+      `title: ${fields.title}`,
+      `description: ${fields.description}`,
+      `relatedPageIds: [${related.join(', ')}]`,
+      'state: authored',
+      'updatedAt: 2026-08-04T00:00:00.000Z',
+      '---',
+      '',
+      body,
+    ];
+    writeFileSync(join(mdDir, `${pageId}.md`), lines.join('\n'), 'utf8');
+  }
+
+  describe('local mirror path', () => {
+    let cwd: string;
+    let home: string;
+    beforeEach(() => {
+      cwd = mkdtempSync(join(tmpdir(), 'wiki-ask-local-'));
+      mkdirSync(join(cwd, '.coodra'), { recursive: true });
+      writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }), 'utf8');
+      // A fresh, empty home with no data.db — proves the local path never
+      // opens the DB (see the assertion below).
+      home = mkdtempSync(join(tmpdir(), 'wiki-ask-home-'));
+
+      writeLocalPage(
+        cwd,
+        'demo',
+        'retries',
+        { title: 'Retry policy', description: 'How retries are configured.' },
+        'Retry retry retry — the retry policy uses cockatiel with exponential backoff.',
+      );
+      writeLocalPage(
+        cwd,
+        'demo',
+        'storage',
+        { title: 'Storage layout', description: 'Where files live on disk.', relatedPageIds: ['retries'] },
+        'Storage briefly mentions retry once in passing.',
+      );
+    });
+    afterEach(() => {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    });
+
+    it('ranks the denser local match first and never opens the DB', async () => {
+      const cap = captureIO();
+      const env = { ...process.env, COODRA_HOME: home };
+      await run(() => runWikiAskCommand('retry', { cwd, env, json: true }, cap.io));
+      expect(cap.code()).toBe(0);
+      const report = JSON.parse(cap.out()) as {
+        ok: boolean;
+        source: string;
+        results: Array<{ pageId: string; filePath?: string }>;
+      };
+      expect(report.ok).toBe(true);
+      expect(report.source).toBe('local');
+      expect(report.results.map((r) => r.pageId)).toEqual(['retries', 'storage']);
+      expect(report.results[0]?.filePath).toBe('.coodra/wiki/demo/md/retries.md');
+      // The local path is DB-free — no data.db should exist in the home dir.
+      expect(existsSync(join(home, 'data.db'))).toBe(false);
+    });
+
+    it('respects --limit', async () => {
+      const cap = captureIO();
+      const env = { ...process.env, COODRA_HOME: home };
+      await run(() => runWikiAskCommand('retry', { cwd, env, json: true, limit: 1 }, cap.io));
+      const report = JSON.parse(cap.out()) as { results: unknown[] };
+      expect(report.results).toHaveLength(1);
+    });
+
+    it('--refresh skips the local mirror and falls back to the DB (no wiki there → no_wiki)', async () => {
+      // A migrated-but-wiki-less DB, matching how `coodra install` leaves a
+      // real home before any wiki has been built.
+      const migratedHome = mkdtempSync(join(tmpdir(), 'wiki-ask-home-migrated-'));
+      const migratedHandle = createSqliteDb({ path: join(migratedHome, 'data.db') });
+      migrateSqlite(migratedHandle.db);
+      migratedHandle.close();
+      try {
+        const cap = captureIO();
+        const env = { ...process.env, COODRA_HOME: migratedHome };
+        await run(() => runWikiAskCommand('retry', { cwd, env, json: true, refresh: true }, cap.io));
+        expect(cap.code()).toBe(1);
+        expect(JSON.parse(cap.out())).toMatchObject({ ok: false, error: 'no_wiki' });
+      } finally {
+        rmSync(migratedHome, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('old flat-layout mirror falls through to the DB', () => {
+    let cwd: string;
+    afterEach(() => rmSync(cwd, { recursive: true, force: true }));
+
+    it('a pre-existing flat .coodra/wiki/<slug>/<pageId>.md (no md/ subdir) is not read locally', async () => {
+      cwd = mkdtempSync(join(tmpdir(), 'wiki-ask-flat-'));
+      mkdirSync(join(cwd, '.coodra'), { recursive: true });
+      writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }), 'utf8');
+      const flatDir = join(cwd, '.coodra', 'wiki', 'demo');
+      mkdirSync(flatDir, { recursive: true });
+      writeFileSync(join(flatDir, 'retries.md'), '---\npageId: retries\n---\nold flat mirror body', 'utf8');
+
+      const home = mkdtempSync(join(tmpdir(), 'wiki-ask-home-'));
+      const handle = createSqliteDb({ path: join(home, 'data.db') });
+      migrateSqlite(handle.db);
+      handle.close();
+      try {
+        const cap = captureIO();
+        const env = { ...process.env, COODRA_HOME: home };
+        await run(() => runWikiAskCommand('retries', { cwd, env, json: true }, cap.io));
+        // No md/ subdir exists, so the local check finds nothing and falls
+        // through to the DB fallback — which also finds nothing here.
+        expect(JSON.parse(cap.out())).toMatchObject({ ok: false, error: 'no_wiki' });
+      } finally {
+        rmSync(home, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('DB fallback (no local mirror)', () => {
+    let home: string;
+    let cwd: string;
+    let env: NodeJS.ProcessEnv;
+
+    beforeEach(() => {
+      home = mkdtempSync(join(tmpdir(), 'wiki-ask-db-home-'));
+      cwd = mkdtempSync(join(tmpdir(), 'wiki-ask-db-proj-'));
+      mkdirSync(join(cwd, '.coodra'), { recursive: true });
+      writeFileSync(join(cwd, '.coodra', 'config.json'), JSON.stringify({ version: 1, projectSlug: 'demo' }), 'utf8');
+      env = { ...process.env, COODRA_HOME: home };
+
+      const dataDb = join(home, 'data.db');
+      const handle = createSqliteDb({ path: dataDb });
+      migrateSqlite(handle.db);
+      const now = new Date();
+      handle.db
+        .insert(sqliteSchema.projects)
+        .values({ id: 'proj_demo', slug: 'demo', orgId: 'org_dev_local', name: 'Demo', createdAt: now, updatedAt: now })
+        .run();
+      handle.db
+        .insert(sqliteSchema.wikis)
+        .values({
+          id: 'wiki_demo',
+          projectId: 'proj_demo',
+          slug: 'demo',
+          title: 'Demo',
+          description: 'd',
+          mode: 'comprehensive',
+          schemaVersion: 1,
+          structureJson: JSON.stringify({
+            schemaVersion: 1,
+            title: 'Demo',
+            description: 'A demo wiki',
+            mode: 'comprehensive',
+            sections: [],
+            pages: [
+              {
+                id: 'retries',
+                title: 'Retry policy',
+                description: 'How retries are configured.',
+                importance: 'high',
+                parentId: null,
+                relevantFiles: [],
+                relatedPageIds: [],
+                wantsDiagram: false,
+              },
+              {
+                id: 'storage',
+                title: 'Storage layout',
+                description: 'Where files live on disk.',
+                importance: 'medium',
+                parentId: null,
+                relevantFiles: [],
+                relatedPageIds: [],
+                wantsDiagram: false,
+              },
+            ],
+          }),
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run();
+      handle.db
+        .insert(sqliteSchema.wikiPages)
+        .values([
+          {
+            id: 'wp_a',
+            wikiId: 'wiki_demo',
+            pageId: 'retries',
+            state: 'authored',
+            contentMarkdown: 'Retry retry retry — cockatiel with exponential backoff.',
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: 'wp_b',
+            wikiId: 'wiki_demo',
+            pageId: 'storage',
+            state: 'authored',
+            contentMarkdown: 'Storage briefly mentions retry once in passing.',
+            createdAt: now,
+            updatedAt: now,
+          },
+          {
+            id: 'wp_c',
+            wikiId: 'wiki_demo',
+            pageId: 'pending-page',
+            state: 'pending',
+            contentMarkdown: '',
+            createdAt: now,
+            updatedAt: now,
+          },
+        ])
+        .run();
+      handle.close();
+    });
+
+    afterEach(() => {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(cwd, { recursive: true, force: true });
+    });
+
+    it('ranks pages read from the DB, using titles/descriptions parsed out of structureJson', async () => {
+      const cap = captureIO();
+      await run(() => runWikiAskCommand('retry', { cwd, env, json: true }, cap.io));
+      const report = JSON.parse(cap.out()) as {
+        ok: boolean;
+        source: string;
+        results: Array<{ pageId: string; title: string; filePath?: string }>;
+      };
+      expect(report.ok).toBe(true);
+      expect(report.source).toBe('db');
+      expect(report.results.map((r) => r.pageId)).toEqual(['retries', 'storage']);
+      expect(report.results[0]?.title).toBe('Retry policy');
+      expect(report.results[0]?.filePath).toBeUndefined();
+    });
+
+    it('excludes pending pages (empty bodies would just add noise)', async () => {
+      const cap = captureIO();
+      await run(() => runWikiAskCommand('pending', { cwd, env, json: true }, cap.io));
+      const report = JSON.parse(cap.out()) as { results: unknown[] };
+      expect(report.results).toEqual([]);
+    });
+
+    it('no wiki for this project at all → no_wiki soft-failure', async () => {
+      const cap = captureIO();
+      await run(() => runWikiAskCommand('anything', { cwd, env, json: true, slug: 'nonexistent' }, cap.io));
+      expect(cap.code()).toBe(1);
+      expect(JSON.parse(cap.out())).toMatchObject({ ok: false, error: 'no_wiki' });
+    });
   });
 });

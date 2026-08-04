@@ -16,11 +16,12 @@ import { z } from 'zod';
  *   Output: { ok: true, decisions: Array<DecisionEntry> }
  *         | { ok: false, error: 'project_not_found', howToFix }
  *
- * `query` is a substring filter applied with LIKE against both
- * `description` AND `rationale` (case-insensitive on SQLite via the
- * default LIKE collation; same with COLLATE on Postgres). When
- * absent, every decision in the project's run scope is returned up
- * to `limit`.
+ * `query` is BM25-ranked full-text search (2026-08-03) against both
+ * `description` AND `rationale` via `decisions_fts`/`decisions.search_vector`
+ * — see `packages/db/drizzle/{sqlite,postgres}/00{24,26}_fts_search.sql`.
+ * Every word must appear (implicit AND); results are ordered best-match
+ * first instead of by `createdAt`. When absent, every decision in the
+ * project's run scope is returned up to `limit`, ordered by recency.
  *
  * `runId` is an optional narrower filter: when present, returns only
  * decisions for that exact run. Combined with `query`, both filters
@@ -41,7 +42,12 @@ const DEFAULT_LIMIT = 10 as const;
 export const queryDecisionsInputSchema = z
   .object({
     projectSlug: z.string().min(1, 'projectSlug is required').max(256),
-    query: z.string().min(1).max(500).optional().describe('Optional LIKE substring against description + rationale.'),
+    query: z
+      .string()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe('Optional BM25-ranked keyword search against description + rationale. Best match first.'),
     runId: z.string().min(1).max(512).optional().describe('Optional narrower filter to a single run.'),
     // Module 09 J2 (2026-05-31, ADR-016 — Jira = Direct). Filter to
     // decisions whose run is bound to this Jira issue (runs.issue_ref, set
@@ -53,8 +59,29 @@ export const queryDecisionsInputSchema = z
       .max(64)
       .optional()
       .describe(
-        'Optional filter to decisions whose run is bound to this Jira issue key (e.g. PROJ-412), case-insensitive.',
+        'Optional filter to decisions whose run is bound to this tracker issue key (e.g. PROJ-412), case-insensitive.',
       ),
+    // coodra-work redesign (2026-08-03). runs.workPackId already existed
+    // (Work Pack foundation); this filter spans every run tied to a Work
+    // Pack, not just one — needed because a pack can be worked across
+    // multiple resumed sessions/runs, so a single issueRef/runId filter
+    // would miss decisions recorded in earlier runs of the same pack.
+    // Primary filter for the sync-back flow: gather everything recorded
+    // against a Work Pack before composing a write-back comment.
+    workPackId: z
+      .string()
+      .min(1)
+      .max(256)
+      .optional()
+      .describe('Optional filter to decisions whose run belongs to this Work Pack, across every run tied to it.'),
+    // coodra-work redesign, round 2. Matches decisions linked to workPackId
+    // either via the run they belong to OR the direct many-to-many
+    // work_pack_decision_links tag (set by record_decision's workPackSlugs).
+    // When true, also walks work_pack_relationships one hop from
+    // workPackId and includes decisions linked to those related packs too
+    // — e.g. a decision made on Pack 1 that a related, concurrently-worked
+    // Pack 2 should already know about. Ignored when workPackId is absent.
+    includeRelated: z.boolean().default(false),
     limit: z
       .number()
       .int()

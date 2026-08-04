@@ -28,46 +28,64 @@ describe('query_decisions — manifest contract', () => {
 });
 
 describe('query_decisions — idempotency-key shape', () => {
-  it('is readonly + encodes projectSlug + query + runId + limit', () => {
+  it('is readonly + encodes projectSlug + query + runId + workPackId + includeRelated + limit', () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
-      { projectSlug: 'proj-a', query: 'storage', runId: 'run:p:s:u', limit: 5 },
+      { projectSlug: 'proj-a', query: 'storage', runId: 'run:p:s:u', includeRelated: false, limit: 5 },
       { sessionId: 'sess_1', receivedAt: new Date(0) },
     );
     expect(key.kind).toBe('readonly');
-    expect(key.key).toBe('readonly:query_decisions:proj-a:storage:run:p:s:u:5');
+    expect(key.key).toBe('readonly:query_decisions:proj-a:storage:run:p:s:u:any:norel:5');
   });
 
   it("encodes 'any' when query is absent", () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
-      { projectSlug: 'proj-a', limit: 10 },
+      { projectSlug: 'proj-a', includeRelated: false, limit: 10 },
       { sessionId: 'sess_1', receivedAt: new Date(0) },
     );
-    expect(key.key).toBe('readonly:query_decisions:proj-a:any:any:10');
+    expect(key.key).toBe('readonly:query_decisions:proj-a:any:any:any:norel:10');
   });
 
   it("encodes 'any' when runId is absent", () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
-      { projectSlug: 'proj-a', query: 'auth', limit: 10 },
+      { projectSlug: 'proj-a', query: 'auth', includeRelated: false, limit: 10 },
       { sessionId: 'sess_1', receivedAt: new Date(0) },
     );
-    expect(key.key).toBe('readonly:query_decisions:proj-a:auth:any:10');
+    expect(key.key).toBe('readonly:query_decisions:proj-a:auth:any:any:norel:10');
+  });
+
+  it('encodes workPackId when present', () => {
+    const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
+    const key = reg.idempotencyKey(
+      { projectSlug: 'proj-a', workPackId: 'wp_1', includeRelated: false, limit: 10 },
+      { sessionId: 'sess_1', receivedAt: new Date(0) },
+    );
+    expect(key.key).toBe('readonly:query_decisions:proj-a:any:any:wp_1:norel:10');
+  });
+
+  it('encodes rel when includeRelated is true', () => {
+    const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
+    const key = reg.idempotencyKey(
+      { projectSlug: 'proj-a', workPackId: 'wp_1', includeRelated: true, limit: 10 },
+      { sessionId: 'sess_1', receivedAt: new Date(0) },
+    );
+    expect(key.key).toBe('readonly:query_decisions:proj-a:any:any:wp_1:rel:10');
   });
 
   it('different (query, runId, limit) combos yield distinct keys for log correlation', () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const a = reg.idempotencyKey(
-      { projectSlug: 'p', query: 'storage', limit: 10 },
+      { projectSlug: 'p', query: 'storage', includeRelated: false, limit: 10 },
       { sessionId: 's', receivedAt: new Date(0) },
     );
     const b = reg.idempotencyKey(
-      { projectSlug: 'p', query: 'auth', limit: 10 },
+      { projectSlug: 'p', query: 'auth', includeRelated: false, limit: 10 },
       { sessionId: 's', receivedAt: new Date(0) },
     );
     const c = reg.idempotencyKey(
-      { projectSlug: 'p', query: 'storage', limit: 50 },
+      { projectSlug: 'p', query: 'storage', includeRelated: false, limit: 50 },
       { sessionId: 's', receivedAt: new Date(0) },
     );
     expect(a.key).not.toBe(b.key);
@@ -78,7 +96,7 @@ describe('query_decisions — idempotency-key shape', () => {
   it('truncates to 200 chars', () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
-      { projectSlug: 'x'.repeat(256), query: 'y'.repeat(256), limit: 10 },
+      { projectSlug: 'x'.repeat(256), query: 'y'.repeat(256), includeRelated: false, limit: 10 },
       { sessionId: 'sess', receivedAt: new Date(0) },
     );
     expect(key.key.length).toBeLessThanOrEqual(200);
@@ -89,7 +107,7 @@ describe('query_decisions — idempotency-key shape', () => {
     // biome-ignore lint/suspicious/noExplicitAny: probe sweep sends minimal shapes
     const key = reg.idempotencyKey({} as any, { sessionId: 'sess', receivedAt: new Date(0) });
     expect(key.kind).toBe('readonly');
-    expect(key.key).toBe('readonly:query_decisions:probe:any:any:10');
+    expect(key.key).toBe('readonly:query_decisions:probe:any:any:any:norel:10');
   });
 });
 
@@ -112,6 +130,15 @@ describe('query_decisions — input schema boundaries', () => {
   it('accepts an optional runId string', () => {
     const parsed = queryDecisionsInputSchema.safeParse({ projectSlug: 'p', runId: 'run:p:s:u' });
     expect(parsed.success).toBe(true);
+  });
+
+  it('accepts an optional workPackId string', () => {
+    const parsed = queryDecisionsInputSchema.safeParse({ projectSlug: 'p', workPackId: 'wp_1' });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects empty workPackId string (use omit instead)', () => {
+    expect(queryDecisionsInputSchema.safeParse({ projectSlug: 'p', workPackId: '' }).success).toBe(false);
   });
 
   it('rejects empty projectSlug', () => {

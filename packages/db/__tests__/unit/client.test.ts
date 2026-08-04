@@ -156,7 +156,11 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
       // context_packs_vec_info, etc.) are implementation details of
       // sqlite-vec 0.1.9; filter them out while keeping the virtual table
       // context_packs_vec itself so this test locks the hand-written
-      // preserve block inside 0001_chief_turbo.sql.
+      // preserve block inside 0001_chief_turbo.sql. Same idea for FTS5's
+      // own shadow tables (<name>_fts_{config,content,data,docsize,idx}) —
+      // implementation details of the fts-search preserve block
+      // (0024_fts_search.sql), filtered out while keeping the three real
+      // *_fts virtual tables themselves.
       const rows = handle.raw
         .prepare(
           `SELECT name FROM sqlite_master
@@ -165,6 +169,11 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND name NOT LIKE 'sqlite_%'
                AND name NOT LIKE '\\_%' ESCAPE '\\'
                AND substr(name, 1, 18) <> 'context_packs_vec_'
+               AND name NOT GLOB '*_fts_config'
+               AND name NOT GLOB '*_fts_content'
+               AND name NOT GLOB '*_fts_data'
+               AND name NOT GLOB '*_fts_docsize'
+               AND name NOT GLOB '*_fts_idx'
              ORDER BY name`,
         )
         .all() as Array<{ name: string }>;
@@ -172,8 +181,10 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
       expect(tables).toEqual([
         'audit_events',
         'context_packs',
+        'context_packs_fts',
         'context_packs_vec',
         'decisions',
+        'decisions_fts',
         'external_work_items',
         // Phase F.1 (2026-05-11) — pull-on-trigger skill recipes
         // (Anthropic Skills pattern). Dual-dialect; sync-daemon
@@ -202,9 +213,14 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'wikis',
         // COOD-12 (2026-07-31) — Work Packs and agent-mediated
         // Jira/Atlassian sync state.
+        // coodra-work redesign, round 2 (2026-08-03) — direct
+        // many-to-many decision/context-pack <-> Work Pack links.
+        'work_pack_context_pack_links',
+        'work_pack_decision_links',
         'work_pack_external_links',
         'work_pack_relationships',
         'work_packs',
+        'work_packs_fts',
       ]);
     } finally {
       handle.close();
@@ -223,11 +239,17 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND name NOT LIKE '__drizzle%'
                AND name NOT LIKE 'sqlite_%'
                AND name NOT LIKE '\\_%' ESCAPE '\\'
-               AND substr(name, 1, 18) <> 'context_packs_vec_'`,
+               AND substr(name, 1, 18) <> 'context_packs_vec_'
+               AND name NOT GLOB '*_fts_config'
+               AND name NOT GLOB '*_fts_content'
+               AND name NOT GLOB '*_fts_data'
+               AND name NOT GLOB '*_fts_docsize'
+               AND name NOT GLOB '*_fts_idx'`,
         )
         .get() as { n: number };
-      // 24 schema tables + context_packs_vec virtual table = 25.
-      expect(rows.n).toBe(25);
+      // 27 prior tables + 3 new *_fts virtual tables (context_packs_fts,
+      // decisions_fts, work_packs_fts) from 0024_fts_search.sql = 30.
+      expect(rows.n).toBe(30);
     } finally {
       first.close();
     }

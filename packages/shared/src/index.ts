@@ -75,11 +75,6 @@ export {
   truncateUnifiedDiff,
 } from './run-diff.js';
 export {
-  type JiraWorkIntent,
-  parseJiraWorkIntent,
-  renderJiraWorkModeContext,
-} from './work-intent.js';
-export {
   defaultWorkflowPolicy,
   parseWorkflowPolicy,
   renderWorkflowPolicyContext,

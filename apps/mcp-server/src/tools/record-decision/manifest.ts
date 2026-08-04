@@ -44,8 +44,8 @@ export function createRecordDecisionToolRegistration(
     description:
       'Call this the moment you make a design or implementation decision — picking a library over alternatives, designing an API shape, deciding NOT to do something. ' +
       'Future sessions consult this table and SessionStart auto-injects the most recent decisions; silent contradictions are the failure mode this tool prevents. ' +
-      'Pass `context` (what triggered the decision), `impact` (modules affected), `confidence` (high|medium|low), and `reversible` (can it be undone cheaply) when known. ' +
-      'Idempotent on (runId, description) — the same description re-recorded returns the original decisionId with created:false; new metadata on the retry is discarded. ' +
+      'Pass `context`, `impact`, `confidence` (high|medium|low), and `reversible` when known, plus `workPackSlugs` if this also matters to another related pack. ' +
+      'Idempotent on (runId, description) — a retry returns the original decisionId with created:false; new metadata on the retry is discarded. ' +
       'Returns { ok: true, decisionId, createdAt, created } on success. Soft-failure: run_not_found.',
     inputSchema: recordDecisionInputSchema,
     outputSchema: recordDecisionOutputSchema,

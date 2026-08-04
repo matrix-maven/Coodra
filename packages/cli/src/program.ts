@@ -124,11 +124,13 @@ import {
 import { runUninstallCommand, type UninstallIO, type UninstallOptions } from './commands/uninstall.js';
 import { runUpgradeCommand, type UpgradeIO, type UpgradeOptions } from './commands/upgrade.js';
 import {
+  runWikiAskCommand,
   runWikiCleanCommand,
   runWikiGenerateCommand,
   runWikiListCommand,
   runWikiOpenCommand,
   runWikiStatusCommand,
+  type WikiAskOptions,
   type WikiCleanOptions,
   type WikiGenerateOptions,
   type WikiIO,
@@ -189,6 +191,7 @@ interface BuildProgramOptions {
   readonly runWikiList?: (options: WikiListOptions, io?: WikiIO) => Promise<unknown>;
   readonly runWikiOpen?: (options: WikiOpenOptions, io?: WikiIO) => Promise<unknown>;
   readonly runWikiClean?: (slug: string, options: WikiCleanOptions, io?: WikiIO) => Promise<unknown>;
+  readonly runWikiAsk?: (question: string, options: WikiAskOptions, io?: WikiIO) => Promise<unknown>;
   readonly workIO?: WorkIO;
   readonly runWorkStatus?: (options: WorkBaseOptions, io?: WorkIO) => Promise<unknown>;
   readonly runWorkShow?: (slug: string, options: WorkBaseOptions, io?: WorkIO) => Promise<unknown>;
@@ -545,6 +548,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const wikiListRunner = options.runWikiList ?? runWikiListCommand;
   const wikiOpenRunner = options.runWikiOpen ?? runWikiOpenCommand;
   const wikiCleanRunner = options.runWikiClean ?? runWikiCleanCommand;
+  const wikiAskRunner = options.runWikiAsk ?? runWikiAskCommand;
   const wiki = program
     .command('wiki')
     .description(
@@ -595,6 +599,19 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (slug: string, opts: WikiCleanOptions) => {
       await wikiCleanRunner(slug, opts, options.wikiIO);
+    });
+  wiki
+    .command('ask')
+    .argument('<question>', 'Natural-language question about this codebase.')
+    .description(
+      'Rank Deep Wiki pages against a question — local Markdown mirror first, DB fallback. Prints candidates, not an answer.',
+    )
+    .option('--slug <slug>', 'Which wiki to search (default: the project slug).')
+    .option('--limit <n>', 'Max ranked results (default 8).', (v) => Number.parseInt(v, 10))
+    .option('--refresh', 'Skip the local Markdown mirror and rank against the DB directly.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (question: string, opts: WikiAskOptions) => {
+      await wikiAskRunner(question, opts, options.wikiIO);
     });
 
   // COOD-12 — Work Packs. Jira import is agent-mediated: this command

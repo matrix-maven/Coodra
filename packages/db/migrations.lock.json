@@ -33,6 +33,16 @@
       "generatedAt": "2026-05-03T11:32:01.638Z"
     },
     {
+      "file": "packages/db/drizzle/postgres/0026_fts_search.sql",
+      "blockMarker": "fts-search",
+      "sha256": "2aa854accccf5ca3c4e2f3887620b3e5ef9c2d8d8d506a6740eee8682968c704",
+      "lineRange": [
+        1,
+        33
+      ],
+      "generatedAt": "2026-08-03T16:02:09.331Z"
+    },
+    {
       "file": "packages/db/drizzle/sqlite/0001_chief_turbo.sql",
       "blockMarker": "sqlite-vec",
       "sha256": "1c365297f7676eee29977fc3ba7d106e7474c3beff3f63dcab8252aeebba6fae",
@@ -61,6 +71,16 @@
         66
       ],
       "generatedAt": "2026-05-03T11:32:01.636Z"
+    },
+    {
+      "file": "packages/db/drizzle/sqlite/0024_fts_search.sql",
+      "blockMarker": "fts-search",
+      "sha256": "b5ffa1ae8dfa3e74e52182a35e70f0aca90e27626bbb56cafe0e034db3c97f7a",
+      "lineRange": [
+        1,
+        72
+      ],
+      "generatedAt": "2026-08-03T16:02:09.327Z"
     }
   ]
 }

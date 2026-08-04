@@ -176,6 +176,20 @@
 			"when": 1785663600000,
 			"tag": "0024_policy_governance",
 			"breakpoints": true
+		},
+		{
+			"idx": 25,
+			"version": "7",
+			"when": 1785750000000,
+			"tag": "0025_work_pack_content_links",
+			"breakpoints": true
+		},
+		{
+			"idx": 26,
+			"version": "7",
+			"when": 1785750100000,
+			"tag": "0026_fts_search",
+			"breakpoints": true
 		}
 	]
 }

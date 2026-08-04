@@ -96,7 +96,11 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     list_skills/get_skill/get_skill_file/list_features/get_feature/
     //     get_feature_file aliases — unchanged count, aliases were always
     //     excluded from tools/list by design → 22
-    expect(tools.length).toBe(22);
+    //   coodra-work redesign (2026-08-03): link_run_to_pr added — sibling
+    //     to link_run_to_issue, binds runs.pr_ref instead of
+    //     runs.issue_ref, so a run can be linked to a tracker issue and a
+    //     PR/MR at once → 23
+    expect(tools.length).toBe(23);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

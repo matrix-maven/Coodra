@@ -7,6 +7,7 @@ import { createGetRecipeFileToolRegistration } from './get-recipe-file/manifest.
 import { createGetRunIdToolRegistration } from './get-run-id/manifest.js';
 import { createLifecycleEventToolRegistration } from './lifecycle-event/manifest.js';
 import { createLinkRunToIssueToolRegistration } from './link-run-to-issue/manifest.js';
+import { createLinkRunToPrToolRegistration } from './link-run-to-pr/manifest.js';
 import { createListContextPacksToolRegistration } from './list-context-packs/manifest.js';
 import { createListRecipesToolRegistration } from './list-recipes/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
@@ -87,18 +88,20 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // save_context_pack. ADR-013 records why M06 ships TypeScript-in-
   // process with no external LLM (supersedes ADR-002 for this module).
   registry.register(createQueryRunDiffToolRegistration({ db: deps.db }));
-  // Module 09 (External MCP Integrations, track 9A — Jira = Direct, ADR-016):
-  // link_run_to_issue binds a run to its Jira key (runs.issue_ref) so Coodra
-  // history is Jira-aware ("what touched PROJ-412?"). This is Coodra's ONLY
-  // Jira MCP tool — the Jira tools themselves (getJiraIssue, etc.) come from
-  // Atlassian's Rovo MCP, wired directly via the agent's own native
-  // MCP/connector settings, not from this server (the CLI's per-IDE `coodra
-  // jira enable` wiring command was removed; a Coodra-managed redesign is
-  // planned). J2 added link_run_to_issue; J3 added prepare_jira_comment
-  // (the on-request write-back helper — assembles the session summary from the
-  // Context Pack + decisions; the AGENT posts it via Rovo's addCommentToJiraIssue,
-  // only when the user asks). Coodra's only two Jira tools. Tool count 15 → 17.
+  // Module 09 (External MCP Integrations, track 9A — provider-direct
+  // linking, ADR-016): link_run_to_issue/link_run_to_pr bind a run to a
+  // tracker issue and/or a PR/MR (runs.issue_ref, runs.pr_ref — two
+  // independent columns, so a run can be bound to both at once) so Coodra
+  // history is issue/PR-aware ("what touched PROJ-412?"). These are
+  // Coodra's only provider-linking tools — the provider's own tools
+  // themselves (getJiraIssue, GitHub/GitLab PR reads, etc.) come from the
+  // agent's own native MCP/connector settings, not from this server. J2
+  // added link_run_to_issue; J3 added prepare_jira_comment (superseded by
+  // the query_decisions-based sync-back flow — kept for backward compat,
+  // no longer recommended by the coodra-work skill); COOD-work-redesign
+  // added link_run_to_pr. Tool count 15 → 17 → 22.
   registry.register(createLinkRunToIssueToolRegistration({ db: deps.db }));
+  registry.register(createLinkRunToPrToolRegistration({ db: deps.db }));
   registry.register(createPrepareJiraCommentToolRegistration({ db: deps.db }));
   // Module 10 (Deep Wiki, 2026-06-06): the DeepWiki-style two-pass flow.
   // The agent plans a hierarchical/mind-map wiki and persists it via

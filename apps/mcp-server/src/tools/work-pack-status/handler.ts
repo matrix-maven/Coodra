@@ -1,8 +1,8 @@
 import type { DbHandle } from '@coodra/db';
 
 import type { ToolContext } from '../../framework/tool-context.js';
-import { listWorkPackStatus } from '../../lib/work-pack-store.js';
 import { selectRunProjectId } from '../../lib/wiki-store.js';
+import { listWorkPackStatus } from '../../lib/work-pack-store.js';
 import type { WorkPackStatusInput, WorkPackStatusOutput } from './schema.js';
 
 export interface WorkPackStatusHandlerDeps {
@@ -27,7 +27,7 @@ export function createWorkPackStatusHandler(deps: WorkPackStatusHandlerDeps) {
         howToFix: 'Call get_run_id for the current project first, then retry work_pack_status with that runId.',
       };
     }
-    const packs = await listWorkPackStatus(deps.db, projectId);
+    const packs = await listWorkPackStatus(deps.db, projectId, input.query);
     return { ok: true, projectId, packs: [...packs] };
   };
 }

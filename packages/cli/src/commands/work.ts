@@ -216,9 +216,12 @@ export async function runWorkImportCommand(
   const { cwd, projectSlug } = await resolveProject(options);
   const externalKey = issueKey.trim().toUpperCase();
   const slug = toSlug(externalKey);
-  if (!/^[A-Z][A-Z0-9]+-\d+$/.test(externalKey) || slug.length === 0) {
-    const msg = 'work import requires a Jira-style issue key, for example COOD-12.';
-    if (options.json === true) io.writeStdout(`${JSON.stringify({ ok: false, error: 'bad_issue_key', message: msg })}\n`);
+  // No format pre-validation beyond non-empty: a bad key surfaces as a
+  // "not found" from Atlassian's own MCP, not a Coodra-side rejection.
+  if (externalKey.length === 0 || slug.length === 0) {
+    const msg = 'work import requires a non-empty issue key, for example COOD-12.';
+    if (options.json === true)
+      io.writeStdout(`${JSON.stringify({ ok: false, error: 'bad_issue_key', message: msg })}\n`);
     else io.writeStderr(`${pc.red('✗')} ${msg}\n`);
     return io.exit(EXIT_USER_RECOVERABLE);
   }

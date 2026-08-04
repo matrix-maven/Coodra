@@ -48,10 +48,14 @@ describe('link_run_to_issue — input schema boundaries', () => {
     expect(linkRunToIssueInputSchema.safeParse({ runId: 'r', issueRef: 'proj-123' }).success).toBe(true);
   });
 
-  it('rejects a non-Jira-shaped issueRef', () => {
-    for (const bad of ['PROJ', 'PROJ-', '-123', '123-45', 'PROJ 123', 'PROJ--1', '']) {
-      expect(linkRunToIssueInputSchema.safeParse({ runId: 'r', issueRef: bad }).success, bad).toBe(false);
+  it("accepts non-Jira-shaped references — format validation is the provider's job, not Coodra's", () => {
+    for (const ok of ['PROJ', 'ENG-42', '123-45', 'my-manual-slug', 'issue#88']) {
+      expect(linkRunToIssueInputSchema.safeParse({ runId: 'r', issueRef: ok }).success, ok).toBe(true);
     }
+  });
+
+  it('rejects an empty issueRef', () => {
+    expect(linkRunToIssueInputSchema.safeParse({ runId: 'r', issueRef: '' }).success).toBe(false);
   });
 
   it('rejects an empty runId', () => {

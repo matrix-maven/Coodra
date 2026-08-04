@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import { and, eq, ne, sql } from 'drizzle-orm';
@@ -79,6 +81,53 @@ async function linkRunToWorkPack(db: DbHandle, runId: string, workPackId: string
     return;
   }
   await db.db.update(postgresSchema.runs).set({ workPackId }).where(eq(postgresSchema.runs.id, runId));
+}
+
+/**
+ * Links a Context Pack to one or more Work Packs via the many-to-many
+ * `work_pack_context_pack_links` table (coodra-work redesign, round 2).
+ * Idempotent per (workPackId, contextPackId) pair.
+ */
+async function linkContextPackToWorkPacks(
+  db: DbHandle,
+  args: { readonly orgId: string | null; readonly projectId: string; readonly contextPackId: string },
+  workPackIds: ReadonlySet<string>,
+): Promise<void> {
+  for (const workPackId of workPackIds) {
+    if (db.kind === 'sqlite') {
+      await db.db
+        .insert(sqliteSchema.workPackContextPackLinks)
+        .values({
+          id: `wpcpl_${randomUUID()}`,
+          orgId: args.orgId,
+          projectId: args.projectId,
+          workPackId,
+          contextPackId: args.contextPackId,
+        })
+        .onConflictDoNothing({
+          target: [
+            sqliteSchema.workPackContextPackLinks.workPackId,
+            sqliteSchema.workPackContextPackLinks.contextPackId,
+          ],
+        });
+      continue;
+    }
+    await db.db
+      .insert(postgresSchema.workPackContextPackLinks)
+      .values({
+        id: `wpcpl_${randomUUID()}`,
+        orgId: args.orgId,
+        projectId: args.projectId,
+        workPackId,
+        contextPackId: args.contextPackId,
+      })
+      .onConflictDoNothing({
+        target: [
+          postgresSchema.workPackContextPackLinks.workPackId,
+          postgresSchema.workPackContextPackLinks.contextPackId,
+        ],
+      });
+  }
 }
 
 async function markRunCompleted(db: DbHandle, runId: string): Promise<void> {
@@ -174,6 +223,36 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
 
     if (workPackId !== null) {
       await linkRunToWorkPack(deps.db, input.runId, workPackId);
+    }
+
+    // coodra-work redesign, round 2 — many-to-many link(s) for the saved
+    // Context Pack, additive to the primary workPackSlug binding above.
+    const workPackIdsToLink = new Set<string>();
+    if (workPackId !== null) workPackIdsToLink.add(workPackId);
+    if (input.alsoLinkWorkPackSlugs !== undefined) {
+      for (const slug of input.alsoLinkWorkPackSlugs) {
+        const resolved = await selectWorkPackIdBySlug(deps.db, projectId, slug);
+        if (resolved !== null) {
+          workPackIdsToLink.add(resolved);
+        } else {
+          handlerLogger.info(
+            {
+              event: 'save_context_pack_also_link_slug_not_found',
+              runId: input.runId,
+              slug,
+              sessionId: ctx.sessionId,
+            },
+            'save_context_pack: alsoLinkWorkPackSlugs entry did not resolve to a Work Pack; skipping that link',
+          );
+        }
+      }
+    }
+    if (workPackIdsToLink.size > 0) {
+      await linkContextPackToWorkPacks(
+        deps.db,
+        { orgId: actor !== null ? actor.orgId : null, projectId, contextPackId: written.id },
+        workPackIdsToLink,
+      );
     }
 
     // Mark the run completed — idempotent no-op if already completed.

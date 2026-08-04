@@ -173,6 +173,116 @@ describe('save_context_pack — happy path', () => {
       .where(eq(sqliteSchema.runs.id, h.runId));
     expect(contextRows[0]?.workPackId).toBe('work_1');
     expect(runRows[0]?.workPackId).toBe('work_1');
+
+    // coodra-work redesign, round 2 — the many-to-many join table also
+    // gets a row for the primary workPackSlug link.
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackContextPackLinks)
+      .where(eq(sqliteSchema.workPackContextPackLinks.contextPackId, out.contextPackId));
+    expect(links.map((l) => l.workPackId)).toEqual(['work_1']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// coodra-work redesign round 2 — work_pack_context_pack_links (many-to-many)
+// ---------------------------------------------------------------------------
+
+function seedWorkPack(h: Harness, id: string, slug: string): void {
+  h.handle.raw
+    .prepare(
+      `INSERT INTO work_packs
+        (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(id, h.projectId, slug, `pack ${slug}`, 'task', 'draft', '', '', '', '{}');
+}
+
+describe('save_context_pack — alsoLinkWorkPackSlugs (additive multi-pack linking)', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('links to both the primary workPackSlug pack and any alsoLinkWorkPackSlugs packs', async () => {
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    seedWorkPack(h, 'wp_2', 'pack-2');
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        {
+          runId: h.runId,
+          title: 'cross-pack recap',
+          content: 'body',
+          workPackSlug: 'pack-1',
+          alsoLinkWorkPackSlugs: ['pack-2'],
+        },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    // Primary link still goes through the single-column fields unchanged.
+    const contextRows = await h.handle.db
+      .select({ workPackId: sqliteSchema.contextPacks.workPackId })
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.id, out.contextPackId));
+    expect(contextRows[0]?.workPackId).toBe('wp_1');
+
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackContextPackLinks)
+      .where(eq(sqliteSchema.workPackContextPackLinks.contextPackId, out.contextPackId));
+    expect(links.map((l) => l.workPackId).sort()).toEqual(['wp_1', 'wp_2']);
+  });
+
+  it('links to alsoLinkWorkPackSlugs even when no primary workPackSlug is given', async () => {
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'no primary pack', content: 'body', alsoLinkWorkPackSlugs: ['pack-1'] },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    const contextRows = await h.handle.db
+      .select({ workPackId: sqliteSchema.contextPacks.workPackId })
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.id, out.contextPackId));
+    expect(contextRows[0]?.workPackId).toBeNull();
+
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackContextPackLinks)
+      .where(eq(sqliteSchema.workPackContextPackLinks.contextPackId, out.contextPackId));
+    expect(links.map((l) => l.workPackId)).toEqual(['wp_1']);
+  });
+
+  it('skips (does not error) an unresolvable alsoLinkWorkPackSlugs entry', async () => {
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'dangling', content: 'body', alsoLinkWorkPackSlugs: ['does-not-exist'] },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const links = await h.handle.db
+      .select()
+      .from(sqliteSchema.workPackContextPackLinks)
+      .where(eq(sqliteSchema.workPackContextPackLinks.contextPackId, out.contextPackId));
+    expect(links).toHaveLength(0);
   });
 });
 

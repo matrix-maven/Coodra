@@ -1,8 +1,8 @@
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, desc, eq, like, or } from 'drizzle-orm';
-
+import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
+import { toSqliteFtsQuery } from '../../lib/fts-query.js';
 import type { DecisionEntry, QueryDecisionsInput, QueryDecisionsOutput } from './schema.js';
 
 /**
@@ -14,10 +14,17 @@ import type { DecisionEntry, QueryDecisionsInput, QueryDecisionsOutput } from '.
  * Flow:
  *   1. Resolve `projectSlug` → `projects.id`. Missing →
  *      `{ ok: false, error: 'project_not_found', howToFix }` per §9.1.2.
- *   2. SELECT decisions.* JOIN runs ON decisions.run_id = runs.id
+ *   2. If `query` is set (BM25 full-text search, 2026-08-03): resolve
+ *      matching decision ids + rank via `decisions_fts`/`search_vector`
+ *      first (see `selectDecisionIdsByQuery`), then SELECT decisions.*
+ *      JOIN runs constrained to those ids and the other filters, and
+ *      reorder by rank in application code (id-resolution-then-inArray
+ *      pattern — matches `selectDecisionIdsLinkedToWorkPacks` below).
+ *      Otherwise: SELECT decisions.* JOIN runs ON decisions.run_id = runs.id
  *      WHERE runs.project_id = ?
  *        [AND decisions.run_id = ?]
- *        [AND (description LIKE %query% OR rationale LIKE %query%)]
+ *        [AND runs.issue_ref = ?]
+ *        [AND (runs.work_pack_id IN (...) OR decisions.id IN (...))]
  *      ORDER BY decisions.created_at DESC
  *      LIMIT ?
  *   3. Map rows: parse `alternatives` (JSON string[] or null → []);
@@ -55,6 +62,78 @@ async function resolveProjectId(db: DbHandle, projectSlug: string): Promise<stri
   return rows[0]?.id ?? null;
 }
 
+/**
+ * One hop of `work_pack_relationships` from `workPackId` — returns the
+ * ids of packs it relates to (either direction). Used by `includeRelated`
+ * to pull decisions from a related pack too, e.g. Pack 2 (currently being
+ * worked) automatically seeing a decision made on related Pack 1.
+ */
+async function selectRelatedWorkPackIds(db: DbHandle, workPackId: string): Promise<string[]> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({
+        source: sqliteSchema.workPackRelationships.sourceWorkPackId,
+        target: sqliteSchema.workPackRelationships.targetWorkPackId,
+      })
+      .from(sqliteSchema.workPackRelationships)
+      .where(
+        or(
+          eq(sqliteSchema.workPackRelationships.sourceWorkPackId, workPackId),
+          eq(sqliteSchema.workPackRelationships.targetWorkPackId, workPackId),
+        ),
+      );
+    return collectRelatedIds(rows, workPackId);
+  }
+  const rows = await db.db
+    .select({
+      source: postgresSchema.workPackRelationships.sourceWorkPackId,
+      target: postgresSchema.workPackRelationships.targetWorkPackId,
+    })
+    .from(postgresSchema.workPackRelationships)
+    .where(
+      or(
+        eq(postgresSchema.workPackRelationships.sourceWorkPackId, workPackId),
+        eq(postgresSchema.workPackRelationships.targetWorkPackId, workPackId),
+      ),
+    );
+  return collectRelatedIds(rows, workPackId);
+}
+
+function collectRelatedIds(
+  rows: ReadonlyArray<{ readonly source: string | null; readonly target: string | null }>,
+  workPackId: string,
+): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.source === workPackId && row.target !== null) ids.add(row.target);
+    if (row.target === workPackId && row.source !== null) ids.add(row.source);
+  }
+  return [...ids];
+}
+
+/**
+ * Decision ids explicitly tagged to any of `workPackIds` via the
+ * many-to-many `work_pack_decision_links` table (set by
+ * `record_decision`'s `workPackSlugs`). This is the direct, write-time
+ * link — independent of, and a superset alongside, the transitive
+ * `runs.work_pack_id` match `selectDecisions` also applies.
+ */
+async function selectDecisionIdsLinkedToWorkPacks(db: DbHandle, workPackIds: ReadonlyArray<string>): Promise<string[]> {
+  if (workPackIds.length === 0) return [];
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ decisionId: sqliteSchema.workPackDecisionLinks.decisionId })
+      .from(sqliteSchema.workPackDecisionLinks)
+      .where(inArray(sqliteSchema.workPackDecisionLinks.workPackId, workPackIds));
+    return rows.map((r) => r.decisionId);
+  }
+  const rows = await db.db
+    .select({ decisionId: postgresSchema.workPackDecisionLinks.decisionId })
+    .from(postgresSchema.workPackDecisionLinks)
+    .where(inArray(postgresSchema.workPackDecisionLinks.workPackId, workPackIds));
+  return rows.map((r) => r.decisionId);
+}
+
 interface RawRow {
   readonly id: string;
   readonly runId: string;
@@ -64,29 +143,98 @@ interface RawRow {
   readonly createdAt: Date;
 }
 
+interface RankedId {
+  readonly id: string;
+  readonly rank: number;
+}
+
+// Ceiling on how many rank-ordered candidate ids to pull out of the FTS
+// structure before the other filters (runId, issueRef, workPackIds) are
+// applied. Generous relative to `limit` (max 200, see schema.ts) so those
+// filters never starve a query of otherwise-relevant matches.
+const FTS_CANDIDATE_CAP = 500 as const;
+
+/**
+ * Resolves decision ids matching `query`, ranked best-first, via
+ * `decisions_fts`/`decisions.search_vector` — see `packages/db/drizzle/
+ * {sqlite,postgres}/00{24,26}_fts_search.sql`. Rank is normalized so
+ * higher is always more relevant (SQLite's bm25() is natively
+ * negative-lower-is-better; negated here to match Postgres's ts_rank()).
+ * Neither FTS structure is in the Drizzle TS schema, so this goes
+ * through raw `sql` — the resulting ids feed `inArray(...)` in
+ * `selectDecisions`, the same pattern `selectDecisionIdsLinkedToWorkPacks`
+ * already uses for `work_pack_decision_links`.
+ */
+async function selectDecisionIdsByQuery(db: DbHandle, projectId: string, query: string): Promise<RankedId[]> {
+  if (db.kind === 'sqlite') {
+    const ftsQuery = toSqliteFtsQuery(query);
+    const rows = db.db.all<{ id: string; rank: number }>(sql`
+      SELECT d.id AS id, bm25(decisions_fts) AS rank
+      FROM decisions_fts
+      JOIN decisions d ON d.id = decisions_fts.decision_id
+      JOIN runs r ON r.id = d.run_id
+      WHERE decisions_fts MATCH ${ftsQuery} AND r.project_id = ${projectId}
+      ORDER BY rank
+      LIMIT ${FTS_CANDIDATE_CAP}
+    `);
+    return rows.map((row) => ({ id: row.id, rank: -row.rank }));
+  }
+  const rows = (await db.db.execute(sql`
+    SELECT d.id AS id, ts_rank(d.search_vector, plainto_tsquery('english', ${query})) AS rank
+    FROM decisions d
+    JOIN runs r ON r.id = d.run_id
+    WHERE r.project_id = ${projectId}
+      AND d.search_vector @@ plainto_tsquery('english', ${query})
+    ORDER BY rank DESC
+    LIMIT ${FTS_CANDIDATE_CAP}
+  `)) as unknown as { id: string; rank: number }[];
+  return rows.map((row) => ({ id: row.id, rank: row.rank }));
+}
+
 async function selectDecisions(
   db: DbHandle,
   projectId: string,
   runId: string | undefined,
   issueRef: string | undefined,
+  workPackIds: ReadonlyArray<string> | undefined,
+  linkedDecisionIds: ReadonlyArray<string> | undefined,
   query: string | undefined,
   limit: number,
 ): Promise<RawRow[]> {
+  let rankedIds: RankedId[] | undefined;
+  if (query !== undefined) {
+    rankedIds = await selectDecisionIdsByQuery(db, projectId, query);
+    if (rankedIds.length === 0) return [];
+  }
+
   if (db.kind === 'sqlite') {
     const decisions = sqliteSchema.decisions;
     const runs = sqliteSchema.runs;
     const conditions = [eq(runs.projectId, projectId)];
     if (runId !== undefined) conditions.push(eq(decisions.runId, runId));
     // Module 09 J2 (ADR-016) — "what was decided for PROJ-412?": filter to
-    // decisions whose run is bound to this Jira issue (runs.issue_ref).
+    // decisions whose run is bound to this tracker issue (runs.issue_ref).
     if (issueRef !== undefined) conditions.push(eq(runs.issueRef, issueRef));
-    if (query !== undefined) {
-      const pattern = `%${query}%`;
-      const text = or(like(decisions.description, pattern), like(decisions.rationale, pattern));
-      if (text !== undefined) conditions.push(text);
+    // coodra-work redesign — matches either the transitive runs.work_pack_id
+    // link (spans every run tied to a Work Pack, not just one) OR the
+    // direct work_pack_decision_links tag (round 2) — see schema.ts docblock.
+    if (workPackIds !== undefined && workPackIds.length > 0) {
+      const workPackConditions = [inArray(runs.workPackId, workPackIds)];
+      if (linkedDecisionIds !== undefined && linkedDecisionIds.length > 0) {
+        workPackConditions.push(inArray(decisions.id, linkedDecisionIds));
+      }
+      const combined = workPackConditions.length === 1 ? workPackConditions[0] : or(...workPackConditions);
+      if (combined !== undefined) conditions.push(combined);
     }
+    if (rankedIds !== undefined)
+      conditions.push(
+        inArray(
+          decisions.id,
+          rankedIds.map((r) => r.id),
+        ),
+      );
     const where = conditions.length === 1 ? conditions[0] : and(...conditions);
-    const rows = await db.db
+    let selectQuery = db.db
       .select({
         id: decisions.id,
         runId: decisions.runId,
@@ -98,21 +246,37 @@ async function selectDecisions(
       .from(decisions)
       .innerJoin(runs, eq(decisions.runId, runs.id))
       .where(where)
-      .orderBy(desc(decisions.createdAt))
-      .limit(limit);
-    return rows as RawRow[];
+      .$dynamic();
+    if (rankedIds === undefined) selectQuery = selectQuery.orderBy(desc(decisions.createdAt)).limit(limit);
+    const rows = (await selectQuery) as RawRow[];
+    return rankedIds !== undefined ? sortByRank(rows, rankedIds).slice(0, limit) : rows;
   }
   const decisions = postgresSchema.decisions;
   const runs = postgresSchema.runs;
   const conditions = [eq(runs.projectId, projectId)];
   if (runId !== undefined) conditions.push(eq(decisions.runId, runId));
-  if (query !== undefined) {
-    const pattern = `%${query}%`;
-    const text = or(like(decisions.description, pattern), like(decisions.rationale, pattern));
-    if (text !== undefined) conditions.push(text);
+  // Same issueRef/workPackIds filters as the sqlite branch above — these
+  // were previously missing on the postgres branch (team mode), silently
+  // no-opping the issueRef filter there; fixed alongside the workPackId
+  // addition rather than left as a divergent bug.
+  if (issueRef !== undefined) conditions.push(eq(runs.issueRef, issueRef));
+  if (workPackIds !== undefined && workPackIds.length > 0) {
+    const workPackConditions = [inArray(runs.workPackId, workPackIds)];
+    if (linkedDecisionIds !== undefined && linkedDecisionIds.length > 0) {
+      workPackConditions.push(inArray(decisions.id, linkedDecisionIds));
+    }
+    const combined = workPackConditions.length === 1 ? workPackConditions[0] : or(...workPackConditions);
+    if (combined !== undefined) conditions.push(combined);
   }
+  if (rankedIds !== undefined)
+    conditions.push(
+      inArray(
+        decisions.id,
+        rankedIds.map((r) => r.id),
+      ),
+    );
   const where = conditions.length === 1 ? conditions[0] : and(...conditions);
-  const rows = await db.db
+  let selectQuery = db.db
     .select({
       id: decisions.id,
       runId: decisions.runId,
@@ -124,9 +288,16 @@ async function selectDecisions(
     .from(decisions)
     .innerJoin(runs, eq(decisions.runId, runs.id))
     .where(where)
-    .orderBy(desc(decisions.createdAt))
-    .limit(limit);
-  return rows as RawRow[];
+    .$dynamic();
+  if (rankedIds === undefined) selectQuery = selectQuery.orderBy(desc(decisions.createdAt)).limit(limit);
+  const rows = (await selectQuery) as RawRow[];
+  return rankedIds !== undefined ? sortByRank(rows, rankedIds).slice(0, limit) : rows;
+}
+
+/** Reorders `rows` to match `rankedIds`'s best-first order (higher rank = more relevant). */
+function sortByRank(rows: RawRow[], rankedIds: ReadonlyArray<RankedId>): RawRow[] {
+  const rankById = new Map(rankedIds.map((r) => [r.id, r.rank]));
+  return [...rows].sort((a, b) => (rankById.get(b.id) ?? 0) - (rankById.get(a.id) ?? 0));
 }
 
 function parseAlternatives(raw: string | null): ReadonlyArray<string> {
@@ -187,7 +358,27 @@ export function createQueryDecisionsHandler(deps: QueryDecisionsHandlerDeps) {
     }
 
     const issueRefFilter = input.issueRef !== undefined ? input.issueRef.toUpperCase() : undefined;
-    const rows = await selectDecisions(deps.db, projectId, input.runId, issueRefFilter, input.query, input.limit);
+
+    let workPackIds: string[] | undefined;
+    let linkedDecisionIds: string[] | undefined;
+    if (input.workPackId !== undefined) {
+      workPackIds = [input.workPackId];
+      if (input.includeRelated) {
+        workPackIds.push(...(await selectRelatedWorkPackIds(deps.db, input.workPackId)));
+      }
+      linkedDecisionIds = await selectDecisionIdsLinkedToWorkPacks(deps.db, workPackIds);
+    }
+
+    const rows = await selectDecisions(
+      deps.db,
+      projectId,
+      input.runId,
+      issueRefFilter,
+      workPackIds,
+      linkedDecisionIds,
+      input.query,
+      input.limit,
+    );
     return {
       ok: true,
       decisions: rows.map(toEntry),

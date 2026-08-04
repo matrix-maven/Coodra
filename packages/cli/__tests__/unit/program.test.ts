@@ -162,7 +162,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     const wikiCmd = program.commands.find((c) => c.name() === 'wiki');
     expect(wikiCmd).toBeDefined();
     const wikiSub = wikiCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(wikiSub).toEqual(['build', 'clean', 'list', 'open', 'status']);
+    expect(wikiSub).toEqual(['ask', 'build', 'clean', 'list', 'open', 'status']);
   });
 
   it('wires `cloud-migrate` to the real runCloudMigrate handler (M04a S1) — passes flags through', async () => {

@@ -618,6 +618,53 @@ export const decisions = sqliteTable(
 );
 
 /**
+ * coodra-work redesign, round 2 — direct many-to-many links from a
+ * decision/context pack to the Work Pack(s) it belongs to, written at
+ * record time. Mirrors `workPackExternalLinks`'s exact shape (postgres
+ * mirror: `postgres.ts::workPackDecisionLinks`/`workPackContextPackLinks`).
+ * See the postgres.ts docblock for the full rationale.
+ */
+export const workPackDecisionLinks = sqliteTable(
+  'work_pack_decision_links',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    workPackId: text('work_pack_id')
+      .notNull()
+      .references(() => workPacks.id, { onDelete: 'cascade' }),
+    decisionId: text('decision_id')
+      .notNull()
+      .references(() => decisions.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('work_pack_decision_links_pair_uk').on(t.workPackId, t.decisionId),
+    index('work_pack_decision_links_decision_idx').on(t.decisionId),
+  ],
+);
+
+export const workPackContextPackLinks = sqliteTable(
+  'work_pack_context_pack_links',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    workPackId: text('work_pack_id')
+      .notNull()
+      .references(() => workPacks.id, { onDelete: 'cascade' }),
+    contextPackId: text('context_pack_id')
+      .notNull()
+      .references(() => contextPacks.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('work_pack_context_pack_links_pair_uk').on(t.workPackId, t.contextPackId),
+    index('work_pack_context_pack_links_context_pack_idx').on(t.contextPackId),
+  ],
+);
+
+/**
  * Module 08b S1 — kill switches.
  *
  * Polymorphic `(scope, target)` shape per OQ-2 lock (2026-05-03).
@@ -808,6 +855,10 @@ export type SyncEvent = typeof syncEvents.$inferSelect;
 export type NewSyncEvent = typeof syncEvents.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type WorkPackDecisionLink = typeof workPackDecisionLinks.$inferSelect;
+export type NewWorkPackDecisionLink = typeof workPackDecisionLinks.$inferInsert;
+export type WorkPackContextPackLink = typeof workPackContextPackLinks.$inferSelect;
+export type NewWorkPackContextPackLink = typeof workPackContextPackLinks.$inferInsert;
 export type RunDiff = typeof runDiffs.$inferSelect;
 export type NewRunDiff = typeof runDiffs.$inferInsert;
 export type AuditEvent = typeof auditEvents.$inferSelect;

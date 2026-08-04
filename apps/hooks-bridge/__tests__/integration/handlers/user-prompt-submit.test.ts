@@ -128,7 +128,7 @@ describe('UserPromptSubmit (Claude Code)', () => {
     expect(thisPrompt.length).toBe(1);
   });
 
-  it('injects Work Pack mode context for coodra-jira-work prompts', async () => {
+  it('does not inject additionalContext (coodra-work resume context lives at SessionStart via the MCP server, not this hook)', async () => {
     const res = await h.hono.request('/v1/hooks/claude-code', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -136,7 +136,7 @@ describe('UserPromptSubmit (Claude Code)', () => {
         hook_event_name: 'UserPromptSubmit',
         session_id: 'sess-work-prompt',
         cwd: h.cwd,
-        prompt: '/coodra-jira-work COOD-10 --related',
+        prompt: 'work on COOD-10',
         prompt_id: 'prompt-work',
       }),
     });
@@ -144,8 +144,6 @@ describe('UserPromptSubmit (Claude Code)', () => {
     const body = (await res.json()) as {
       hookSpecificOutput?: { additionalContext?: string };
     };
-    expect(body.hookSpecificOutput?.additionalContext).toContain('Coodra Work Pack mode: COOD-10');
-    expect(body.hookSpecificOutput?.additionalContext).toContain('coodra__work_pack_upsert');
-    expect(body.hookSpecificOutput?.additionalContext).toContain('workPackSlug');
+    expect(body.hookSpecificOutput?.additionalContext).toBeUndefined();
   });
 });

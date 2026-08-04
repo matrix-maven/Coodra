@@ -36,6 +36,7 @@ export function createSaveContextPackToolRegistration(
       'Call this at session end before signaling exit. Write a narrative recap synthesizing what was built, what was decided, what is still open. ' +
       'This is the canonical record the next session reads. The bridge auto-saves a structured event digest as a fallback for crashed sessions — your call overrides it and is preferred. ' +
       'Include `meta` with decisionIds, affectedFiles, testStatus, openTodos when applicable so the next session has structured handles into the narrative. ' +
+      'Pass `workPackSlug` to link this pack to a Work Pack, and `alsoLinkWorkPackSlugs` for any further related packs. ' +
       'Returns { contextPackId, savedAt, contentExcerpt, source, status } on success — `status` is "created" | "idempotent_hit" | "upgraded_from_bridge_auto". ' +
       'Soft-failure: run_not_found.',
     inputSchema: saveContextPackInputSchema,

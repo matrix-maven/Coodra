@@ -52,6 +52,22 @@ export const saveContextPackInputSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'workPackSlug must be kebab-case')
       .optional()
       .describe('Optional Work Pack slug to link this Context Pack and run to, for example cood-10.'),
+    /**
+     * coodra-work redesign, round 2. Additive to `workPackSlug` — link
+     * this Context Pack to further Work Pack(s) too, e.g. when the
+     * session's recap is also directly relevant to a related pack.
+     * Does not affect which pack `workPackSlug` binds the run to.
+     */
+    alsoLinkWorkPackSlugs: z
+      .array(
+        z
+          .string()
+          .min(1)
+          .max(128)
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'must be kebab-case'),
+      )
+      .max(10)
+      .optional(),
   })
   .strict()
   .describe('Input for coodra__save_context_pack.');

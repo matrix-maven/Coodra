@@ -5,7 +5,7 @@ import {
   renderPolicyProjectionDriftContext,
 } from '@coodra/db';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
-import { createLogger, parseJiraWorkIntent, renderJiraWorkModeContext } from '@coodra/shared';
+import { createLogger } from '@coodra/shared';
 import {
   adaptClaudeCode,
   adaptCodex,
@@ -22,6 +22,8 @@ import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { createCheckPolicyHandler } from '../check-policy/handler.js';
 import { createGetRunIdHandler } from '../get-run-id/handler.js';
+import { createListContextPacksHandler } from '../list-context-packs/handler.js';
+import { createQueryDecisionsHandler } from '../query-decisions/handler.js';
 import type { LifecycleEventInput, LifecycleEventOutput } from './schema.js';
 
 const logger = createLogger('mcp-server.tool.lifecycle_event');
@@ -274,11 +276,56 @@ async function resolveRunId(args: {
   return result.ok ? result.runId : null;
 }
 
+const MAX_RECENT_CONTEXT_PACKS_SHOWN = 3;
+const MAX_RECENT_DECISIONS_SHOWN = 5;
+
+/**
+ * Renders a compact "recent context" block for SessionStart: the
+ * project's most-recently-saved Context Packs (title + excerpt) and its
+ * most recently recorded decisions, project-wide. Replaces the old
+ * `UserPromptSubmit`-time `parseJiraWorkIntent` phrase-detection
+ * mechanism AND a short-lived predecessor that surfaced Work Pack
+ * *metadata* here instead — that was the wrong content for an
+ * every-session automatic injection. Work Pack metadata (slug/status) is
+ * navigational and belongs to the `coodra-work` skill's own explicit
+ * resume flow (`work_pack_status`, called from its own step 2); what
+ * SessionStart should inject automatically is substance — what was
+ * already built and decided — so a fresh or long-running session doesn't
+ * rediscover or contradict prior reasoning. Cursor-safe like its
+ * predecessor, since SessionStart already carries context for every agent.
+ */
+function renderRecentContext(
+  packs: ReadonlyArray<{ readonly title: string; readonly excerpt: string }>,
+  decisions: ReadonlyArray<{ readonly description: string; readonly rationale: string }>,
+): string | null {
+  if (packs.length === 0 && decisions.length === 0) return null;
+  const lines = ['## Recent context'];
+  if (packs.length > 0) {
+    lines.push('', 'Recent Context Packs:');
+    for (const pack of packs.slice(0, MAX_RECENT_CONTEXT_PACKS_SHOWN)) {
+      lines.push(`- **${pack.title}** — ${pack.excerpt}`);
+    }
+  }
+  if (decisions.length > 0) {
+    lines.push('', 'Recent decisions:');
+    for (const decision of decisions.slice(0, MAX_RECENT_DECISIONS_SHOWN)) {
+      lines.push(`- ${decision.description} — ${decision.rationale}`);
+    }
+  }
+  lines.push(
+    '',
+    'Check this before making a design or implementation decision that might already be settled. Full history: ' +
+      '`coodra__query_decisions` / `coodra__list_context_packs`. Resuming a specific Work Pack: use the `coodra-work` skill.',
+  );
+  return lines.join('\n');
+}
+
 function sessionAdditionalContext(args: {
   readonly projectSlug: string | null;
   readonly runId: string | null;
   readonly workflowPolicy: unknown | null;
   readonly policyProjectionContext?: string | null;
+  readonly recentContext?: string | null;
 }): string {
   const lines = [SESSION_CONTRACT];
   if (args.projectSlug !== null) {
@@ -296,6 +343,9 @@ function sessionAdditionalContext(args: {
   }
   if (args.policyProjectionContext !== undefined && args.policyProjectionContext !== null) {
     lines.push('', '---', '', args.policyProjectionContext);
+  }
+  if (args.recentContext !== undefined && args.recentContext !== null) {
+    lines.push('', '---', '', args.recentContext);
   }
   return lines.join('\n');
 }
@@ -390,7 +440,33 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       });
     }
 
-    const workIntent = hookEventName === 'UserPromptSubmit' ? parseJiraWorkIntent(event.toolInput) : null;
+    let recentContext: string | null = null;
+    if (hookEventName === 'SessionStart' && projectSlug !== null) {
+      try {
+        const listContextPacks = createListContextPacksHandler({ db: deps.db });
+        const queryDecisions = createQueryDecisionsHandler({ db: deps.db });
+        const [packsResult, decisionsResult] = await Promise.all([
+          listContextPacks({ projectSlug, limit: MAX_RECENT_CONTEXT_PACKS_SHOWN }, ctx),
+          queryDecisions({ projectSlug, includeRelated: false, limit: MAX_RECENT_DECISIONS_SHOWN }, ctx),
+        ]);
+        recentContext = renderRecentContext(
+          packsResult.ok ? packsResult.packs : [],
+          decisionsResult.ok ? decisionsResult.decisions : [],
+        );
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_recent_context_lookup_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'recent context lookup failed; SessionStart proceeding without it',
+        );
+      }
+    }
     let policyProjectionContext: string | null = null;
     if (hookEventName === 'SessionStart' && projectSlug !== null && projectConfig !== null) {
       try {
@@ -420,13 +496,6 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         );
       }
     }
-    const workflowPolicyBlock =
-      workIntent !== null && projectConfig !== null
-        ? renderWorkflowPolicyContext(projectConfig?.workflowPolicy, {
-            projectSlug,
-            runId,
-          })
-        : null;
     const additionalContext =
       hookEventName === 'SessionStart'
         ? sessionAdditionalContext({
@@ -434,12 +503,9 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
             runId,
             workflowPolicy: projectConfig?.workflowPolicy ?? null,
             policyProjectionContext,
+            recentContext,
           })
-        : workIntent !== null
-          ? [renderJiraWorkModeContext(workIntent), workflowPolicyBlock]
-              .filter((block): block is string => block !== null)
-              .join('\n\n---\n\n')
-          : undefined;
+        : undefined;
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,
@@ -455,7 +521,6 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         projectSlug,
         runId,
         permissionDecision,
-        ...(workIntent !== null ? { workPackSlug: workIntent.slug, jiraIssueKey: workIntent.issueKey } : {}),
       },
       'handled native plugin lifecycle event via MCP',
     );
