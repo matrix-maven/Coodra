@@ -119,6 +119,25 @@ describe('Codex native plugin installer', () => {
     // wiki skill — `coodra-wiki` is now the only bundled wiki skill.
     expect(wikiSkill).toContain('there is no separate "deep wiki author" skill');
     await expect(readFile(join(paths.skillsRoot, 'deep-wiki-author', 'SKILL.md'), 'utf8')).rejects.toThrow();
+
+    // Codex hook coverage expansion — 5 new events + the TOOL_MATCHER fix.
+    const hooksJson = JSON.parse(await readFile(paths.hooksPath, 'utf8')) as { hooks: Record<string, unknown> };
+    for (const event of ['PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop']) {
+      expect(hooksJson.hooks).toHaveProperty(event);
+    }
+    // PreToolUse/PostToolUse/PermissionRequest all watch the same mcp__*
+    // set, EXCLUDING Coodra's own two managed servers — calling Coodra's
+    // own tools must never trigger a self-policing round-trip.
+    for (const event of ['PreToolUse', 'PostToolUse', 'PermissionRequest']) {
+      const matcherJson = JSON.stringify((hooksJson.hooks as Record<string, unknown>)[event]);
+      expect(matcherJson).toContain('Bash|apply_patch|Edit|Write|mcp__(?!coodra__|graphify__).*');
+    }
+    // PreCompact/PostCompact/SubagentStart/SubagentStop fire on every
+    // trigger/agent type — no matcher narrows them.
+    for (const event of ['PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop']) {
+      const entry = (hooksJson.hooks as Record<string, unknown>)[event] as Array<Record<string, unknown>>;
+      expect(entry[0]).not.toHaveProperty('matcher');
+    }
   });
 
   it('calls `codex plugin marketplace add` + `codex plugin add` with the resolved CLI path', async () => {

@@ -10,6 +10,11 @@ const PHASE_MAP: Readonly<Record<CodexHookPayload['hook_event_name'], HookEvent[
   Stop: 'turn_end',
   UserPromptSubmit: 'user_prompt',
   ConfigChange: 'config_change',
+  PermissionRequest: 'permission_request',
+  PreCompact: 'pre_compact',
+  PostCompact: 'post_compact',
+  SubagentStart: 'subagent_start',
+  SubagentStop: 'subagent_stop',
 };
 
 function extractFilePath(input: unknown): string | undefined {
@@ -50,6 +55,15 @@ export function adaptCodex(payload: CodexHookPayload, options: AdaptCodexOptions
   }
   if (payload.cwd !== undefined) {
     (event as { cwd?: string }).cwd = payload.cwd;
+  }
+  if (payload.agent_type !== undefined) {
+    (event as { subagentType?: string }).subagentType = payload.agent_type;
+  }
+  if (payload.agent_id !== undefined) {
+    (event as { subagentId?: string }).subagentId = payload.agent_id;
+  }
+  if (payload.trigger !== undefined) {
+    (event as { compactTrigger?: string }).compactTrigger = payload.trigger;
   }
   return event;
 }

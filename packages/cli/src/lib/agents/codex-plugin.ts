@@ -415,6 +415,16 @@ function pluginManifest(): string {
   )}\n`;
 }
 
+// Codex hook coverage expansion — mirrors Claude's TOOL_MATCHER
+// (claude-plugin.ts): excludes Coodra's own two managed MCP servers so
+// calling Coodra's own tools never triggers a pointless self-policing
+// round-trip through hook-runner.mjs (which spawns a whole new MCP
+// subprocess per call) and never pollutes the run_events activity
+// ledger with Coodra's own calls. The server-side isCoodraOwnMcpTool
+// backstop in lifecycle-event/handler.ts already prevents mis-policing
+// regardless, but the CLI-side matcher gap was still pure waste.
+const TOOL_MATCHER = 'Bash|apply_patch|Edit|Write|mcp__(?!coodra__|graphify__).*' as const;
+
 function hooksConfig(): unknown {
   const command = 'node "$PLUGIN_ROOT/hooks/hook-runner.mjs"';
   return {
@@ -462,7 +472,7 @@ function hooksConfig(): unknown {
       ],
       PreToolUse: [
         {
-          matcher: 'Bash|apply_patch|Edit|Write|mcp__.*',
+          matcher: TOOL_MATCHER,
           hooks: [
             {
               type: 'command',
@@ -476,7 +486,7 @@ function hooksConfig(): unknown {
       ],
       PostToolUse: [
         {
-          matcher: 'Bash|apply_patch|Edit|Write|mcp__.*',
+          matcher: TOOL_MATCHER,
           hooks: [
             {
               type: 'command',
@@ -506,6 +516,75 @@ function hooksConfig(): unknown {
               type: 'command',
               command,
               timeout: 3,
+            },
+          ],
+        },
+      ],
+      // Five events added (Codex hook coverage expansion, mirroring
+      // Claude Code's 91e8803). PermissionRequest can override Codex's
+      // own permission outcome, so it watches the same risky-action set
+      // PreToolUse does. PreCompact/SubagentStop get the 10s tier
+      // (real or precautionary decision control); PostCompact/
+      // SubagentStart get the 3s tier (documented inert for decisions,
+      // matches SessionEnd's existing tier). No matcher on the last
+      // four — Coodra wants full visibility on every trigger/agent type,
+      // not a narrowed subset.
+      PermissionRequest: [
+        {
+          matcher: TOOL_MATCHER,
+          hooks: [
+            {
+              type: 'command',
+              command,
+              statusMessage: 'Checking Coodra policy',
+              additionalContextLimit: 3000,
+              timeout: 10,
+            },
+          ],
+        },
+      ],
+      PreCompact: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command,
+              statusMessage: 'Checking Coodra context before compaction',
+              additionalContextLimit: 3000,
+              timeout: 10,
+            },
+          ],
+        },
+      ],
+      PostCompact: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
+      SubagentStart: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command,
+              timeout: 3,
+            },
+          ],
+        },
+      ],
+      SubagentStop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command,
+              timeout: 10,
             },
           ],
         },

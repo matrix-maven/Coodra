@@ -204,6 +204,59 @@ function shapeHookOutput(
       }
       return out;
     }
+    // Five events added (Codex hook coverage expansion, mirroring
+    // Claude Code's 91e8803 — see learn.chatgpt.com/docs/hooks).
+    // Codex's decision-control shapes are NOT a copy of Claude Code's:
+    case 'PermissionRequest': {
+      // Codex's docs show a `message` field alongside `deny`; only a
+      // working `deny` is documented — no confirmed `allow` response
+      // shape, so non-deny (including 'ask') returns nothing and lets
+      // Codex's own prompt behavior stand, same rationale as Claude's
+      // PermissionRequest.
+      if (result.permissionDecision !== 'deny') return {};
+      return {
+        hookSpecificOutput: {
+          hookEventName,
+          decision: { behavior: 'deny', ...(reason !== undefined ? { message: reason } : {}) },
+        },
+      };
+    }
+    case 'PreCompact': {
+      // DIVERGES from Claude Code: Claude vetoes PreCompact via
+      // `decision:'block'`+`reason`; Codex's docs document
+      // `continue:false` instead — a different top-level field
+      // entirely. The `reason` key alongside it is assumed parallel to
+      // Claude's shape, not confirmed by the docs — verify live.
+      const out: Record<string, unknown> = {};
+      if (result.permissionDecision === 'deny') {
+        out.continue = false;
+        if (reason !== undefined) out.reason = reason;
+      }
+      if (result.additionalContext !== undefined) {
+        out.hookSpecificOutput = { hookEventName, additionalContext: result.additionalContext };
+      }
+      return out;
+    }
+    case 'PostCompact':
+      // Pure ack, same choice as Claude Code's PostCompact: compaction
+      // has already happened by this point, "stops after compacting"
+      // has murky practical value, no policy driver today.
+      return {};
+    case 'SubagentStart':
+      // Codex docs: continue:false is parsed but does NOT stop the
+      // subagent from starting — no real veto exists. additionalContext
+      // IS documented as working here, but left unused for parity with
+      // Claude Code's SubagentStart (which has no such capability at
+      // all) — a genuine follow-up opportunity, not silently built.
+      return {};
+    case 'SubagentStop':
+      // Never emits `decision`. Codex's own docs describe SubagentStop's
+      // `decision:'block'` as meaning "make Codex CONTINUE the
+      // subagent" — inverted vs. every other block=deny convention this
+      // codebase uses (PreToolUse, PreCompact, Claude's
+      // UserPromptSubmit, ...). Wiring this to `permissionDecision`
+      // would silently invert Coodra's own semantics.
+      return {};
     default:
       return {};
   }
