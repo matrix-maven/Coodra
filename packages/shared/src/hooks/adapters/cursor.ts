@@ -9,6 +9,10 @@ const PHASE_MAP: Readonly<Record<CursorHookPayload['hook_event_name'], HookEvent
   postToolUse: 'post',
   stop: 'turn_end',
   sessionEnd: 'session_end',
+  postToolUseFailure: 'post_tool_use_failure',
+  subagentStart: 'subagent_start',
+  subagentStop: 'subagent_stop',
+  preCompact: 'pre_compact',
 };
 
 function extractFilePath(input: unknown): string | undefined {
@@ -52,6 +56,22 @@ export function adaptCursor(payload: CursorHookPayload, options: AdaptCursorOpti
   }
   if (payload.cwd !== undefined) {
     (event as { cwd?: string }).cwd = payload.cwd;
+  }
+  if (payload.subagent_type !== undefined) {
+    (event as { subagentType?: string }).subagentType = payload.subagent_type;
+  }
+  if (payload.subagent_id !== undefined) {
+    (event as { subagentId?: string }).subagentId = payload.subagent_id;
+  }
+  if (payload.summary !== undefined) {
+    (event as { lastAssistantMessage?: string }).lastAssistantMessage = payload.summary;
+  }
+  if (payload.trigger !== undefined) {
+    (event as { compactTrigger?: string }).compactTrigger = payload.trigger;
+  }
+  if (payload.error_message !== undefined) {
+    (event as { toolError?: string }).toolError =
+      payload.failure_type !== undefined ? `${payload.failure_type}: ${payload.error_message}` : payload.error_message;
   }
   return event;
 }

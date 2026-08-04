@@ -81,11 +81,22 @@ describe('Cursor native plugin installer', () => {
     expect(Object.keys(hooks.hooks).sort()).toEqual([
       'beforeSubmitPrompt',
       'postToolUse',
+      'postToolUseFailure',
+      'preCompact',
       'preToolUse',
       'sessionEnd',
       'sessionStart',
       'stop',
+      'subagentStart',
+      'subagentStop',
     ]);
+    // Cursor hook coverage expansion — postToolUseFailure/subagentStart/
+    // subagentStop are deliberately unmatched (full visibility);
+    // preCompact isn't in Cursor's documented matcher list at all.
+    for (const event of ['postToolUseFailure', 'subagentStart', 'subagentStop', 'preCompact']) {
+      const entry = (hooks.hooks as Record<string, unknown>)[event] as Array<Record<string, unknown>>;
+      expect(entry[0]).not.toHaveProperty('matcher');
+    }
 
     const hookRunner = await readFile(paths.hookRunnerPath, 'utf8');
     expect(hookRunner).toContain("agentType: 'cursor'");

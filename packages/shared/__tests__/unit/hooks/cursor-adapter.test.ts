@@ -85,4 +85,67 @@ describe('Cursor adapter', () => {
 
     expect(result.success).toBe(false);
   });
+
+  // Cursor hook coverage expansion — 4 new events, mirroring Claude
+  // Code's 91e8803 / Codex's a96e042.
+  describe('4 new events', () => {
+    it.each([
+      ['postToolUseFailure', 'post_tool_use_failure'],
+      ['subagentStart', 'subagent_start'],
+      ['subagentStop', 'subagent_stop'],
+      ['preCompact', 'pre_compact'],
+    ] as const)('%s maps to eventPhase=%s', (hookEventName, expectedPhase) => {
+      const parsed = CursorHookPayloadSchema.safeParse({ hook_event_name: hookEventName, conversation_id: 'conv' });
+      expect(parsed.success).toBe(true);
+      const event = adaptCursor({ hook_event_name: hookEventName, conversation_id: 'conv' }, { now: FROZEN });
+      expect(event.eventPhase).toBe(expectedPhase);
+    });
+
+    it('postToolUseFailure combines failure_type + error_message into toolError', () => {
+      const event = adaptCursor(
+        {
+          hook_event_name: 'postToolUseFailure',
+          conversation_id: 'conv',
+          tool_name: 'Shell',
+          failure_type: 'timeout',
+          error_message: 'Command timed out after 30s',
+        },
+        { now: FROZEN },
+      );
+      expect(event.toolError).toBe('timeout: Command timed out after 30s');
+    });
+
+    it('subagentStart threads subagent_type/subagent_id, not tool_name', () => {
+      const event = adaptCursor(
+        { hook_event_name: 'subagentStart', conversation_id: 'conv', subagent_type: 'explore', subagent_id: 'abc-123' },
+        { now: FROZEN },
+      );
+      expect(event.subagentType).toBe('explore');
+      expect(event.subagentId).toBe('abc-123');
+      expect(event.toolName).toBe('');
+    });
+
+    it('subagentStop threads subagent_type and folds summary into lastAssistantMessage', () => {
+      const event = adaptCursor(
+        {
+          hook_event_name: 'subagentStop',
+          conversation_id: 'conv',
+          subagent_type: 'explore',
+          summary: 'Explored the auth flow, found 3 entry points.',
+        },
+        { now: FROZEN },
+      );
+      expect(event.subagentType).toBe('explore');
+      expect(event.subagentId).toBeUndefined();
+      expect(event.lastAssistantMessage).toBe('Explored the auth flow, found 3 entry points.');
+    });
+
+    it('preCompact threads trigger', () => {
+      const event = adaptCursor(
+        { hook_event_name: 'preCompact', conversation_id: 'conv', trigger: 'auto' },
+        { now: FROZEN },
+      );
+      expect(event.compactTrigger).toBe('auto');
+    });
+  });
 });

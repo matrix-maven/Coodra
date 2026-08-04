@@ -184,6 +184,17 @@ function hooksConfig(hookRunnerPath: string): unknown {
       postToolUse: [{ command, matcher: 'Shell|Write|Delete|Task', timeout: 10 }],
       stop: [{ command, timeout: 10 }],
       sessionEnd: [{ command, timeout: 3 }],
+      // Four events added (Cursor hook coverage expansion, mirroring
+      // Claude Code's 91e8803 / Codex's a96e042). postToolUseFailure is
+      // pure logging — left unmatched for full visibility, same choice
+      // Claude/Codex made for their own PostToolUseFailure/
+      // PermissionDenied. subagentStart/subagentStop are left unmatched
+      // to see every subagent type. preCompact isn't in Cursor's
+      // documented matcher list at all.
+      postToolUseFailure: [{ command, timeout: 3 }],
+      subagentStart: [{ command, timeout: 10 }],
+      subagentStop: [{ command, timeout: 10 }],
+      preCompact: [{ command, timeout: 10 }],
     },
   };
 }

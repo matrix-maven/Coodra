@@ -20,10 +20,35 @@ import { z } from 'zod';
  * predates Cursor's current documented hook system and is not reused
  * here, though its choice of `conversation_id` as the session
  * identifier does match the current docs and is kept.
+ *
+ * Four events added (Cursor hook coverage expansion, mirroring Claude
+ * Code's 91e8803 / Codex's a96e042 — see cursor.com/docs/hooks):
+ *   - `postToolUseFailure` — tool-carrying, reuses the same
+ *     tool_name/tool_input/tool_use_id fields preToolUse/postToolUse
+ *     already have. Adds `error_message`/`failure_type`.
+ *   - `subagentStart` / `subagentStop` — carry `subagent_type`.
+ *     `subagentStart` additionally carries `subagent_id` (subagentStop
+ *     has no id field at all per the docs). `subagentStop` additionally
+ *     carries `summary` (its analog of Claude Code's
+ *     last_assistant_message).
+ *   - `preCompact` — carries `trigger` (`'manual'` or `'auto'`).
+ * None of these four field names are live-verified (same caveat as the
+ * rest of this schema) — passthrough keeps a wrong guess failing soft.
  */
 export const CursorHookPayloadSchema = z
   .object({
-    hook_event_name: z.enum(['sessionStart', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'stop', 'sessionEnd']),
+    hook_event_name: z.enum([
+      'sessionStart',
+      'beforeSubmitPrompt',
+      'preToolUse',
+      'postToolUse',
+      'stop',
+      'sessionEnd',
+      'postToolUseFailure',
+      'subagentStart',
+      'subagentStop',
+      'preCompact',
+    ]),
     conversation_id: z.string().optional(),
     session_id: z.string().optional(),
     tool_name: z.string().optional(),
@@ -34,6 +59,12 @@ export const CursorHookPayloadSchema = z
     prompt: z.string().optional(),
     reason: z.string().optional(),
     agent_message: z.string().optional(),
+    error_message: z.string().optional(),
+    failure_type: z.string().optional(),
+    subagent_id: z.string().optional(),
+    subagent_type: z.string().optional(),
+    summary: z.string().optional(),
+    trigger: z.string().optional(),
   })
   .passthrough();
 

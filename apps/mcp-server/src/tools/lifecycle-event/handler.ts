@@ -167,6 +167,42 @@ function shapeHookOutput(
           continue: result.permissionDecision !== 'deny',
           ...(result.permissionDecision === 'deny' && reason !== undefined ? { user_message: reason } : {}),
         };
+      // Four events added (Cursor hook coverage expansion, mirroring
+      // Claude Code's 91e8803 / Codex's a96e042 — see
+      // cursor.com/docs/hooks).
+      case 'PostToolUseFailure':
+        // Fire-and-forget per Cursor's own docs — no documented
+        // output/decision control for this event, matches the existing
+        // Stop/SessionEnd/default pure-ack pattern.
+        return {};
+      case 'SubagentStart':
+        // Cursor's subagentStart genuinely CAN block subagent launch
+        // (`permission: "allow"|"deny"`) — unlike Claude Code (confirmed
+        // cannot block) or Codex (continue:false parsed but confirmed
+        // inert). Left unused this round: a real, unique capability
+        // with no policy driver yet, same scope-discipline call already
+        // made for Codex's SubagentStart additionalContext capability.
+        return {};
+      case 'SubagentStop':
+        // Cursor's subagentStop can auto-submit a followup_message to
+        // continue the loop — also genuinely capable, also left unused
+        // this round for the same reason.
+        return {};
+      case 'PreCompact': {
+        // DIVERGES from both Claude Code (decision:'block') and Codex
+        // (continue:false): Cursor's preCompact has NO blocking field
+        // at all, confirmed via direct docs quote ("Fire-and-forget; no
+        // blocking response") — only `user_message`. The one-shot-nudge
+        // detection logic already runs (agent-agnostic, see handler
+        // body) and sets permissionDecision:'deny' when there's unsaved
+        // material; for Cursor that can only surface as a user-facing
+        // message, not an agent-facing block — advisory only, cannot
+        // force a save. Whether Cursor even reinjects context via a
+        // fresh sessionStart after compaction the way Claude Code does
+        // is unconfirmed — do not assume "next SessionStart already
+        // handles reinjection" holds here.
+        return result.permissionDecision === 'deny' && reason !== undefined ? { user_message: reason } : {};
+      }
       case 'Stop':
       case 'SessionEnd':
       default:
@@ -281,6 +317,10 @@ const CURSOR_EVENT_NAME_MAP: Readonly<Record<string, string>> = {
   postToolUse: 'PostToolUse',
   stop: 'Stop',
   sessionEnd: 'SessionEnd',
+  postToolUseFailure: 'PostToolUseFailure',
+  subagentStart: 'SubagentStart',
+  subagentStop: 'SubagentStop',
+  preCompact: 'PreCompact',
 };
 
 function canonicalHookEventName(agentType: LifecycleEventInput['agentType'], raw: string): string {
