@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, notInArray, notLike } from 'drizzle-orm';
+import { and, asc, desc, eq, ne, notInArray, notLike } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
@@ -317,6 +317,112 @@ export async function cancelRun(db: DbHandle, runId: string, now: Date = new Dat
   const after = updated[0];
   if (after === undefined) return { status: 'not_found' };
   return { status: 'cancelled', run: toRunRow(after) };
+}
+
+/**
+ * Mark a run completed. Idempotent (guarded so an already-`completed`
+ * row isn't re-touched), same shape as `cancelRun`'s update. Shared
+ * between `save_context_pack`'s own completion side-effect and the
+ * `lifecycle_event` handler's `SessionEnd` case (Claude Code hook
+ * coverage expansion, 2026-08-04) — previously `save-context-pack/
+ * handler.ts` had a private copy of this; that path now calls this one.
+ */
+export async function markRunCompleted(db: DbHandle, runId: string, now: Date = new Date()): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .update(sqliteSchema.runs)
+      .set({ status: 'completed', endedAt: now })
+      .where(and(eq(sqliteSchema.runs.id, runId), ne(sqliteSchema.runs.status, 'completed')));
+    return;
+  }
+  await db.db
+    .update(postgresSchema.runs)
+    .set({ status: 'completed', endedAt: now })
+    .where(and(eq(postgresSchema.runs.id, runId), ne(postgresSchema.runs.status, 'completed')));
+}
+
+/**
+ * Mark a run failed — the `StopFailure` case (an API-level error ended
+ * the turn: rate limit, auth failure, server error, ...), as opposed to
+ * a normal `Stop`/`SessionEnd`. The `'failed'` status value already
+ * existed in the schema/query enum before this but nothing ever wrote
+ * it (added 2026-08-04 alongside the `lifecycle_event` handler's new
+ * `StopFailure` branch). `errorType`/`errorMessage` aren't persisted on
+ * this row — there's no column for them — callers should also record
+ * them via the run-event ledger for the activity trail; this only
+ * flips status so the run doesn't dangle `in_progress` forever.
+ */
+export async function markRunFailed(db: DbHandle, runId: string, now: Date = new Date()): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .update(sqliteSchema.runs)
+      .set({ status: 'failed', endedAt: now })
+      .where(and(eq(sqliteSchema.runs.id, runId), ne(sqliteSchema.runs.status, 'failed')));
+    return;
+  }
+  await db.db
+    .update(postgresSchema.runs)
+    .set({ status: 'failed', endedAt: now })
+    .where(and(eq(postgresSchema.runs.id, runId), ne(postgresSchema.runs.status, 'failed')));
+}
+
+/**
+ * Whether a `context_packs` row exists for `runId` (the column is
+ * uniquely indexed — at most one). Used by `PreCompact`'s one-shot
+ * nudge to decide whether there's anything still unsaved worth
+ * blocking compaction for.
+ */
+export async function hasContextPackForRun(db: DbHandle, runId: string): Promise<boolean> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ id: sqliteSchema.contextPacks.id })
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.runId, runId))
+      .limit(1);
+    return rows.length > 0;
+  }
+  const rows = await db.db
+    .select({ id: postgresSchema.contextPacks.id })
+    .from(postgresSchema.contextPacks)
+    .where(eq(postgresSchema.contextPacks.runId, runId))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * Reads `runs.compactionNudgedAt` — null means "PreCompact hasn't
+ * blocked compaction for this run yet." See `markRunCompactionNudged`.
+ */
+export async function getRunCompactionNudgedAt(db: DbHandle, runId: string): Promise<Date | null> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ compactionNudgedAt: sqliteSchema.runs.compactionNudgedAt })
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.id, runId))
+      .limit(1);
+    return rows[0]?.compactionNudgedAt ?? null;
+  }
+  const rows = await db.db
+    .select({ compactionNudgedAt: postgresSchema.runs.compactionNudgedAt })
+    .from(postgresSchema.runs)
+    .where(eq(postgresSchema.runs.id, runId))
+    .limit(1);
+  return rows[0]?.compactionNudgedAt ?? null;
+}
+
+/**
+ * Sets `runs.compactionNudgedAt` — the `lifecycle_event` handler's
+ * `PreCompact` case calls this the first time it blocks compaction to
+ * nudge the agent to save unsaved decisions/context, so a later
+ * `PreCompact` call for the same run allows compaction unconditionally
+ * instead of blocking repeatedly.
+ */
+export async function markRunCompactionNudged(db: DbHandle, runId: string, now: Date = new Date()): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db.update(sqliteSchema.runs).set({ compactionNudgedAt: now }).where(eq(sqliteSchema.runs.id, runId));
+    return;
+  }
+  await db.db.update(postgresSchema.runs).set({ compactionNudgedAt: now }).where(eq(postgresSchema.runs.id, runId));
 }
 
 // ============================================================================

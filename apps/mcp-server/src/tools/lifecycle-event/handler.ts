@@ -1,7 +1,12 @@
 import {
   attestPolicyProjection,
   type DbHandle,
+  getRunCompactionNudgedAt,
+  hasContextPackForRun,
   lookupProjectBySlug,
+  markRunCompactionNudged,
+  markRunCompleted,
+  markRunFailed,
   renderPolicyProjectionDriftContext,
 } from '@coodra/db';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
@@ -83,7 +88,11 @@ function shapeHookOutput(
         };
       }
       case 'PostToolUse':
-      case 'Stop': {
+      case 'Stop':
+      // PreCompact shares this shape (2026-08-04): `decision: 'block'`
+      // is how the one-shot nudge vetoes compaction; no additionalContext
+      // channel exists for this event (see payloads/claude-code.ts).
+      case 'PreCompact': {
         const out: Record<string, unknown> = { ok: true };
         if (result.permissionDecision === 'deny') {
           out.decision = 'block';
@@ -93,6 +102,38 @@ function shapeHookOutput(
       }
       case 'SessionEnd':
         return { ok: true };
+      // ConfigChange added 2026-08-04 alongside the attestPolicyProjection
+      // rewire — previously fell to `default` with no additionalContext
+      // support at all.
+      case 'ConfigChange':
+        return {
+          ok: true,
+          hookSpecificOutput: {
+            hookEventName,
+            ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
+          },
+        };
+      // PermissionRequest added 2026-08-04 — unlike PreToolUse, its
+      // `decision` field is binary (allow/deny only, no three-way `ask`),
+      // so an ambiguous `ask` from Coodra's own policy check must NOT
+      // force an answer — omit `decision` entirely and let Claude's
+      // native permission prompt still show.
+      case 'PermissionRequest':
+        return result.permissionDecision === 'ask'
+          ? { ok: true }
+          : {
+              ok: true,
+              hookSpecificOutput: {
+                hookEventName,
+                decision: { behavior: result.permissionDecision === 'deny' ? 'deny' : 'allow' },
+              },
+            };
+      // PermissionDenied / SubagentStart / SubagentStop / PostCompact /
+      // PostToolUseFailure / StopFailure (2026-08-04): all pure logging
+      // per Claude's own docs — no decision control Coodra uses today
+      // (SubagentStop technically supports `decision: 'block'`, left
+      // unused — no policy reason yet to force a subagent to keep
+      // working). All fall through to the plain ack below.
       default:
         return { ok: true };
     }
@@ -255,6 +296,21 @@ function idempotencyFor(event: HookEvent, hookEventName: string): IdempotencyKey
   };
 }
 
+/**
+ * True for `mcp__coodra__*` / `mcp__graphify__*` tool names — Coodra's
+ * own two managed MCP servers (2026-08-04). Server-side backstop for the
+ * `mcp__(?!coodra__|graphify__).*` matcher exclusion in `hooksConfig()`
+ * (`claude-plugin.ts`): even if a caller somehow reaches this handler
+ * with one of these tool names — a matcher-regex edge case, a future
+ * host without matcher support, a direct/manual invocation — Coodra
+ * must never run its own policy engine against its own tool calls.
+ * Beyond the wasted round-trip, a future broad `mcp__*`-matching policy
+ * rule could otherwise silently gate Coodra's own tool surface.
+ */
+function isCoodraOwnMcpTool(toolName: string): boolean {
+  return toolName.startsWith('mcp__coodra__') || toolName.startsWith('mcp__graphify__');
+}
+
 function toolInputRecord(input: unknown): Record<string, unknown> {
   return input !== null && typeof input === 'object' && !Array.isArray(input)
     ? (input as Record<string, unknown>)
@@ -391,7 +447,29 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
     let reason = projectSlug === null ? 'project_config_missing' : 'lifecycle_recorded';
 
-    if (projectSlug !== null && hookEventName === 'PreToolUse' && event.toolName.length > 0) {
+    // Pure-logging events added 2026-08-04 — surface the agent-reported
+    // reason/error text into the audit `reason` field instead of the
+    // generic default, so it's visible in the run_events ledger.
+    if (hookEventName === 'PermissionDenied' && event.denialReason !== undefined) {
+      reason = event.denialReason;
+    } else if (hookEventName === 'PostToolUseFailure' && event.toolError !== undefined) {
+      reason = event.toolError;
+    } else if (hookEventName === 'StopFailure' && event.errorType !== undefined) {
+      reason = event.errorMessage !== undefined ? `${event.errorType}: ${event.errorMessage}` : event.errorType;
+    }
+
+    // PermissionRequest (2026-08-04) asks the exact same policy question
+    // PreToolUse does, for the same tool call, at a later intercept point
+    // (right before Claude's native permission prompt would otherwise
+    // show) — reuses `eventType: 'PreToolUse'` deliberately; check-policy's
+    // schema only accepts PreToolUse/PostToolUse and there's no separate
+    // rule surface for this event.
+    if (
+      projectSlug !== null &&
+      (hookEventName === 'PreToolUse' || hookEventName === 'PermissionRequest') &&
+      event.toolName.length > 0 &&
+      !isCoodraOwnMcpTool(event.toolName)
+    ) {
       const checkPolicy = createCheckPolicyHandler({ db: deps.db });
       const policy = await checkPolicy(
         {
@@ -414,14 +492,55 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       }
     }
 
+    // PreCompact one-shot nudge (2026-08-04): block the first compaction
+    // attempt for a run that has recorded decisions but no saved Context
+    // Pack yet, so that material isn't silently lost — never block twice
+    // for the same run (see `markRunCompactionNudged`). Reinjection after
+    // compaction needs no code here: Claude Code fires a genuine new
+    // SessionStart (source: "compact") right after, and that hook already
+    // re-runs `renderRecentContext` unconditionally (no matcher on
+    // SessionStart) — see hooksConfig() in claude-plugin.ts.
+    if (hookEventName === 'PreCompact' && runId !== null && projectSlug !== null) {
+      const alreadyNudged = await getRunCompactionNudgedAt(deps.db, runId);
+      if (alreadyNudged === null) {
+        const queryDecisions = createQueryDecisionsHandler({ db: deps.db });
+        const decisionsResult = await queryDecisions({ projectSlug, runId, includeRelated: false, limit: 1 }, ctx);
+        const hasUnsavedDecisions = decisionsResult.ok && decisionsResult.decisions.length > 0;
+        const hasContextPack = hasUnsavedDecisions ? await hasContextPackForRun(deps.db, runId) : false;
+        if (hasUnsavedDecisions && !hasContextPack) {
+          permissionDecision = 'deny';
+          reason =
+            'This run recorded decisions with no Context Pack saved yet. Call coodra__record_decision for ' +
+            'anything new since, then coodra__save_context_pack, before compacting — this is a one-time nudge.';
+          await markRunCompactionNudged(deps.db, runId, ctx.now());
+        }
+      }
+    }
+
+    if (hookEventName === 'SessionEnd' && runId !== null) {
+      await markRunCompleted(deps.db, runId, ctx.now());
+    }
+    if (hookEventName === 'StopFailure' && runId !== null) {
+      await markRunFailed(deps.db, runId, ctx.now());
+    }
+
     if (runId !== null) {
+      const isSubagentEvent = hookEventName === 'SubagentStart' || hookEventName === 'SubagentStop';
       await ctx.runRecorder.record({
         runId,
-        toolName: event.toolName.length > 0 ? event.toolName : hookEventName,
+        toolName:
+          event.toolName.length > 0
+            ? event.toolName
+            : isSubagentEvent && event.subagentType !== undefined
+              ? event.subagentType
+              : hookEventName,
         phase: eventRecordPhase(event),
         sessionId: event.sessionId,
         idempotencyKey: idempotencyFor(event, hookEventName),
-        input: event.toolInput ?? {},
+        input:
+          hookEventName === 'SubagentStop' && event.lastAssistantMessage !== undefined
+            ? { lastAssistantMessage: event.lastAssistantMessage }
+            : (event.toolInput ?? {}),
         decision: permissionDecision,
         reason,
       });
@@ -468,7 +587,14 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       }
     }
     let policyProjectionContext: string | null = null;
-    if (hookEventName === 'SessionStart' && projectSlug !== null && projectConfig !== null) {
+    // Widened to ConfigChange 2026-08-04 (matcher: 'project_settings' in
+    // claude-plugin.ts) — this attestation used to only ever run at
+    // SessionStart, leaving ConfigChange wired but functionally inert.
+    if (
+      (hookEventName === 'SessionStart' || hookEventName === 'ConfigChange') &&
+      projectSlug !== null &&
+      projectConfig !== null
+    ) {
       try {
         const project = await lookupProjectBySlug(deps.db, projectSlug);
         if (project !== null) {
@@ -488,11 +614,12 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
           {
             event: 'native_plugin_policy_projection_attestation_failed',
             agentType: input.agentType,
+            hookEventName,
             sessionId: event.sessionId,
             projectSlug,
             err: err instanceof Error ? err.message : String(err),
           },
-          'policy projection attestation failed; SessionStart proceeding',
+          'policy projection attestation failed',
         );
       }
     }
@@ -505,7 +632,9 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
             policyProjectionContext,
             recentContext,
           })
-        : undefined;
+        : hookEventName === 'ConfigChange'
+          ? (policyProjectionContext ?? undefined)
+          : undefined;
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,

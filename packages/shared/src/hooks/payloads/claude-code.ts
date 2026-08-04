@@ -28,12 +28,12 @@ import { z } from 'zod';
  *       "cwd": "/home/dev/myapp"
  *     }
  *
- * `hook_event_name` is locked to the six events Coodra cares about.
+ * `hook_event_name` is locked to the events Coodra cares about.
  * Stop fires per-turn; SessionEnd fires once per session-termination
  * (matcher reasons: `clear` / `resume` / `logout` / `prompt_input_exit`
  * / `bypass_permissions_disabled` / `other`). The adapter routes Stop
  * to phase `'turn_end'` (plain ack) and SessionEnd to `'session_end'`
- * (auto-context-pack save + runs row close).
+ * (runs row close — see `apps/mcp-server/src/tools/lifecycle-event/handler.ts`).
  *
  * `tool_input` is intentionally `z.unknown()` because tool inputs vary
  * by tool (Write has `file_path` + `content`, Bash has `command`, etc.)
@@ -42,6 +42,22 @@ import { z } from 'zod';
  * `prompt` + `prompt_id` are present on `UserPromptSubmit` events
  * only. They're optional here because the same schema is reused for
  * pre/post/session events.
+ *
+ * Eight events added 2026-08-04 (Claude Code hook coverage expansion —
+ * see `code.claude.com/docs/en/hooks`), each with its own payload
+ * fields beyond the common set, all optional since every event shares
+ * one schema:
+ *   - `PermissionRequest` / `PermissionDenied` — tool-carrying, same
+ *     `tool_name`/`tool_input`/`tool_use_id` fields as PreToolUse.
+ *     `PermissionDenied` additionally carries `denial_reason`.
+ *   - `SubagentStart` / `SubagentStop` — no tool_name; carry
+ *     `agent_type`/`agent_id` instead. `SubagentStop` additionally
+ *     carries `last_assistant_message`.
+ *   - `PreCompact` / `PostCompact` — carry `trigger` (`'manual'` or
+ *     `'auto'`).
+ *   - `PostToolUseFailure` — tool-carrying, plus `tool_error`.
+ *   - `StopFailure` — turn-level, no tool fields; carries `error_type`
+ *     + `error_message`.
  */
 export const ClaudeCodeHookPayloadSchema = z
   .object({
@@ -53,6 +69,14 @@ export const ClaudeCodeHookPayloadSchema = z
       'Stop',
       'UserPromptSubmit',
       'ConfigChange',
+      'PermissionRequest',
+      'PermissionDenied',
+      'SubagentStart',
+      'SubagentStop',
+      'PreCompact',
+      'PostCompact',
+      'PostToolUseFailure',
+      'StopFailure',
     ]),
     session_id: z.string().min(1),
     tool_name: z.string().optional(),
@@ -62,6 +86,14 @@ export const ClaudeCodeHookPayloadSchema = z
     cwd: z.string().optional(),
     prompt: z.string().optional(),
     prompt_id: z.string().optional(),
+    denial_reason: z.string().optional(),
+    agent_type: z.string().optional(),
+    agent_id: z.string().optional(),
+    last_assistant_message: z.string().optional(),
+    trigger: z.string().optional(),
+    tool_error: z.string().optional(),
+    error_type: z.string().optional(),
+    error_message: z.string().optional(),
   })
   .passthrough();
 

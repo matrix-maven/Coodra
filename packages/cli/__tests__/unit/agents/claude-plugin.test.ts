@@ -157,6 +157,39 @@ describe('Claude Code native plugin installer', () => {
     expect(hooks).toContain('"agentType": "claude_code"');
     expect(hooks).toContain('"UserPromptSubmit"');
 
+    // Claude Code hook coverage expansion (2026-08-04) — 8 new events +
+    // the ConfigChange/PreToolUse/PostToolUse/PermissionRequest matchers.
+    const hooksJson = JSON.parse(hooks) as { hooks: Record<string, unknown> };
+    for (const event of [
+      'PermissionRequest',
+      'PermissionDenied',
+      'SubagentStart',
+      'SubagentStop',
+      'PreCompact',
+      'PostCompact',
+      'PostToolUseFailure',
+      'StopFailure',
+    ]) {
+      expect(hooksJson.hooks).toHaveProperty(event);
+    }
+    // PreToolUse/PostToolUse/PermissionRequest all watch the same
+    // mcp__* set, EXCLUDING Coodra's own two managed servers — calling
+    // Coodra's own tools must never trigger a self-policing round-trip.
+    for (const event of ['PreToolUse', 'PostToolUse', 'PermissionRequest']) {
+      const matcherJson = JSON.stringify((hooksJson.hooks as Record<string, unknown>)[event]);
+      expect(matcherJson).toContain('Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__(?!coodra__|graphify__).*');
+    }
+    expect(JSON.stringify(hooksJson.hooks.ConfigChange)).toContain('project_settings');
+    // New placeholder fields threaded through mcpLifecycleHook's rawPayload.
+    expect(hooks).toContain('"denial_reason"');
+    expect(hooks).toContain('"agent_type"');
+    expect(hooks).toContain('"agent_id"');
+    expect(hooks).toContain('"last_assistant_message"');
+    expect(hooks).toContain('"trigger"');
+    expect(hooks).toContain('"tool_error"');
+    expect(hooks).toContain('"error_type"');
+    expect(hooks).toContain('"error_message"');
+
     expect(await probeClaudePlugin({ cwd, userHome }, noCliRunner())).toMatchObject({
       enabled: true,
       manifest: true,

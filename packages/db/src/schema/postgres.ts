@@ -66,6 +66,9 @@ export const runs = pgTable(
     createdByUserId: text('created_by_user_id'),
     startedAt: timestamp('started_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     endedAt: timestamp('ended_at', { withTimezone: true, mode: 'date' }),
+    // Claude Code hook coverage expansion (2026-08-04) — see
+    // ./sqlite.ts::runs.compactionNudgedAt for the full rationale.
+    compactionNudgedAt: timestamp('compaction_nudged_at', { withTimezone: true, mode: 'date' }),
   },
   (t) => [uniqueIndex('runs_project_session_idx').on(t.projectId, t.sessionId), index('runs_status_idx').on(t.status)],
 );

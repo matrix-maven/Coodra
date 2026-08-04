@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
+import { type DbHandle, markRunCompleted, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
 import type { ContextPackWriteResult } from '../../lib/context-pack.js';
@@ -128,26 +128,6 @@ async function linkContextPackToWorkPacks(
         ],
       });
   }
-}
-
-async function markRunCompleted(db: DbHandle, runId: string): Promise<void> {
-  if (db.kind === 'sqlite') {
-    await db.db
-      .update(sqliteSchema.runs)
-      .set({
-        status: 'completed',
-        endedAt: sql`(unixepoch())` as unknown as Date,
-      })
-      .where(and(eq(sqliteSchema.runs.id, runId), ne(sqliteSchema.runs.status, 'completed')));
-    return;
-  }
-  await db.db
-    .update(postgresSchema.runs)
-    .set({
-      status: 'completed',
-      endedAt: sql`now()` as unknown as Date,
-    })
-    .where(and(eq(postgresSchema.runs.id, runId), ne(postgresSchema.runs.status, 'completed')));
 }
 
 export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {

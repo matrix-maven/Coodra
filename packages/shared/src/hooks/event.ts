@@ -23,9 +23,22 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *       Stop               Stop                  stop                 → 'turn_end'
  *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   → 'user_prompt'
  *       ConfigChange       ConfigChange          (none)               → 'config_change'
+ *       PermissionRequest  (none)                (none)               → 'permission_request'
+ *       PermissionDenied   (none)                (none)               → 'permission_denied'
+ *       SubagentStart      (none)                (none)               → 'subagent_start'
+ *       SubagentStop       (none)                (none)               → 'subagent_stop'
+ *       PreCompact         (none)                (none)               → 'pre_compact'
+ *       PostCompact        (none)                (none)               → 'post_compact'
+ *       PostToolUseFailure (none)                (none)               → 'post_tool_use_failure'
+ *       StopFailure        (none)                (none)               → 'stop_failure'
  *
  *     Cursor has no ConfigChange-equivalent hook event — a Cursor
- *     `HookEvent` never has `eventPhase: 'config_change'`.
+ *     `HookEvent` never has `eventPhase: 'config_change'`. The eight
+ *     events added 2026-08-04 are Claude-Code-only for now (see
+ *     `apps/mcp-server/src/tools/lifecycle-event/handler.ts`) — Codex/
+ *     Cursor `HookEvent`s never carry these phases either, though the
+ *     literals live in the shared enum since it's one union all three
+ *     adapters draw from.
  *
  *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
  *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
@@ -58,11 +71,36 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *      it without per-handler parameter passing.
  *   - `rawAt` — adapter-stamped ISO timestamp; useful for diagnostics
  *      when the agent's own timestamp field is missing or unreliable.
+ *   - `subagentType` / `subagentId` — set on `SubagentStart`/`SubagentStop`
+ *      only (Claude Code's `agent_type`/`agent_id`). No correlator back
+ *      to the parent `Task` tool call exists in Claude Code's payload.
+ *   - `lastAssistantMessage` — set on `SubagentStop` only.
+ *   - `compactTrigger` — set on `PreCompact`/`PostCompact` only
+ *      (`'manual'` or `'auto'`).
+ *   - `toolError` — set on `PostToolUseFailure` only.
+ *   - `errorType` / `errorMessage` — set on `StopFailure` only.
+ *   - `denialReason` — set on `PermissionDenied` only.
  */
 export const HookEventSchema = z
   .object({
     agentType: z.enum(['claude_code', 'codex', 'cursor', 'unknown']),
-    eventPhase: z.enum(['pre', 'post', 'session_start', 'session_end', 'turn_end', 'user_prompt', 'config_change']),
+    eventPhase: z.enum([
+      'pre',
+      'post',
+      'session_start',
+      'session_end',
+      'turn_end',
+      'user_prompt',
+      'config_change',
+      'permission_request',
+      'permission_denied',
+      'subagent_start',
+      'subagent_stop',
+      'pre_compact',
+      'post_compact',
+      'post_tool_use_failure',
+      'stop_failure',
+    ]),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),
     toolName: z.string(),
@@ -72,6 +110,14 @@ export const HookEventSchema = z
     cwd: z.string().optional(),
     projectSlug: z.string().optional(),
     rawAt: z.string().datetime(),
+    subagentType: z.string().optional(),
+    subagentId: z.string().optional(),
+    lastAssistantMessage: z.string().optional(),
+    compactTrigger: z.string().optional(),
+    toolError: z.string().optional(),
+    errorType: z.string().optional(),
+    errorMessage: z.string().optional(),
+    denialReason: z.string().optional(),
   })
   .strict();
 

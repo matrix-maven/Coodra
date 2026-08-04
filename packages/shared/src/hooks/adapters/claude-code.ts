@@ -19,6 +19,14 @@ const PHASE_MAP: Readonly<Record<ClaudeCodeHookPayload['hook_event_name'], HookE
   Stop: 'turn_end',
   UserPromptSubmit: 'user_prompt',
   ConfigChange: 'config_change',
+  PermissionRequest: 'permission_request',
+  PermissionDenied: 'permission_denied',
+  SubagentStart: 'subagent_start',
+  SubagentStop: 'subagent_stop',
+  PreCompact: 'pre_compact',
+  PostCompact: 'post_compact',
+  PostToolUseFailure: 'post_tool_use_failure',
+  StopFailure: 'stop_failure',
 };
 
 function extractFilePath(input: unknown): string | undefined {
@@ -65,6 +73,30 @@ export function adaptClaudeCode(payload: ClaudeCodeHookPayload, options: AdaptCl
   }
   if (payload.cwd !== undefined) {
     (event as { cwd?: string }).cwd = payload.cwd;
+  }
+  if (payload.agent_type !== undefined) {
+    (event as { subagentType?: string }).subagentType = payload.agent_type;
+  }
+  if (payload.agent_id !== undefined) {
+    (event as { subagentId?: string }).subagentId = payload.agent_id;
+  }
+  if (payload.last_assistant_message !== undefined) {
+    (event as { lastAssistantMessage?: string }).lastAssistantMessage = payload.last_assistant_message;
+  }
+  if (payload.trigger !== undefined) {
+    (event as { compactTrigger?: string }).compactTrigger = payload.trigger;
+  }
+  if (payload.tool_error !== undefined) {
+    (event as { toolError?: string }).toolError = payload.tool_error;
+  }
+  if (payload.error_type !== undefined) {
+    (event as { errorType?: string }).errorType = payload.error_type;
+  }
+  if (payload.error_message !== undefined) {
+    (event as { errorMessage?: string }).errorMessage = payload.error_message;
+  }
+  if (payload.denial_reason !== undefined) {
+    (event as { denialReason?: string }).denialReason = payload.denial_reason;
   }
   return event;
 }

@@ -649,6 +649,14 @@ function pluginManifest(): string {
   )}\n`;
 }
 
+// Shared PreToolUse/PostToolUse/PermissionRequest matcher (2026-08-04):
+// Coodra's own built-in risky-action set, plus every MCP tool call
+// EXCEPT Coodra's own two managed servers (coodra, graphify — see
+// mcpEntry()/graphifyEntry() below). Negative lookahead is standard JS
+// RegExp syntax; Claude Code's matcher docs don't name an engine, but
+// nothing suggests a non-JS regex flavor for a Node-based product.
+const TOOL_MATCHER = 'Write|Edit|MultiEdit|NotebookEdit|Bash|mcp__(?!coodra__|graphify__).*' as const;
+
 function hooksConfig(): unknown {
   const lifecycleHook = mcpLifecycleHook(10);
   const shortHook = mcpLifecycleHook(3);
@@ -656,11 +664,41 @@ function hooksConfig(): unknown {
     hooks: {
       SessionStart: [{ hooks: [lifecycleHook] }],
       UserPromptSubmit: [{ hooks: [lifecycleHook] }],
-      ConfigChange: [{ hooks: [shortHook] }],
-      PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
-      PostToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Bash', hooks: [lifecycleHook] }],
+      // Narrowed to project_settings (2026-08-04) — Coodra's own policy
+      // projection lives at <projectRoot>/.claude/settings.json, not
+      // ~/.claude/settings.json (user_settings) or settings.local.json
+      // (local_settings). Firing on every settings source was pure
+      // overhead: attestPolicyProjection only cares about this one.
+      ConfigChange: [{ matcher: 'project_settings', hooks: [shortHook] }],
+      // mcp__.* added 2026-08-04 (excluding Coodra's own two managed MCP
+      // servers via negative lookahead — mcp__coodra__* / mcp__graphify__*
+      // — so calling Coodra's own tools never triggers a pointless
+      // self-policing PreToolUse/PostToolUse round-trip, and a future
+      // broad mcp__* policy rule can't accidentally gate Coodra's own
+      // tool surface). Third-party MCP tool calls (GitHub, Atlassian, ...)
+      // were previously invisible to policy/activity tracking entirely.
+      PreToolUse: [{ matcher: TOOL_MATCHER, hooks: [lifecycleHook] }],
+      PostToolUse: [{ matcher: TOOL_MATCHER, hooks: [lifecycleHook] }],
       Stop: [{ hooks: [lifecycleHook] }],
       SessionEnd: [{ hooks: [shortHook] }],
+      // Eight events added 2026-08-04 (Claude Code hook coverage
+      // expansion) — Codex/Cursor unaffected, this file only.
+      // PermissionRequest can override Claude's own permission outcome,
+      // so it watches the same risky-action set PreToolUse does — not a
+      // bigger one, just a second, later look at the same calls.
+      PermissionRequest: [{ matcher: TOOL_MATCHER, hooks: [lifecycleHook] }],
+      // PermissionDenied/PostToolUseFailure are pure logging (no
+      // decision control on either per Claude's own docs) — left
+      // unmatched deliberately, unlike PreToolUse/PermissionRequest:
+      // the point here is complete denial/failure visibility for the
+      // activity ledger, not narrowing to the risk-gated subset.
+      PermissionDenied: [{ hooks: [shortHook] }],
+      SubagentStart: [{ hooks: [shortHook] }],
+      SubagentStop: [{ hooks: [lifecycleHook] }],
+      PreCompact: [{ hooks: [lifecycleHook] }],
+      PostCompact: [{ hooks: [shortHook] }],
+      PostToolUseFailure: [{ hooks: [shortHook] }],
+      StopFailure: [{ hooks: [shortHook] }],
     },
   };
 }
@@ -680,6 +718,18 @@ function mcpLifecycleHook(timeout: number): unknown {
         tool_use_id: placeholder('tool_use_id'),
         prompt: placeholder('prompt'),
         prompt_id: placeholder('prompt_id'),
+        // Added 2026-08-04 for the 8 new hook events — each is only
+        // ever populated by Claude Code on the specific event(s) that
+        // carry it (see payloads/claude-code.ts's docblock); harmless
+        // no-op placeholders on every other event.
+        denial_reason: placeholder('denial_reason'),
+        agent_type: placeholder('agent_type'),
+        agent_id: placeholder('agent_id'),
+        last_assistant_message: placeholder('last_assistant_message'),
+        trigger: placeholder('trigger'),
+        tool_error: placeholder('tool_error'),
+        error_type: placeholder('error_type'),
+        error_message: placeholder('error_message'),
         tool_input: {
           file_path: placeholder('tool_input.file_path'),
           filePath: placeholder('tool_input.filePath'),

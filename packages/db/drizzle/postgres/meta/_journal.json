@@ -190,6 +190,13 @@
 			"when": 1785750100000,
 			"tag": "0026_fts_search",
 			"breakpoints": true
+		},
+		{
+			"idx": 27,
+			"version": "7",
+			"when": 1785750200000,
+			"tag": "0027_runs_compaction_nudge",
+			"breakpoints": true
 		}
 	]
 }

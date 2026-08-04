@@ -40,6 +40,26 @@ describe('lifecycle_event — native agent input schema', () => {
       }).success,
     ).toBe(true);
   });
+
+  it('accepts each of the 8 new Claude Code events (2026-08-04)', () => {
+    for (const hookEventName of [
+      'PermissionRequest',
+      'PermissionDenied',
+      'SubagentStart',
+      'SubagentStop',
+      'PreCompact',
+      'PostCompact',
+      'PostToolUseFailure',
+      'StopFailure',
+    ]) {
+      expect(
+        lifecycleEventInputSchema.safeParse({
+          agentType: 'claude_code',
+          rawPayload: { hook_event_name: hookEventName, session_id: 's' },
+        }).success,
+      ).toBe(true);
+    }
+  });
 });
 
 describe('lifecycle_event — registry hook text output', () => {
@@ -129,5 +149,49 @@ describe('lifecycle_event — registry hook text output', () => {
       permissionDecision: 'allow',
       reason: 'project_config_missing',
     });
+  });
+
+  it('PermissionRequest with no project resolves to an explicit allow decision, not the PreToolUse ask/deny shape', async () => {
+    const registry = new ToolRegistry({ deps: makeFakeDeps(), clock: () => new Date('2026-08-04T00:00:00.000Z') });
+    registry.register(createLifecycleEventToolRegistration({ db: fakeDb, mode: 'solo' }));
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'claude_code',
+        rawPayload: {
+          hook_event_name: 'PermissionRequest',
+          session_id: 'claude-session',
+          tool_name: 'Bash',
+          tool_use_id: 'toolu_1',
+          tool_input: { command: 'npm test' },
+        },
+      },
+      'mcp-session',
+      { agentType: 'claude_code' },
+    );
+    const text = JSON.parse(result.content[0]?.text ?? '{}') as {
+      hookSpecificOutput?: { hookEventName?: string; decision?: { behavior?: string } };
+    };
+    expect(text.hookSpecificOutput).toEqual({
+      hookEventName: 'PermissionRequest',
+      decision: { behavior: 'allow' },
+    });
+  });
+
+  it('PreCompact with no project just acks — no nudge logic runs without a runId', async () => {
+    const registry = new ToolRegistry({ deps: makeFakeDeps(), clock: () => new Date('2026-08-04T00:00:00.000Z') });
+    registry.register(createLifecycleEventToolRegistration({ db: fakeDb, mode: 'solo' }));
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'claude_code',
+        rawPayload: { hook_event_name: 'PreCompact', session_id: 'claude-session', trigger: 'auto' },
+      },
+      'mcp-session',
+      { agentType: 'claude_code' },
+    );
+    const text = JSON.parse(result.content[0]?.text ?? '{}') as { ok?: boolean; decision?: string };
+    expect(text.ok).toBe(true);
+    expect(text.decision).toBeUndefined();
   });
 });

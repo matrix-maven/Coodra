@@ -79,6 +79,14 @@ export const runs = sqliteTable(
     createdByUserId: text('created_by_user_id'),
     startedAt: integer('started_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     endedAt: integer('ended_at', { mode: 'timestamp' }),
+    // Claude Code hook coverage expansion (2026-08-04). Set the first
+    // time PreCompact blocks compaction to nudge the agent to save
+    // unsaved decisions/context before the wipe (see
+    // apps/mcp-server/src/tools/lifecycle-event/handler.ts). NULL means
+    // "not yet nudged this run" — a subsequent PreCompact call for the
+    // same run allows compaction unconditionally rather than blocking
+    // repeatedly.
+    compactionNudgedAt: integer('compaction_nudged_at', { mode: 'timestamp' }),
   },
   (t) => [uniqueIndex('runs_project_session_idx').on(t.projectId, t.sessionId), index('runs_status_idx').on(t.status)],
 );
