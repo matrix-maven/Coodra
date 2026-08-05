@@ -68,6 +68,33 @@ export const saveContextPackInputSchema = z
       )
       .max(10)
       .optional(),
+    /**
+     * Append-only redesign (2026-08-05). Soft-governed — a free string,
+     * not a hard enum, so a future kind doesn't require a Coodra code
+     * change (same tradeoff already accepted for work_pack_upsert's
+     * packType). Recommended: 'sync' | 'work_start' |
+     * 'implementation_recap' | 'audit_findings' | 'final_recap'.
+     * Deliberately provider-neutral — 'sync', not 'jira_sync'; which
+     * external provider a sync came from lives on the linked Work
+     * Pack's own source.provider, not here.
+     */
+    kind: z
+      .string()
+      .min(1)
+      .max(64)
+      .optional()
+      .describe(
+        "Optional classification for this pack. Soft-governed, not a hard enum — recommended values: 'sync', " +
+          "'work_start', 'implementation_recap', 'audit_findings', 'final_recap'. Provider-neutral: which " +
+          'external tool a sync came from belongs on the linked Work Pack, not here.',
+      ),
+    /** Soft-governed. Recommended: 'high' | 'medium' | 'low'. */
+    importance: z
+      .string()
+      .min(1)
+      .max(32)
+      .optional()
+      .describe("Optional priority signal for this pack. Soft-governed — recommended values: 'high', 'medium', 'low'."),
   })
   .strict()
   .describe('Input for coodra__save_context_pack.');

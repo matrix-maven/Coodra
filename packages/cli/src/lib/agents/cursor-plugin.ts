@@ -1,5 +1,6 @@
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { COODRA_MCP_TOOL_NAMES, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
@@ -160,13 +161,37 @@ function pluginManifest(): string {
 }
 
 /**
+ * Cursor's hook matcher is a real JS regex tested against the tool
+ * type/name (confirmed against Cursor's own docs, 2026-08-05 — previously
+ * assumed undocumented, corrected). MCP tool calls surface as the BARE
+ * tool name, `MCP:<tool_name>` — no server-qualifying prefix the way
+ * Claude Code's/Codex's `mcp__<server>__<tool>` has — so excluding
+ * Coodra's own two MCP servers here can't be a structural prefix match
+ * like `TOOL_MATCHER` in `claude-plugin.ts`/`codex-plugin.ts` uses; it's
+ * a negative-lookahead against a maintained name list instead (see
+ * `COODRA_MCP_TOOL_NAMES`/`GRAPHIFY_MCP_TOOL_NAMES` in
+ * `packages/shared/src/constants.ts` for the list and why it can't be
+ * prefix-based here). `$` on every excluded name avoids a short name
+ * accidentally excluding a longer one that merely starts with it (e.g.
+ * excluding `get_node` must not also exclude a hypothetical
+ * `get_node_details`).
+ */
+const MCP_TOOL_EXCLUSION = [...COODRA_MCP_TOOL_NAMES, ...GRAPHIFY_MCP_TOOL_NAMES].map((name) => `${name}$`).join('|');
+const TOOL_MATCHER = `Shell|Write|Delete|Task|^MCP:(?!${MCP_TOOL_EXCLUSION}).+` as const;
+
+/**
  * Cursor hooks are pure command hooks (stdin/stdout JSON, no built-in
  * `mcp_tool` hook type like Claude Code) — see cursor.com/docs/hooks.
  * `matcher` on `preToolUse`/`postToolUse` filters by tool type
  * (`Shell`, `Read`, `Write`, `Grep`, `Delete`, `Task`, or
  * `MCP:<tool_name>`); `Read` is excluded here for the same noise-reduction
- * reason Claude's/Codex's own hook matchers exclude plain reads. Cursor
- * has no `ConfigChange`-equivalent event, so there is no sixth entry for
+ * reason Claude's/Codex's own hook matchers exclude plain reads.
+ * `TOOL_MATCHER` above additionally reaches third-party MCP tool calls
+ * while excluding Coodra's own two managed servers — mirroring the
+ * `mcp__*` widening Claude Code/Codex already got, backstopped
+ * server-side by `isCoodraOwnMcpTool` in the mcp-server's
+ * `lifecycle_event` handler for the same bare-name shape. Cursor has no
+ * `ConfigChange`-equivalent event, so there is no sixth entry for
  * it — `hookRunner.mjs` and the mcp-server's `lifecycle_event` handler
  * both already account for this (see `packages/shared/src/hooks/event.ts`).
  * Local plugins are never copied to a cache location, so an absolute path
@@ -180,8 +205,8 @@ function hooksConfig(hookRunnerPath: string): unknown {
     hooks: {
       sessionStart: [{ command, timeout: 10 }],
       beforeSubmitPrompt: [{ command, timeout: 10 }],
-      preToolUse: [{ command, matcher: 'Shell|Write|Delete|Task', timeout: 10 }],
-      postToolUse: [{ command, matcher: 'Shell|Write|Delete|Task', timeout: 10 }],
+      preToolUse: [{ command, matcher: TOOL_MATCHER, timeout: 10 }],
+      postToolUse: [{ command, matcher: TOOL_MATCHER, timeout: 10 }],
       stop: [{ command, timeout: 10 }],
       sessionEnd: [{ command, timeout: 3 }],
       // Four events added (Cursor hook coverage expansion, mirroring

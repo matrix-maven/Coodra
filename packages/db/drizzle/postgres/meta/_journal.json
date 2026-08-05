@@ -197,6 +197,20 @@
 			"when": 1785750200000,
 			"tag": "0027_runs_compaction_nudge",
 			"breakpoints": true
+		},
+		{
+			"idx": 28,
+			"version": "7",
+			"when": 1785750300000,
+			"tag": "0028_context_packs_append_only",
+			"breakpoints": true
+		},
+		{
+			"idx": 29,
+			"version": "7",
+			"when": 1785750400000,
+			"tag": "0029_work_packs_activity_rollup",
+			"breakpoints": true
 		}
 	]
 }

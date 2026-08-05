@@ -10,7 +10,7 @@ import {
   renderPolicyProjectionDriftContext,
 } from '@coodra/db';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
-import { createLogger } from '@coodra/shared';
+import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import {
   adaptClaudeCode,
   adaptCodex,
@@ -25,9 +25,9 @@ import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
+import { selectDiversifiedRecentContextPacks } from '../../lib/context-pack.js';
 import { createCheckPolicyHandler } from '../check-policy/handler.js';
 import { createGetRunIdHandler } from '../get-run-id/handler.js';
-import { createListContextPacksHandler } from '../list-context-packs/handler.js';
 import { createQueryDecisionsHandler } from '../query-decisions/handler.js';
 import type { LifecycleEventInput, LifecycleEventOutput } from './schema.js';
 
@@ -400,8 +400,19 @@ function idempotencyFor(event: HookEvent, hookEventName: string): IdempotencyKey
  * Beyond the wasted round-trip, a future broad `mcp__*`-matching policy
  * rule could otherwise silently gate Coodra's own tool surface.
  */
+const COODRA_OWN_BARE_TOOL_NAMES: ReadonlySet<string> = new Set([...COODRA_MCP_TOOL_NAMES, ...GRAPHIFY_MCP_TOOL_NAMES]);
+
+/**
+ * Claude Code/Codex report `mcp__<server>__<tool>` — a structural prefix
+ * match suffices. Cursor reports `MCP:<tool_name>` with no server
+ * qualifier at all, so that shape falls back to a maintained name-list
+ * match instead (see `COODRA_MCP_TOOL_NAMES`/`GRAPHIFY_MCP_TOOL_NAMES` in
+ * `@coodra/shared` for why this can't be prefix-based for Cursor).
+ */
 function isCoodraOwnMcpTool(toolName: string): boolean {
-  return toolName.startsWith('mcp__coodra__') || toolName.startsWith('mcp__graphify__');
+  if (toolName.startsWith('mcp__coodra__') || toolName.startsWith('mcp__graphify__')) return true;
+  if (toolName.startsWith('MCP:')) return COODRA_OWN_BARE_TOOL_NAMES.has(toolName.slice('MCP:'.length));
+  return false;
 }
 
 function toolInputRecord(input: unknown): Record<string, unknown> {
@@ -425,34 +436,59 @@ async function resolveRunId(args: {
   return result.ok ? result.runId : null;
 }
 
-const MAX_RECENT_CONTEXT_PACKS_SHOWN = 3;
+// Append-only redesign (2026-08-05): was a flat slice count (3). Now
+// the *startup budget* passed into `selectDiversifiedRecentContextPacks`
+// — a run can produce several packs across different Work Packs in one
+// sitting, so a flat "3 most recent, project-wide" slice could be
+// dominated entirely by one chatty run and silently drop everything
+// from earlier sessions. See selectDiversifiedRecentContextPacks's
+// docblock (apps/mcp-server/src/lib/context-pack.ts) for the
+// diversify-by-Work-Pack selection policy this now drives.
+const MAX_RECENT_CONTEXT_PACKS_SHOWN = 6;
 const MAX_RECENT_DECISIONS_SHOWN = 5;
 
 /**
  * Renders a compact "recent context" block for SessionStart: the
- * project's most-recently-saved Context Packs (title + excerpt) and its
- * most recently recorded decisions, project-wide. Replaces the old
- * `UserPromptSubmit`-time `parseJiraWorkIntent` phrase-detection
- * mechanism AND a short-lived predecessor that surfaced Work Pack
- * *metadata* here instead — that was the wrong content for an
- * every-session automatic injection. Work Pack metadata (slug/status) is
- * navigational and belongs to the `coodra-work` skill's own explicit
- * resume flow (`work_pack_status`, called from its own step 2); what
- * SessionStart should inject automatically is substance — what was
- * already built and decided — so a fresh or long-running session doesn't
- * rediscover or contradict prior reasoning. Cursor-safe like its
- * predecessor, since SessionStart already carries context for every agent.
+ * project's most-recently-active Context Packs, diversified by Work
+ * Pack (see `selectDiversifiedRecentContextPacks`), and its most
+ * recently recorded decisions, project-wide (unchanged — decisions
+ * never had the one-per-run problem this diversification fixes for
+ * packs). Replaces the old `UserPromptSubmit`-time `parseJiraWorkIntent`
+ * phrase-detection mechanism AND a short-lived predecessor that
+ * surfaced Work Pack *metadata* here instead — that was the wrong
+ * content for an every-session automatic injection. Work Pack metadata
+ * (slug/status) is navigational and belongs to the `coodra-work`
+ * skill's own explicit resume flow (`work_pack_status`, called from its
+ * own step 2); what SessionStart should inject automatically is
+ * substance — what was already built and decided — so a fresh or
+ * long-running session doesn't rediscover or contradict prior
+ * reasoning. Cursor-safe like its predecessor, since SessionStart
+ * already carries context for every agent.
  */
 function renderRecentContext(
-  packs: ReadonlyArray<{ readonly title: string; readonly excerpt: string }>,
+  packs: ReadonlyArray<{
+    readonly title: string;
+    readonly excerpt: string;
+    readonly workPackSlugs: ReadonlyArray<string>;
+  }>,
+  overflow: ReadonlyArray<{ readonly workPackSlug: string; readonly hiddenCount: number }>,
   decisions: ReadonlyArray<{ readonly description: string; readonly rationale: string }>,
 ): string | null {
   if (packs.length === 0 && decisions.length === 0) return null;
   const lines = ['## Recent context'];
   if (packs.length > 0) {
-    lines.push('', 'Recent Context Packs:');
-    for (const pack of packs.slice(0, MAX_RECENT_CONTEXT_PACKS_SHOWN)) {
-      lines.push(`- **${pack.title}** — ${pack.excerpt}`);
+    lines.push('', 'Recent Context Packs (tagged by Work Pack; already the most relevant/recent across the project):');
+    for (const pack of packs) {
+      // A pack can be linked to more than one Work Pack (primary +
+      // save_context_pack's alsoLinkWorkPackSlugs) — tag with all of them.
+      const tag = pack.workPackSlugs.length > 0 ? `[${pack.workPackSlugs.join(', ')}]` : '[no work pack]';
+      lines.push(`- **${tag}** ${pack.title} — ${pack.excerpt}`);
+    }
+    for (const note of overflow) {
+      lines.push(
+        `  (${note.workPackSlug} has ${note.hiddenCount} more earlier pack${note.hiddenCount === 1 ? '' : 's'} — ` +
+          '`coodra__list_context_packs { workPackSlug }`)',
+      );
     }
   }
   if (decisions.length > 0) {
@@ -655,14 +691,20 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     let recentContext: string | null = null;
     if (hookEventName === 'SessionStart' && projectSlug !== null) {
       try {
-        const listContextPacks = createListContextPacksHandler({ db: deps.db });
+        const recentContextProject = await lookupProjectBySlug(deps.db, projectSlug);
         const queryDecisions = createQueryDecisionsHandler({ db: deps.db });
-        const [packsResult, decisionsResult] = await Promise.all([
-          listContextPacks({ projectSlug, limit: MAX_RECENT_CONTEXT_PACKS_SHOWN }, ctx),
+        const [diversified, decisionsResult] = await Promise.all([
+          recentContextProject !== null
+            ? selectDiversifiedRecentContextPacks(deps.db, {
+                projectId: recentContextProject.id,
+                startupBudget: MAX_RECENT_CONTEXT_PACKS_SHOWN,
+              })
+            : Promise.resolve({ packs: [], overflow: [] }),
           queryDecisions({ projectSlug, includeRelated: false, limit: MAX_RECENT_DECISIONS_SHOWN }, ctx),
         ]);
         recentContext = renderRecentContext(
-          packsResult.ok ? packsResult.packs : [],
+          diversified.packs,
+          diversified.overflow,
           decisionsResult.ok ? decisionsResult.decisions : [],
         );
       } catch (err) {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
@@ -284,6 +284,48 @@ describe('save_context_pack — alsoLinkWorkPackSlugs (additive multi-pack linki
       .where(eq(sqliteSchema.workPackContextPackLinks.contextPackId, out.contextPackId));
     expect(links).toHaveLength(0);
   });
+
+  it('bumps lastActivityAt/latestContextPackId for a Work Pack linked ONLY via alsoLinkWorkPackSlugs (secondary), not just the primary workPackSlug', async () => {
+    // Regression coverage for a review finding: the activity rollup was
+    // previously only bumped for the primary Work Pack (inside
+    // ctx.contextPack.write() itself) — a Work Pack reachable only
+    // through the secondary m2m link table never got its
+    // lastActivityAt/latestContextPackId touched at all.
+    seedWorkPack(h, 'wp_1', 'pack-1');
+    seedWorkPack(h, 'wp_2', 'pack-2');
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        {
+          runId: h.runId,
+          title: 'cross-pack recap',
+          content: 'body',
+          workPackSlug: 'pack-1',
+          alsoLinkWorkPackSlugs: ['pack-2'],
+        },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    const workPacks = await h.handle.db
+      .select({
+        id: sqliteSchema.workPacks.id,
+        lastActivityAt: sqliteSchema.workPacks.lastActivityAt,
+        latestContextPackId: sqliteSchema.workPacks.latestContextPackId,
+      })
+      .from(sqliteSchema.workPacks)
+      .where(inArray(sqliteSchema.workPacks.id, ['wp_1', 'wp_2']));
+    const byId = new Map(workPacks.map((w) => [w.id, w]));
+
+    expect(byId.get('wp_1')?.lastActivityAt).not.toBeNull();
+    expect(byId.get('wp_1')?.latestContextPackId).toBe(out.contextPackId);
+    // The secondary-only Work Pack (wp_2) must also be bumped.
+    expect(byId.get('wp_2')?.lastActivityAt).not.toBeNull();
+    expect(byId.get('wp_2')?.latestContextPackId).toBe(out.contextPackId);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -314,10 +356,11 @@ describe('save_context_pack — run_not_found soft-failure', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Append-only re-call (ADR-007)
+// Append-only redesign (2026-08-05) — distinct content creates a new row;
+// only an EXACT (title, content) match is a true idempotent retry.
 // ---------------------------------------------------------------------------
 
-describe('save_context_pack — append-only re-call returns the original row unchanged', () => {
+describe('save_context_pack — append-only redesign', () => {
   let h: Harness;
   beforeEach(async () => {
     h = await openHarness();
@@ -326,7 +369,7 @@ describe('save_context_pack — append-only re-call returns the original row unc
     await h.close();
   });
 
-  it('second call with same runId + different content returns the original contextPackId and does NOT update content', async () => {
+  it('second call with same runId + genuinely different content creates a NEW row, does not touch the first', async () => {
     const registry = buildRegistry(h);
     const first = unwrap(
       await registry.handleCall(
@@ -338,7 +381,42 @@ describe('save_context_pack — append-only re-call returns the original row unc
     const second = unwrap(
       await registry.handleCall(
         'save_context_pack',
-        { runId: h.runId, title: 'v2 DIFFERENT', content: 'totally new body that should be ignored' },
+        { runId: h.runId, title: 'v2 DIFFERENT', content: 'a genuinely different second unit of work' },
+        'sess_scp',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.contextPackId).not.toBe(first.contextPackId);
+    expect(second.status).toBe('created');
+
+    const rows = await h.handle.db
+      .select()
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.runId, h.runId));
+    expect(rows).toHaveLength(2);
+    const firstRow = rows.find((r) => r.id === first.contextPackId);
+    const secondRow = rows.find((r) => r.id === second.contextPackId);
+    expect(firstRow?.content).toBe('original body');
+    expect(firstRow?.title).toBe('v1');
+    expect(secondRow?.content).toBe('a genuinely different second unit of work');
+    expect(secondRow?.title).toBe('v2 DIFFERENT');
+  });
+
+  it('second call with IDENTICAL title+content is a true idempotent retry — no duplicate row', async () => {
+    const registry = buildRegistry(h);
+    const first = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'v1', content: 'original body' },
+        'sess_scp',
+      ),
+    );
+    const second = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'v1', content: 'original body' },
         'sess_scp',
       ),
     );
@@ -347,17 +425,16 @@ describe('save_context_pack — append-only re-call returns the original row unc
     if (!first.ok || !second.ok) return;
     expect(second.contextPackId).toBe(first.contextPackId);
     expect(second.savedAt).toBe(first.savedAt);
+    expect(second.status).toBe('idempotent_hit');
 
-    // DB row content is the FIRST write — append-only.
     const rows = await h.handle.db
       .select()
       .from(sqliteSchema.contextPacks)
-      .where(eq(sqliteSchema.contextPacks.id, first.contextPackId));
-    expect(rows[0]?.content).toBe('original body');
-    expect(rows[0]?.title).toBe('v1');
+      .where(eq(sqliteSchema.contextPacks.runId, h.runId));
+    expect(rows).toHaveLength(1);
   });
 
-  it('second call can attach an existing unlinked Context Pack to a Work Pack without rewriting content', async () => {
+  it('an identical-content re-call can still attach an existing unlinked Context Pack to a Work Pack', async () => {
     h.handle.raw
       .prepare(
         `INSERT INTO work_packs
@@ -376,7 +453,7 @@ describe('save_context_pack — append-only re-call returns the original row unc
     const second = unwrap(
       await registry.handleCall(
         'save_context_pack',
-        { runId: h.runId, title: 'v2 DIFFERENT', content: 'ignored body', workPackSlug: 'cood-12' },
+        { runId: h.runId, title: 'v1', content: 'original body', workPackSlug: 'cood-12' },
         'sess_scp',
       ),
     );
@@ -384,6 +461,7 @@ describe('save_context_pack — append-only re-call returns the original row unc
     expect(second.ok).toBe(true);
     if (!first.ok || !second.ok) return;
     expect(second.contextPackId).toBe(first.contextPackId);
+    expect(second.status).toBe('idempotent_hit');
 
     const contextRows = await h.handle.db
       .select({
@@ -401,6 +479,139 @@ describe('save_context_pack — append-only re-call returns the original row unc
     expect(contextRows[0]?.title).toBe('v1');
     expect(contextRows[0]?.workPackId).toBe('work_2');
     expect(runRows[0]?.workPackId).toBe('work_2');
+  });
+
+  it('a second, different-content save linked to a different Work Pack lands its own row with its own lastActivityAt/latestContextPackId rollup', async () => {
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?), (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'work_a',
+        h.projectId,
+        'mt-3',
+        'MT-3',
+        'task',
+        'draft',
+        '',
+        '',
+        '',
+        '{}',
+        'work_b',
+        h.projectId,
+        'security-audit',
+        'Security audit',
+        'unknown',
+        'draft',
+        '',
+        '',
+        '',
+        '{}',
+      );
+    const registry = buildRegistry(h);
+    const syncPack = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        {
+          runId: h.runId,
+          title: 'Jira sync',
+          content: 'Synced MT-3 into Coodra as a Work Pack.',
+          workPackSlug: 'mt-3',
+          kind: 'sync',
+        },
+        'sess_scp',
+      ),
+    );
+    const auditPack = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        {
+          runId: h.runId,
+          title: 'Security audit findings',
+          content: 'No committed secrets found; 5 medium findings.',
+          workPackSlug: 'security-audit',
+          kind: 'audit_findings',
+        },
+        'sess_scp',
+      ),
+    );
+    expect(syncPack.ok).toBe(true);
+    expect(auditPack.ok).toBe(true);
+    if (!syncPack.ok || !auditPack.ok) return;
+    expect(auditPack.contextPackId).not.toBe(syncPack.contextPackId);
+
+    const workPackRows = await h.handle.db
+      .select({
+        id: sqliteSchema.workPacks.id,
+        lastActivityAt: sqliteSchema.workPacks.lastActivityAt,
+        latestContextPackId: sqliteSchema.workPacks.latestContextPackId,
+      })
+      .from(sqliteSchema.workPacks);
+    const workA = workPackRows.find((r) => r.id === 'work_a');
+    const workB = workPackRows.find((r) => r.id === 'work_b');
+    expect(workA?.latestContextPackId).toBe(syncPack.contextPackId);
+    expect(workA?.lastActivityAt).not.toBeNull();
+    expect(workB?.latestContextPackId).toBe(auditPack.contextPackId);
+    expect(workB?.lastActivityAt).not.toBeNull();
+  });
+
+  it('bridge_auto upgrade is scoped to the MOST RECENT row for a run, not any row', async () => {
+    // Seed a bridge_auto row directly (mirrors the bridge's own auto-save
+    // path — never goes through save_context_pack's own 'agent' source).
+    h.handle.raw
+      .prepare(
+        `INSERT INTO context_packs
+          (id, org_id, run_id, project_id, title, content, content_excerpt, source, work_pack_id, created_at)
+         VALUES (?, NULL, ?, ?, ?, ?, ?, 'bridge_auto', NULL, unixepoch())`,
+      )
+      .run('cp_bridge_auto', h.runId, h.projectId, 'auto title', 'auto content', 'auto content');
+
+    const registry = buildRegistry(h);
+    // First agent save: the run's only row is the bridge_auto one and is
+    // its most recent — upgrades in place rather than inserting.
+    const upgraded = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'agent v1', content: 'agent-authored content' },
+        'sess_scp',
+      ),
+    );
+    expect(upgraded.ok).toBe(true);
+    if (!upgraded.ok) return;
+    expect(upgraded.contextPackId).toBe('cp_bridge_auto');
+    expect(upgraded.status).toBe('upgraded_from_bridge_auto');
+    expect(upgraded.source).toBe('agent');
+
+    let rows = await h.handle.db
+      .select()
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.runId, h.runId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.source).toBe('agent');
+    expect(rows[0]?.content).toBe('agent-authored content');
+
+    // Second agent save, different content: the most recent row is now
+    // 'agent', not 'bridge_auto' — no upgrade path applies, so this
+    // inserts a NEW row instead of upgrading the first one again.
+    const second = unwrap(
+      await registry.handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'agent v2', content: 'a second, different unit of work' },
+        'sess_scp',
+      ),
+    );
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.status).toBe('created');
+    expect(second.contextPackId).not.toBe('cp_bridge_auto');
+
+    rows = await h.handle.db
+      .select()
+      .from(sqliteSchema.contextPacks)
+      .where(eq(sqliteSchema.contextPacks.runId, h.runId));
+    expect(rows).toHaveLength(2);
   });
 });
 

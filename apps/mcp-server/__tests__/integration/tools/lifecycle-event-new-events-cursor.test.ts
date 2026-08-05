@@ -204,7 +204,7 @@ describe('lifecycle_event (cursor) — postToolUseFailure / subagentStart / suba
     await h.close();
   });
 
-  it("never runs checkPolicy against Coodra's own mcp__coodra__*/mcp__graphify__* tool calls (self-policing guard)", async () => {
+  it('never runs checkPolicy against a mcp__coodra__*/mcp__graphify__*-shaped tool_name (the Claude/Codex prefix path, agent-agnostic)', async () => {
     const result = await registry.handleCall(
       'lifecycle_event',
       {
@@ -222,6 +222,74 @@ describe('lifecycle_event (cursor) — postToolUseFailure / subagentStart / suba
       { agentType: 'cursor' },
     );
     expect(result.structuredContent).toMatchObject({ permissionDecision: 'allow', reason: 'lifecycle_recorded' });
+  });
+
+  it("never runs checkPolicy against Cursor's REAL MCP:<tool_name> shape for Coodra's own tools, but does run it for a third-party MCP:<tool_name>", async () => {
+    // Cursor's actual wire format (confirmed against Cursor's own hooks
+    // docs, 2026-08-05) is the bare tool name, `MCP:<tool_name>` — no
+    // server-qualifying prefix like Claude Code's/Codex's
+    // `mcp__<server>__<tool>`. isCoodraOwnMcpTool falls back to a
+    // maintained name list (COODRA_MCP_TOOL_NAMES/GRAPHIFY_MCP_TOOL_NAMES
+    // in @coodra/shared) for exactly this shape.
+    const ownTool = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'cursor',
+        rawPayload: {
+          hook_event_name: 'preToolUse',
+          conversation_id: 'conv_pre',
+          cwd: h.cwd,
+          tool_name: 'MCP:search_packs_nl',
+          tool_use_id: 'tool-own',
+          tool_input: { query: 'anything' },
+        },
+      },
+      'mcp-session',
+      { agentType: 'cursor' },
+    );
+    expect(ownTool.structuredContent).toMatchObject({ permissionDecision: 'allow', reason: 'lifecycle_recorded' });
+
+    const graphifyOwnTool = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'cursor',
+        rawPayload: {
+          hook_event_name: 'preToolUse',
+          conversation_id: 'conv_pre',
+          cwd: h.cwd,
+          tool_name: 'MCP:query_graph',
+          tool_use_id: 'tool-own-graphify',
+        },
+      },
+      'mcp-session',
+      { agentType: 'cursor' },
+    );
+    expect(graphifyOwnTool.structuredContent).toMatchObject({
+      permissionDecision: 'allow',
+      reason: 'lifecycle_recorded',
+    });
+
+    const thirdParty = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'cursor',
+        rawPayload: {
+          hook_event_name: 'preToolUse',
+          conversation_id: 'conv_pre',
+          cwd: h.cwd,
+          tool_name: 'MCP:browser_navigate',
+          tool_use_id: 'tool-third-party',
+          tool_input: { url: 'https://example.com' },
+        },
+      },
+      'mcp-session',
+      { agentType: 'cursor' },
+    );
+    // checkPolicy actually ran — reason is now policy-derived, not the
+    // generic default, proving the third-party call was NOT skipped.
+    const thirdPartyStructured = thirdParty.structuredContent as { reason?: string } | undefined;
+    expect(thirdPartyStructured?.reason).toBeDefined();
+    expect(thirdPartyStructured?.reason).not.toBe('lifecycle_recorded');
   });
 
   it('postToolUseFailure, subagentStart, and subagentStop all return a plain ack with no decision/continue field', async () => {

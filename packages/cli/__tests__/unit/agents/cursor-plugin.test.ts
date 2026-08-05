@@ -109,6 +109,38 @@ describe('Cursor native plugin installer', () => {
     expect(graphifySkill).toContain('Do not inspect or print environment variables');
   });
 
+  it("preToolUse/postToolUse matcher reaches third-party MCP tools while excluding Coodra's own two managed servers", async () => {
+    // Regression coverage for the 2026-08-05 MCP:* widening — Cursor's
+    // matcher is a real regex over the bare tool name (`MCP:<tool_name>`,
+    // confirmed against Cursor's own hooks docs), unlike Claude Code's/
+    // Codex's server-prefixed `mcp__<server>__<tool>` shape.
+    const paths = cursorPluginPaths(userHome);
+    await installCursorPlugin(ctx());
+    const hooks = JSON.parse(await readFile(paths.hooksPath, 'utf8')) as {
+      hooks: Record<string, Array<{ matcher?: string }>>;
+    };
+    const preMatcher = hooks.hooks.preToolUse?.[0]?.matcher;
+    const postMatcher = hooks.hooks.postToolUse?.[0]?.matcher;
+    expect(preMatcher).toBeDefined();
+    expect(postMatcher).toBe(preMatcher);
+    if (preMatcher === undefined) return;
+    const re = new RegExp(preMatcher);
+    // Original shared-core coverage is unaffected.
+    expect(re.test('Shell')).toBe(true);
+    expect(re.test('Write')).toBe(true);
+    expect(re.test('Read')).toBe(false);
+    // Third-party MCP tool calls are now reachable.
+    expect(re.test('MCP:browser_navigate')).toBe(true);
+    // Coodra's own two managed servers stay excluded (matches
+    // isCoodraOwnMcpTool's server-side backstop for the same shape).
+    expect(re.test('MCP:get_run_id')).toBe(false);
+    expect(re.test('MCP:query_graph')).toBe(false);
+    // A longer third-party name that merely starts with an excluded
+    // name must still match — the `$` anchor on each excluded name
+    // prevents a false-exclusion prefix collision.
+    expect(re.test('MCP:get_run_id_details')).toBe(true);
+  });
+
   it('never shells out to anything — install/remove/probe are pure filesystem operations', async () => {
     // No CLI runner exists for Cursor (unlike Claude/Codex) — there is
     // nothing to inject a fake for, which is itself the thing worth

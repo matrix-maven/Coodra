@@ -139,6 +139,66 @@ describe('lifecycle_event — SessionStart recent context', () => {
     expect(additionalContext).not.toContain('## Active Work Packs');
   });
 
+  it('append-only redesign (2026-08-05): one run producing packs across two Work Packs surfaces BOTH, tagged, not just the last one', async () => {
+    // Reproduces the original bug scenario this redesign fixes: a
+    // session syncs a Jira issue into a Work Pack, starts implementation
+    // (still the same Work Pack), then does an unrelated ad hoc security
+    // audit — all inside ONE run. Before the append-only fix, the second
+    // and third save_context_pack calls would have silently no-op'd
+    // against the first row; the audit recap would never have existed.
+    const registry = buildRegistry(h);
+    const seeded = await sessionStart(registry, h, 'sess_chatty');
+    if (seeded.runId === null) throw new Error('expected a runId from SessionStart structuredContent');
+
+    // The projects row is auto-created lazily by get_run_id (called
+    // internally by SessionStart above) — insert the Work Pack after.
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, (SELECT id FROM projects WHERE slug = ?), ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('work_mt3', 'proj-lc-rc', 'mt-3', 'MT-3', 'task', 'draft', '', '', '', '{}');
+
+    const syncSave = await registry.handleCall(
+      'save_context_pack',
+      {
+        runId: seeded.runId,
+        title: 'Synced MT-3 into Coodra',
+        content: 'Jira issue MT-3 synced as a Work Pack.',
+        workPackSlug: 'mt-3',
+        kind: 'sync',
+      },
+      'sess_chatty',
+    );
+    const auditSave = await registry.handleCall(
+      'save_context_pack',
+      {
+        runId: seeded.runId,
+        title: 'Security audit findings',
+        content: 'No committed secrets; 5 medium findings on HTML rendering and model loading.',
+        kind: 'audit_findings',
+      },
+      'sess_chatty',
+    );
+    const syncId = (JSON.parse(syncSave.content[0]?.text ?? '{}') as { data?: { contextPackId?: string } }).data
+      ?.contextPackId;
+    const auditId = (JSON.parse(auditSave.content[0]?.text ?? '{}') as { data?: { contextPackId?: string } }).data
+      ?.contextPackId;
+    expect(syncId).toBeDefined();
+    expect(auditId).toBeDefined();
+    expect(auditId).not.toBe(syncId);
+
+    const { additionalContext } = await sessionStart(registry, h, 'sess_chatty');
+    expect(additionalContext).toBeDefined();
+    if (additionalContext === undefined) return;
+    // Both packs survive — the audit save did NOT silently discard the
+    // sync save (the pre-fix bug), and both are tagged with the right
+    // Work Pack (or its absence).
+    expect(additionalContext).toContain('**[mt-3]** Synced MT-3 into Coodra');
+    expect(additionalContext).toContain('**[no work pack]** Security audit findings');
+  });
+
   it('does not inject the block on non-SessionStart events', async () => {
     const registry = buildRegistry(h);
     await sessionStart(registry, h, 'sess_pre');

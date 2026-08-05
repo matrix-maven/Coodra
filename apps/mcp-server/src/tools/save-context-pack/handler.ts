@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
 import type { ContextPackWriteResult } from '../../lib/context-pack.js';
+import { touchWorkPackActivity } from '../../lib/context-pack.js';
 import type { SaveContextPackInput, SaveContextPackOutput } from './schema.js';
 
 /**
@@ -198,6 +199,8 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         ...(input.meta !== undefined ? { meta: input.meta } : {}),
         ...(actor !== null ? { createdByUserId: actor.userId, orgId: actor.orgId } : {}),
         ...(workPackId !== null ? { workPackId } : {}),
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(input.importance !== undefined ? { importance: input.importance } : {}),
       },
     )) as ContextPackWriteResult;
 
@@ -233,6 +236,16 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         { orgId: actor !== null ? actor.orgId : null, projectId, contextPackId: written.id },
         workPackIdsToLink,
       );
+      // `ctx.contextPack.write()` above already bumped last_activity_at
+      // for the primary `workPackId` (if any) — bump it here for every
+      // *secondary* `alsoLinkWorkPackSlugs` Work Pack too, so a link
+      // that only ever comes from the m2m table still counts as
+      // activity on that Work Pack, not just a silent DB row.
+      const activityNow = ctx.now();
+      for (const linkedWorkPackId of workPackIdsToLink) {
+        if (linkedWorkPackId === workPackId) continue;
+        await touchWorkPackActivity(deps.db, linkedWorkPackId, written.id, activityNow);
+      }
     }
 
     // Mark the run completed — idempotent no-op if already completed.

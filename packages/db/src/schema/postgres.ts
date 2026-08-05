@@ -112,7 +112,9 @@ export const contextPacks = pgTable(
     contentExcerpt: text('content_excerpt').notNull().default(''),
     // Module 05 (2026-05-08 reshape): kept through 0009; dropped in 0010.
     summaryEmbedding: vector('summary_embedding', { dimensions: 384 }),
-    // Module 05 — see sqlite.ts contextPacks comment.
+    // Module 05 — see sqlite.ts contextPacks comment. Append-only redesign
+    // (2026-08-05): the upgrade-in-place behavior is now narrowed to the
+    // most recent row for a run, not "any" row — see context-pack.ts.
     source: text('source').notNull().default('agent'),
     // Module 05 — JSON-encoded agent-curated metadata. Use `text` (not
     // `jsonb`) for parity with SQLite. Handler does JSON.parse/stringify.
@@ -123,9 +125,16 @@ export const contextPacks = pgTable(
     // Module 04 Phase 4 — see ./sqlite.ts::contextPacks.createdByUserId.
     createdByUserId: text('created_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    // Append-only redesign (2026-08-05) — see sqlite.ts contextPacks.kind
+    // comment for the full rationale. Soft-governed free text.
+    kind: text('kind'),
+    // See sqlite.ts contextPacks.importance. Soft-governed free text.
+    importance: text('importance'),
   },
   (t) => [
-    uniqueIndex('context_packs_run_idx').on(t.runId),
+    // Append-only redesign (2026-08-05) — see sqlite.ts contextPacks
+    // run_idx comment for the full rationale. Was unique; now plain.
+    index('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
     index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
   ],
@@ -439,6 +448,10 @@ export const workPacks = pgTable(
     updatedByUserId: text('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    // Append-only redesign (2026-08-05) — see sqlite.ts workPacks.
+    // lastActivityAt comment for the full rationale.
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true, mode: 'date' }),
+    latestContextPackId: text('latest_context_pack_id').references(() => contextPacks.id, { onDelete: 'set null' }),
   },
   (t) => [
     uniqueIndex('work_packs_project_slug_uk').on(t.projectId, t.slug),

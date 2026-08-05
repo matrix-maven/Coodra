@@ -32,6 +32,15 @@ export const listContextPacksInputSchema = z
       .describe(
         'Optional. Pass your current runId (from get_run_id) so browsing prior Context Packs is recorded as an mcp_call run_event for the ROI / knowledge-continuity metrics (/roi dashboard, `coodra roi`). Attribution-only — does not affect pagination or results.',
       ),
+    workPackSlug: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'workPackSlug must be kebab-case')
+      .optional()
+      .describe(
+        'Optional. Unlike `runId` above, this DOES filter results — only Context Packs linked to this Work Pack are returned. Append-only redesign (2026-08-05): a run can now hold Context Packs across several Work Packs (or none), so this is how you scope to just one.',
+      ),
   })
   .strict()
   .describe('Input for coodra__list_context_packs.');
@@ -44,6 +53,12 @@ const packRowSchema = z
     savedAt: z.string().datetime(),
     runId: z.string().min(1),
     source: z.enum(['agent', 'bridge_auto']),
+    /**
+     * Append-only redesign (2026-08-05). Soft-governed, nullable —
+     * see save-context-pack/schema.ts's `kind` field doc for the
+     * recommended value set.
+     */
+    kind: z.string().nullable(),
   })
   .strict();
 

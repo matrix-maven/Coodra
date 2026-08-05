@@ -62,9 +62,23 @@ export function defaultContextPacksRoot(): string {
  * Old: `2026-04-25-run:proj.md`
  * New: `2026-04-25-run-proj_xxxx-x.md` (or similar, depending on
  *       runId shape; always Windows-safe).
+ *
+ * Append-only redesign (2026-08-05): `context_packs` is no longer one
+ * row per run, so `(runId, day)` alone is no longer a safe filename
+ * key — two packs saved on the same run on the same day would collide
+ * and silently overwrite each other on disk (DB stays source of truth
+ * either way, but `ls ~/.coodra/packs/` would show stale content).
+ * Optional `discriminator` (the context pack's own row id, short-sliced)
+ * disambiguates; omitted, behavior is byte-identical to before — the
+ * hooks-bridge call site (still genuinely one bridge_auto pack per run)
+ * doesn't need it and isn't touched.
  */
-export function contextPackFilename(runId: string, createdAt: Date): string {
+export function contextPackFilename(runId: string, createdAt: Date, discriminator?: string): string {
   const yyyyMmDd = createdAt.toISOString().slice(0, 10);
   const safe = runId.replace(/[<>:"/\\|?* -]/g, '-').slice(0, 16);
-  return `${yyyyMmDd}-${safe}.md`;
+  const suffix =
+    discriminator !== undefined && discriminator.length > 0
+      ? `-${discriminator.replace(/[<>:"/\\|?* -]/g, '-').slice(0, 8)}`
+      : '';
+  return `${yyyyMmDd}-${safe}${suffix}.md`;
 }

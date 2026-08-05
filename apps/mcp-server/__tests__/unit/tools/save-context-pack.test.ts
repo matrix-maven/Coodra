@@ -27,7 +27,7 @@ describe('save_context_pack — manifest contract', () => {
 });
 
 describe('save_context_pack — idempotency-key shape', () => {
-  it('is mutating + keys on runId alone (append-only per S7c)', () => {
+  it('is mutating + keys on runId alone (a policy-audit correlator, not a DB dedupe mechanism — see manifest.ts)', () => {
     const reg = createSaveContextPackToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
       { runId: 'run_abc', title: 't', content: 'c' },
@@ -75,6 +75,56 @@ describe('save_context_pack — input schema boundaries', () => {
     expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', extra: 1 }).success).toBe(
       false,
     );
+  });
+});
+
+describe('save_context_pack — kind/importance (append-only redesign, 2026-08-05)', () => {
+  it('accepts a payload with neither kind nor importance (both optional)', () => {
+    expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c' }).success).toBe(true);
+  });
+
+  it('accepts any of the recommended kind values', () => {
+    for (const kind of ['sync', 'work_start', 'implementation_recap', 'audit_findings', 'final_recap']) {
+      expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', kind }).success).toBe(true);
+    }
+  });
+
+  it('soft governance: accepts an arbitrary kind string not in the recommended set — not a hard enum', () => {
+    expect(
+      saveContextPackInputSchema.safeParse({
+        runId: 'r1',
+        title: 't',
+        content: 'c',
+        kind: 'a_future_kind_nobody_documented_yet',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('accepts any of the recommended importance values', () => {
+    for (const importance of ['high', 'medium', 'low']) {
+      expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', importance }).success).toBe(
+        true,
+      );
+    }
+  });
+
+  it('rejects an empty-string kind (min length 1, still validated as a non-empty string)', () => {
+    expect(saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', kind: '' }).success).toBe(
+      false,
+    );
+  });
+
+  it('rejects a kind longer than 64 chars', () => {
+    expect(
+      saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', kind: 'x'.repeat(65) }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an importance longer than 32 chars', () => {
+    expect(
+      saveContextPackInputSchema.safeParse({ runId: 'r1', title: 't', content: 'c', importance: 'x'.repeat(33) })
+        .success,
+    ).toBe(false);
   });
 });
 

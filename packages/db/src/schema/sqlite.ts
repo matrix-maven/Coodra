@@ -134,10 +134,13 @@ export const contextPacks = sqliteTable(
     // post-reshape until the column is dropped.
     summaryEmbedding: text('summary_embedding'),
     // Module 05 — provenance of the pack. 'agent' = explicit MCP call;
-    // 'bridge_auto' = bridge's Pattern-20 auto-save fallback. The two
-    // collide on the unique (run_id) index — the tool's handler upgrades
-    // 'bridge_auto' rows to 'agent' when an explicit call lands second
-    // (single ADR-007 relaxation, narrow + documented).
+    // 'bridge_auto' = bridge's Pattern-20 auto-save fallback. Historically
+    // the two collided on a unique (run_id) index and the tool's handler
+    // upgraded 'bridge_auto' rows to 'agent' when an explicit call landed
+    // second (ADR-007 relaxation). Append-only redesign (2026-08-05):
+    // context_packs is no longer one-row-per-run (see run_idx below) — the
+    // upgrade-in-place behavior is now narrowed to specifically the most
+    // recent row for a run, not "any" row; see context-pack.ts::write().
     source: text('source').notNull().default('agent'),
     // Module 05 — agent-curated metadata. JSON-encoded text on both
     // dialects for parity. Shape (validated at the tool boundary, not the
@@ -153,9 +156,32 @@ export const contextPacks = sqliteTable(
     // this from `~/.coodra/config.json` via the actor identity layer.
     createdByUserId: text('created_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    // Append-only redesign (2026-08-05) — see context-pack.ts::write() and
+    // migration 0026_context_packs_append_only. Soft-governed (free text,
+    // not a hard enum/CHECK — same rationale as work_packs.packType, so a
+    // future kind doesn't require a Coodra code change). Recommended
+    // values: 'sync' | 'work_start' | 'implementation_recap' |
+    // 'audit_findings' | 'final_recap' | 'bridge_auto'. Deliberately
+    // provider-neutral ('sync', not 'jira_sync') — which external
+    // provider a sync came from lives on the linked Work Pack's own
+    // source.provider, one join away, not duplicated here. NULL when the
+    // caller didn't supply one.
+    kind: text('kind'),
+    // Soft-governed (free text). Recommended values: 'high' | 'medium' |
+    // 'low'. NULL when the caller didn't supply one.
+    importance: text('importance'),
   },
   (t) => [
-    uniqueIndex('context_packs_run_idx').on(t.runId),
+    // Append-only redesign (2026-08-05): was uniqueIndex(run_idx) — a run
+    // could hold exactly one Context Pack, and a second save on the same
+    // run silently no-op'd regardless of content (the actual bug this
+    // migration fixes — see context-pack.ts::write()). Now a plain index:
+    // a run can accumulate many Context Packs, one per unit of work
+    // touched in that session, each optionally linked to a Work Pack via
+    // workPackId. Retry-safety (an identical re-call not duplicating a
+    // row) is now handled in application code by an exact-content match,
+    // not by this constraint.
+    index('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
     index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
   ],
@@ -497,6 +523,18 @@ export const workPacks = sqliteTable(
     updatedByUserId: text('updated_by_user_id'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    // Append-only redesign (2026-08-05) — activity rollup, distinct from
+    // updatedAt (which only moves on explicit work_pack_upsert calls).
+    // lastActivityAt moves on ANY context pack saved or decision recorded
+    // against this Work Pack — updated mechanically, in the same write as
+    // the triggering event (context-pack.ts::write(), record-decision's
+    // handler), never by a background job. NULL until first activity.
+    lastActivityAt: integer('last_activity_at', { mode: 'timestamp' }),
+    // Denormalized pointer to the most recently saved Context Pack linked
+    // to this Work Pack — same mechanical-update rule as lastActivityAt.
+    // Lets SessionStart's diversified selection cheaply find "the latest
+    // pack per Work Pack" without a correlated subquery.
+    latestContextPackId: text('latest_context_pack_id').references(() => contextPacks.id, { onDelete: 'set null' }),
   },
   (t) => [
     uniqueIndex('work_packs_project_slug_uk').on(t.projectId, t.slug),

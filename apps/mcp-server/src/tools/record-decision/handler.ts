@@ -156,6 +156,30 @@ async function linkDecisionToWorkPacks(
   }
 }
 
+/**
+ * Append-only redesign (2026-08-05) — mechanically bumps
+ * `work_packs.last_activity_at` for every Work Pack a decision links
+ * to, in the same call, never a background job. A decision is activity
+ * on that Work Pack just as much as a context-pack save; mirrors
+ * `context-pack.ts`'s `touchWorkPackActivity` but doesn't touch
+ * `latest_context_pack_id` — that column is context-pack-specific.
+ */
+async function touchWorkPacksActivity(db: DbHandle, workPackIds: ReadonlySet<string>, now: Date): Promise<void> {
+  for (const workPackId of workPackIds) {
+    if (db.kind === 'sqlite') {
+      await db.db
+        .update(sqliteSchema.workPacks)
+        .set({ lastActivityAt: now })
+        .where(eq(sqliteSchema.workPacks.id, workPackId));
+      continue;
+    }
+    await db.db
+      .update(postgresSchema.workPacks)
+      .set({ lastActivityAt: now })
+      .where(eq(postgresSchema.workPacks.id, workPackId));
+  }
+}
+
 interface ExistingDecisionRow {
   readonly id: string;
   readonly createdAt: Date;
@@ -370,6 +394,7 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
         { orgId: actor?.orgId ?? runAttribution.orgId, projectId: runAttribution.projectId, decisionId: id },
         workPackIdsToLink,
       );
+      await touchWorkPacksActivity(deps.db, workPackIdsToLink, ctx.now());
     }
 
     // M04 Phase 4: in team mode, enqueue a sync_to_cloud job so the

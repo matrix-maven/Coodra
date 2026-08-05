@@ -155,13 +155,21 @@ describe('coodra agent add', () => {
     const mcp = JSON.parse(await readFile(join(pluginRoot, '.mcp.json'), 'utf8'));
     expect(mcp.mcpServers.coodra.env.COODRA_AGENT_TYPE).toBe('codex');
     const hooks = JSON.parse(await readFile(join(pluginRoot, 'hooks', 'hooks.json'), 'utf8'));
+    // Codex hook coverage expansion (a96e042) added PermissionRequest,
+    // PreCompact, PostCompact, SubagentStart, SubagentStop alongside the
+    // original 7 shared-core events.
     expect(Object.keys(hooks.hooks).sort()).toEqual([
       'ConfigChange',
+      'PermissionRequest',
+      'PostCompact',
       'PostToolUse',
+      'PreCompact',
       'PreToolUse',
       'SessionEnd',
       'SessionStart',
       'Stop',
+      'SubagentStart',
+      'SubagentStop',
       'UserPromptSubmit',
     ]);
     const hookRunner = await readFile(join(pluginRoot, 'hooks', 'hook-runner.mjs'), 'utf8');
@@ -233,7 +241,8 @@ describe('coodra agent add', () => {
     const { io, cap } = makeIO();
     await run(() => runAgentAddCommand('all', baseOptions(), io));
     const payload = parse(cap);
-    expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex']);
+    // Cursor became a third supported native-plugin agent on 2026-08-02.
+    expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex', 'cursor']);
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
     expect(
       existsSync(join(home, 'codex-marketplaces', 'coodra', 'plugins', 'coodra', '.codex-plugin', 'plugin.json')),
@@ -242,6 +251,9 @@ describe('coodra agent add', () => {
       existsSync(join(home, 'claude-marketplaces', 'coodra', 'plugins', 'coodra', '.claude-plugin', 'plugin.json')),
     ).toBe(true);
     expect(existsSync(join(userHome, '.claude', 'plugins', 'cache', 'coodra', 'coodra', VERSION))).toBe(true);
+    expect(existsSync(join(userHome, '.cursor', 'plugins', 'local', 'coodra', '.cursor-plugin', 'plugin.json'))).toBe(
+      true,
+    );
   });
 
   it('--dry-run touches nothing on disk', async () => {

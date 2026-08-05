@@ -53,3 +53,33 @@ describe('contextPackFilename — verification finding §8.4', () => {
     expect(got).not.toContain(':');
   });
 });
+
+describe('contextPackFilename — append-only redesign (2026-08-05), optional discriminator', () => {
+  it('omitted discriminator produces byte-identical output to before (backward compatible)', () => {
+    const withoutDiscriminator = contextPackFilename('run-id-12345', FIXED_DATE);
+    expect(withoutDiscriminator).toBe('2026-04-25-run-id-12345.md');
+  });
+
+  it('a provided discriminator appends a sanitized, 8-char-capped suffix', () => {
+    const got = contextPackFilename('run-id-12345', FIXED_DATE, 'cp_abcdef0123456789');
+    // 'cp_abcdef0123456789'.slice(0, 8) === 'cp_abcde'
+    expect(got).toBe('2026-04-25-run-id-12345-cp_abcde.md');
+  });
+
+  it('two different discriminators on the same (runId, day) produce two different filenames', () => {
+    const first = contextPackFilename('run-id-12345', FIXED_DATE, 'cp_aaaaaaaa');
+    const second = contextPackFilename('run-id-12345', FIXED_DATE, 'cp_bbbbbbbb');
+    expect(first).not.toBe(second);
+  });
+
+  it('sanitizes Windows-reserved chars in the discriminator too', () => {
+    const got = contextPackFilename('run-id', FIXED_DATE, 'cp:a/b\\c');
+    expect(got).not.toContain(':');
+    expect(got).toMatch(/^2026-04-25-run-id-cp-a-b/);
+  });
+
+  it('an empty-string discriminator is treated as omitted (no trailing hyphen)', () => {
+    const got = contextPackFilename('run-id-12345', FIXED_DATE, '');
+    expect(got).toBe('2026-04-25-run-id-12345.md');
+  });
+});

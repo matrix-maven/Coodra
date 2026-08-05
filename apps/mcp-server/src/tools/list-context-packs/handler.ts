@@ -1,6 +1,6 @@
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
 
 import type { ToolContext } from '../../framework/tool-context.js';
 import {
@@ -73,6 +73,53 @@ async function resolveProjectId(db: DbHandle, projectSlug: string): Promise<stri
   return rows[0]?.id ?? null;
 }
 
+/**
+ * Append-only redesign (2026-08-05). Agent-facing filter uses the same
+ * slug convention as `save_context_pack`'s `workPackSlug` /
+ * `record_decision`'s `workPackSlugs` — agents work with slugs
+ * everywhere else, never raw Work Pack ids.
+ */
+async function resolveWorkPackId(db: DbHandle, projectId: string, slug: string): Promise<string | null> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ id: sqliteSchema.workPacks.id })
+      .from(sqliteSchema.workPacks)
+      .where(and(eq(sqliteSchema.workPacks.projectId, projectId), eq(sqliteSchema.workPacks.slug, slug)))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  }
+  const rows = await db.db
+    .select({ id: postgresSchema.workPacks.id })
+    .from(postgresSchema.workPacks)
+    .where(and(eq(postgresSchema.workPacks.projectId, projectId), eq(postgresSchema.workPacks.slug, slug)))
+    .limit(1);
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Context Pack ids linked to `workPackId` via the many-to-many
+ * `work_pack_context_pack_links` table (`save_context_pack`'s
+ * `alsoLinkWorkPackSlugs`) — additive to, and composed with, the
+ * primary `context_packs.work_pack_id` match below, mirroring how
+ * `query_decisions` already composes `workPackDecisionLinks` with the
+ * transitive `runs.work_pack_id` match. Without this, a pack linked
+ * only secondarily to a Work Pack was invisible to this filter.
+ */
+async function selectContextPackIdsLinkedToWorkPack(db: DbHandle, workPackId: string): Promise<string[]> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ contextPackId: sqliteSchema.workPackContextPackLinks.contextPackId })
+      .from(sqliteSchema.workPackContextPackLinks)
+      .where(eq(sqliteSchema.workPackContextPackLinks.workPackId, workPackId));
+    return rows.map((r) => r.contextPackId);
+  }
+  const rows = await db.db
+    .select({ contextPackId: postgresSchema.workPackContextPackLinks.contextPackId })
+    .from(postgresSchema.workPackContextPackLinks)
+    .where(eq(postgresSchema.workPackContextPackLinks.workPackId, workPackId));
+  return rows.map((r) => r.contextPackId);
+}
+
 export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps) {
   if (!deps || typeof deps !== 'object') {
     throw new TypeError('createListContextPacksHandler requires a deps object');
@@ -98,6 +145,25 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
       };
     }
 
+    let workPackId: string | null = null;
+    let linkedContextPackIds: string[] = [];
+    if (input.workPackSlug !== undefined) {
+      workPackId = await resolveWorkPackId(deps.db, projectId, input.workPackSlug);
+      if (workPackId === null) {
+        handlerLogger.info(
+          {
+            event: 'list_context_packs_work_pack_not_found',
+            projectSlug: input.projectSlug,
+            workPackSlug: input.workPackSlug,
+            sessionId: ctx.sessionId,
+          },
+          'list_context_packs: workPackSlug did not resolve to a Work Pack — returning an empty page',
+        );
+        return { ok: true, packs: [], nextCursor: null };
+      }
+      linkedContextPackIds = await selectContextPackIdsLinkedToWorkPack(deps.db, workPackId);
+    }
+
     const limit = input.limit ?? LIST_CONTEXT_PACKS_DEFAULT_LIMIT;
 
     let cursor: DecodedCursor | null = null;
@@ -119,12 +185,25 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
       readonly createdAt: Date;
       readonly runId: string | null;
       readonly source: string;
+      readonly kind: string | null;
     };
 
     let rows: Row[];
     if (deps.db.kind === 'sqlite') {
       const cp = sqliteSchema.contextPacks;
-      const baseCondition = eq(cp.projectId, projectId);
+      const baseCondition =
+        workPackId !== null
+          ? and(
+              eq(cp.projectId, projectId),
+              // Matches either the primary context_packs.work_pack_id
+              // column OR a secondary work_pack_context_pack_links tag
+              // (save_context_pack's alsoLinkWorkPackSlugs) — mirrors
+              // how query_decisions composes workPackDecisionLinks.
+              linkedContextPackIds.length > 0
+                ? or(eq(cp.workPackId, workPackId), inArray(cp.id, linkedContextPackIds))
+                : eq(cp.workPackId, workPackId),
+            )
+          : eq(cp.projectId, projectId);
       const whereCondition =
         cursor !== null
           ? and(
@@ -143,6 +222,7 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
           createdAt: cp.createdAt,
           runId: cp.runId,
           source: cp.source,
+          kind: cp.kind,
         })
         .from(cp)
         .where(whereCondition)
@@ -150,7 +230,15 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
         .limit(limit + 1)) as Row[];
     } else {
       const cp = postgresSchema.contextPacks;
-      const baseCondition = eq(cp.projectId, projectId);
+      const baseCondition =
+        workPackId !== null
+          ? and(
+              eq(cp.projectId, projectId),
+              linkedContextPackIds.length > 0
+                ? or(eq(cp.workPackId, workPackId), inArray(cp.id, linkedContextPackIds))
+                : eq(cp.workPackId, workPackId),
+            )
+          : eq(cp.projectId, projectId);
       const whereCondition =
         cursor !== null
           ? and(
@@ -169,6 +257,7 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
           createdAt: cp.createdAt,
           runId: cp.runId,
           source: cp.source,
+          kind: cp.kind,
         })
         .from(cp)
         .where(whereCondition)
@@ -191,6 +280,7 @@ export function createListContextPacksHandler(deps: ListContextPacksHandlerDeps)
         savedAt: r.createdAt.toISOString(),
         runId: r.runId,
         source,
+        kind: r.kind,
       });
     }
 
