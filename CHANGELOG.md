@@ -4,6 +4,8 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-05
+
 ### Changed
 
 - **2026-08-03 — `coodra-work` redesign, round 2: `SessionStart` now injects recent Context Packs + decisions instead of Work Pack metadata, and decisions/Context Packs can link to more than one Work Pack.** Follow-up to the initial `coodra-work` redesign above. Two fixes:
