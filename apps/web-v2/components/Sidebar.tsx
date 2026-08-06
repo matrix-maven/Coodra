@@ -142,6 +142,34 @@ export function Sidebar({
   teamSystemItems.push({ href: '/settings', label: 'Settings', icon: <IconCog /> });
   teamSystemItems.push({ href: '/welcome', label: 'Welcome', icon: <IconSwitch /> });
 
+  // Govern's "Audit" link points at the raw audit_events ledger (a
+  // hash-chained who-did-what-to-what trail) — distinct from "Action
+  // Center" below, which surfaces current-truth state rows (runs,
+  // decisions, context packs), not the tamper-evident stream. The
+  // group used to be labeled "Audit" too, which collided with this new
+  // link's meaning — renamed 2026-08-06 so the two aren't confused.
+  const governItems: NavItem[] = [
+    { href: `/policies${scope}`, label: 'Policies', icon: <IconShield /> },
+    { href: `/kill-switches${scope}`, label: 'Kill switches', icon: <IconKill /> },
+    { href: `/audit${scope}`, label: 'Audit', icon: <IconAuditTrail /> },
+  ];
+  // Knowledge is reference material — Wiki, Agent Recipes, Code Graph,
+  // Templates. Work Packs moved out to Action Center (2026-08-06): a
+  // Work Pack is an active unit of work being driven through the
+  // system, not reference material to look something up in.
+  const knowledgeItems: NavItem[] = [
+    { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
+    { href: '/wiki', label: 'Wiki', icon: <IconGrid /> },
+    { href: '/graphify', label: 'Code Graph', icon: <IconGraph /> },
+    { href: '/templates', label: 'Templates', icon: <IconGrid /> },
+  ];
+  const actionCenterItems: NavItem[] = [
+    { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
+    { href: `/runs${scope}`, label: 'Runs', icon: <IconLedger /> },
+    { href: `/decisions${scope}`, label: 'Decisions', icon: <IconLedger /> },
+    { href: `/context-packs${scope}`, label: 'Context packs', icon: <IconPack /> },
+  ];
+
   const groups: ReadonlyArray<NavGroup> =
     mode === 'team'
       ? [
@@ -154,31 +182,9 @@ export function Sidebar({
             ],
           },
           { label: 'Team', items: teamGroupItems },
-          {
-            label: 'Audit',
-            items: [
-              { href: `/runs${scope}`, label: 'Runs', icon: <IconLedger /> },
-              { href: `/decisions${scope}`, label: 'Decisions', icon: <IconLedger /> },
-              { href: `/context-packs${scope}`, label: 'Context packs', icon: <IconPack /> },
-            ],
-          },
-          {
-            label: 'Govern',
-            items: [
-              { href: `/policies${scope}`, label: 'Policies', icon: <IconShield /> },
-              { href: `/kill-switches${scope}`, label: 'Kill switches', icon: <IconKill /> },
-            ],
-          },
-          {
-            label: 'Knowledge',
-            items: [
-              { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
-              { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
-              { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
-              { href: '/templates', label: 'Templates', icon: <IconGrid /> },
-            ],
-          },
+          { label: 'Action Center', items: actionCenterItems },
+          { label: 'Knowledge', items: knowledgeItems },
+          { label: 'Govern', items: governItems },
           { label: 'System', items: teamSystemItems },
         ]
       : [
@@ -190,31 +196,9 @@ export function Sidebar({
               { href: '/projects', label: 'Projects', icon: <IconStack /> },
             ],
           },
-          {
-            label: 'Audit',
-            items: [
-              { href: `/runs${scope}`, label: 'Runs', icon: <IconLedger /> },
-              { href: `/decisions${scope}`, label: 'Decisions', icon: <IconLedger /> },
-              { href: `/context-packs${scope}`, label: 'Context packs', icon: <IconPack /> },
-            ],
-          },
-          {
-            label: 'Govern',
-            items: [
-              { href: `/policies${scope}`, label: 'Policies', icon: <IconShield /> },
-              { href: `/kill-switches${scope}`, label: 'Kill switches', icon: <IconKill /> },
-            ],
-          },
-          {
-            label: 'Knowledge',
-            items: [
-              { href: '/work-packs', label: 'Work Packs', icon: <IconPack /> },
-              { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
-              { href: '/wiki', label: 'Deep Wiki', icon: <IconGrid /> },
-              { href: '/graphify', label: 'Codebase graph', icon: <IconGraph /> },
-              { href: '/templates', label: 'Templates', icon: <IconGrid /> },
-            ],
-          },
+          { label: 'Action Center', items: actionCenterItems },
+          { label: 'Knowledge', items: knowledgeItems },
+          { label: 'Govern', items: governItems },
           {
             label: 'System',
             items: [
@@ -610,6 +594,17 @@ function IconKey() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
       <circle cx="8" cy="14" r="3.5" />
       <path d="M11 14h10v4M17 14v4" />
+    </svg>
+  );
+}
+/** A chained-link trail — the hash-chained audit_events ledger (/audit), distinct from IconLedger's plain record book. */
+function IconAuditTrail() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <circle cx="5.5" cy="6" r="2.3" />
+      <circle cx="12" cy="12" r="2.3" />
+      <circle cx="18.5" cy="18" r="2.3" />
+      <path d="M7.4 7.6l3 2.8M14 13.6l3 2.8" />
     </svg>
   );
 }

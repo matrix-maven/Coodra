@@ -74,7 +74,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/02 · AUDIT</div>
+            <div className="head__num">/02 · ACTION CENTER</div>
             <h1 className="head__title">
               Every <em>run</em>, every event.
             </h1>

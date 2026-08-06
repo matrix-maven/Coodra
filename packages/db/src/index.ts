@@ -112,6 +112,7 @@ export {
   resetProject,
 } from './projects.js';
 export {
+  type AuditEventWithProject,
   type CancelRunResult,
   type ContextPackDetailRow,
   type ContextPackRow,
@@ -124,9 +125,11 @@ export {
   getRunWithEverything,
   hasContextPackForRun,
   type ListAllContextPacksFilter,
+  type ListAuditEventsFilter,
   type ListContextPacksFilter,
   type ListDecisionsFilter,
   type ListRunsFilter,
+  listAllAuditEvents,
   listAllContextPacks,
   listAllDecisions,
   listContextPacksForProject,

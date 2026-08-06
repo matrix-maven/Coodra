@@ -37,7 +37,7 @@ export default async function RunDetailPage({
       <section className="screen">
         <div className="head">
           <div>
-            <div className="head__num">/02 · AUDIT · RUN {run.id.slice(0, 8)}</div>
+            <div className="head__num">/02 · ACTION CENTER · RUN {run.id.slice(0, 8)}</div>
             <h1 className="head__title">
               {agentTypeLabel(run.agentType)} · <em>{run.sessionId.slice(0, 14)}</em>
             </h1>

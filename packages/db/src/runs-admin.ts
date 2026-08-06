@@ -859,6 +859,101 @@ export async function listAllContextPacks(
 }
 
 /**
+ * `audit_events` joined to its project slug — the append-only
+ * tamper-evident stream (`packages/db/src/audit-events.ts::
+ * insertAuditEvent`) that records policy/kill-switch changes and
+ * privileged tool-call outcomes, distinct from the state tables
+ * (`decisions`, `context_packs`) that only hold current truth. Mirrors
+ * `ContextPackWithProject`/`DecisionWithProject`.
+ */
+export interface AuditEventWithProject {
+  readonly id: string;
+  readonly orgId: string;
+  readonly projectId: string | null;
+  readonly runId: string | null;
+  readonly actorUserId: string | null;
+  readonly actorRunId: string | null;
+  readonly eventType: string;
+  readonly subjectTable: string;
+  readonly subjectId: string;
+  readonly action: string;
+  readonly result: string;
+  readonly reason: string | null;
+  readonly metadataJson: string;
+  readonly createdAt: Date;
+  readonly projectSlug: string | null;
+}
+
+export interface ListAuditEventsFilter {
+  readonly projectId?: string;
+  readonly limit?: number;
+}
+
+export async function listAllAuditEvents(
+  db: DbHandle,
+  filter: ListAuditEventsFilter = {},
+): Promise<AuditEventWithProject[]> {
+  const limit = Math.min(Math.max(1, filter.limit ?? 100), 1000);
+
+  if (db.kind === 'sqlite') {
+    const ae = sqliteSchema.auditEvents;
+    const p = sqliteSchema.projects;
+    const baseQuery = db.db
+      .select({
+        id: ae.id,
+        orgId: ae.orgId,
+        projectId: ae.projectId,
+        runId: ae.runId,
+        actorUserId: ae.actorUserId,
+        actorRunId: ae.actorRunId,
+        eventType: ae.eventType,
+        subjectTable: ae.subjectTable,
+        subjectId: ae.subjectId,
+        action: ae.action,
+        result: ae.result,
+        reason: ae.reason,
+        metadataJson: ae.metadataJson,
+        createdAt: ae.createdAt,
+        projectSlug: p.slug,
+      })
+      .from(ae)
+      .leftJoin(p, eq(p.id, ae.projectId));
+    const rows =
+      filter.projectId !== undefined
+        ? await baseQuery.where(eq(ae.projectId, filter.projectId)).orderBy(desc(ae.createdAt)).limit(limit)
+        : await baseQuery.orderBy(desc(ae.createdAt)).limit(limit);
+    return rows.map((row) => ({ ...row, projectId: row.projectId ?? null }));
+  }
+  const ae = postgresSchema.auditEvents;
+  const p = postgresSchema.projects;
+  const baseQuery = db.db
+    .select({
+      id: ae.id,
+      orgId: ae.orgId,
+      projectId: ae.projectId,
+      runId: ae.runId,
+      actorUserId: ae.actorUserId,
+      actorRunId: ae.actorRunId,
+      eventType: ae.eventType,
+      subjectTable: ae.subjectTable,
+      subjectId: ae.subjectId,
+      action: ae.action,
+      result: ae.result,
+      reason: ae.reason,
+      metadataJson: ae.metadataJson,
+      createdAt: ae.createdAt,
+      projectSlug: p.slug,
+    })
+    .from(ae)
+    .leftJoin(p, eq(p.id, ae.projectId));
+  const rows =
+    filter.projectId !== undefined
+      ? await baseQuery.where(eq(ae.projectId, filter.projectId)).orderBy(desc(ae.createdAt)).limit(limit)
+      : await baseQuery.orderBy(desc(ae.createdAt)).limit(limit);
+  return rows.map((row) => ({ ...row, projectId: row.projectId ?? null }));
+}
+
+/**
  * Returns one context pack with full body, or null when no row matches.
  * Used by /projects/[slug]/context-packs/[id].
  */
