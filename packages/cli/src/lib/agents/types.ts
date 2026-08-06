@@ -82,6 +82,17 @@ export interface AgentPathContext {
   readonly codexCliRunner?: unknown;
   /** Same as `claudeCliRunner`, for `devin-plugin.ts`'s `DevinCliRunner`. */
   readonly devinCliRunner?: unknown;
+  /**
+   * Test override for `devin-plugin.ts::installDevinPlugin`'s interactive
+   * "authenticate now?" prompt. Unlike the CLI-runner overrides above,
+   * this is also a REAL runtime capability (defaults to
+   * `terminal-prompt.ts::terminalReadPrompt`, not a test-only stub) —
+   * its presence is what lets a test drive the interactive branch
+   * without a real TTY, mirroring `commands/init.ts`'s own
+   * `options.readPrompt !== undefined || process.stdin.isTTY === true`
+   * interactivity check.
+   */
+  readonly readPrompt?: ((prompt: string) => Promise<string>) | false;
 }
 
 /** Everything an adapter needs to WRITE the per-agent surfaces. */

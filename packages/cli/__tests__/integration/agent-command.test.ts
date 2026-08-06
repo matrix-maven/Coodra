@@ -81,6 +81,9 @@ function noDevinCli(): DevinCliRunner {
     isInstalled: async () => {
       throw new Error('unexpected: devin CLI should not be invoked in this test');
     },
+    authLogin: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
+    },
   };
 }
 

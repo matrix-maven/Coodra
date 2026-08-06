@@ -26,6 +26,9 @@ function fakeCliRunner(overrides: Partial<DevinCliRunner> = {}): DevinCliRunner 
     installPlugin: async () => ({ ok: true }),
     removePlugin: async () => ({ ok: true }),
     isInstalled: async () => true,
+    authLogin: async () => {
+      throw new Error('unexpected: devin auth login should not be invoked unless a test explicitly overrides it');
+    },
     ...overrides,
   };
 }
@@ -43,6 +46,9 @@ function noDevinCli(): DevinCliRunner {
       throw new Error('unexpected: devin CLI should not be invoked in this test');
     },
     isInstalled: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
+    },
+    authLogin: async () => {
       throw new Error('unexpected: devin CLI should not be invoked in this test');
     },
   };
@@ -187,6 +193,104 @@ describe('Devin native plugin installer', () => {
     const outcome = result.outcomes.find((o) => o.notes?.includes('devin plugins install'));
     expect(outcome?.action).toBe('unchanged');
     expect(outcome?.notes).toContain('You must be logged in to manage Devin CLI plugins.');
+    expect(outcome?.notes).toContain('devin auth login');
+  });
+
+  it("installDevinPlugin, when interactive and the failure looks auth-shaped, asks before doing anything — and never calls 'devin auth login' if the answer isn't yes", async () => {
+    let authLoginCalled = false;
+    const runner = fakeCliRunner({
+      installPlugin: async () => ({ ok: false, reason: 'You must be logged in to manage Devin CLI plugins.' }),
+      authLogin: async () => {
+        authLoginCalled = true;
+        return { ok: true };
+      },
+    });
+    let promptedWith = '';
+    const readPrompt = async (prompt: string) => {
+      promptedWith = prompt;
+      return 'n';
+    };
+    const result = await installDevinPlugin(ctx(), runner, readPrompt);
+    expect(promptedWith).toContain('auth login');
+    expect(promptedWith).toContain('[y/N]');
+    expect(authLoginCalled).toBe(false);
+    const outcome = result.outcomes.find((o) => o.notes?.includes('devin plugins install'));
+    expect(outcome?.action).toBe('unchanged');
+    expect(outcome?.notes).toContain('devin auth login');
+  });
+
+  it("installDevinPlugin: user says yes, 'devin auth login' succeeds, install is retried automatically and succeeds", async () => {
+    let installCallCount = 0;
+    let authLoginCalled = false;
+    const runner = fakeCliRunner({
+      installPlugin: async () => {
+        installCallCount += 1;
+        return installCallCount === 1
+          ? { ok: false, reason: 'You must be logged in to manage Devin CLI plugins.' }
+          : { ok: true };
+      },
+      authLogin: async () => {
+        authLoginCalled = true;
+        return { ok: true };
+      },
+    });
+    const result = await installDevinPlugin(ctx(), runner, async () => 'y');
+    expect(authLoginCalled).toBe(true);
+    expect(installCallCount).toBe(2);
+    const outcome = result.outcomes.find((o) => o.notes?.includes('after interactive'));
+    expect(outcome?.action).toBe('wrote');
+  });
+
+  it("installDevinPlugin: user says yes, but 'devin auth login' itself fails (e.g. browser flow abandoned) — no retry is attempted", async () => {
+    let installCallCount = 0;
+    const runner = fakeCliRunner({
+      installPlugin: async () => {
+        installCallCount += 1;
+        return { ok: false, reason: 'You must be logged in to manage Devin CLI plugins.' };
+      },
+      authLogin: async () => ({ ok: false, reason: 'devin auth login exited with code 1' }),
+    });
+    const result = await installDevinPlugin(ctx(), runner, async () => 'yes');
+    expect(installCallCount).toBe(1); // never retried
+    const outcome = result.outcomes.find((o) => o.notes?.includes('did not complete'));
+    expect(outcome?.action).toBe('unchanged');
+    expect(outcome?.notes).toContain('coodra agent add devin');
+  });
+
+  it('installDevinPlugin: user says yes, login succeeds, but the retried install still fails — reports the fresh failure distinctly', async () => {
+    const runner = fakeCliRunner({
+      installPlugin: async () => ({ ok: false, reason: 'still not logged in, somehow' }),
+      authLogin: async () => ({ ok: true }),
+    });
+    const result = await installDevinPlugin(ctx(), runner, async () => 'y');
+    const outcome = result.outcomes.find((o) => o.notes?.includes('authenticated, but'));
+    expect(outcome?.action).toBe('unchanged');
+    expect(outcome?.notes).toContain('still not logged in, somehow');
+  });
+
+  it('installDevinPlugin never offers the auth-retry prompt for a failure that is not auth-shaped, even when interactive', async () => {
+    let promptCalled = false;
+    const runner = fakeCliRunner({
+      installPlugin: async () => ({ ok: false, reason: 'disk quota exceeded' }),
+    });
+    const result = await installDevinPlugin(ctx(), runner, async () => {
+      promptCalled = true;
+      return 'y';
+    });
+    expect(promptCalled).toBe(false);
+    const outcome = result.outcomes.find((o) => o.notes?.includes('disk quota exceeded'));
+    expect(outcome?.action).toBe('unchanged');
+  });
+
+  it('installDevinPlugin: readPrompt: false forces the non-interactive path unconditionally (how --json mode disables the prompt)', async () => {
+    const promptCalled = false;
+    const runner = fakeCliRunner({
+      installPlugin: async () => ({ ok: false, reason: 'You must be logged in to manage Devin CLI plugins.' }),
+    });
+    const result = await installDevinPlugin(ctx(), runner, false);
+    expect(promptCalled).toBe(false);
+    const outcome = result.outcomes.find((o) => o.notes?.includes('devin plugins install'));
+    expect(outcome?.action).toBe('unchanged');
     expect(outcome?.notes).toContain('devin auth login');
   });
 

@@ -61,6 +61,13 @@ export interface AgentCommandOptions {
   readonly codexCliRunner?: unknown;
   /** `DevinCliRunner` override (tests) — see `AgentPathContext.devinCliRunner`. */
   readonly devinCliRunner?: unknown;
+  /**
+   * Interactive-prompt override (tests) — see `AgentPathContext.readPrompt`.
+   * `runWire` forces this to `false` unconditionally in `--json` mode
+   * regardless of what's passed here — a prompt writing to stdout would
+   * corrupt JSON output no test override should be allowed to reintroduce.
+   */
+  readonly readPrompt?: ((prompt: string) => Promise<string>) | false;
 }
 
 export interface AgentIO {
@@ -172,6 +179,15 @@ async function runWire(
       ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
       ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
       ...(options.devinCliRunner !== undefined ? { devinCliRunner: options.devinCliRunner } : {}),
+      // `--json` always wins over any readPrompt override — an
+      // interactive prompt writing to stdout would corrupt JSON output,
+      // so JSON mode forces the non-interactive path unconditionally
+      // regardless of a real TTY or a test-injected prompt fn.
+      ...(json
+        ? { readPrompt: false as const }
+        : options.readPrompt !== undefined
+          ? { readPrompt: options.readPrompt }
+          : {}),
       force,
       dryRun,
     });

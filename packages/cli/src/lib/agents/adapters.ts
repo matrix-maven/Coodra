@@ -250,7 +250,7 @@ const devinAdapter: AgentAdapter = {
     return buildStatus(this, await this.detect(ctx.userHome), files);
   },
   async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
-    return (await installDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined)).outcomes;
+    return (await installDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined, ctx.readPrompt)).outcomes;
   },
   async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
     return (await removeDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined)).outcomes;

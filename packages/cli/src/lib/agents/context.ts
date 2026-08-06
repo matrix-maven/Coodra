@@ -36,6 +36,10 @@ export interface ResolveAgentContextOptions {
   readonly claudeCliRunner?: unknown;
   /** `CodexCliRunner` override (tests) — see `AgentPathContext.codexCliRunner`. */
   readonly codexCliRunner?: unknown;
+  /** `DevinCliRunner` override (tests) — see `AgentPathContext.devinCliRunner`. */
+  readonly devinCliRunner?: unknown;
+  /** Interactive-prompt override (tests) — see `AgentPathContext.readPrompt`. */
+  readonly readPrompt?: ((prompt: string) => Promise<string>) | false;
 }
 
 export interface ResolvedAgentWiring {
@@ -113,6 +117,16 @@ export async function resolveAgentWiringContext(opts: ResolveAgentContextOptions
     ...(opts.settingsPath !== undefined ? { settingsPath: opts.settingsPath } : {}),
     ...(opts.claudeCliRunner !== undefined ? { claudeCliRunner: opts.claudeCliRunner } : {}),
     ...(opts.codexCliRunner !== undefined ? { codexCliRunner: opts.codexCliRunner } : {}),
+    // Both were previously accepted by `ResolveAgentContextOptions`'
+    // caller (`commands/agent.ts` already spread `devinCliRunner` into
+    // this function's input) but silently dropped here — the option
+    // never reached `AgentContext`, so any override passed at the
+    // command layer (e.g. a test's fake `DevinCliRunner`) never actually
+    // took effect once the call went through `resolveAgentWiringContext`
+    // rather than calling `installDevinPlugin` directly. Fixed alongside
+    // adding `readPrompt`, which needs the exact same forwarding.
+    ...(opts.devinCliRunner !== undefined ? { devinCliRunner: opts.devinCliRunner } : {}),
+    ...(opts.readPrompt !== undefined ? { readPrompt: opts.readPrompt } : {}),
     force: opts.force,
     dryRun: opts.dryRun,
   };

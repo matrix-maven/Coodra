@@ -1,4 +1,4 @@
-import { execFile as execFileCallback } from 'node:child_process';
+import { execFile as execFileCallback, spawn } from 'node:child_process';
 import { constants as fsConstants } from 'node:fs';
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
+import { terminalReadPrompt } from '../terminal-prompt.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
@@ -43,9 +44,36 @@ export interface DevinCliRunner {
   removePlugin(devinBin: string): Promise<{ ok: true } | { ok: false; reason: string }>;
   /** Best-effort: is `coodra` reported installed by `devin plugins list`? */
   isInstalled(devinBin: string): Promise<boolean>;
+  /**
+   * `devin auth login` — ONLY ever invoked after the user explicitly
+   * opts in via an interactive prompt (see `installDevinPlugin`'s
+   * auth-retry branch below). This is a real, human-in-the-loop browser
+   * OAuth flow, not a scriptable credential exchange — it needs a real
+   * TTY/inherited stdio (so the user sees Devin's own "opening
+   * browser..." messaging and any URL to open manually) and a timeout
+   * generous enough for a human to actually complete it in a browser,
+   * unlike every other `DevinCliRunner` method here which is a quick,
+   * non-interactive command.
+   */
+  authLogin(devinBin: string): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
 const CLI_TIMEOUT_MS = 15_000;
+/** `devin auth login` waits on a human completing a browser flow — minutes, not seconds. */
+const AUTH_LOGIN_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Heuristic, not a parsed error code — Devin's CLI doesn't document a
+ * stable machine-readable error taxonomy, so this matches on the
+ * confirmed live error text ("You must be logged in...") plus the
+ * obvious synonyms. A false positive just means the user gets asked an
+ * extra, skippable "authenticate now?" question; a false negative just
+ * means they fall back to the static instructions, same as before this
+ * existed. Either way it's advisory, not load-bearing.
+ */
+function looksLikeAuthFailure(reason: string): boolean {
+  return /log(ged)?\s*in|authenticat/i.test(reason);
+}
 
 /**
  * Known locations for the Devin CLI binary when it's bundled inside the
@@ -139,6 +167,30 @@ export function createDevinCliRunner(timeoutMs: number = CLI_TIMEOUT_MS): DevinC
         return false;
       }
     },
+    async authLogin(devinBin) {
+      // spawn + stdio:'inherit', not execFile — execFile buffers output
+      // and only resolves on exit, so the user would see nothing while
+      // waiting on their own browser, and CLI_TIMEOUT_MS (15s) would
+      // fire long before a human finishes an OAuth flow. Inheriting
+      // stdio lets Devin's own "opening browser…" / URL messaging print
+      // directly to the user's terminal, same as if they'd typed the
+      // command themselves.
+      return new Promise((resolve) => {
+        const child = spawn(devinBin, ['auth', 'login'], { stdio: 'inherit' });
+        const timer = setTimeout(() => {
+          child.kill('SIGTERM');
+          resolve({ ok: false, reason: 'timed out waiting for the browser login flow to complete' });
+        }, AUTH_LOGIN_TIMEOUT_MS);
+        child.on('error', (err) => {
+          clearTimeout(timer);
+          resolve({ ok: false, reason: err.message });
+        });
+        child.on('exit', (code) => {
+          clearTimeout(timer);
+          resolve(code === 0 ? { ok: true } : { ok: false, reason: `devin auth login exited with code ${code}` });
+        });
+      });
+    },
   };
 }
 
@@ -204,6 +256,17 @@ export async function probeDevinPlugin(
 export async function installDevinPlugin(
   ctx: AgentContext,
   cliRunner: DevinCliRunner = defaultDevinCliRunner,
+  /**
+   * Test override — mirrors `lib/terminal-prompt.ts::terminalReadPrompt`'s
+   * own injectable-for-tests convention (see `commands/init.ts`).
+   * Three states: `undefined` → auto-detect via `process.stdin.isTTY`
+   * (the real end-user path — no flag needed); a function → force
+   * interactive using that function (test injection, or a future real
+   * override); `false` → force NON-interactive regardless of a real TTY
+   * (how `commands/agent.ts` disables this unconditionally in `--json`
+   * mode, where a prompt writing to stdout would corrupt JSON output).
+   */
+  readPrompt?: ((prompt: string) => Promise<string>) | false,
 ): Promise<{
   readonly outcomes: WriteOutcome[];
   readonly paths: DevinPluginPaths;
@@ -261,13 +324,67 @@ export async function installDevinPlugin(
   const result = await cliRunner.installPlugin(devin.path, paths.pluginRoot);
   if (result.ok) {
     outcomes.push({ path: paths.pluginRoot, action: 'wrote', notes: "installed via 'devin plugins install'" });
+    return { outcomes, paths };
+  }
+
+  const staticFailureNote =
+    `'devin plugins install' failed (${result.reason}) — if this is an auth error, note that being logged ` +
+    'into Devin Desktop does NOT mean the bundled CLI has its own credentials (confirmed live: the CLI reads ' +
+    `\`~/.local/share/devin/credentials.toml\`, separate from Desktop's own session state) — run ` +
+    `\`${devin.path} auth login\`, confirm with \`${devin.path} auth status\`, then \`coodra agent add devin\` again`;
+
+  // Explicit-permission retry, offered only when the failure looks
+  // auth-shaped AND there's someone to actually ask — never in
+  // non-interactive/CI/scripted runs (no readPrompt override and no real
+  // TTY), where the static message above is the only sane fallback.
+  // Coodra never runs `devin auth login` unprompted; this branch exists
+  // *because* the user gets asked first, every time, not as a bypass of
+  // that rule.
+  const interactive = readPrompt !== false && (readPrompt !== undefined || process.stdin.isTTY === true);
+  if (!looksLikeAuthFailure(result.reason) || !interactive) {
+    outcomes.push({ path: paths.pluginRoot, action: 'unchanged', notes: staticFailureNote });
+    return { outcomes, paths };
+  }
+
+  // `interactive` being true already narrows `readPrompt` to exclude `false`.
+  const promptFn = readPrompt ?? terminalReadPrompt;
+  const answer = (
+    await promptFn(
+      `\n'devin plugins install' failed: ${result.reason}\n` +
+        "Being logged into Devin Desktop doesn't mean the bundled CLI has its own credentials.\n" +
+        `Authenticate now via \`${devin.path} auth login\` (opens your browser)? [y/N]: `,
+    )
+  )
+    .trim()
+    .toLowerCase();
+
+  if (answer !== 'y' && answer !== 'yes') {
+    outcomes.push({ path: paths.pluginRoot, action: 'unchanged', notes: staticFailureNote });
+    return { outcomes, paths };
+  }
+
+  const loginResult = await cliRunner.authLogin(devin.path);
+  if (!loginResult.ok) {
+    outcomes.push({
+      path: paths.pluginRoot,
+      action: 'unchanged',
+      notes: `\`devin auth login\` did not complete (${loginResult.reason}) — run \`coodra agent add devin\` again once logged in`,
+    });
+    return { outcomes, paths };
+  }
+
+  const retryResult = await cliRunner.installPlugin(devin.path, paths.pluginRoot);
+  if (retryResult.ok) {
+    outcomes.push({
+      path: paths.pluginRoot,
+      action: 'wrote',
+      notes: "installed via 'devin plugins install' after interactive 'devin auth login'",
+    });
   } else {
     outcomes.push({
       path: paths.pluginRoot,
       action: 'unchanged',
-      notes:
-        `'devin plugins install' failed (${result.reason}) — if this is an auth error, run \`devin auth login\` ` +
-        'then `coodra agent add devin` again',
+      notes: `authenticated, but 'devin plugins install' still failed (${retryResult.reason})`,
     });
   }
   return { outcomes, paths };
