@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   ACCEPTED_AGENT_TOKENS,
@@ -53,9 +54,9 @@ describe('agent registry — resolveAgentInput', () => {
 });
 
 describe('agent registry — adapters', () => {
-  it('exposes exactly the four adapters in canonical order', () => {
-    expect(AGENT_ORDER).toEqual(['claude', 'codex', 'cursor', 'devin']);
-    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex', 'cursor', 'devin']);
+  it('exposes exactly the five adapters in canonical order', () => {
+    expect(AGENT_ORDER).toEqual(['claude', 'codex', 'cursor', 'devin', 'antigravity']);
+    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex', 'cursor', 'devin', 'antigravity']);
   });
 
   it('each adapter carries the right agentType stamp + detection dir', () => {
@@ -64,10 +65,12 @@ describe('agent registry — adapters', () => {
     expect(byId.codex?.agentType).toBe('codex');
     expect(byId.cursor?.agentType).toBe('cursor');
     expect(byId.devin?.agentType).toBe('devin');
+    expect(byId.antigravity?.agentType).toBe('antigravity');
     expect(byId.claude?.detectionDir).toBe('.claude');
     expect(byId.codex?.detectionDir).toBe('.codex');
     expect(byId.cursor?.detectionDir).toBe('.cursor');
     expect(byId.devin?.detectionDir).toBe('.devin');
+    expect(byId.antigravity?.detectionDir).toBe(join('.gemini', 'antigravity'));
   });
 
   it('native plugin adapters carry post-wire notes', () => {
@@ -75,6 +78,7 @@ describe('agent registry — adapters', () => {
     expect(getAdapter('claude').postWireNote).toContain('coodra@coodra');
     expect(getAdapter('cursor').postWireNote).toContain('Customize panel');
     expect(getAdapter('devin').postWireNote).toContain('devin auth login');
+    expect(getAdapter('antigravity').postWireNote).toContain('Antigravity discovers local plugins automatically');
   });
 
   it('ACCEPTED_AGENT_TOKENS covers the canonical ids and the aliases', () => {

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { removeCodexConfig } from '../init/codex-merge.js';
 import { removeInstructionBlock } from '../init/instruction-files.js';
 import type { WriteOutcome } from '../init/types.js';
+import { installAntigravityPlugin, probeAntigravityPlugin, removeAntigravityPlugin } from './antigravity-plugin.js';
 import { type ClaudeCliRunner, installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
 import { type CodexCliRunner, installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
 import { installCursorPlugin, probeCursorPlugin, removeCursorPlugin } from './cursor-plugin.js';
@@ -256,9 +257,59 @@ const devinAdapter: AgentAdapter = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// antigravity — global Antigravity plugin, a plain local plugin directory
+// Antigravity discovers on its own (no marketplace/CLI registration step,
+// same shape as Cursor's).
+// ---------------------------------------------------------------------------
+
+const antigravityAdapter: AgentAdapter = {
+  id: 'antigravity',
+  displayName: 'Antigravity',
+  agentType: 'antigravity',
+  detectionDir: join('.gemini', 'antigravity'),
+  postWireNote:
+    'Antigravity discovers local plugins automatically from ~/.gemini/config/plugins/ — restart Antigravity (or ' +
+    "reload the window) to pick up the Coodra plugin, then check Customizations to confirm it's active.",
+  detect: (userHome) => detectDir(userHome, join('.gemini', 'antigravity')),
+  async status(ctx: AgentPathContext): Promise<AgentStatus> {
+    const probe = await probeAntigravityPlugin(ctx);
+    const files: AgentFileState[] = [
+      {
+        label: 'Antigravity plugin manifest',
+        path: probe.paths.manifestPath,
+        state: probe.manifest ? 'wired' : 'missing',
+      },
+      {
+        label: 'Antigravity plugin MCP',
+        path: probe.paths.mcpPath,
+        state: probe.mcp ? 'wired' : 'missing',
+      },
+      {
+        label: 'Antigravity plugin hooks',
+        path: probe.paths.hooksPath,
+        state: probe.hooks ? 'wired' : 'missing',
+      },
+      {
+        label: 'Antigravity plugin skills',
+        path: probe.paths.skillsRoot,
+        state: probe.skills ? 'wired' : 'missing',
+      },
+    ];
+    return buildStatus(this, await this.detect(ctx.userHome), files);
+  },
+  async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
+    return (await installAntigravityPlugin(ctx)).outcomes;
+  },
+  async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
+    return (await removeAntigravityPlugin(ctx)).outcomes;
+  },
+};
+
 export const ADAPTERS: Readonly<Record<import('./types.js').AgentId, AgentAdapter>> = {
   claude: claudeAdapter,
   codex: codexAdapter,
   cursor: cursorAdapter,
   devin: devinAdapter,
+  antigravity: antigravityAdapter,
 };

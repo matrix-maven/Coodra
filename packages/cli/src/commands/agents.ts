@@ -2,6 +2,7 @@ import { access, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { EXIT_OK } from '../exit-codes.js';
+import { antigravityPluginPaths } from '../lib/agents/antigravity-plugin.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
@@ -12,7 +13,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, sectionHead, terminalWidth
 /**
  * `coodra agents` — read-only status surface for the multi-agent wiring.
  *
- * Lists each supported agent (Claude Code, Codex, Cursor, Devin) with a per-file status:
+ * Lists each supported agent (Claude Code, Codex, Cursor, Devin, Antigravity) with a per-file status:
  *   ✓ wired   — file exists AND contains a managed coodra entry/block
  *   ◌ partial — file exists but no coodra entry/block (or vice versa)
  *   ✗ missing — file does not exist
@@ -46,7 +47,7 @@ export const DEFAULT_AGENTS_IO: AgentsIO = {
   },
 };
 
-type AgentName = 'claude' | 'codex' | 'cursor' | 'devin';
+type AgentName = 'claude' | 'codex' | 'cursor' | 'devin' | 'antigravity';
 
 export interface AgentFileState {
   /** Display name of the file (`.mcp.json`, `~/.claude/settings.json`, etc.). */
@@ -127,7 +128,13 @@ export interface BuildReportsInput {
 }
 
 export async function buildAgentReports(input: BuildReportsInput): Promise<readonly AgentReport[]> {
-  return [await claudeReport(input), await codexReport(input), await cursorReport(input), await devinReport(input)];
+  return [
+    await claudeReport(input),
+    await codexReport(input),
+    await cursorReport(input),
+    await devinReport(input),
+    await antigravityReport(input),
+  ];
 }
 
 async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
@@ -313,6 +320,49 @@ async function devinReport(input: BuildReportsInput): Promise<AgentReport> {
     howToEnable: detected
       ? null
       : 'Install Devin CLI (devin.ai — plugins are in closed beta, contact support@cognition.ai for access), then run `coodra agent add devin`.',
+  };
+}
+
+async function antigravityReport(input: BuildReportsInput): Promise<AgentReport> {
+  // ~/.gemini/antigravity, not the bare ~/.gemini — the latter could
+  // plausibly also exist for Google's separate plain "Gemini CLI"
+  // product without Antigravity being installed at all.
+  const antigravityDir = join(input.userHome, '.gemini', 'antigravity');
+  const detected = await pathExists(antigravityDir);
+  const plugin = antigravityPluginPaths(input.userHome);
+  return {
+    name: 'antigravity',
+    displayName: 'Antigravity',
+    detected,
+    detectionPath: `${antigravityDir}/`,
+    files: [
+      await fileContainsState({
+        path: plugin.manifestPath,
+        label: 'Antigravity plugin manifest',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra plugin manifest present',
+        missingNote: 'missing',
+        partialNote: 'plugin manifest does not match coodra',
+      }),
+      await mcpJsonState({ path: plugin.mcpPath, label: 'Antigravity plugin MCP' }),
+      await fileContainsState({
+        path: plugin.hooksPath,
+        label: 'Antigravity plugin hooks',
+        needle: '"PreToolUse"',
+        wiredNote: 'coodra lifecycle hooks present',
+        missingNote: 'missing',
+        partialNote: 'no coodra lifecycle hooks',
+      }),
+      await fileContainsState({
+        path: join(plugin.skillsRoot, 'coodra-context', 'SKILL.md'),
+        label: 'Antigravity plugin skills',
+        needle: 'name: coodra-context',
+        wiredNote: 'coodra skills present',
+        missingNote: 'missing',
+        partialNote: 'coodra context skill missing',
+      }),
+    ],
+    howToEnable: detected ? null : 'Install Antigravity (antigravity.google), then run `coodra agent add antigravity`.',
   };
 }
 

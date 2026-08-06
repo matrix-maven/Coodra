@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { buildPolicyProjection, GLOBAL_PROJECT_ID, listProjects, lookupProjectBySlug } from '@coodra/db';
 import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
+import { antigravityPluginPaths } from '../lib/agents/antigravity-plugin.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
@@ -41,7 +42,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
- * `<agent>` accepts claude | codex | cursor | devin | all | detected.
+ * `<agent>` accepts claude | codex | cursor | devin | antigravity | all | detected.
  */
 
 export interface AgentCommandOptions {
@@ -201,7 +202,7 @@ async function runWire(
     const createdBy = `coodra agent ${mode} ${agentArg}`;
     const machinePaths: string[] = [];
     const installedAgents: Array<{
-      id: 'claude' | 'codex' | 'cursor' | 'devin';
+      id: 'claude' | 'codex' | 'cursor' | 'devin' | 'antigravity';
       pluginPath: string;
       marketplacePath?: string;
     }> = [];
@@ -271,6 +272,19 @@ async function runWire(
         paths.skillsRoot,
       );
       installedAgents.push({ id: 'devin', pluginPath: paths.pluginRoot });
+    }
+
+    if (results.some((r) => r.id === 'antigravity' && r.error === undefined)) {
+      const paths = antigravityPluginPaths(userHome);
+      machinePaths.push(
+        paths.pluginRoot,
+        paths.manifestPath,
+        paths.mcpPath,
+        paths.hooksPath,
+        paths.hookRunnerPath,
+        paths.skillsRoot,
+      );
+      installedAgents.push({ id: 'antigravity', pluginPath: paths.pluginRoot });
     }
 
     if (machinePaths.length > 0 || installedAgents.length > 0) {

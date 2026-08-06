@@ -15,22 +15,24 @@ import { runKeySegmentSchema } from '../idempotency.js';
  * Field shapes:
  *   - `agentType` — discriminator, set by the adapter.
  *   - `eventPhase` — normalized lifecycle stage. Cross-agent mapping:
- *       Claude Code        Codex                 Cursor               Devin               → eventPhase
- *       PreToolUse         PreToolUse            preToolUse           PreToolUse          → 'pre'
- *       PostToolUse        PostToolUse           postToolUse          PostToolUse         → 'post'
- *       SessionStart       SessionStart          sessionStart         SessionStart        → 'session_start'
- *       SessionEnd         SessionEnd            sessionEnd           SessionEnd          → 'session_end'
- *       Stop               Stop                  stop                 Stop                → 'turn_end'
- *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   UserPromptSubmit    → 'user_prompt'
- *       ConfigChange       ConfigChange          (none)               (none)              → 'config_change'
- *       PermissionRequest  (none)                (none)               PermissionRequest   → 'permission_request'
- *       PermissionDenied   (none)                (none)               (none)              → 'permission_denied'
- *       SubagentStart      (none)                (none)               (none)              → 'subagent_start'
- *       SubagentStop       (none)                (none)               (none)              → 'subagent_stop'
- *       PreCompact         (none)                (none)               (none)              → 'pre_compact'
- *       PostCompact        (none)                (none)               PostCompaction      → 'post_compact'
- *       PostToolUseFailure (none)                (none)               (none)              → 'post_tool_use_failure'
- *       StopFailure        (none)                (none)               (none)              → 'stop_failure'
+ *       Claude Code        Codex                 Cursor               Devin               Antigravity          → eventPhase
+ *       PreToolUse         PreToolUse            preToolUse           PreToolUse          PreToolUse           → 'pre'
+ *       PostToolUse        PostToolUse           postToolUse          PostToolUse         PostToolUse          → 'post'
+ *       SessionStart       SessionStart          sessionStart         SessionStart        (synthetic, see below) → 'session_start'
+ *       SessionEnd         SessionEnd            sessionEnd           SessionEnd          (none)               → 'session_end'
+ *       Stop               Stop                  stop                 Stop                Stop                 → 'turn_end'
+ *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   UserPromptSubmit    (none)               → 'user_prompt'
+ *       ConfigChange       ConfigChange          (none)               (none)              (none)               → 'config_change'
+ *       PermissionRequest  (none)                (none)               PermissionRequest   (none)               → 'permission_request'
+ *       PermissionDenied   (none)                (none)               (none)              (none)               → 'permission_denied'
+ *       SubagentStart      (none)                (none)               (none)              (none)               → 'subagent_start'
+ *       SubagentStop       (none)                (none)               (none)              (none)               → 'subagent_stop'
+ *       PreCompact         (none)                (none)               (none)              (none)               → 'pre_compact'
+ *       PostCompact        (none)                (none)               PostCompaction      (none)               → 'post_compact'
+ *       PostToolUseFailure (none)                (none)               (none)              (none)               → 'post_tool_use_failure'
+ *       StopFailure        (none)                (none)               (none)              (none)               → 'stop_failure'
+ *       (none)             (none)                (none)               (none)              PreInvocation        → 'pre_invocation'
+ *       (none)             (none)                (none)               (none)              PostInvocation       → 'post_invocation'
  *
  *     Cursor has no ConfigChange-equivalent hook event — a Cursor
  *     `HookEvent` never has `eventPhase: 'config_change'`. The eight
@@ -43,6 +45,24 @@ import { runKeySegmentSchema } from '../idempotency.js';
  *     `'post'`, `'permission_request'`, `'user_prompt'`, `'turn_end'`,
  *     `'post_compact'`, `'session_start'`, or `'session_end'`; every
  *     other phase literal is unreachable for `agentType: 'devin'`.
+ *
+ *     Antigravity has only 5 native hook events — `PreToolUse`,
+ *     `PostToolUse`, `PreInvocation`, `PostInvocation`, `Stop` — and no
+ *     `SessionStart`/`SessionEnd`/`UserPromptSubmit`/`PermissionRequest`-
+ *     equivalent at all (confirmed absent from Antigravity's own docs).
+ *     Unlike every other agent's phase map, which is a static lookup by
+ *     raw event name, Antigravity's `'session_start'` is *synthesized*:
+ *     `canonicalizeAntigravityEventName` (in `adapters/antigravity.ts`)
+ *     rewrites the FIRST `PreInvocation` of a conversation
+ *     (`invocationNum <= 1`, approximating "session just started" since
+ *     Antigravity has no real session-start signal) to the canonical
+ *     name `'SessionStart'`, so it maps to `'session_start'` here same
+ *     as every other agent; every subsequent `PreInvocation` keeps its
+ *     own name and maps to the new `'pre_invocation'` phase instead. An
+ *     Antigravity `HookEvent` only ever carries `'pre'`, `'post'`,
+ *     `'turn_end'`, `'session_start'`, `'pre_invocation'`, or
+ *     `'post_invocation'` — every other phase literal (including
+ *     `'session_end'`) is unreachable for `agentType: 'antigravity'`.
  *     Confirmed: Devin has no pre-compaction veto event at all (only
  *     `PostCompaction`, after the fact) — Coodra's PreCompact one-shot
  *     nudge cannot fire for Devin. Whether `PostCompaction` can inject
@@ -94,7 +114,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  */
 export const HookEventSchema = z
   .object({
-    agentType: z.enum(['claude_code', 'codex', 'cursor', 'devin', 'unknown']),
+    agentType: z.enum(['claude_code', 'codex', 'cursor', 'devin', 'antigravity', 'unknown']),
     eventPhase: z.enum([
       'pre',
       'post',
@@ -111,6 +131,8 @@ export const HookEventSchema = z
       'post_compact',
       'post_tool_use_failure',
       'stop_failure',
+      'pre_invocation',
+      'post_invocation',
     ]),
     sessionId: runKeySegmentSchema,
     turnId: z.string().optional(),

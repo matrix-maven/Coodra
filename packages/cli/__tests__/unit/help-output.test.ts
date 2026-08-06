@@ -39,7 +39,7 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   status\` — use \`coodra agent add|remove\` to change
                                   wiring.
         agent                     Wire, re-wire, or strip a single coding agent
-                                  (claude | codex | cursor | devin).
+                                  (claude | codex | cursor | devin | antigravity).
         files                     Inspect or clean the files Coodra generated in this
                                   project (.coodra/manifest.json).
         graphify                  Graphify's codebase-graph MCP server (a

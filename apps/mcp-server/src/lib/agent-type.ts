@@ -33,6 +33,7 @@ export type KnownAgentType =
   | 'codex'
   | 'cursor'
   | 'devin'
+  | 'antigravity'
   | 'vscode_copilot'
   | 'mcp_inspector'
   | 'unknown';
@@ -54,6 +55,9 @@ export type KnownAgentType =
  *                    plugins are closed beta and require `devin auth login`,
  *                    which Coodra never drives); same substring-heuristic
  *                    safety net as Cursor's entry.
+ *   - Antigravity:   'antigravity' — NOT verified against a live handshake
+ *                    (no scriptable way to drive Antigravity's IDE/App UI in
+ *                    this environment); same substring-heuristic safety net.
  *   - VS Code + Copilot Chat: 'github-copilot-chat-vscode' (observed)
  *   - MCP Inspector: 'mcp-inspector'
  *
@@ -70,6 +74,7 @@ export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Obje
   cursor: 'cursor',
   'cursor-agent': 'cursor',
   devin: 'devin',
+  antigravity: 'antigravity',
   'github-copilot-chat-vscode': 'vscode_copilot',
   'mcp-inspector': 'mcp_inspector',
 });
@@ -88,6 +93,7 @@ const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentTyp
   ['codex', 'codex'],
   ['cursor', 'cursor'],
   ['devin', 'devin'],
+  ['antigravity', 'antigravity'],
 ]);
 
 /** The canonical values accepted from the COODRA_AGENT_TYPE env stamp. */
@@ -96,6 +102,7 @@ const KNOWN_AGENT_TYPES: ReadonlySet<string> = new Set<KnownAgentType>([
   'codex',
   'cursor',
   'devin',
+  'antigravity',
   'vscode_copilot',
   'mcp_inspector',
 ]);

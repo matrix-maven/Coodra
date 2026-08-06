@@ -111,6 +111,7 @@ describe('runGraphifyStatusCommand', () => {
       { id: 'codex', displayName: 'Codex', wired: false },
       { id: 'cursor', displayName: 'Cursor', wired: false },
       { id: 'devin', displayName: 'Devin', wired: false },
+      { id: 'antigravity', displayName: 'Antigravity', wired: false },
     ]);
   });
 

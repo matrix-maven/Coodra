@@ -405,11 +405,11 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const agentStatusRunner = options.runAgentStatus ?? runAgentStatusCommand;
   const agent = program
     .command('agent')
-    .description('Wire, re-wire, or strip a single coding agent (claude | codex | cursor | devin).');
+    .description('Wire, re-wire, or strip a single coding agent (claude | codex | cursor | devin | antigravity).');
   agent
     .command('add <agent>')
     .description(
-      'Wire the Coodra bundle for one agent as a global native plugin. Accepts claude|codex|cursor|devin|all|detected.',
+      'Wire the Coodra bundle for one agent as a global native plugin. Accepts claude|codex|cursor|devin|antigravity|all|detected.',
     )
     .option('--force', 'Overwrite existing Coodra entries with the current baseline.')
     .option('--dry-run', 'Print what would change without touching disk.')
@@ -435,7 +435,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     });
   agent
     .command('status')
-    .description('Per-agent Coodra wiring report (claude, codex, cursor, devin). Read-only.')
+    .description('Per-agent Coodra wiring report (claude, codex, cursor, devin, antigravity). Read-only.')
     .option('--json', 'Emit structured JSON instead of human-readable text.')
     .action(async (opts: AgentCommandOptions) => {
       await agentStatusRunner(opts, options.agentIO);
@@ -842,7 +842,10 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--event-type <type>', 'PreToolUse | PostToolUse (default: PreToolUse).')
     .option('--path-glob <glob>', 'File-path glob to match (e.g. ".env", "**/.env", "node_modules/**").')
     .option('--command-pattern <glob>', 'Shell command glob to match for Bash rules (e.g. "git push*--force*").')
-    .option('--agent-type <type>', 'Agent type to match: claude_code | codex | cursor | devin | * (default: *).')
+    .option(
+      '--agent-type <type>',
+      'Agent type to match: claude_code | codex | cursor | devin | antigravity | * (default: *).',
+    )
     .option('--priority <n>', 'Numeric priority (default: max(existing) + 10 or 100).')
     .option('--policy-name <name>', 'Target policy name (default: __default__).')
     .option('--json', 'Emit a structured JSON report.')

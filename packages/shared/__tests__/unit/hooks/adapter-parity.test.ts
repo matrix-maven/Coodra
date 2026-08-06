@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { adaptAntigravity, canonicalizeAntigravityEventName } from '../../../src/hooks/adapters/antigravity.js';
 import { adaptClaudeCode } from '../../../src/hooks/adapters/claude-code.js';
 import { adaptCodex } from '../../../src/hooks/adapters/codex.js';
 import { adaptCursor } from '../../../src/hooks/adapters/cursor.js';
@@ -74,15 +75,27 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       { now: FROZEN },
     );
 
-    for (const event of [cc, codex, cursor, devin]) {
+    const antigravity = adaptAntigravity(
+      {
+        hookEventName: 'PreToolUse',
+        conversationId: 'antigravity-session-1',
+        stepIdx: 1,
+        toolCall: { name: 'write_file', args: { file_path: 'src/auth.ts' } },
+        workspacePaths: ['/home/dev/myapp'],
+      },
+      'PreToolUse',
+      { now: FROZEN },
+    );
+
+    for (const event of [cc, codex, cursor, devin, antigravity]) {
       expect(event.eventPhase).toBe('pre');
-      expect(['Write', 'apply_patch', 'write']).toContain(event.toolName);
+      expect(['Write', 'apply_patch', 'write', 'write_file']).toContain(event.toolName);
       expect(event.filePath).toBe('src/auth.ts');
       expect(event.rawAt).toBe('2026-04-25T12:00:00.000Z');
     }
   });
 
-  it('PostToolUse → eventPhase=post across all four agents', () => {
+  it('PostToolUse → eventPhase=post across all five agents', () => {
     const cc = adaptClaudeCode(
       { hook_event_name: 'PostToolUse', session_id: 'cc', tool_name: 'Bash', tool_input: { command: 'ls' } },
       { now: FROZEN },
@@ -99,10 +112,44 @@ describe('adapter parity — semantically-equivalent inputs produce structurally
       { hook_event_name: 'PostToolUse', session_id: 'devin', tool_name: 'exec', tool_input: { command: 'ls' } },
       { now: FROZEN },
     );
+    // Antigravity's own PostToolUse payload never restates the tool call
+    // (confirmed gap — see payloads/antigravity.ts) — no toolCall here,
+    // matching the real wire shape, not assumed symmetry with PreToolUse.
+    const antigravity = adaptAntigravity(
+      { hookEventName: 'PostToolUse', conversationId: 'antigravity', stepIdx: 2 },
+      'PostToolUse',
+      { now: FROZEN },
+    );
     expect(cc.eventPhase).toBe('post');
     expect(codex.eventPhase).toBe('post');
     expect(cursor.eventPhase).toBe('post');
     expect(devin.eventPhase).toBe('post');
+    expect(antigravity.eventPhase).toBe('post');
+    expect(antigravity.toolName).toBe('');
+  });
+
+  it('Antigravity: canonicalizeAntigravityEventName synthesizes SessionStart from the first PreInvocation only', () => {
+    const first = canonicalizeAntigravityEventName({ hookEventName: 'PreInvocation', invocationNum: 1 });
+    const firstZero = canonicalizeAntigravityEventName({ hookEventName: 'PreInvocation', invocationNum: 0 });
+    const firstAbsent = canonicalizeAntigravityEventName({ hookEventName: 'PreInvocation' });
+    const later = canonicalizeAntigravityEventName({ hookEventName: 'PreInvocation', invocationNum: 5 });
+    expect(first).toBe('SessionStart');
+    expect(firstZero).toBe('SessionStart');
+    expect(firstAbsent).toBe('SessionStart');
+    expect(later).toBe('PreInvocation');
+
+    const sessionStartEvent = adaptAntigravity(
+      { hookEventName: 'PreInvocation', conversationId: 'antigravity', invocationNum: 1 },
+      first,
+      { now: FROZEN },
+    );
+    const laterEvent = adaptAntigravity(
+      { hookEventName: 'PreInvocation', conversationId: 'antigravity', invocationNum: 5 },
+      later,
+      { now: FROZEN },
+    );
+    expect(sessionStartEvent.eventPhase).toBe('session_start');
+    expect(laterEvent.eventPhase).toBe('pre_invocation');
   });
 
   it('SessionStart / SessionEnd → session_start / session_end uniformly (Phase 3 Fix A)', () => {

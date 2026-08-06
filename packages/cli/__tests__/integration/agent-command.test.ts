@@ -292,6 +292,7 @@ describe('coodra agent add', () => {
       true,
     );
     expect(existsSync(join(home, 'devin-plugins', 'coodra', '.devin-plugin', 'plugin.json'))).toBe(true);
+    expect(existsSync(join(userHome, '.gemini', 'config', 'plugins', 'coodra', 'plugin.json'))).toBe(true);
   });
 
   it('--dry-run touches nothing on disk', async () => {

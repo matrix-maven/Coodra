@@ -130,17 +130,23 @@ describe('detectIDE', () => {
     expect(await detectIDE({ homeDir: home })).toEqual([]);
   });
 
-  it('detects claude, codex, cursor, devin when their dirs exist', async () => {
+  it('detects claude, codex, cursor, devin, antigravity when their dirs exist', async () => {
     await mkdir(join(home, '.claude'));
     await mkdir(join(home, '.codex'));
     await mkdir(join(home, '.cursor'));
     await mkdir(join(home, '.devin'));
-    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'codex', 'cursor', 'devin']);
+    await mkdir(join(home, '.gemini', 'antigravity'), { recursive: true });
+    expect(await detectIDE({ homeDir: home })).toEqual(['claude', 'codex', 'cursor', 'devin', 'antigravity']);
   });
 
   it('returns only the IDE config dirs that exist', async () => {
     await mkdir(join(home, '.codex'));
     expect(await detectIDE({ homeDir: home })).toEqual(['codex']);
+  });
+
+  it("does not detect antigravity from the bare ~/.gemini dir alone — only ~/.gemini/antigravity counts (avoids a false positive against Google's separate plain Gemini CLI)", async () => {
+    await mkdir(join(home, '.gemini'), { recursive: true });
+    expect(await detectIDE({ homeDir: home })).toEqual([]);
   });
 });
 
@@ -157,7 +163,13 @@ describe('resolveIdeSelection — --ide flag semantics', () => {
   it('`all` returns every supported IDE in canonical order, regardless of detection', () => {
     const result = resolveIdeSelection({ flag: 'all', detected: [] });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.ides).toEqual(['claude', 'codex', 'cursor', 'devin']);
+    if (result.ok) expect(result.ides).toEqual(['claude', 'codex', 'cursor', 'devin', 'antigravity']);
+  });
+
+  it('accepts antigravity as a single-name flag', () => {
+    const result = resolveIdeSelection({ flag: 'antigravity', detected: [] });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.ides).toEqual(['antigravity']);
   });
 
   it('single-name flag returns exactly that IDE, regardless of detection', () => {

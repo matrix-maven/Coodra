@@ -12,6 +12,8 @@ import {
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import {
+  AntigravityHookPayloadSchema,
+  adaptAntigravity,
   adaptClaudeCode,
   adaptCodex,
   adaptCursor,
@@ -19,6 +21,7 @@ import {
   ClaudeCodeHookPayloadSchema,
   CodexHookPayloadSchema,
   CursorHookPayloadSchema,
+  canonicalizeAntigravityEventName,
   DevinHookPayloadSchema,
   type HookEvent,
 } from '@coodra/shared/hooks';
@@ -254,6 +257,61 @@ function shapeHookOutput(
     }
   }
 
+  if (agentType === 'antigravity') {
+    // Antigravity's output shapes (confirmed against Google's own
+    // bundled docs, 2026-08-06 — see packages/shared/src/hooks/
+    // payloads/antigravity.ts's docblock for sourcing). `PreToolUse`'s
+    // `decision` is the richest vocabulary of any agent Coodra supports
+    // (allow/deny/ask/force_ask) — `ask` has matching semantics to
+    // Coodra's own three-way `permissionDecision`, so this is the one
+    // agent where 'ask' maps onto a real wire value instead of being
+    // collapsed to allow (Cursor) or omitted (Devin/Claude/Codex).
+    switch (hookEventName) {
+      case 'PreToolUse':
+        if (result.permissionDecision === 'deny') return reason !== undefined ? { decision: 'deny', reason } : {};
+        if (result.permissionDecision === 'ask') return reason !== undefined ? { decision: 'ask', reason } : {};
+        return {};
+      // 'SessionStart' is only ever reached here via
+      // canonicalizeAntigravityEventName's synthetic first-PreInvocation
+      // rewrite (see adapters/antigravity.ts) — Antigravity has no real
+      // SessionStart event. Context injection is structurally different
+      // from every other agent's flat `additionalContext` string:
+      // `injectSteps` is an array of typed step objects
+      // ({toolCall}/{userMessage}/{ephemeralMessage}) — `ephemeralMessage`
+      // is the closest match to a transient system-message injection.
+      case 'SessionStart':
+      case 'PreInvocation':
+        return result.additionalContext !== undefined
+          ? { injectSteps: [{ ephemeralMessage: result.additionalContext }] }
+          : {};
+      // Confirmed gap, not a design choice: Antigravity's own docs give
+      // PostToolUse a bare `{}` output contract — no context-injection
+      // field exists for this event at all, unlike every other agent
+      // Coodra supports (all four already inject additionalContext on
+      // PostToolUse). Never attempt to force it through a nonexistent
+      // field.
+      case 'PostToolUse':
+        return {};
+      // PostInvocation's terminationBehavior (force_continue/terminate)
+      // and injectSteps are real, unique capabilities — left unused this
+      // pass, no policy driver today, same scope-discipline precedent as
+      // Devin's updatedInput / Codex's SubagentStart.additionalContext.
+      case 'PostInvocation':
+        return {};
+      // Inverted wire shape, same semantics as everywhere else: every
+      // other agent's Stop/turn-end hook uses a block/deny-shaped field
+      // to mean "don't let it stop" (absence = agent stops). Antigravity
+      // uses a POSITIVE decision:'continue' to mean the same thing — any
+      // other value (including omission) lets the agent stop. Coodra's
+      // own 'deny' still means "prevent the thing" here, just wired to a
+      // differently-shaped field.
+      case 'Stop':
+        return result.permissionDecision === 'deny' && reason !== undefined ? { decision: 'continue', reason } : {};
+      default:
+        return {};
+    }
+  }
+
   switch (hookEventName) {
     case 'PreToolUse':
       return {
@@ -406,6 +464,19 @@ function parseAndAdapt(
     const parsed = DevinHookPayloadSchema.safeParse(rawPayload);
     if (!parsed.success) return null;
     return { event: adaptDevin(parsed.data, { now }), hookEventName: parsed.data.hook_event_name };
+  }
+  if (agentType === 'antigravity') {
+    // The one agent whose event-name translation is data-dependent, not
+    // a static lookup (unlike Cursor's CURSOR_EVENT_NAME_MAP) — see
+    // canonicalizeAntigravityEventName's docblock in
+    // adapters/antigravity.ts. This is the ONLY place the translation
+    // happens; everything downstream (the SessionStart-gated blocks in
+    // the handler body below) needs zero changes since it already keys
+    // off the same string literal every other agent produces statically.
+    const parsed = AntigravityHookPayloadSchema.safeParse(rawPayload);
+    if (!parsed.success) return null;
+    const canonicalName = canonicalizeAntigravityEventName(parsed.data);
+    return { event: adaptAntigravity(parsed.data, canonicalName, { now }), hookEventName: canonicalName };
   }
   const parsed = CodexHookPayloadSchema.safeParse(rawPayload);
   if (!parsed.success) return null;
@@ -645,11 +716,20 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     // show) — reuses `eventType: 'PreToolUse'` deliberately; check-policy's
     // schema only accepts PreToolUse/PostToolUse and there's no separate
     // rule surface for this event.
+    // Antigravity's MCP tool-name shape in the matcher namespace is
+    // genuinely unconfirmed from docs (see adapters/antigravity.ts's
+    // module docblock) — its own client-side matcher stays broad ('*')
+    // rather than guessing a prefix convention that might be wrong, so
+    // this server-side bare-name check is the REAL filter preventing
+    // Coodra from policy-checking its own tool calls for this agent.
+    const isAntigravityOwnBareTool =
+      input.agentType === 'antigravity' && COODRA_OWN_BARE_TOOL_NAMES.has(event.toolName);
     if (
       projectSlug !== null &&
       (hookEventName === 'PreToolUse' || hookEventName === 'PermissionRequest') &&
       event.toolName.length > 0 &&
-      !isCoodraOwnMcpTool(event.toolName)
+      !isCoodraOwnMcpTool(event.toolName) &&
+      !isAntigravityOwnBareTool
     ) {
       const checkPolicy = createCheckPolicyHandler({ db: deps.db });
       const policy = await checkPolicy(

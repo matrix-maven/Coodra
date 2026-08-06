@@ -77,6 +77,15 @@ describe('mapAgentType', () => {
     expect(mapAgentType('devin-desktop')).toBe<KnownAgentType>('devin');
   });
 
+  it('maps Antigravity handshake names to antigravity', () => {
+    expect(mapAgentType('antigravity')).toBe<KnownAgentType>('antigravity');
+  });
+
+  it('falls back to the antigravity substring heuristic for a renamed client (not verified against a live Antigravity handshake)', () => {
+    expect(mapAgentType('antigravity-ide')).toBe<KnownAgentType>('antigravity');
+    expect(mapAgentType('antigravity-cli')).toBe<KnownAgentType>('antigravity');
+  });
+
   it('maps MCP Inspector to mcp_inspector', () => {
     expect(mapAgentType('mcp-inspector')).toBe<KnownAgentType>('mcp_inspector');
   });

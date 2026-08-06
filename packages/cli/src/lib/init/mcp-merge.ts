@@ -69,7 +69,7 @@ export interface BuildMcpEntryOptions {
    * resolveAgentType`). Safe per-entry because each agent has its own
    * config file and spawns its own server process.
    */
-  readonly agentType?: 'claude_code' | 'codex' | 'cursor' | 'devin';
+  readonly agentType?: 'claude_code' | 'codex' | 'cursor' | 'devin' | 'antigravity';
 }
 
 export interface CoodraMcpEntry {

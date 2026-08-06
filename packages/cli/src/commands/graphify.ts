@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { EXIT_OK } from '../exit-codes.js';
+import { probeAntigravityPlugin } from '../lib/agents/antigravity-plugin.js';
 import { createClaudeCliRunner, probeClaudePlugin } from '../lib/agents/claude-plugin.js';
 import { createCodexCliRunner, probeCodexPlugin } from '../lib/agents/codex-plugin.js';
 import { probeCursorPlugin } from '../lib/agents/cursor-plugin.js';
@@ -12,7 +13,8 @@ import { renderScan } from './graphify-artifacts.js';
 
 /**
  * `coodra graphify status` — read-only probe of whether Graphify's
- * stdio MCP server is available to Claude Code / Codex / Cursor / Devin,
+ * stdio MCP server is available to Claude Code / Codex / Cursor / Devin /
+ * Antigravity,
  * plus the graph artifact state (`coodra graphify build/open/clean` in
  * `graphify-artifacts.ts` own the artifact half).
  *
@@ -58,7 +60,7 @@ export const DEFAULT_GRAPHIFY_IO: GraphifyIO = {
 };
 
 interface GraphifyAgentStatus {
-  readonly id: 'claude' | 'codex' | 'cursor' | 'devin';
+  readonly id: 'claude' | 'codex' | 'cursor' | 'devin' | 'antigravity';
   readonly displayName: string;
   readonly wired: boolean;
 }
@@ -147,10 +149,18 @@ async function probeNativeManagedGraphify(args: {
   } catch {
     // status remains best-effort
   }
+  let antigravityWired = false;
+  try {
+    const antigravity = await probeAntigravityPlugin({ cwd: args.cwd, userHome: args.userHome });
+    antigravityWired = antigravity.mcp;
+  } catch {
+    // status remains best-effort
+  }
   return [
     { id: 'claude', displayName: 'Claude Code', wired: claudeWired },
     { id: 'codex', displayName: 'Codex', wired: codexWired },
     { id: 'cursor', displayName: 'Cursor', wired: cursorWired },
     { id: 'devin', displayName: 'Devin', wired: devinWired },
+    { id: 'antigravity', displayName: 'Antigravity', wired: antigravityWired },
   ];
 }
