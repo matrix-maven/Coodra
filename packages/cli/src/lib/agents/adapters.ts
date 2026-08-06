@@ -6,6 +6,7 @@ import type { WriteOutcome } from '../init/types.js';
 import { type ClaudeCliRunner, installClaudePlugin, probeClaudePlugin, removeClaudePlugin } from './claude-plugin.js';
 import { type CodexCliRunner, installCodexPlugin, probeCodexPlugin, removeCodexPlugin } from './codex-plugin.js';
 import { installCursorPlugin, probeCursorPlugin, removeCursorPlugin } from './cursor-plugin.js';
+import { type DevinCliRunner, installDevinPlugin, probeDevinPlugin, removeDevinPlugin } from './devin-plugin.js';
 import type {
   AgentAdapter,
   AgentContext,
@@ -200,8 +201,64 @@ const cursorAdapter: AgentAdapter = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// devin — global Devin plugin via `devin plugins install`. Hybrid of Codex's
+// (real CLI-runner install) and Cursor's (own hook-runner.mjs, no built-in
+// mcp_tool hook type) shapes.
+// ---------------------------------------------------------------------------
+
+const devinAdapter: AgentAdapter = {
+  id: 'devin',
+  displayName: 'Devin',
+  agentType: 'devin',
+  detectionDir: '.devin',
+  postWireNote:
+    "Coodra writes the plugin source and runs 'devin plugins install' via the devin CLI when available. If that " +
+    'fails with an auth error, run `devin auth login` then `coodra agent add devin` again. Devin plugins are in ' +
+    'closed beta (contact support@cognition.ai for access).',
+  detect: (userHome) => detectDir(userHome, '.devin'),
+  async status(ctx: AgentPathContext): Promise<AgentStatus> {
+    const probe = await probeDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined);
+    const files: AgentFileState[] = [
+      {
+        label: 'Devin plugin registration',
+        path: probe.paths.pluginRoot,
+        state: probe.registered ? 'wired' : 'missing',
+      },
+      {
+        label: 'Devin plugin manifest',
+        path: probe.paths.manifestPath,
+        state: probe.manifest ? 'wired' : 'missing',
+      },
+      {
+        label: 'Devin plugin MCP',
+        path: probe.paths.mcpPath,
+        state: probe.mcp ? 'wired' : 'missing',
+      },
+      {
+        label: 'Devin plugin hooks',
+        path: probe.paths.hooksPath,
+        state: probe.hooks ? 'wired' : 'missing',
+      },
+      {
+        label: 'Devin plugin skills',
+        path: probe.paths.skillsRoot,
+        state: probe.skills ? 'wired' : 'missing',
+      },
+    ];
+    return buildStatus(this, await this.detect(ctx.userHome), files);
+  },
+  async wire(ctx: AgentContext): Promise<readonly WriteOutcome[]> {
+    return (await installDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined)).outcomes;
+  },
+  async remove(ctx: AgentRemoveContext): Promise<readonly WriteOutcome[]> {
+    return (await removeDevinPlugin(ctx, ctx.devinCliRunner as DevinCliRunner | undefined)).outcomes;
+  },
+};
+
 export const ADAPTERS: Readonly<Record<import('./types.js').AgentId, AgentAdapter>> = {
   claude: claudeAdapter,
   codex: codexAdapter,
   cursor: cursorAdapter,
+  devin: devinAdapter,
 };

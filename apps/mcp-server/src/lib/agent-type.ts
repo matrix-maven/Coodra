@@ -28,7 +28,14 @@
  */
 
 /** Canonical agent-type values the rest of the codebase consumes. */
-export type KnownAgentType = 'claude_code' | 'codex' | 'cursor' | 'vscode_copilot' | 'mcp_inspector' | 'unknown';
+export type KnownAgentType =
+  | 'claude_code'
+  | 'codex'
+  | 'cursor'
+  | 'devin'
+  | 'vscode_copilot'
+  | 'mcp_inspector'
+  | 'unknown';
 
 /**
  * Readonly mapping `clientInfo.name` → canonical `runs.agent_type`.
@@ -43,6 +50,10 @@ export type KnownAgentType = 'claude_code' | 'codex' | 'cursor' | 'vscode_copilo
  *                    live handshake (no logged-in Cursor account available
  *                    while this was written); the substring heuristic
  *                    below is the real safety net if the exact name differs.
+ *   - Devin:         'devin' — NOT verified against a live handshake (Devin
+ *                    plugins are closed beta and require `devin auth login`,
+ *                    which Coodra never drives); same substring-heuristic
+ *                    safety net as Cursor's entry.
  *   - VS Code + Copilot Chat: 'github-copilot-chat-vscode' (observed)
  *   - MCP Inspector: 'mcp-inspector'
  *
@@ -58,6 +69,7 @@ export const AGENT_TYPE_MAPPING: Readonly<Record<string, KnownAgentType>> = Obje
   'codex-mcp-client': 'codex',
   cursor: 'cursor',
   'cursor-agent': 'cursor',
+  devin: 'devin',
   'github-copilot-chat-vscode': 'vscode_copilot',
   'mcp-inspector': 'mcp_inspector',
 });
@@ -75,6 +87,7 @@ const AGENT_TYPE_HEURISTICS: ReadonlyArray<readonly [substring: string, agentTyp
   ['claude', 'claude_code'],
   ['codex', 'codex'],
   ['cursor', 'cursor'],
+  ['devin', 'devin'],
 ]);
 
 /** The canonical values accepted from the COODRA_AGENT_TYPE env stamp. */
@@ -82,6 +95,7 @@ const KNOWN_AGENT_TYPES: ReadonlySet<string> = new Set<KnownAgentType>([
   'claude_code',
   'codex',
   'cursor',
+  'devin',
   'vscode_copilot',
   'mcp_inspector',
 ]);

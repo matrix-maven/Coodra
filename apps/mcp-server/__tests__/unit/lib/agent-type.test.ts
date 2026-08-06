@@ -68,6 +68,15 @@ describe('mapAgentType', () => {
     expect(mapAgentType('cursor-desktop')).toBe<KnownAgentType>('cursor');
   });
 
+  it('maps Devin handshake names to devin', () => {
+    expect(mapAgentType('devin')).toBe<KnownAgentType>('devin');
+  });
+
+  it('falls back to the devin substring heuristic for a renamed client (not verified against a live Devin handshake)', () => {
+    expect(mapAgentType('devin-cli')).toBe<KnownAgentType>('devin');
+    expect(mapAgentType('devin-desktop')).toBe<KnownAgentType>('devin');
+  });
+
   it('maps MCP Inspector to mcp_inspector', () => {
     expect(mapAgentType('mcp-inspector')).toBe<KnownAgentType>('mcp_inspector');
   });

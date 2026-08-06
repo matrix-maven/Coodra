@@ -5,9 +5,10 @@ import { glob } from 'glob';
 
 /**
  * IDEs / agents we can wire `init` for. Order matters — preference for
- * output. Coodra supports native Claude Code, Codex, and Cursor plugins.
+ * output. Coodra supports native Claude Code, Codex, Cursor, and Devin
+ * plugins.
  */
-export type IDE = 'claude' | 'codex' | 'cursor';
+export type IDE = 'claude' | 'codex' | 'cursor' | 'devin';
 
 export type Language = 'typescript' | 'javascript' | 'python' | 'rust' | 'go' | 'java' | 'ruby';
 
@@ -142,13 +143,14 @@ export async function detectLanguages(root: string): Promise<Language[]> {
  * stable and by `resolveIdeSelection` to return its result in the same
  * order regardless of how the user typed the flag.
  */
-export const IDE_ORDER: readonly IDE[] = ['claude', 'codex', 'cursor'] as const;
+export const IDE_ORDER: readonly IDE[] = ['claude', 'codex', 'cursor', 'devin'] as const;
 
 /** Human-readable agent names, keyed by the IDE id. One map for every command surface. */
 export const IDE_DISPLAY: Readonly<Record<IDE, string>> = {
   claude: 'Claude Code',
   codex: 'Codex',
   cursor: 'Cursor',
+  devin: 'Devin',
 };
 
 /**
@@ -187,7 +189,7 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
   if (tokens.length === 0) {
     return {
       ok: false,
-      error: '--ide value is empty. Pass one of: claude, codex, cursor, all (comma-separated for multiple).',
+      error: '--ide value is empty. Pass one of: claude, codex, cursor, devin, all (comma-separated for multiple).',
     };
   }
   if (tokens.includes('all')) {
@@ -202,7 +204,7 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
     if (!allowed.has(token)) {
       return {
         ok: false,
-        error: `--ide: unknown agent '${token}'. Valid: claude, codex, cursor, all.`,
+        error: `--ide: unknown agent '${token}'. Valid: claude, codex, cursor, devin, all.`,
       };
     }
     seen.add(token as IDE);
@@ -212,13 +214,17 @@ export function resolveIdeSelection(input: ResolveIdeSelectionInput): ResolveIde
 
 /**
  * Look for IDE config dirs in $HOME. Each detected IDE gets one entry; the
- * order matches the candidate list (Claude, Codex, Cursor). An empty array
- * means no supported IDE is installed — `init` warns the user.
+ * order matches the candidate list (Claude, Codex, Cursor, Devin). An empty
+ * array means no supported IDE is installed — `init` warns the user.
  *
  * Detection dirs:
  *   - claude   → ~/.claude
  *   - codex    → ~/.codex   (Codex CLI's config home; beta.95)
  *   - cursor   → ~/.cursor
+ *   - devin    → ~/.devin   (a general "the app touched this machine" signal —
+ *                confirmed present after running the bundled Devin CLI once;
+ *                same home-relative dot-dir convention as the other three,
+ *                rather than Devin's own XDG `~/.config/devin/`)
  */
 export async function detectIDE(deps: DetectionDeps = {}): Promise<IDE[]> {
   const home = deps.homeDir ?? homedir();
@@ -226,6 +232,7 @@ export async function detectIDE(deps: DetectionDeps = {}): Promise<IDE[]> {
     { ide: 'claude', dir: '.claude' },
     { ide: 'codex', dir: '.codex' },
     { ide: 'cursor', dir: '.cursor' },
+    { ide: 'devin', dir: '.devin' },
   ];
   const found: IDE[] = [];
   for (const { ide, dir } of candidates) {

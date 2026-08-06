@@ -6,6 +6,7 @@ import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exi
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
+import { devinPluginPaths } from '../lib/agents/devin-plugin.js';
 import {
   ACCEPTED_AGENT_TOKENS,
   type AgentAdapter,
@@ -40,7 +41,7 @@ import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalW
  *   status          — read-only per-agent wiring report (same data `coodra
  *                     agents` shows).
  *
- * `<agent>` accepts claude | codex | cursor | all | detected.
+ * `<agent>` accepts claude | codex | cursor | devin | all | detected.
  */
 
 export interface AgentCommandOptions {
@@ -57,6 +58,8 @@ export interface AgentCommandOptions {
   readonly claudeCliRunner?: unknown;
   /** `CodexCliRunner` override (tests) — see `AgentPathContext.codexCliRunner`. */
   readonly codexCliRunner?: unknown;
+  /** `DevinCliRunner` override (tests) — see `AgentPathContext.devinCliRunner`. */
+  readonly devinCliRunner?: unknown;
 }
 
 export interface AgentIO {
@@ -167,6 +170,7 @@ async function runWire(
       ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
       ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
       ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
+      ...(options.devinCliRunner !== undefined ? { devinCliRunner: options.devinCliRunner } : {}),
       force,
       dryRun,
     });
@@ -196,8 +200,11 @@ async function runWire(
   try {
     const createdBy = `coodra agent ${mode} ${agentArg}`;
     const machinePaths: string[] = [];
-    const installedAgents: Array<{ id: 'claude' | 'codex' | 'cursor'; pluginPath: string; marketplacePath?: string }> =
-      [];
+    const installedAgents: Array<{
+      id: 'claude' | 'codex' | 'cursor' | 'devin';
+      pluginPath: string;
+      marketplacePath?: string;
+    }> = [];
 
     if (results.some((r) => r.id === 'claude' && r.error === undefined)) {
       const paths = claudePluginPaths(userHome, resolved.coodraHome);
@@ -251,6 +258,19 @@ async function runWire(
         paths.skillsRoot,
       );
       installedAgents.push({ id: 'cursor', pluginPath: paths.pluginRoot });
+    }
+
+    if (results.some((r) => r.id === 'devin' && r.error === undefined)) {
+      const paths = devinPluginPaths(userHome, resolved.coodraHome);
+      machinePaths.push(
+        paths.pluginRoot,
+        paths.manifestPath,
+        paths.mcpPath,
+        paths.hooksPath,
+        paths.hookRunnerPath,
+        paths.skillsRoot,
+      );
+      installedAgents.push({ id: 'devin', pluginPath: paths.pluginRoot });
     }
 
     if (machinePaths.length > 0 || installedAgents.length > 0) {
@@ -469,6 +489,7 @@ export async function runAgentRemoveCommand(
     ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
     ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
     ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
+    ...(options.devinCliRunner !== undefined ? { devinCliRunner: options.devinCliRunner } : {}),
   };
 
   const results: AgentActionResult[] = [];
@@ -523,6 +544,7 @@ export async function runAgentStatusCommand(
     ...(options.settingsPath !== undefined ? { settingsPath: options.settingsPath } : {}),
     ...(options.claudeCliRunner !== undefined ? { claudeCliRunner: options.claudeCliRunner } : {}),
     ...(options.codexCliRunner !== undefined ? { codexCliRunner: options.codexCliRunner } : {}),
+    ...(options.devinCliRunner !== undefined ? { devinCliRunner: options.devinCliRunner } : {}),
   };
 
   const statuses: AgentStatus[] = [];

@@ -53,9 +53,9 @@ describe('agent registry — resolveAgentInput', () => {
 });
 
 describe('agent registry — adapters', () => {
-  it('exposes exactly the three adapters in canonical order', () => {
-    expect(AGENT_ORDER).toEqual(['claude', 'codex', 'cursor']);
-    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex', 'cursor']);
+  it('exposes exactly the four adapters in canonical order', () => {
+    expect(AGENT_ORDER).toEqual(['claude', 'codex', 'cursor', 'devin']);
+    expect(listAdapters().map((a) => a.id)).toEqual(['claude', 'codex', 'cursor', 'devin']);
   });
 
   it('each adapter carries the right agentType stamp + detection dir', () => {
@@ -63,15 +63,18 @@ describe('agent registry — adapters', () => {
     expect(byId.claude?.agentType).toBe('claude_code');
     expect(byId.codex?.agentType).toBe('codex');
     expect(byId.cursor?.agentType).toBe('cursor');
+    expect(byId.devin?.agentType).toBe('devin');
     expect(byId.claude?.detectionDir).toBe('.claude');
     expect(byId.codex?.detectionDir).toBe('.codex');
     expect(byId.cursor?.detectionDir).toBe('.cursor');
+    expect(byId.devin?.detectionDir).toBe('.devin');
   });
 
   it('native plugin adapters carry post-wire notes', () => {
     expect(getAdapter('codex').postWireNote).toContain('Coodra plugin');
     expect(getAdapter('claude').postWireNote).toContain('coodra@coodra');
     expect(getAdapter('cursor').postWireNote).toContain('Customize panel');
+    expect(getAdapter('devin').postWireNote).toContain('devin auth login');
   });
 
   it('ACCEPTED_AGENT_TOKENS covers the canonical ids and the aliases', () => {

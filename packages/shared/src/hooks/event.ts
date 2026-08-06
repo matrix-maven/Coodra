@@ -15,30 +15,41 @@ import { runKeySegmentSchema } from '../idempotency.js';
  * Field shapes:
  *   - `agentType` — discriminator, set by the adapter.
  *   - `eventPhase` — normalized lifecycle stage. Cross-agent mapping:
- *       Claude Code        Codex                 Cursor               → eventPhase
- *       PreToolUse         PreToolUse            preToolUse           → 'pre'
- *       PostToolUse        PostToolUse           postToolUse          → 'post'
- *       SessionStart       SessionStart          sessionStart         → 'session_start'
- *       SessionEnd         SessionEnd            sessionEnd           → 'session_end'
- *       Stop               Stop                  stop                 → 'turn_end'
- *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   → 'user_prompt'
- *       ConfigChange       ConfigChange          (none)               → 'config_change'
- *       PermissionRequest  (none)                (none)               → 'permission_request'
- *       PermissionDenied   (none)                (none)               → 'permission_denied'
- *       SubagentStart      (none)                (none)               → 'subagent_start'
- *       SubagentStop       (none)                (none)               → 'subagent_stop'
- *       PreCompact         (none)                (none)               → 'pre_compact'
- *       PostCompact        (none)                (none)               → 'post_compact'
- *       PostToolUseFailure (none)                (none)               → 'post_tool_use_failure'
- *       StopFailure        (none)                (none)               → 'stop_failure'
+ *       Claude Code        Codex                 Cursor               Devin               → eventPhase
+ *       PreToolUse         PreToolUse            preToolUse           PreToolUse          → 'pre'
+ *       PostToolUse        PostToolUse           postToolUse          PostToolUse         → 'post'
+ *       SessionStart       SessionStart          sessionStart         SessionStart        → 'session_start'
+ *       SessionEnd         SessionEnd            sessionEnd           SessionEnd          → 'session_end'
+ *       Stop               Stop                  stop                 Stop                → 'turn_end'
+ *       UserPromptSubmit   UserPromptSubmit      beforeSubmitPrompt   UserPromptSubmit    → 'user_prompt'
+ *       ConfigChange       ConfigChange          (none)               (none)              → 'config_change'
+ *       PermissionRequest  (none)                (none)               PermissionRequest   → 'permission_request'
+ *       PermissionDenied   (none)                (none)               (none)              → 'permission_denied'
+ *       SubagentStart      (none)                (none)               (none)              → 'subagent_start'
+ *       SubagentStop       (none)                (none)               (none)              → 'subagent_stop'
+ *       PreCompact         (none)                (none)               (none)              → 'pre_compact'
+ *       PostCompact        (none)                (none)               PostCompaction      → 'post_compact'
+ *       PostToolUseFailure (none)                (none)               (none)              → 'post_tool_use_failure'
+ *       StopFailure        (none)                (none)               (none)              → 'stop_failure'
  *
  *     Cursor has no ConfigChange-equivalent hook event — a Cursor
  *     `HookEvent` never has `eventPhase: 'config_change'`. The eight
  *     events added 2026-08-04 are Claude-Code-only for now (see
  *     `apps/mcp-server/src/tools/lifecycle-event/handler.ts`) — Codex/
  *     Cursor `HookEvent`s never carry these phases either, though the
- *     literals live in the shared enum since it's one union all three
- *     adapters draw from.
+ *     literals live in the shared enum since it's one union all four
+ *     adapters draw from. Devin's own vocabulary is the smallest of the
+ *     four (8 events) — a Devin `HookEvent` only ever carries `'pre'`,
+ *     `'post'`, `'permission_request'`, `'user_prompt'`, `'turn_end'`,
+ *     `'post_compact'`, `'session_start'`, or `'session_end'`; every
+ *     other phase literal is unreachable for `agentType: 'devin'`.
+ *     Confirmed: Devin has no pre-compaction veto event at all (only
+ *     `PostCompaction`, after the fact) — Coodra's PreCompact one-shot
+ *     nudge cannot fire for Devin. Whether `PostCompaction` can inject
+ *     `additionalContext` the way `PostToolUse`/`SessionStart`/
+ *     `UserPromptSubmit` can is genuinely ambiguous in Devin's own docs
+ *     (mentioned as a prose use case, but excluded from the docs' own
+ *     authoritative output-field table) — not asserted either way here.
  *
  *     Phase 3 Fix A (2026-05-02): Stop and SessionEnd are distinct in
  *     Claude Code's hook taxonomy. Stop fires per-turn-end; SessionEnd
@@ -83,7 +94,7 @@ import { runKeySegmentSchema } from '../idempotency.js';
  */
 export const HookEventSchema = z
   .object({
-    agentType: z.enum(['claude_code', 'codex', 'cursor', 'unknown']),
+    agentType: z.enum(['claude_code', 'codex', 'cursor', 'devin', 'unknown']),
     eventPhase: z.enum([
       'pre',
       'post',

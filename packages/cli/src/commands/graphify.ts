@@ -3,6 +3,7 @@ import { EXIT_OK } from '../exit-codes.js';
 import { createClaudeCliRunner, probeClaudePlugin } from '../lib/agents/claude-plugin.js';
 import { createCodexCliRunner, probeCodexPlugin } from '../lib/agents/codex-plugin.js';
 import { probeCursorPlugin } from '../lib/agents/cursor-plugin.js';
+import { createDevinCliRunner, probeDevinPlugin } from '../lib/agents/devin-plugin.js';
 import { resolveGraphifyPaths, scanGraphifyArtifacts } from '../lib/graphify/artifacts.js';
 import { defaultClaudeSettingsPath } from '../lib/init/claude-settings-merge.js';
 import { pc } from '../ui/compat.js';
@@ -11,8 +12,8 @@ import { renderScan } from './graphify-artifacts.js';
 
 /**
  * `coodra graphify status` — read-only probe of whether Graphify's
- * stdio MCP server is available to Claude Code / Codex, plus the
- * graph artifact state (`coodra graphify build/open/clean` in
+ * stdio MCP server is available to Claude Code / Codex / Cursor / Devin,
+ * plus the graph artifact state (`coodra graphify build/open/clean` in
  * `graphify-artifacts.ts` own the artifact half).
  *
  * Module 09, Track 9B (ADR-010 / ADR-015). Graphify (`safishamsi/graphify`,
@@ -22,9 +23,9 @@ import { renderScan } from './graphify-artifacts.js';
  * or Recipes from the graph.
  *
  * Graphify wiring is Coodra-owned end to end: `coodra install` sets up
- * one shared machine runtime (`~/.coodra/graphify-mcp/.venv`), and both
- * native Claude Code and Codex plugins bundle a managed `graphify` MCP
- * entry pointed at `.coodra/graphify/out/graph.json` alongside `coodra`.
+ * one shared machine runtime (`~/.coodra/graphify-mcp/.venv`), and every
+ * native agent plugin bundles a managed `graphify` MCP entry pointed at
+ * `.coodra/graphify/out/graph.json` alongside `coodra`.
  * There is no per-IDE `enable`/`disable` config-writing path anymore —
  * `coodra agent add <agent>` / `coodra agent repair <agent>` is the only
  * way Graphify gets wired, matching how the `coodra` entry itself is
@@ -57,7 +58,7 @@ export const DEFAULT_GRAPHIFY_IO: GraphifyIO = {
 };
 
 interface GraphifyAgentStatus {
-  readonly id: 'claude' | 'codex' | 'cursor';
+  readonly id: 'claude' | 'codex' | 'cursor' | 'devin';
   readonly displayName: string;
   readonly wired: boolean;
 }
@@ -139,9 +140,17 @@ async function probeNativeManagedGraphify(args: {
   } catch {
     // status remains best-effort
   }
+  let devinWired = false;
+  try {
+    const devin = await probeDevinPlugin({ cwd: args.cwd, userHome: args.userHome }, createDevinCliRunner(1200));
+    devinWired = devin.mcp;
+  } catch {
+    // status remains best-effort
+  }
   return [
     { id: 'claude', displayName: 'Claude Code', wired: claudeWired },
     { id: 'codex', displayName: 'Codex', wired: codexWired },
     { id: 'cursor', displayName: 'Cursor', wired: cursorWired },
+    { id: 'devin', displayName: 'Devin', wired: devinWired },
   ];
 }

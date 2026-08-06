@@ -20,7 +20,7 @@ describe('lifecycle_event — manifest contract', () => {
 });
 
 describe('lifecycle_event — native agent input schema', () => {
-  it('accepts Codex, Claude Code, and Cursor native plugin agents', () => {
+  it('accepts Codex, Claude Code, Cursor, and Devin native plugin agents', () => {
     expect(
       lifecycleEventInputSchema.safeParse({
         agentType: 'codex',
@@ -37,6 +37,12 @@ describe('lifecycle_event — native agent input schema', () => {
       lifecycleEventInputSchema.safeParse({
         agentType: 'cursor',
         rawPayload: { hook_event_name: 'sessionStart', conversation_id: 's' },
+      }).success,
+    ).toBe(true);
+    expect(
+      lifecycleEventInputSchema.safeParse({
+        agentType: 'devin',
+        rawPayload: { hook_event_name: 'SessionStart', session_id: 's' },
       }).success,
     ).toBe(true);
   });
@@ -143,6 +149,50 @@ describe('lifecycle_event — registry hook text output', () => {
     expect(text.permission).toBe('allow');
     expect(text.hookSpecificOutput).toBeUndefined();
     expect(text.decision).toBeUndefined();
+    expect(result.structuredContent).toMatchObject({
+      ok: true,
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'allow',
+      reason: 'project_config_missing',
+    });
+  });
+
+  it('returns Devin-shaped hook JSON (top-level decision, not hookSpecificOutput) for Devin PreToolUse hooks', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'coodra-lifecycle-devin-cwd-'));
+    const registry = new ToolRegistry({
+      deps: makeFakeDeps(),
+      clock: () => new Date('2026-08-05T00:00:00.000Z'),
+    });
+    registry.register(createLifecycleEventToolRegistration({ db: fakeDb, mode: 'solo' }));
+
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'devin',
+        rawPayload: {
+          hook_event_name: 'PreToolUse',
+          session_id: 'devin-session',
+          cwd,
+          tool_name: 'exec',
+          prompt_id: 'prompt-123',
+          tool_input: { command: 'npm test' },
+        },
+      },
+      'mcp-session',
+      { agentType: 'devin' },
+    );
+
+    expect(result.isError).toBeUndefined();
+    const text = JSON.parse(result.content[0]?.text ?? '{}') as {
+      decision?: string;
+      reason?: string;
+      hookSpecificOutput?: unknown;
+    };
+    // Allow (no project registered → permissionDecision stays 'allow') —
+    // no decision key at all, since Devin's own exit-code/decision-omit
+    // semantics already mean "continue normally".
+    expect(text.decision).toBeUndefined();
+    expect(text.hookSpecificOutput).toBeUndefined();
     expect(result.structuredContent).toMatchObject({
       ok: true,
       hookEventName: 'PreToolUse',

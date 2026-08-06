@@ -5,13 +5,14 @@ import { EXIT_OK } from '../exit-codes.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
 import { codexPluginPaths } from '../lib/agents/codex-plugin.js';
 import { cursorPluginPaths } from '../lib/agents/cursor-plugin.js';
+import { devinPluginPaths } from '../lib/agents/devin-plugin.js';
 import { pc } from '../ui/compat.js';
 import { commandTitle, hintLine, type KvRow, kvBlock, sectionHead, terminalWidth } from '../ui/index.js';
 
 /**
  * `coodra agents` — read-only status surface for the multi-agent wiring.
  *
- * Lists each supported agent (Claude Code, Codex, Cursor) with a per-file status:
+ * Lists each supported agent (Claude Code, Codex, Cursor, Devin) with a per-file status:
  *   ✓ wired   — file exists AND contains a managed coodra entry/block
  *   ◌ partial — file exists but no coodra entry/block (or vice versa)
  *   ✗ missing — file does not exist
@@ -45,7 +46,7 @@ export const DEFAULT_AGENTS_IO: AgentsIO = {
   },
 };
 
-type AgentName = 'claude' | 'codex' | 'cursor';
+type AgentName = 'claude' | 'codex' | 'cursor' | 'devin';
 
 export interface AgentFileState {
   /** Display name of the file (`.mcp.json`, `~/.claude/settings.json`, etc.). */
@@ -126,7 +127,7 @@ export interface BuildReportsInput {
 }
 
 export async function buildAgentReports(input: BuildReportsInput): Promise<readonly AgentReport[]> {
-  return [await claudeReport(input), await codexReport(input), await cursorReport(input)];
+  return [await claudeReport(input), await codexReport(input), await cursorReport(input), await devinReport(input)];
 }
 
 async function claudeReport(input: BuildReportsInput): Promise<AgentReport> {
@@ -270,6 +271,48 @@ async function cursorReport(input: BuildReportsInput): Promise<AgentReport> {
       }),
     ],
     howToEnable: detected ? null : 'Install Cursor (cursor.com), then run `coodra agent add cursor`.',
+  };
+}
+
+async function devinReport(input: BuildReportsInput): Promise<AgentReport> {
+  const devinDir = join(input.userHome, '.devin');
+  const detected = await pathExists(devinDir);
+  const plugin = devinPluginPaths(input.userHome);
+  return {
+    name: 'devin',
+    displayName: 'Devin',
+    detected,
+    detectionPath: `${devinDir}/`,
+    files: [
+      await fileContainsState({
+        path: plugin.manifestPath,
+        label: 'Devin plugin manifest',
+        needle: '"name": "coodra"',
+        wiredNote: 'coodra plugin manifest present',
+        missingNote: 'missing',
+        partialNote: 'plugin manifest does not match coodra',
+      }),
+      await mcpJsonState({ path: plugin.mcpPath, label: 'Devin plugin MCP' }),
+      await fileContainsState({
+        path: plugin.hooksPath,
+        label: 'Devin plugin hooks',
+        needle: '"SessionStart"',
+        wiredNote: 'coodra lifecycle hooks present',
+        missingNote: 'missing',
+        partialNote: 'no coodra lifecycle hooks',
+      }),
+      await fileContainsState({
+        path: join(plugin.skillsRoot, 'coodra-context', 'SKILL.md'),
+        label: 'Devin plugin skills',
+        needle: 'name: coodra-context',
+        wiredNote: 'coodra skills present',
+        missingNote: 'missing',
+        partialNote: 'coodra context skill missing',
+      }),
+    ],
+    howToEnable: detected
+      ? null
+      : 'Install Devin CLI (devin.ai — plugins are in closed beta, contact support@cognition.ai for access), then run `coodra agent add devin`.',
   };
 }
 

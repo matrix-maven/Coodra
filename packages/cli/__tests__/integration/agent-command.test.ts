@@ -13,6 +13,8 @@ import {
 } from '../../src/commands/agent.js';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../../src/exit-codes.js';
 import type { CodexCliRunner } from '../../src/lib/agents/codex-plugin.js';
+import type { DevinCliRunner } from '../../src/lib/agents/devin-plugin.js';
+import { AGENT_ORDER } from '../../src/lib/agents/registry.js';
 import { mergeCodexConfig } from '../../src/lib/init/codex-merge.js';
 import { mergeInstructionFile } from '../../src/lib/init/instruction-files.js';
 import { VERSION } from '../../src/version.js';
@@ -24,8 +26,9 @@ import { VERSION } from '../../src/version.js';
  * plugin surfaces, user-owned repo-root .mcp.json boundaries,
  * force/repair, removal, dry-run, and the unknown-agent error path.
  *
- * Every `baseOptions()` call below injects `codexCliRunner: noCodexCli()`.
- * Without it, on any machine that has `codex` on PATH — found live,
+ * Every `baseOptions()` call below injects `codexCliRunner: noCodexCli()`
+ * and `devinCliRunner: noDevinCli()`. Without it, on any machine that has
+ * `codex` on PATH — found live,
  * 2026-08-02, TWICE while writing this fix: the first attempt used
  * `vi.mock('codex-plugin.js', ...)` to override the exported
  * `defaultCodexCliRunner`, which does NOT work — `installCodexPlugin`'s
@@ -48,6 +51,35 @@ function noCodexCli(): CodexCliRunner {
     },
     isInstalled: async () => {
       throw new Error('unexpected: codex CLI should not be invoked in this test');
+    },
+  };
+}
+
+/**
+ * Same rationale as `noCodexCli` above, and just as real a risk: the
+ * Devin CLI is bundled inside the Devin desktop app (confirmed present
+ * on the machine this test suite was written on, at
+ * `/Applications/Devin.app/Contents/Resources/app/extensions/windsurf/
+ * devin/bin/devin`) and `installDevinPlugin` calls `devin plugins
+ * install` UNCONDITIONALLY (no auth pre-gate — see `devin-plugin.ts`'s
+ * module docblock). Without this fake runner, any test exercising `add
+ * all`/`add devin` on a machine with Devin installed would attempt a
+ * real plugin registration.
+ */
+function noDevinCli(): DevinCliRunner {
+  return {
+    detect: async () => null,
+    authStatus: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
+    },
+    installPlugin: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
+    },
+    removePlugin: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
+    },
+    isInstalled: async () => {
+      throw new Error('unexpected: devin CLI should not be invoked in this test');
     },
   };
 }
@@ -96,6 +128,7 @@ function baseOptions(extra: Partial<AgentCommandOptions> = {}): AgentCommandOpti
     settingsPath,
     json: true,
     codexCliRunner: noCodexCli(),
+    devinCliRunner: noDevinCli(),
     ...extra,
   };
 }
@@ -241,8 +274,12 @@ describe('coodra agent add', () => {
     const { io, cap } = makeIO();
     await run(() => runAgentAddCommand('all', baseOptions(), io));
     const payload = parse(cap);
-    // Cursor became a third supported native-plugin agent on 2026-08-02.
-    expect(payload.agents.map((a) => a.id).sort()).toEqual(['claude', 'codex', 'cursor']);
+    // Asserted against the live registry rather than a hardcoded literal
+    // — this exact class of staleness (a new agent added to AGENT_ORDER
+    // but this list left behind) has already bitten twice this session
+    // (Cursor's own hooks-list and agent-id-list assertions both drifted
+    // the same way).
+    expect(payload.agents.map((a) => a.id).sort()).toEqual([...AGENT_ORDER].sort());
     expect(existsSync(join(cwd, 'CLAUDE.md'))).toBe(false);
     expect(
       existsSync(join(home, 'codex-marketplaces', 'coodra', 'plugins', 'coodra', '.codex-plugin', 'plugin.json')),
@@ -254,6 +291,7 @@ describe('coodra agent add', () => {
     expect(existsSync(join(userHome, '.cursor', 'plugins', 'local', 'coodra', '.cursor-plugin', 'plugin.json'))).toBe(
       true,
     );
+    expect(existsSync(join(home, 'devin-plugins', 'coodra', '.devin-plugin', 'plugin.json'))).toBe(true);
   });
 
   it('--dry-run touches nothing on disk', async () => {

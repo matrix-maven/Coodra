@@ -15,9 +15,11 @@ import {
   adaptClaudeCode,
   adaptCodex,
   adaptCursor,
+  adaptDevin,
   ClaudeCodeHookPayloadSchema,
   CodexHookPayloadSchema,
   CursorHookPayloadSchema,
+  DevinHookPayloadSchema,
   type HookEvent,
 } from '@coodra/shared/hooks';
 import { readCoodraProjectConfig } from '@coodra/shared/project-config';
@@ -210,6 +212,48 @@ function shapeHookOutput(
     }
   }
 
+  if (agentType === 'devin') {
+    // Devin's output shapes (confirmed against Devin's own docs,
+    // 2026-08-05): block/approve is a TOP-LEVEL `{decision:'block'|
+    // 'approve', reason}` — unlike Claude's nested
+    // `hookSpecificOutput.decision.behavior` or Cursor's `permission`
+    // field. A positive `approve` is never emitted (matches every other
+    // agent's "omit rather than force allow" precedent) — omitting
+    // `decision` entirely already means "continue normally" per Devin's
+    // own exit-code semantics (0 = continue, 2 = block). Context
+    // injection is `hookSpecificOutput.additionalContext`, documented
+    // as valid only for UserPromptSubmit/SessionStart/PostToolUse —
+    // NOT PostCompaction, despite compaction-context-reinjection being
+    // mentioned as a use case in prose (the field table is more
+    // authoritative than the prose example). No PreCompact-equivalent
+    // exists at all, so Coodra's PreCompact one-shot nudge simply never
+    // fires for Devin (hookEventName never equals 'PreCompact' here).
+    switch (hookEventName) {
+      case 'PreToolUse':
+      case 'PermissionRequest':
+        return result.permissionDecision === 'deny' && reason !== undefined ? { decision: 'block', reason } : {};
+      case 'SessionStart':
+      case 'PostToolUse':
+        return result.additionalContext !== undefined
+          ? { hookSpecificOutput: { hookEventName, additionalContext: result.additionalContext } }
+          : {};
+      case 'UserPromptSubmit':
+        return {
+          ...(result.permissionDecision === 'deny' && reason !== undefined ? { decision: 'block', reason } : {}),
+          hookSpecificOutput: {
+            hookEventName,
+            ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
+          },
+        };
+      case 'Stop':
+        return result.permissionDecision === 'deny' && reason !== undefined ? { decision: 'block', reason } : {};
+      case 'SessionEnd':
+      case 'PostCompaction':
+      default:
+        return {};
+    }
+  }
+
   switch (hookEventName) {
     case 'PreToolUse':
       return {
@@ -331,11 +375,11 @@ function canonicalHookEventName(agentType: LifecycleEventInput['agentType'], raw
  * Parses `rawPayload` with the schema for `agentType` and adapts it into
  * a `HookEvent` in one step. Doing parse+adapt together (rather than two
  * separate `agentType === '...' ? ... : ...` ternaries sharing one
- * `parsed` variable) is required, not stylistic — with three agent
+ * `parsed` variable) is required, not stylistic — with four agent
  * branches TypeScript can no longer correlate the discriminant across
  * two separately-evaluated ternaries the way it can for a two-way
  * boolean check, so `parsed.data` stops narrowing to the right payload
- * type for `adaptClaudeCode`/`adaptCodex`/`adaptCursor`.
+ * type for `adaptClaudeCode`/`adaptCodex`/`adaptCursor`/`adaptDevin`.
  */
 function parseAndAdapt(
   agentType: LifecycleEventInput['agentType'],
@@ -354,6 +398,14 @@ function parseAndAdapt(
       event: adaptCursor(parsed.data, { now }),
       hookEventName: canonicalHookEventName('cursor', parsed.data.hook_event_name),
     };
+  }
+  if (agentType === 'devin') {
+    // No event-name translation needed — Devin's hook_event_name values
+    // are already the canonical PascalCase vocabulary (unlike Cursor's
+    // camelCase), so canonicalHookEventName's no-op passthrough applies.
+    const parsed = DevinHookPayloadSchema.safeParse(rawPayload);
+    if (!parsed.success) return null;
+    return { event: adaptDevin(parsed.data, { now }), hookEventName: parsed.data.hook_event_name };
   }
   const parsed = CodexHookPayloadSchema.safeParse(rawPayload);
   if (!parsed.success) return null;

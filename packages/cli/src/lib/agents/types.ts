@@ -12,20 +12,23 @@ import type { WriteOutcome } from '../init/types.js';
  *
  * Ownership boundary:
  * `coodra init` owns only `<repo>/.coodra/`. `coodra agent add` owns the
- * native agent surfaces. Claude Code, Codex, and Cursor are the
+ * native agent surfaces. Claude Code, Codex, Cursor, and Devin are the
  * supported agents, all using global plugin bundles:
  *   - claude → ~/.coodra/claude-marketplaces/coodra + ~/.claude plugin registry/cache/settings
  *   - codex  → ~/.coodra/codex-marketplaces/coodra, registered/installed via `codex plugin`
  *              (Coodra's own dedicated marketplace, not the user's "personal" one)
  *   - cursor → ~/.cursor/plugins/local/coodra — a plain local plugin directory
  *              Cursor discovers on its own; no marketplace/CLI registration step
+ *   - devin  → ~/.coodra/devin-plugins/coodra, registered via `devin plugins install`
+ *              (a real CLI call like Codex, but no marketplace layer — Devin reads
+ *              a local plugin live from its source path)
  */
 
 /** Canonical agent ids. */
-export type AgentId = 'claude' | 'codex' | 'cursor';
+export type AgentId = 'claude' | 'codex' | 'cursor' | 'devin';
 
 /** The COODRA_AGENT_TYPE stamp / runs.agent_type value for each agent. */
-export type AgentTypeStamp = 'claude_code' | 'codex' | 'cursor';
+export type AgentTypeStamp = 'claude_code' | 'codex' | 'cursor' | 'devin';
 
 export interface AgentDetection {
   /** True when the agent's home config dir (e.g. ~/.claude) exists. */
@@ -74,6 +77,8 @@ export interface AgentPathContext {
   readonly claudeCliRunner?: unknown;
   /** Same as `claudeCliRunner`, for `codex-plugin.ts`'s `CodexCliRunner`. */
   readonly codexCliRunner?: unknown;
+  /** Same as `claudeCliRunner`, for `devin-plugin.ts`'s `DevinCliRunner`. */
+  readonly devinCliRunner?: unknown;
 }
 
 /** Everything an adapter needs to WRITE the per-agent surfaces. */
