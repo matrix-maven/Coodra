@@ -26,6 +26,7 @@
   "dependencies": {
     "@coodra/cli": "workspace:*",
     "@coodra/db": "workspace:*",
+    "@coodra/lifecycle": "workspace:*",
     "@coodra/policy": "workspace:*",
     "@coodra/shared": "workspace:*",
     "@hono/node-server": "2.0.0",

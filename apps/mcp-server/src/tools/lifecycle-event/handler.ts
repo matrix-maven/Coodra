@@ -6,10 +6,10 @@ import {
   hasSessionStartEventForRun,
   lookupProjectBySlug,
   markRunCompactionNudged,
-  markRunCompleted,
   markRunFailed,
   renderPolicyProjectionDriftContext,
 } from '@coodra/db';
+import { finalizeRunOnSessionEnd } from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import {
@@ -31,6 +31,7 @@ import { renderWorkflowPolicyContext } from '@coodra/shared/workflow-policy';
 
 import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
+import { getActorIdentity } from '../../lib/actor-identity.js';
 import { selectDiversifiedRecentContextPacks } from '../../lib/context-pack.js';
 import { createCheckPolicyHandler } from '../check-policy/handler.js';
 import { createGetRunIdHandler } from '../get-run-id/handler.js';
@@ -50,6 +51,15 @@ const SESSION_CONTRACT = [
 export interface LifecycleEventHandlerDeps {
   readonly db: DbHandle;
   readonly mode: 'solo' | 'team';
+  /**
+   * Overrides the on-disk root for SessionEnd's auto-saved Context Pack
+   * `.md` file (passed through to `finalizeRunOnSessionEnd`). Production
+   * wires `env.COODRA_CONTEXT_PACKS_ROOT` here (same source `save_context_pack`'s
+   * store already reads — see `index.ts`), falling through to
+   * `defaultContextPacksRoot()` when unset. Tests pass a tmpdir so the
+   * auto-save doesn't write into a real home directory.
+   */
+  readonly contextPacksRoot?: string;
 }
 
 function shapeHookOutput(
@@ -791,7 +801,28 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     }
 
     if (hookEventName === 'SessionEnd' && runId !== null) {
-      await markRunCompleted(deps.db, runId, ctx.now());
+      // Phase 1 lifecycle extraction (2026-08-08): native plugin
+      // SessionEnd now gets the same finalization the HTTP Hooks
+      // Bridge has always given Claude Code — run-diff capture, an
+      // auto-saved Context Pack, a synced linked Work Pack, and the
+      // unexecuted-`ask`-outcome sweep — not just the run-completion
+      // status flip. This MUST be awaited (not fire-and-forget like
+      // the bridge does it): `hook-runner.mjs` is a short-lived
+      // subprocess killed right after the hook response, so there is
+      // no persistent process left to finish background work.
+      const finalizeProject = projectSlug !== null ? await lookupProjectBySlug(deps.db, projectSlug) : null;
+      const actor = await getActorIdentity();
+      await finalizeRunOnSessionEnd({
+        db: deps.db,
+        runId,
+        sessionId: event.sessionId,
+        agentType: input.agentType,
+        now: ctx.now(),
+        ...(typeof event.cwd === 'string' && event.cwd.length > 0 ? { cwd: event.cwd } : {}),
+        ...(finalizeProject !== null ? { projectId: finalizeProject.id } : {}),
+        ...(actor !== null ? { createdByUserId: actor.userId } : {}),
+        ...(deps.contextPacksRoot !== undefined ? { contextPacksRoot: deps.contextPacksRoot } : {}),
+      });
     }
     if (hookEventName === 'StopFailure' && runId !== null) {
       await markRunFailed(deps.db, runId, ctx.now());

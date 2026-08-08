@@ -31,6 +31,7 @@ interface Harness {
   readonly handle: SqliteHandle;
   readonly cwd: string;
   readonly deps: ContextDeps;
+  readonly contextPacksRoot: string;
 }
 
 async function openHarness(projectSlug: string): Promise<Harness> {
@@ -64,12 +65,15 @@ async function openHarness(projectSlug: string): Promise<Harness> {
     handle,
     cwd,
     deps,
+    contextPacksRoot,
   };
 }
 
 function buildRegistry(h: Harness): ToolRegistry {
   const registry = new ToolRegistry({ deps: h.deps });
-  registry.register(createLifecycleEventToolRegistration({ db: h.handle, mode: 'solo' }));
+  registry.register(
+    createLifecycleEventToolRegistration({ db: h.handle, mode: 'solo', contextPacksRoot: h.contextPacksRoot }),
+  );
   return registry;
 }
 

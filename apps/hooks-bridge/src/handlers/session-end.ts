@@ -1,17 +1,13 @@
-import { type DbHandle, lookupRunId, sqliteSchema } from '@coodra/db';
-import { resolveAskOutcomesNotExecuted } from '@coodra/policy';
+import { type DbHandle, lookupRunId } from '@coodra/db';
+import { finalizeRunOnSessionEnd } from '@coodra/lifecycle';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
-import { and, eq, ne, sql } from 'drizzle-orm';
 
 import type { HookDispatchResult } from '../app.js';
 import { getActorIdentity } from '../lib/actor-identity.js';
-import { saveAutoContextPack } from '../lib/auto-context-pack.js';
 import type { ProjectSlugResolver } from '../lib/resolve-project-slug.js';
-import { runRunDiff } from '../lib/run-diff-runner.js';
 import type { RunRecorder } from '../lib/run-recorder.js';
 import { clearSessionState } from '../lib/session-state.js';
-import { updateLinkedWorkPackFromRun } from '../lib/work-pack-session-update.js';
 
 /**
  * `apps/hooks-bridge/src/handlers/session-end` — closes the `runs`
@@ -56,6 +52,18 @@ import { updateLinkedWorkPackFromRun } from '../lib/work-pack-session-update.js'
  *     a per-run Context Pack.
  *   - lookupRunId returns null (SessionStart never fired or the
  *     `runs` row was rolled back).
+ *
+ * **Phase 1 lifecycle extraction (2026-08-08):** the actual
+ * finalization steps (run-diff capture, run completion, auto Context
+ * Pack save, linked Work Pack update, ask-outcome sweep) now live in
+ * `@coodra/lifecycle`'s `finalizeRunOnSessionEnd`, shared with the
+ * native `lifecycle_event` MCP tool so a SessionEnd produces the same
+ * artifacts regardless of transport. This handler's job is now just:
+ * resolve `projectId`/`runId` for this bridge session, drop the
+ * bridge-local mid-session reminder counter, resolve actor identity
+ * (bridge-specific — `@coodra/lifecycle` deliberately does not do
+ * this), and call the shared finalizer without awaiting it so the
+ * hook response stays inside the §6 latency budget.
  */
 
 const sessionEndLogger = createLogger('hooks-bridge.session-end');
@@ -82,16 +90,6 @@ export function createSessionEndHandler(deps: CreateSessionEndHandlerDeps): Sess
     // SessionStart was somehow missed, this still closes the loop).
     const { projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
     deps.runRecorder.recordSessionEnd({ event, projectId });
-    void resolveAskOutcomesNotExecuted(deps.db, { sessionId: event.sessionId }).catch((err) =>
-      sessionEndLogger.warn(
-        {
-          event: 'session_end_ask_outcome_sweep_failed',
-          sessionId: event.sessionId,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'failed to resolve unexecuted ask outcomes on SessionEnd',
-      ),
-    );
     sessionEndLogger.info(
       {
         event: 'session_end_recorded',
@@ -156,102 +154,38 @@ async function scheduleAutoContextPackSave(args: {
     return;
   }
   // M05 §6.D — drop the per-run mid-session counter. Idempotent on
-  // unknown runId. Done before the auto-save so the counter can't
-  // outlive the run even if the auto-save throws.
+  // unknown runId. Done before the finalizer so the counter can't
+  // outlive the run even if the finalizer throws. session-state.ts
+  // stays bridge-local (out of scope for the Phase 1 lifecycle
+  // extraction — see finalize-run-on-session-end.ts's docblock).
   clearSessionState(runId);
 
-  // Module 06 (Run Diff, 2026-05-09): generate the run_diffs row before
-  // the auto-context-pack save so the digest's "## Diff" section can
-  // pull from it. Awaited so the auto-pack reads the fresh row, not a
-  // stale or absent one. Failure is logged + swallowed — runRunDiff
-  // already lands a soft-failure row on its own error paths, so a throw
-  // here is a programming bug, not a normal recoverable failure.
-  if (typeof args.cwd === 'string' && args.cwd.length > 0) {
-    try {
-      await runRunDiff({ db: args.db, runId, cwd: args.cwd });
-    } catch (err) {
-      sessionEndLogger.warn(
-        {
-          event: 'session_end_run_diff_threw',
-          sessionId: args.sessionId,
-          runId,
-          err: err instanceof Error ? err.message : String(err),
-        },
-        'run-diff runner threw; auto-pack save will proceed without a diff section',
-      );
-    }
-  } else {
-    sessionEndLogger.info(
-      { event: 'session_end_run_diff_skipped', reason: 'no_cwd', sessionId: args.sessionId, runId },
-      'run-diff runner skipped: SessionEnd event had no cwd',
-    );
-  }
-  // 2026-05-08 fix: mark the run completed BEFORE attempting the
-  // auto-pack save. Pre-fix, runs.status was only flipped to 'completed'
-  // by `save_context_pack` MCP (handler.ts → markRunCompleted). When the
-  // agent never called the MCP tool, the run sat as in_progress until
-  // the 30-min stale-runs sweeper cancelled it as 'cancelled' — wrong
-  // terminal status for a healthy SessionEnd. The status flip is the
-  // bridge's responsibility on every SessionEnd that resolves to a real
-  // runId, regardless of whether the agent or the bridge writes the
-  // pack. Idempotent: WHERE status='in_progress' so a re-played
-  // SessionEnd does nothing on the second pass.
-  try {
-    await markRunCompletedOnSessionEnd(args.db, runId);
-  } catch (err) {
-    sessionEndLogger.warn(
-      {
-        event: 'session_end_run_status_flip_failed',
-        sessionId: args.sessionId,
-        runId,
-        err: err instanceof Error ? err.message : String(err),
-      },
-      'failed to flip runs.status to completed; the auto-pack save will still run, sweeper catches the row eventually',
-    );
-  }
   try {
     // Module 04 Phase 4: stamp the bridge_auto context_packs row with
     // the active user's clerk id (team mode) so the web app's "created
     // by" badges still attribute even when the agent skipped the
     // explicit save_context_pack call. Solo + missing-config returns
-    // null → column written as NULL.
+    // null → column written as NULL. Actor resolution is bridge-specific
+    // (@coodra/lifecycle deliberately doesn't do this) so it happens
+    // here, not inside the shared finalizer.
     const actor = getActorIdentity();
-    await saveAutoContextPack({
+    await finalizeRunOnSessionEnd({
+      db: args.db,
       runId,
       projectId: args.projectId,
-      db: args.db,
+      sessionId: args.sessionId,
+      ...(typeof args.cwd === 'string' && args.cwd.length > 0 ? { cwd: args.cwd } : {}),
       ...(actor !== null ? { createdByUserId: actor.userId } : {}),
     });
-    await updateLinkedWorkPackFromRun({ db: args.db, runId });
   } catch (err) {
     sessionEndLogger.warn(
       {
-        event: 'session_end_auto_pack_save_failed',
+        event: 'session_end_finalize_failed',
         sessionId: args.sessionId,
         runId,
         err: err instanceof Error ? err.message : String(err),
       },
-      'auto-save Context Pack failed; session is closed regardless',
+      'SessionEnd finalization failed; session is closed regardless',
     );
   }
-}
-
-/**
- * Mark the run completed on SessionEnd. Idempotent — only flips rows
- * that are still `in_progress`, so a re-played SessionEnd is a no-op.
- *
- * v1 supports SQLite only (matching the rest of the bridge). The
- * `endedAt` column is `integer mode:'timestamp'` so we use raw
- * `unixepoch()` to align with the DEFAULT clause used elsewhere
- * (avoids JS-Date round-trip drift).
- */
-async function markRunCompletedOnSessionEnd(db: DbHandle, runId: string): Promise<void> {
-  if (db.kind !== 'sqlite') {
-    return;
-  }
-  const t = sqliteSchema.runs;
-  await db.db
-    .update(t)
-    .set({ status: 'completed', endedAt: sql`(unixepoch())` })
-    .where(and(eq(t.id, runId), ne(t.status, 'completed')));
 }

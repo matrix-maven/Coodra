@@ -1,7 +1,7 @@
 import { createDb, migrateSqlite } from '@coodra/db';
 import { describe, expect, it } from 'vitest';
 
-import { runRunDiff } from '../../../src/lib/run-diff-runner.js';
+import { runRunDiff } from '../../src/run-diff-runner.js';
 
 /**
  * Module 06 — Slice 2. runRunDiff contract:

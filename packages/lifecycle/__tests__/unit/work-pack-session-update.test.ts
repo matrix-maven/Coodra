@@ -1,7 +1,7 @@
 import { createDb, migrateSqlite, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { updateLinkedWorkPackFromRun } from '../../../src/lib/work-pack-session-update.js';
+import { updateLinkedWorkPackFromRun } from '../../src/work-pack-session-update.js';
 
 describe('updateLinkedWorkPackFromRun', () => {
   it('writes a generated implementation overview into the linked Work Pack', async () => {
@@ -54,7 +54,12 @@ describe('updateLinkedWorkPackFromRun', () => {
         '',
         JSON.stringify([
           { path: 'packages/shared/src/work-intent.ts', status: 'modified', additions: 10, deletions: 2 },
-          { path: 'apps/hooks-bridge/src/lib/work-pack-session-update.ts', status: 'added', additions: 80, deletions: 0 },
+          {
+            path: 'apps/hooks-bridge/src/lib/work-pack-session-update.ts',
+            status: 'added',
+            additions: 80,
+            deletions: 0,
+          },
         ]),
         0,
         null,

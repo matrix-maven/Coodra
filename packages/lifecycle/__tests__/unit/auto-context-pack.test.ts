@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { createDb, migrateSqlite, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { buildAutoSummary, saveAutoContextPack } from '../../src/lib/auto-context-pack.js';
+import { buildAutoSummary, saveAutoContextPack } from '../../src/auto-context-pack.js';
 
 /**
  * Locks the structured-summary contract used by SessionEnd

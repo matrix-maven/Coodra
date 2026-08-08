@@ -48,12 +48,20 @@ import { createWorkPackUpsertToolRegistration } from './work-pack-upsert/manifes
 export interface RegisterAllToolsDeps {
   readonly db: DbHandle;
   readonly mode: 'solo' | 'team';
+  /** Threaded to lifecycle_event's SessionEnd finalizer — see LifecycleEventHandlerDeps. */
+  readonly contextPacksRoot?: string;
 }
 
 export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsDeps): void {
   registry.register(pingToolRegistration);
   registry.register(createGetRunIdToolRegistration({ db: deps.db, mode: deps.mode }));
-  registry.register(createLifecycleEventToolRegistration({ db: deps.db, mode: deps.mode }));
+  registry.register(
+    createLifecycleEventToolRegistration({
+      db: deps.db,
+      mode: deps.mode,
+      ...(deps.contextPacksRoot !== undefined ? { contextPacksRoot: deps.contextPacksRoot } : {}),
+    }),
+  );
   registry.register(createSaveContextPackToolRegistration({ db: deps.db }));
   registry.register(createSearchPacksNlToolRegistration({ db: deps.db }));
   registry.register(createRecordDecisionToolRegistration({ db: deps.db }));

@@ -71,6 +71,9 @@ importers:
       '@coodra/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@coodra/lifecycle':
+        specifier: workspace:*
+        version: link:../../packages/lifecycle
       '@coodra/policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -105,6 +108,9 @@ importers:
       '@coodra/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@coodra/lifecycle':
+        specifier: workspace:*
+        version: link:../../packages/lifecycle
       '@coodra/policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -237,6 +243,9 @@ importers:
       sqlite-vec:
         specifier: 0.1.9
         version: 0.1.9
+    dependenciesMeta:
+      better-sqlite3:
+        built: true
     devDependencies:
       '@clerk/backend':
         specifier: ^3.4.7
@@ -344,6 +353,25 @@ importers:
       drizzle-kit:
         specifier: ^0.31.10
         version: 0.31.10
+
+  packages/lifecycle:
+    dependencies:
+      '@coodra/db':
+        specifier: workspace:*
+        version: link:../db
+      '@coodra/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@coodra/shared':
+        specifier: workspace:*
+        version: link:../shared
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.10.0)(postgres@3.4.9)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.19.19
 
   packages/policy:
     dependencies:

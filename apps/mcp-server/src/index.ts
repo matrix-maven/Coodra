@@ -144,7 +144,11 @@ async function main(): Promise<void> {
   });
 
   const registry = new ToolRegistry({ deps });
-  registerAllTools(registry, { db: dbHandle, mode: env.COODRA_MODE });
+  registerAllTools(registry, {
+    db: dbHandle,
+    mode: env.COODRA_MODE,
+    ...(env.COODRA_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.COODRA_CONTEXT_PACKS_ROOT } : {}),
+  });
 
   // ---------------------------------------------------------------------
   // Transport selection (S16). `--transport` CLI flag overrides the env
