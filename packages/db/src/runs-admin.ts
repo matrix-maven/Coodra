@@ -108,6 +108,8 @@ export interface ContextPackRow {
    * badge in the web app branches on null.
    */
   readonly createdByUserId: string | null;
+  /** COOD-12 — the Work Pack this recap belongs to, when the agent linked one on save. */
+  readonly workPackId: string | null;
   readonly createdAt: Date;
 }
 
@@ -571,6 +573,7 @@ interface RawContextPackRow {
   source: string;
   meta: string | null;
   createdByUserId: string | null;
+  workPackId: string | null;
   createdAt: Date;
 }
 
@@ -651,6 +654,7 @@ function toContextPackRow(r: unknown): ContextPackRow {
     source: row.source ?? 'agent',
     meta: row.meta ?? null,
     createdByUserId: row.createdByUserId ?? null,
+    workPackId: row.workPackId ?? null,
     createdAt: row.createdAt,
   };
 }
@@ -697,10 +701,14 @@ export async function listContextPacksForProject(
 export interface ContextPackDetailRow extends ContextPackRow {
   /** Full body (not just excerpt). */
   readonly content: string;
+  readonly projectSlug: string | null;
+  readonly agentType: string | null;
 }
 
 interface RawContextPackDetailRow extends RawContextPackRow {
   content: string;
+  projectSlug: string | null;
+  agentType: string | null;
 }
 
 function toContextPackDetailRow(r: unknown): ContextPackDetailRow {
@@ -715,7 +723,10 @@ function toContextPackDetailRow(r: unknown): ContextPackDetailRow {
     source: row.source ?? 'agent',
     meta: row.meta ?? null,
     createdByUserId: row.createdByUserId ?? null,
+    workPackId: row.workPackId ?? null,
     createdAt: row.createdAt,
+    projectSlug: row.projectSlug ?? null,
+    agentType: row.agentType ?? null,
   };
 }
 
@@ -940,6 +951,7 @@ export async function listContextPacksForRuns(db: DbHandle, runIds: ReadonlyArra
  */
 export interface ContextPackWithProject extends ContextPackRow {
   readonly projectSlug: string | null;
+  readonly agentType: string | null;
 }
 
 export interface ListAllContextPacksFilter {
@@ -957,6 +969,7 @@ export async function listAllContextPacks(
   if (db.kind === 'sqlite') {
     const cp = sqliteSchema.contextPacks;
     const p = sqliteSchema.projects;
+    const r = sqliteSchema.runs;
     const conditions = [];
     if (filter.projectId !== undefined) conditions.push(eq(cp.projectId, filter.projectId));
     if (filter.source !== undefined) conditions.push(eq(cp.source, filter.source));
@@ -970,11 +983,14 @@ export async function listAllContextPacks(
         source: cp.source,
         meta: cp.meta,
         createdByUserId: cp.createdByUserId,
+        workPackId: cp.workPackId,
         createdAt: cp.createdAt,
         projectSlug: p.slug,
+        agentType: r.agentType,
       })
       .from(cp)
-      .leftJoin(p, eq(p.id, cp.projectId));
+      .leftJoin(p, eq(p.id, cp.projectId))
+      .leftJoin(r, eq(r.id, cp.runId));
     const rows =
       conditions.length === 0
         ? await baseQuery.orderBy(desc(cp.createdAt)).limit(limit)
@@ -991,12 +1007,15 @@ export async function listAllContextPacks(
       source: row.source ?? 'agent',
       meta: row.meta ?? null,
       createdByUserId: row.createdByUserId ?? null,
+      workPackId: row.workPackId ?? null,
       createdAt: row.createdAt,
       projectSlug: row.projectSlug,
+      agentType: row.agentType ?? null,
     }));
   }
   const cp = postgresSchema.contextPacks;
   const p = postgresSchema.projects;
+  const r = postgresSchema.runs;
   const conditions = [];
   if (filter.projectId !== undefined) conditions.push(eq(cp.projectId, filter.projectId));
   if (filter.source !== undefined) conditions.push(eq(cp.source, filter.source));
@@ -1010,11 +1029,14 @@ export async function listAllContextPacks(
       source: cp.source,
       meta: cp.meta,
       createdByUserId: cp.createdByUserId,
+      workPackId: cp.workPackId,
       createdAt: cp.createdAt,
       projectSlug: p.slug,
+      agentType: r.agentType,
     })
     .from(cp)
-    .leftJoin(p, eq(p.id, cp.projectId));
+    .leftJoin(p, eq(p.id, cp.projectId))
+    .leftJoin(r, eq(r.id, cp.runId));
   const rows =
     conditions.length === 0
       ? await baseQuery.orderBy(desc(cp.createdAt)).limit(limit)
@@ -1031,8 +1053,10 @@ export async function listAllContextPacks(
     source: row.source ?? 'agent',
     meta: row.meta ?? null,
     createdByUserId: row.createdByUserId ?? null,
+    workPackId: row.workPackId ?? null,
     createdAt: row.createdAt,
     projectSlug: row.projectSlug,
+    agentType: row.agentType ?? null,
   }));
 }
 
@@ -1138,15 +1162,57 @@ export async function listAllAuditEvents(
 export async function getContextPackById(db: DbHandle, id: string): Promise<ContextPackDetailRow | null> {
   if (id.length === 0) return null;
   if (db.kind === 'sqlite') {
-    const t = sqliteSchema.contextPacks;
-    const rows = await db.db.select().from(t).where(eq(t.id, id)).limit(1);
-    if (rows.length === 0) return null;
+    const cp = sqliteSchema.contextPacks;
+    const r = sqliteSchema.runs;
+    const p = sqliteSchema.projects;
+    const rows = await db.db
+      .select({
+        id: cp.id,
+        runId: cp.runId,
+        projectId: cp.projectId,
+        title: cp.title,
+        contentExcerpt: cp.contentExcerpt,
+        content: cp.content,
+        source: cp.source,
+        meta: cp.meta,
+        createdByUserId: cp.createdByUserId,
+        workPackId: cp.workPackId,
+        createdAt: cp.createdAt,
+        projectSlug: p.slug,
+        agentType: r.agentType,
+      })
+      .from(cp)
+      .leftJoin(r, eq(r.id, cp.runId))
+      .leftJoin(p, eq(p.id, cp.projectId))
+      .where(eq(cp.id, id))
+      .limit(1);
     const row = rows[0];
     return row === undefined ? null : toContextPackDetailRow(row);
   }
-  const t = postgresSchema.contextPacks;
-  const rows = await db.db.select().from(t).where(eq(t.id, id)).limit(1);
-  if (rows.length === 0) return null;
+  const cp = postgresSchema.contextPacks;
+  const r = postgresSchema.runs;
+  const p = postgresSchema.projects;
+  const rows = await db.db
+    .select({
+      id: cp.id,
+      runId: cp.runId,
+      projectId: cp.projectId,
+      title: cp.title,
+      contentExcerpt: cp.contentExcerpt,
+      content: cp.content,
+      source: cp.source,
+      meta: cp.meta,
+      createdByUserId: cp.createdByUserId,
+      workPackId: cp.workPackId,
+      createdAt: cp.createdAt,
+      projectSlug: p.slug,
+      agentType: r.agentType,
+    })
+    .from(cp)
+    .leftJoin(r, eq(r.id, cp.runId))
+    .leftJoin(p, eq(p.id, cp.projectId))
+    .where(eq(cp.id, id))
+    .limit(1);
   const row = rows[0];
   return row === undefined ? null : toContextPackDetailRow(row);
 }

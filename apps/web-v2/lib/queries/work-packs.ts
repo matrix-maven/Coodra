@@ -44,3 +44,9 @@ export async function getWorkPackDetailBySlug(
   if (pack === undefined) return null;
   return getWorkPackDetail(db, pack.id);
 }
+
+/** Direct lookup by internal id — e.g. `context_packs.work_pack_id` — for surfaces that don't have the slug pair on hand. */
+export async function getWorkPackById(id: string): Promise<WorkPackDetail | null> {
+  const db = createWebDb();
+  return getWorkPackDetail(db, id);
+}

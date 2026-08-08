@@ -2,6 +2,7 @@ import type { ContextPackDetailRow } from '@coodra/db';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { DetailTitle } from '@/components/DetailTitle';
 import { Topbar } from '@/components/Topbar';
 import { agentTypeLabel } from '@/lib/agent-label';
 import { packsLinkingDecision } from '@/lib/context-pack-links';
@@ -58,9 +59,7 @@ export default async function DecisionDetailPage({ params }: { params: Promise<{
         <div className="head">
           <div>
             <div className="head__num">/02 · ACTION CENTER · DECISION {decision.id.slice(0, 8)}</div>
-            <h1 className="head__title" style={{ maxWidth: 820 }}>
-              {decision.description}
-            </h1>
+            <DetailTitle>{decision.description}</DetailTitle>
             <p className="head__lede">
               recorded {fmtClockSec(decision.createdAt)} ({fmtRelative(decision.createdAt)})
               {decision.projectSlug !== null ? (

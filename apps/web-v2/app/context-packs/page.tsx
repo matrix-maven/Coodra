@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { ActorBadge } from '@/components/ActorBadge';
 import { Topbar } from '@/components/Topbar';
 import { actorDisplayNameProp } from '@/lib/actor-display';
+import { agentTypeLabel } from '@/lib/agent-label';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { listAllPacks } from '@/lib/queries/all-context-packs';
 import { resolveClerkDisplayNames } from '@/lib/queries/clerk-users';
@@ -171,6 +172,7 @@ export default async function ContextPacksPage({ searchParams }: { searchParams:
                   <th>Title</th>
                   <th>Excerpt</th>
                   <th>Project</th>
+                  <th>Agent</th>
                   {showAuthorColumn ? <th>Authored by</th> : null}
                   <th>Source</th>
                   <th style={{ textAlign: 'right' }}>Saved</th>
@@ -189,7 +191,7 @@ export default async function ContextPacksPage({ searchParams }: { searchParams:
                     </td>
                     <td>
                       <Link
-                        href={`/runs/${encodeURIComponent(p.runId)}`}
+                        href={`/context-packs/${encodeURIComponent(p.id)}`}
                         style={{ color: 'var(--ink)', textDecoration: 'none' }}
                       >
                         <div className="tbl__title">{p.title}</div>
@@ -210,6 +212,13 @@ export default async function ContextPacksPage({ searchParams }: { searchParams:
                         >
                           {p.projectSlug}
                         </Link>
+                      ) : (
+                        <span style={{ color: 'var(--ink-mute)' }}>—</span>
+                      )}
+                    </td>
+                    <td className="tbl__mono">
+                      {p.agentType !== null ? (
+                        agentTypeLabel(p.agentType)
                       ) : (
                         <span style={{ color: 'var(--ink-mute)' }}>—</span>
                       )}

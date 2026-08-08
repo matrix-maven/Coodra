@@ -1,6 +1,6 @@
-import type { DecisionRow } from '@coodra/db';
 import { notFound } from 'next/navigation';
 
+import { DecisionItem } from '@/components/DecisionItem';
 import { Topbar } from '@/components/Topbar';
 import { cancelRunAction } from '@/lib/actions/runs';
 import { agentTypeLabel } from '@/lib/agent-label';
@@ -277,37 +277,6 @@ const packPre: React.CSSProperties = {
   overflowX: 'auto',
   maxHeight: 280,
 };
-
-function DecisionItem({ decision }: { decision: DecisionRow }) {
-  return (
-    <div
-      style={{
-        fontSize: 13,
-        lineHeight: 1.6,
-        color: 'var(--ink-dim)',
-        padding: '10px 0',
-        borderBottom: '1px solid var(--rule)',
-      }}
-    >
-      <strong
-        style={{
-          fontFamily: 'var(--mono)',
-          fontSize: 10,
-          color: 'var(--accent)',
-          letterSpacing: '0.18em',
-          display: 'block',
-          marginBottom: 4,
-        }}
-      >
-        DEC_{decision.id.slice(0, 8).toUpperCase()}
-      </strong>
-      {decision.description}
-      {decision.rationale.length > 0 ? (
-        <div style={{ marginTop: 4, color: 'var(--ink-mute)' }}>{decision.rationale}</div>
-      ) : null}
-    </div>
-  );
-}
 
 function Cell({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
