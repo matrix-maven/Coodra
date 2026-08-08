@@ -124,6 +124,7 @@ export {
   getRunCompactionNudgedAt,
   getRunWithEverything,
   hasContextPackForRun,
+  hasSessionStartEventForRun,
   type ListAllContextPacksFilter,
   type ListAuditEventsFilter,
   type ListContextPacksFilter,

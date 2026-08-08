@@ -3,17 +3,48 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { migrateSqlite, type SqliteHandle } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-import {
-  claudePluginPaths,
-  installClaudePlugin,
-  type ClaudeCliRunner,
-} from '../../../src/lib/agents/claude-plugin.js';
-import type { AgentContext } from '../../../src/lib/agents/types.js';
 import { claudeHookRegistrationCheck } from '../../../src/doctor/checks/28-claude-hook-registration.js';
 import { staleRunsCheck } from '../../../src/doctor/checks/30-stale-runs.js';
+import { codexHookRegistrationCheck } from '../../../src/doctor/checks/39-codex-hook-registration.js';
 import { buildCheckContext } from '../../../src/doctor/context.js';
+import { type ClaudeCliRunner, claudePluginPaths, installClaudePlugin } from '../../../src/lib/agents/claude-plugin.js';
+import { type CodexCliRunner, codexPluginPaths, installCodexPlugin } from '../../../src/lib/agents/codex-plugin.js';
+import type { AgentContext } from '../../../src/lib/agents/types.js';
 import { openLocalDb } from '../../../src/lib/open-local-db.js';
+
+/**
+ * `codexHookRegistrationCheck.run()` constructs its own real, short-timeout
+ * `createCodexCliRunner` internally (same "deliberate, read-only exception"
+ * as check 28's `createClaudeCliRunner` — see that check's doc comment) —
+ * there's no injection point through `Check.run(ctx)`'s fixed signature.
+ * Unlike `claude`, a real `codex` binary with `coodra@coodra` genuinely
+ * installed+enabled is common on a Coodra contributor's own dev machine
+ * (Codex Desktop ships it, unprompted, at `/usr/local/bin/codex` or the
+ * ChatGPT.app bundle path) — so leaving this real would make the
+ * NOT-installed/missing-hooks/missing-skills cases below flip green
+ * whenever run on such a machine, contaminated by host state the fixture
+ * never controls. Force `createCodexCliRunner`'s CLI fast-path off for
+ * every test in this file so the check exercises its own file-based probe
+ * logic deterministically, regardless of what's on the host's PATH.
+ */
+vi.mock('../../../src/lib/agents/codex-plugin.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/lib/agents/codex-plugin.js')>();
+  return {
+    ...actual,
+    createCodexCliRunner: () => ({
+      detect: async () => null,
+      installMarketplaceAndPlugin: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked in this test');
+      },
+      uninstallPlugin: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked in this test');
+      },
+      isInstalled: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked in this test');
+      },
+    }),
+  };
+});
 
 /**
  * Slice 5 (2026-05-03 audit §14.1) — unit tests for the three new
@@ -177,6 +208,106 @@ describe('claudeHookRegistrationCheck (28)', () => {
       ctxWithHome(homeDir, { env: { CLAUDE_SETTINGS_PATH: overridePath } }),
     );
     expect(result.status).toBe('green');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Check 39 — codex hook registration
+// ---------------------------------------------------------------------------
+
+describe('codexHookRegistrationCheck (39)', () => {
+  let homeDir: string;
+  let cwd: string;
+
+  /**
+   * Same reasoning as check 28's `noCliRunner` fixture guard: never let a
+   * fixture-seeding call fall through to the real `defaultCodexCliRunner`,
+   * which would shell out to a genuine system `codex` binary if one
+   * happens to be on the test runner's PATH.
+   */
+  function noCliRunner(): CodexCliRunner {
+    return {
+      detect: async () => null,
+      installMarketplaceAndPlugin: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked while seeding this fixture');
+      },
+      uninstallPlugin: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked while seeding this fixture');
+      },
+      isInstalled: async () => {
+        throw new Error('unexpected: codex CLI should not be invoked while seeding this fixture');
+      },
+    };
+  }
+
+  /**
+   * `probeCodexPlugin` (used internally by `codexHookRegistrationCheck`,
+   * same as check 14) always resolves `~/.coodra` from `userHome` with no
+   * override — it has no way to know about a separately-configured
+   * `mcpEntryOptions.coodraHome` (see `codex-plugin.test.ts`'s own
+   * "default coodraHome alignment" case for the same constraint). Every
+   * fixture here must therefore install with `coodraHome` pinned to
+   * `join(homeDir, '.coodra')` so the check's own default path resolution
+   * actually finds what was seeded.
+   */
+  function agentCtx(overrides: Partial<AgentContext> = {}): AgentContext {
+    return {
+      cwd,
+      userHome: homeDir,
+      projectSlug: 'demo',
+      bridgePort: 3101,
+      localHookSecret: 'local-secret',
+      mcpEntryOptions: {
+        mcpServerBin: '/tmp/coodra-mcp-server.js',
+        clerkSecretKey: 'sk_test',
+        migrationsDir: null,
+        coodraHome: join(homeDir, '.coodra'),
+        localHookSecret: 'local-secret',
+      },
+      force: false,
+      dryRun: false,
+      ...overrides,
+    };
+  }
+
+  beforeEach(async () => {
+    homeDir = await mkdtemp(join(tmpdir(), 'doctor-39-home-'));
+    cwd = await mkdtemp(join(tmpdir(), 'doctor-39-cwd-'));
+  });
+
+  it('GREEN when the native plugin is fully wired (manifest, marketplace, mcp, hooks, skills)', async () => {
+    await installCodexPlugin(agentCtx(), noCliRunner());
+    const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
+    expect(result.status).toBe('green');
+    expect(result.detail).toMatch(/hook-trust review/);
+  });
+
+  it('YELLOW when nothing is installed yet', async () => {
+    const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
+    expect(result.status).toBe('yellow');
+    expect(result.detail).toMatch(/plugin manifest/);
+    expect(result.remediation).toMatch(/coodra agent add codex/);
+  });
+
+  it('YELLOW when the hooks.json is missing', async () => {
+    await installCodexPlugin(agentCtx(), noCliRunner());
+    const paths = codexPluginPaths(homeDir, join(homeDir, '.coodra'));
+    await rm(paths.hooksPath, { force: true });
+
+    const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
+    expect(result.status).toBe('yellow');
+    expect(result.detail).toMatch(/lifecycle hooks/);
+    expect(result.remediation).toMatch(/coodra agent (add|repair) codex/);
+  });
+
+  it('YELLOW when the bundled skills are missing', async () => {
+    await installCodexPlugin(agentCtx(), noCliRunner());
+    const paths = codexPluginPaths(homeDir, join(homeDir, '.coodra'));
+    await rm(join(paths.skillsRoot, 'coodra-context'), { recursive: true, force: true });
+
+    const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
+    expect(result.status).toBe('yellow');
+    expect(result.detail).toMatch(/bundled skills/);
   });
 });
 

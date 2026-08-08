@@ -390,6 +390,34 @@ export async function hasContextPackForRun(db: DbHandle, runId: string): Promise
 }
 
 /**
+ * Whether a `SessionStart` row has ever been recorded to `run_events`
+ * for this run. `lifecycle_event`'s handler records every hook event it
+ * sees (including `SessionStart` itself, under `toolName: 'SessionStart'`
+ * — see `RunRecorder.record`'s `toolName` fallback) regardless of
+ * `hookEventName`, so this is a real, always-populated signal rather than
+ * a synthetic flag — used to give `UserPromptSubmit` a session-contract
+ * fallback when the agent's own `SessionStart` hook never fired for this
+ * run (e.g. Codex Desktop's plugin-hook trust gate skipping it; Cursor,
+ * which has no `SessionStart` event at all).
+ */
+export async function hasSessionStartEventForRun(db: DbHandle, runId: string): Promise<boolean> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ id: sqliteSchema.runEvents.id })
+      .from(sqliteSchema.runEvents)
+      .where(and(eq(sqliteSchema.runEvents.runId, runId), eq(sqliteSchema.runEvents.toolName, 'SessionStart')))
+      .limit(1);
+    return rows.length > 0;
+  }
+  const rows = await db.db
+    .select({ id: postgresSchema.runEvents.id })
+    .from(postgresSchema.runEvents)
+    .where(and(eq(postgresSchema.runEvents.runId, runId), eq(postgresSchema.runEvents.toolName, 'SessionStart')))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Reads `runs.compactionNudgedAt` — null means "PreCompact hasn't
  * blocked compaction for this run yet." See `markRunCompactionNudged`.
  */

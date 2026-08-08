@@ -3,6 +3,7 @@ import {
   type DbHandle,
   getRunCompactionNudgedAt,
   hasContextPackForRun,
+  hasSessionStartEventForRun,
   lookupProjectBySlug,
   markRunCompactionNudged,
   markRunCompleted,
@@ -820,8 +821,37 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       });
     }
 
+    // Fallback-visibility gap (found investigating a Codex Desktop report,
+    // 2026-08-08): `SessionStart` is the only event that injects the
+    // session contract/runId/recent-context block below. That's fine when
+    // `SessionStart` reliably fires first — but Codex Desktop gates
+    // plugin-bundled hooks behind a one-time user trust review, so a
+    // session can run with `SessionStart` silently skipped while later
+    // hooks (`UserPromptSubmit`, `PreToolUse`, ...) still fire once
+    // trusted. `resolveRunId` above already opens/reuses a run for EVERY
+    // event unconditionally, so the run exists and events are being
+    // recorded either way — the agent just never sees the contract/runId,
+    // and has no way to recover it. Treat `UserPromptSubmit` as a
+    // SessionStart-equivalent whenever no `SessionStart` row has ever been
+    // recorded for this runId (checked AFTER this event's own
+    // `runRecorder.record` call above, so it never matches against itself).
+    // Deliberately NOT a one-shot: if `SessionStart` never fires for the
+    // whole session (hook trust never granted), every `UserPromptSubmit`
+    // keeps reinjecting rather than the agent losing visibility again after
+    // a single recovery — the moment a real `SessionStart` is ever
+    // recorded, this stops taking the fallback path for good. Cursor's
+    // `UserPromptSubmit` output shape has no context-injection field at all
+    // (see `shapeHookOutput`), so this is a no-op there — safe to compute
+    // unconditionally for every agent.
+    const isSessionStartEquivalent =
+      hookEventName === 'SessionStart' ||
+      (hookEventName === 'UserPromptSubmit' &&
+        runId !== null &&
+        projectSlug !== null &&
+        !(await hasSessionStartEventForRun(deps.db, runId)));
+
     let recentContext: string | null = null;
-    if (hookEventName === 'SessionStart' && projectSlug !== null) {
+    if (isSessionStartEquivalent && projectSlug !== null) {
       try {
         const recentContextProject = await lookupProjectBySlug(deps.db, projectSlug);
         const queryDecisions = createQueryDecisionsHandler({ db: deps.db });
@@ -890,18 +920,17 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         );
       }
     }
-    const additionalContext =
-      hookEventName === 'SessionStart'
-        ? sessionAdditionalContext({
-            projectSlug,
-            runId,
-            workflowPolicy: projectConfig?.workflowPolicy ?? null,
-            policyProjectionContext,
-            recentContext,
-          })
-        : hookEventName === 'ConfigChange'
-          ? (policyProjectionContext ?? undefined)
-          : undefined;
+    const additionalContext = isSessionStartEquivalent
+      ? sessionAdditionalContext({
+          projectSlug,
+          runId,
+          workflowPolicy: projectConfig?.workflowPolicy ?? null,
+          policyProjectionContext,
+          recentContext,
+        })
+      : hookEventName === 'ConfigChange'
+        ? (policyProjectionContext ?? undefined)
+        : undefined;
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,

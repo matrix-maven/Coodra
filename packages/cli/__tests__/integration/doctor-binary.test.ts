@@ -67,8 +67,9 @@ describe('doctor binary — integration spawn', () => {
     // essential checks for the Claude Code + solo-mode happy path.
     // Slice 5 (2026-05-03 audit §14.1) added 28+29 to that essential
     // set (claude hook registration validator + synthetic PreToolUse
-    // loop test). 9 → 11 essential, 27 → 30 full.
-    expect(parsed.checks).toHaveLength(11);
+    // loop test). 9 → 11 essential, 27 → 30 full. 2026-08-08 added 39
+    // (codex hook registration validator, mirroring 28) → 12 essential.
+    expect(parsed.checks).toHaveLength(12);
     // The empty-home fixture should land at least check 3 (data.db missing) red.
     const c3 = parsed.checks.find((c) => c.id === 3);
     expect(c3?.status).toBe('red');
@@ -103,10 +104,10 @@ describe('doctor binary — integration spawn', () => {
     // (Phase B). Pre-Phase-B printed a `Summary:` label.
     expect(stdout).toMatch(/\d+ ok\s+·\s+\d+ warn\s+·\s+\d+ fail\s+·\s+\d+ skipped/);
     // The trimmed default surface tells the user how to see the full one.
-    expect(stdout).toMatch(/11 essential checks shown\. Run `coodra doctor --full`/);
+    expect(stdout).toMatch(/12 essential checks shown\. Run `coodra doctor --full`/);
   }, 30_000);
 
-  it('--full runs the complete 38-check registry', async () => {
+  it('--full runs the complete 39-check registry', async () => {
     const result = await execa('node', [distBin, 'doctor', '--json', '--full', '--timeout-ms', '500'], {
       env: {
         ...process.env,
@@ -124,9 +125,10 @@ describe('doctor binary — integration spawn', () => {
     });
     const stdout = String(result.stdout);
     const parsed = JSON.parse(stdout) as { checks: Array<{ id: number }> };
-    // 38 = 30 original checks + 36-team-config + 37-web-healthz + 38-tunnel-reachability
-    // (W1 web-bundle-initiative landed checks 37-38; 36 added with team-config).
+    // 39 = 30 original checks + 36-team-config + 37-web-healthz + 38-tunnel-reachability
+    // + 39-codex-hook-registration (W1 web-bundle-initiative landed checks
+    // 37-38; 36 added with team-config; 39 added 2026-08-08).
     // Source of truth: packages/cli/src/doctor/registry.ts imports.
-    expect(parsed.checks).toHaveLength(38);
+    expect(parsed.checks).toHaveLength(39);
   }, 30_000);
 });

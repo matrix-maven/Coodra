@@ -36,6 +36,7 @@ import { autoMarkerSmokeCheck } from './checks/35-auto-marker-smoke.js';
 import { teamConfigCheck } from './checks/36-team-config.js';
 import { webHealthzCheck } from './checks/37-web-healthz.js';
 import { tunnelReachabilityCheck } from './checks/38-tunnel-reachability.js';
+import { codexHookRegistrationCheck } from './checks/39-codex-hook-registration.js';
 import type { Check } from './types.js';
 
 /**
@@ -64,7 +65,11 @@ import type { Check } from './types.js';
 // registration) that doctor missed for weeks because it only checked
 // process health. Check 30 (stale-runs warning) stays off-essential —
 // it's an observability signal, not an install-gate invariant.
-const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 11, 12, 14, 20, 28, 29]);
+// Check 39 joins the essential set alongside 28 (2026-08-08): Codex is
+// now an equally first-class native-plugin agent, and 28's own precedent
+// already accepts an always-yellow result for users on a different agent
+// as the cost of catching this bug class on the happy path.
+const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 11, 12, 14, 20, 28, 29, 39]);
 
 function tagEssential(checks: readonly Check[]): readonly Check[] {
   return checks.map((c) => ({ ...c, essential: ESSENTIAL_IDS.has(c.id) }));
@@ -100,6 +105,7 @@ export const ALL_CHECKS: readonly Check[] = tagEssential([
   syncDeadLetterCheck,
   // Slice 5 (2026-05-03 audit §14.1) — lifecycle invariants.
   claudeHookRegistrationCheck,
+  codexHookRegistrationCheck,
   preToolUseLoopCheck,
   staleRunsCheck,
   // M08b S18 — operational visibility checks (operator-facing,
