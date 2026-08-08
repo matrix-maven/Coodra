@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * build`) ships no web runtime. `resolveServices` must SKIP web in that case
  * instead of aborting the whole batch — otherwise `coodra start` (and every
  * caller) fails outright because the optional dashboard binary is absent.
- * mcp-server / hooks-bridge / sync-daemon stay strict.
+ * mcp-server / sync-daemon stay strict.
  *
  * This file mocks `runtime-paths` so resolution is deterministic regardless
  * of whether the bundle exists on disk — hence its own file (the sibling
@@ -41,7 +41,6 @@ describe('resolveServices — web is optional when its runtime bundle is absent'
     });
     const names = resolved.map((r) => r.descriptor.name);
     expect(names).toContain('mcp-server');
-    expect(names).toContain('hooks-bridge');
     expect(names).not.toContain('web');
   });
 

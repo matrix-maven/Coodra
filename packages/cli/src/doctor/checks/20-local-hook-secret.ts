@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Check } from '../types.js';
 
 const MIN_HEX_LENGTH = 32;
-const RUNTIME_ENV_KEYS = ['LOCAL_HOOK_SECRET', 'MCP_SERVER_PORT', 'HOOKS_BRIDGE_PORT'] as const;
+const RUNTIME_ENV_KEYS = ['LOCAL_HOOK_SECRET', 'MCP_SERVER_PORT'] as const;
 type MissingRuntimeEnv = (typeof RUNTIME_ENV_KEYS)[number] | 'LOCAL_HOOK_SECRET length';
 
 export const localHookSecretCheck: Check = {

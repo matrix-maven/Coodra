@@ -521,13 +521,20 @@ function hooksConfig(): unknown {
           ],
         },
       ],
+      // SessionEnd's timeout was 3s pre-COOD-52; finalizeRunOnSessionEnd
+      // (run-diff capture, auto Context Pack save, linked Work Pack sync,
+      // ask-outcome sweep) now runs synchronously inside this window,
+      // after the hook-runner's own spawn+JSON-RPC-handshake overhead.
+      // Bumped to 20s as a safety margin until COOD-54 (HTTP daemon
+      // fire-and-forget) removes the synchronous-await requirement
+      // entirely for hosts with `coodra start` running.
       SessionEnd: [
         {
           hooks: [
             {
               type: 'command',
               command,
-              timeout: 3,
+              timeout: 20,
             },
           ],
         },

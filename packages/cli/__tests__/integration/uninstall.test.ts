@@ -530,7 +530,7 @@ describe('coodra uninstall integration', () => {
   it('Fixture 9 — THE PORT-3001 BUG: stops AND uninstalls every daemon unit, web included', async () => {
     // 2026-07-18: `coodra uninstall` never called the daemon manager, so the
     // web daemon kept holding port 3001 after "uninstall". It must now stop +
-    // uninstall all four units (mcp-server, hooks-bridge, sync-daemon, web).
+    // uninstall all units (mcp-server, sync-daemon, web; hooks-bridge retired COOD-53).
     const stub = makeStubDaemonManager();
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() =>
@@ -542,7 +542,7 @@ describe('coodra uninstall integration', () => {
     expect(code).toBe(EXIT_OK);
 
     // Every service was BOTH stopped and uninstalled.
-    for (const unit of ['mcp-server', 'hooks-bridge', 'sync-daemon', 'web'] as const) {
+    for (const unit of ['mcp-server', 'sync-daemon', 'web'] as const) {
       expect(stub.calls).toContainEqual({ op: 'stop', unit });
       expect(stub.calls).toContainEqual({ op: 'uninstall', unit });
     }

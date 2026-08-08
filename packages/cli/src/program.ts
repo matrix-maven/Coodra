@@ -339,9 +339,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const startRunner = options.runStart ?? runStartCommand;
   program
     .command('start')
-    .description('Start MCP Server + Hooks Bridge + Web Dashboard (+ Sync Daemon in team mode) as background daemons.')
+    .description('Start MCP Server + Web Dashboard (+ Sync Daemon in team mode) as background daemons.')
     .option('--no-mcp', 'Do not start the MCP server.')
-    .option('--no-hooks', 'Do not start the Hooks Bridge.')
     .option('--no-sync', 'Do not start the Sync Daemon (team-mode only; ignored in solo mode).')
     .option('--no-web', 'Do not start the Web Dashboard (Next.js standalone on :3001).')
     .option(
@@ -1152,7 +1151,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   program
     .command('logs <service>')
     .description(
-      'Tail or print recent lines from ~/.coodra/logs/<service>.log. Pure file-read; no DB. Service ∈ {mcp-server, hooks-bridge, sync-daemon, web}.',
+      'Tail or print recent lines from ~/.coodra/logs/<service>.log. Pure file-read; no DB. Service ∈ {mcp-server, sync-daemon, web}.',
     )
     .option('--follow', 'Keep streaming new lines as they arrive (Ctrl-C to exit).')
     .option('--lines <N>', 'Print the last N lines (default 100; max 1,000,000).')

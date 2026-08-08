@@ -57,12 +57,12 @@ describe('runLogsCommand', () => {
     const code = await expectExit(() => runLogsCommand('not-a-service', {}, makeIo(homePath, cap)));
     expect(code).toBe(EXIT_USER_RECOVERABLE);
     expect(cap.stderr.join('')).toMatch(/unknown service "not-a-service"/);
-    expect(cap.stderr.join('')).toMatch(/mcp-server.*hooks-bridge.*sync-daemon/);
+    expect(cap.stderr.join('')).toMatch(/mcp-server.*sync-daemon/);
   });
 
   it('Fixture 2 — known service but missing log file → exit 2 with `coodra start` remediation', async () => {
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
-    const code = await expectExit(() => runLogsCommand('hooks-bridge', {}, makeIo(homePath, cap)));
+    const code = await expectExit(() => runLogsCommand('sync-daemon', {}, makeIo(homePath, cap)));
     expect(code).toBe(EXIT_USER_ACTION_REQUIRED);
     expect(cap.stderr.join('')).toMatch(/log file .* does not exist/);
     expect(cap.stderr.join('')).toMatch(/coodra start/);
@@ -98,9 +98,9 @@ describe('runLogsCommand', () => {
     const content = `${JSON.stringify({ time: olderTs, msg: 'old' })}
 ${JSON.stringify({ time: newerTs, msg: 'new' })}
 `;
-    writeFileSync(join(logsDir, 'hooks-bridge.log'), content);
+    writeFileSync(join(logsDir, 'sync-daemon.log'), content);
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
-    const code = await expectExit(() => runLogsCommand('hooks-bridge', { since: '30m' }, makeIo(homePath, cap)));
+    const code = await expectExit(() => runLogsCommand('sync-daemon', { since: '30m' }, makeIo(homePath, cap)));
     expect(code).toBe(EXIT_OK);
     const out = cap.stdout.join('');
     expect(out).toContain('"msg":"new"');

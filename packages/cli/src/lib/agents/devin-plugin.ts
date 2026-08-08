@@ -540,7 +540,9 @@ function hooksConfig(hookRunnerPath: string): unknown {
     PostToolUse: [{ matcher: TOOL_MATCHER, hooks: [{ type: 'command', command, timeout: 10 }] }],
     PermissionRequest: [{ matcher: TOOL_MATCHER, hooks: [{ type: 'command', command, timeout: 10 }] }],
     Stop: [{ hooks: [{ type: 'command', command, timeout: 10 }] }],
-    SessionEnd: [{ hooks: [{ type: 'command', command, timeout: 3 }] }],
+    // Bumped from 3s (safety margin for finalizeRunOnSessionEnd running
+    // synchronously post-COOD-52; see codex-plugin.ts's SessionEnd comment).
+    SessionEnd: [{ hooks: [{ type: 'command', command, timeout: 20 }] }],
     PostCompaction: [{ hooks: [{ type: 'command', command, timeout: 3 }] }],
   };
 }

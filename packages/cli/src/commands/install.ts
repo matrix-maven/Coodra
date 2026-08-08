@@ -123,7 +123,6 @@ export async function runInstallCommand(
     const localHookSecret = await readOrCreateHookSecret(coodraHome);
     upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
     upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', portFromEnv(env, 'MCP_SERVER_PORT', '3100'));
-    upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', portFromEnv(env, 'HOOKS_BRIDGE_PORT', '3101'));
     ensureGraphifyLlmEnvTemplate(homeEnvPath);
 
     const handle = await openLocalDb(dataDbPath, { loadVecExtension: true });
@@ -175,7 +174,7 @@ export async function runInstallCommand(
           runtime: {
             dirs: ['logs', 'pids'],
             sqlite: 'data.db',
-            envKeys: ['LOCAL_HOOK_SECRET', 'MCP_SERVER_PORT', 'HOOKS_BRIDGE_PORT'],
+            envKeys: ['LOCAL_HOOK_SECRET', 'MCP_SERVER_PORT'],
           },
           manifest: {
             path: manifestPath,
@@ -196,7 +195,7 @@ export async function runInstallCommand(
   io.writeStdout(`${pc.green('✓')} Coodra home: ${coodraHome}${dryRun ? pc.gray(' (dry-run)') : ''}\n`);
   io.writeStdout(`${pc.green('✓')} Runtime directories: logs, pids\n`);
   io.writeStdout(`${pc.green('✓')} Local SQLite store: data.db + migrations + __global__ sentinel\n`);
-  io.writeStdout(`${pc.green('✓')} Runtime env: LOCAL_HOOK_SECRET, MCP_SERVER_PORT, HOOKS_BRIDGE_PORT\n`);
+  io.writeStdout(`${pc.green('✓')} Runtime env: LOCAL_HOOK_SECRET, MCP_SERVER_PORT\n`);
   io.writeStdout(`${pc.green('✓')} Graphify LLM backend placeholders: ~/.coodra/.env\n`);
   if (graphifyRuntime.ok) {
     io.writeStdout(

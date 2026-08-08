@@ -44,12 +44,11 @@ describe('@coodra/cli — `npm pack --dry-run` file-list lock', () => {
 
     // dec_83ba10c1 (2026-05-02): the published tarball MUST ship the
     // bundled runtime tree so npm-installed users get a working
-    // mcp-server + hooks-bridge without monorepo paths. Lock the
-    // four runtime entries here so the publish-flag-day commit
-    // cannot accidentally drop them.
+    // mcp-server without monorepo paths. Lock the runtime entries
+    // here so the publish-flag-day commit cannot accidentally drop
+    // them. hooks-bridge dropped from the bundle COOD-53 (2026-08-08).
     expect(files).toContain('dist/index.js');
     expect(files).toContain('dist/runtime/mcp-server/index.js');
-    expect(files).toContain('dist/runtime/hooks-bridge/index.js');
     const drizzleEntries = files.filter((f) => f.startsWith('dist/runtime/drizzle/'));
     expect(drizzleEntries.length, 'drizzle migrations must ship under dist/runtime/drizzle/').toBeGreaterThan(0);
 

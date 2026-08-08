@@ -24,9 +24,9 @@ describe('runtime-paths.ts — bundled-wins resolver', () => {
       expect(matchesShape.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('returns the same shape for hooks-bridge', () => {
-      const candidates = bundledRuntimeCandidates('hooks-bridge');
-      const matchesShape = candidates.filter((c) => /[\\/]runtime[\\/]hooks-bridge[\\/]index\.js$/.test(c));
+    it('returns the same shape for sync-daemon', () => {
+      const candidates = bundledRuntimeCandidates('sync-daemon');
+      const matchesShape = candidates.filter((c) => /[\\/]runtime[\\/]sync-daemon[\\/]index\.js$/.test(c));
       expect(matchesShape.length).toBeGreaterThanOrEqual(1);
     });
   });
@@ -44,12 +44,12 @@ describe('runtime-paths.ts — bundled-wins resolver', () => {
       expect(resolved.path).toBe(expectedBundle);
     });
 
-    it('returns the same shape for hooks-bridge', async () => {
-      const expectedBundle = resolve(cliRoot, 'dist', 'runtime', 'hooks-bridge', 'index.js');
+    it('returns the same shape for sync-daemon', async () => {
+      const expectedBundle = resolve(cliRoot, 'dist', 'runtime', 'sync-daemon', 'index.js');
       if (!existsSync(expectedBundle)) {
         return;
       }
-      const resolved = await resolveRuntimeBinary('hooks-bridge');
+      const resolved = await resolveRuntimeBinary('sync-daemon');
       expect(resolved.source).toBe('bundled');
       expect(resolved.path).toBe(expectedBundle);
     });

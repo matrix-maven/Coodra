@@ -13,8 +13,11 @@
 // Outputs (all under packages/cli/dist):
 //   - dist/index.js            — bundled CLI entry (replaces tsc output)
 //   - dist/runtime/mcp-server/index.js
-//   - dist/runtime/hooks-bridge/index.js
 //   - dist/runtime/drizzle/{sqlite,postgres}/...   ← migration SQL files
+//
+// COOD-53 (2026-08-08): the hooks-bridge runtime bundle was dropped here.
+// The old HTTP hooks-bridge is retired — native plugin lifecycle now
+// flows through mcp-server's `lifecycle_event` for every agent.
 //
 // Run order (wired in package.json#build):
 //   1. tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that
@@ -110,14 +113,7 @@ async function main() {
     resolve(cliDist, 'runtime/mcp-server/index.js'),
   );
 
-  // 3) hooks-bridge runtime bundle. Spawned by `coodra start` (HTTP).
-  await bundleEntry(
-    '@coodra/hooks-bridge',
-    resolve(repoRoot, 'apps/hooks-bridge/src/index.ts'),
-    resolve(cliDist, 'runtime/hooks-bridge/index.js'),
-  );
-
-  // 3b) sync-daemon runtime bundle. Spawned by `coodra start` only
+  // 3) sync-daemon runtime bundle. Spawned by `coodra start` only
   // when COODRA_MODE=team (services.ts skips it in solo). Drains the
   // outbox `sync_to_cloud` queue and pulls cloud → local rows.
   await bundleEntry(

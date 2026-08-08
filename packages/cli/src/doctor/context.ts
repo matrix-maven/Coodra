@@ -37,7 +37,6 @@ export function buildCheckContext(options: BuildCheckContextOptions = {}): Check
   const env: NodeJS.ProcessEnv = { ...layered, ...baseEnv };
   const dataDb = resolveCoodraDataDb(coodraHome);
   const mcpPort = parsePortFromEnv(env.MCP_SERVER_PORT, 3100);
-  const bridgePort = parsePortFromEnv(env.HOOKS_BRIDGE_PORT, 3101);
   const webPort = parsePortFromEnv(env.COODRA_WEB_PORT, 3001);
 
   return {
@@ -46,7 +45,6 @@ export function buildCheckContext(options: BuildCheckContextOptions = {}): Check
     cwd,
     env,
     mcpPort,
-    bridgePort,
     webPort,
     now: options.now ?? (() => new Date()),
     timeoutMs: options.timeoutMs ?? 2000,

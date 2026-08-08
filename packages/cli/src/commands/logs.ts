@@ -12,7 +12,7 @@ import { pc } from '../ui/index.js';
  * `<coodraHome>/logs/<service>.log`. Pure file I/O; no DB calls.
  *
  * Service names mirror `lib/services.ts::ServiceName`:
- * `mcp-server | hooks-bridge | sync-daemon | web`. Unknown service →
+ * `mcp-server | sync-daemon | web`. Unknown service →
  * exit 1 with the valid set listed. Missing log file → exit 2
  * with "daemon hasn't started yet" remediation pointing at
  * `coodra start`.
@@ -26,7 +26,7 @@ import { pc } from '../ui/index.js';
  * through verbatim so the operator never silently loses a line.
  */
 
-const VALID_SERVICES = ['mcp-server', 'hooks-bridge', 'sync-daemon', 'web'] as const;
+const VALID_SERVICES = ['mcp-server', 'sync-daemon', 'web'] as const;
 type ValidService = (typeof VALID_SERVICES)[number];
 
 export interface LogsOptions {

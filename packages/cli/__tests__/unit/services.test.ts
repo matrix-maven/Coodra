@@ -5,19 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveServices, SERVICES } from '../../src/lib/services.js';
 
 describe('SERVICES descriptor', () => {
-  it('declares mcp-server + hooks-bridge + sync-daemon + web (M04a S4 + W1 2026-05-13)', () => {
+  it('declares mcp-server + sync-daemon + web (M04a S4 + W1 2026-05-13; hooks-bridge retired COOD-53)', () => {
     const names = SERVICES.map((s) => s.name);
-    expect(names).toEqual(['mcp-server', 'hooks-bridge', 'sync-daemon', 'web']);
+    expect(names).toEqual(['mcp-server', 'sync-daemon', 'web']);
 
     const mcp = SERVICES.find((s) => s.name === 'mcp-server');
     if (mcp?.kind !== 'http') throw new Error('mcp-server should be http kind');
     expect(mcp.defaultPort).toBe(3100);
     expect(mcp.healthUrl(3100)).toBe('http://127.0.0.1:3100/healthz');
-
-    const bridge = SERVICES.find((s) => s.name === 'hooks-bridge');
-    if (bridge?.kind !== 'http') throw new Error('hooks-bridge should be http kind');
-    expect(bridge.defaultPort).toBe(3101);
-    expect(bridge.healthUrl(3101)).toBe('http://127.0.0.1:3101/healthz');
 
     const sync = SERVICES.find((s) => s.name === 'sync-daemon');
     if (sync?.kind !== 'worker') throw new Error('sync-daemon should be worker kind');
@@ -41,7 +36,7 @@ describe('resolveServices — team-mode gating (M04a S4)', () => {
     });
     const names = resolved.map((r) => r.descriptor.name);
     expect(names).not.toContain('sync-daemon');
-    expect(names).toEqual(expect.arrayContaining(['mcp-server', 'hooks-bridge']));
+    expect(names).toEqual(expect.arrayContaining(['mcp-server']));
   });
 
   it('includes sync-daemon when COODRA_MODE is team', async () => {
@@ -91,23 +86,20 @@ describe('resolveServices — web service env (2026-05-18 dual-stack regression)
 
 /**
  * Locks integration finding 2026-04-27 (post-08a walk): the daemon manager
- * was spawning bridge + mcp-server with stderr → /dev/null (launchd default).
- * Doctor check 8 (F15 spot-check) could never green and field debugging was
- * blind. resolveServices now stamps stdoutPath/stderrPath on every DaemonUnit
+ * was spawning services with stderr → /dev/null (launchd default). Doctor
+ * check 8 (F15 spot-check) could never green and field debugging was blind.
+ * resolveServices now stamps stdoutPath/stderrPath on every DaemonUnit
  * pointing into <coodra-home>/logs/<name>.log.
  */
 describe('resolveServices — log routing', () => {
   it('stamps stdoutPath + stderrPath on every DaemonUnit so doctor check 8 has logs to read', async () => {
     const resolved = await resolveServices({
       coodraHome: '/var/test/.coodra',
-      env: { MCP_SERVER_PORT: '3100', HOOKS_BRIDGE_PORT: '3101' },
+      env: { MCP_SERVER_PORT: '3100' },
     });
     const mcp = resolved.find((s) => s.descriptor.name === 'mcp-server');
-    const bridge = resolved.find((s) => s.descriptor.name === 'hooks-bridge');
     expect(mcp?.unit.stdoutPath).toBe('/var/test/.coodra/logs/mcp-server.log');
     expect(mcp?.unit.stderrPath).toBe('/var/test/.coodra/logs/mcp-server.log');
-    expect(bridge?.unit.stdoutPath).toBe('/var/test/.coodra/logs/hooks-bridge.log');
-    expect(bridge?.unit.stderrPath).toBe('/var/test/.coodra/logs/hooks-bridge.log');
   });
 });
 
@@ -160,16 +152,13 @@ describe('resolveServices — env layering', () => {
     );
     const resolved = await resolveServices({ coodraHome: tmpHome, env: {} });
     const mcp = resolved.find((s) => s.descriptor.name === 'mcp-server');
-    const bridge = resolved.find((s) => s.descriptor.name === 'hooks-bridge');
 
-    for (const unit of [mcp?.unit, bridge?.unit] as const) {
-      expect(unit?.env.COODRA_MODE).toBe('solo');
-      expect(unit?.env.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
-      expect(unit?.env.CLERK_PUBLISHABLE_KEY).toBe('pk_test_replace_me');
-      expect(unit?.env.LOCAL_HOOK_SECRET).toBe('a'.repeat(40));
-      // Pattern-match: arbitrary COODRA_* additions flow through.
-      expect(unit?.env.COODRA_GRAPHIFY_ROOT).toBe('/var/graphify-override');
-    }
+    expect(mcp?.unit.env.COODRA_MODE).toBe('solo');
+    expect(mcp?.unit.env.CLERK_SECRET_KEY).toBe('sk_test_replace_me');
+    expect(mcp?.unit.env.CLERK_PUBLISHABLE_KEY).toBe('pk_test_replace_me');
+    expect(mcp?.unit.env.LOCAL_HOOK_SECRET).toBe('a'.repeat(40));
+    // Pattern-match: arbitrary COODRA_* additions flow through.
+    expect(mcp?.unit.env.COODRA_GRAPHIFY_ROOT).toBe('/var/graphify-override');
   });
 
   it('process.env wins over .env for matching keys (`MCP_SERVER_PORT=3200 coodra start` overrides file)', async () => {
@@ -190,18 +179,15 @@ describe('resolveServices — env layering', () => {
         'COODRA_LOG_DESTINATION=stdout',
         'MCP_SERVER_TRANSPORT=stdio',
         'MCP_SERVER_HOST=0.0.0.0',
-        'HOOKS_BRIDGE_HOST=0.0.0.0',
       ].join('\n'),
       'utf8',
     );
     const resolved = await resolveServices({ coodraHome: tmpHome, env: {} });
     const mcp = resolved.find((s) => s.descriptor.name === 'mcp-server');
-    const bridge = resolved.find((s) => s.descriptor.name === 'hooks-bridge');
     expect(mcp?.unit.env.COODRA_HOME).toBe(tmpHome);
     expect(mcp?.unit.env.COODRA_LOG_DESTINATION).toBe('stderr');
     expect(mcp?.unit.env.MCP_SERVER_TRANSPORT).toBe('http');
     expect(mcp?.unit.env.MCP_SERVER_HOST).toBe('127.0.0.1');
-    expect(bridge?.unit.env.HOOKS_BRIDGE_HOST).toBe('127.0.0.1');
   });
 
   it('absent .env file is non-fatal — daemon still spawns with computed env', async () => {
@@ -275,14 +261,12 @@ describe('resolveServices — runtime resolution prefers bundled', () => {
 
     const resolved = await resolveServices({ coodraHome: tmpHome, env: {} });
     const mcp = resolved.find((s) => s.descriptor.name === 'mcp-server');
-    const bridge = resolved.find((s) => s.descriptor.name === 'hooks-bridge');
 
     // dec_83ba10c1: bundled artifacts always win over monorepo paths.
     // We assert the entryPath ends with the runtime bundle layout and
     // that the working dir is the user's cwd (anchored, not the
     // pre-fix repo root).
     expect(mcp?.entryPath).toMatch(/\/runtime\/mcp-server\/index\.js$/);
-    expect(bridge?.entryPath).toMatch(/\/runtime\/hooks-bridge\/index\.js$/);
     expect(mcp?.entryPath.startsWith(tmpCwd)).toBe(false);
     expect(mcp?.unit.workingDir).toBe(tmpCwd);
   });

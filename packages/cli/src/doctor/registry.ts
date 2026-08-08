@@ -5,17 +5,14 @@ import { dbMigrationsHeadCheck } from './checks/04-db-migrations-head.js';
 import { globalProjectCheck } from './checks/05-global-project.js';
 import { policyKeyShapeCheck } from './checks/06-policy-key-shape.js';
 import { runEventsRunIdCheck } from './checks/07-run-events-run-id.js';
-import { bridgeRunIdLogsCheck } from './checks/08-bridge-runid-logs.js';
 import { mcpStdioCheck } from './checks/09-mcp-stdio.js';
 import { mcpHealthzCheck } from './checks/10-mcp-healthz.js';
-import { bridgeHealthzCheck } from './checks/11-bridge-healthz.js';
 import { projectRegisteredCheck } from './checks/12-project-registered.js';
 import { auditDurabilityCheck } from './checks/13-audit-durability.js';
 import { mcpConfigValidityCheck } from './checks/14-mcp-config-validity.js';
 import { ideDetectionCheck } from './checks/15-ide-detection.js';
 import { daemonManagerCheck } from './checks/16-daemon-manager.js';
 import { port3100Check } from './checks/17-port-3100.js';
-import { port3101Check } from './checks/18-port-3101.js';
 import { pnpmPathCheck } from './checks/19-pnpm-path.js';
 import { localHookSecretCheck } from './checks/20-local-hook-secret.js';
 import { pendingJobsDepthCheck } from './checks/21-pending-jobs-depth.js';
@@ -44,21 +41,28 @@ import type { Check } from './types.js';
  * Code + solo-mode happy path. The default `coodra doctor` surface
  * runs only these. `--full` runs the registry below.
  *
- * Why these nine:
+ * Why these:
  *   - 1  Node version           — install gate
  *   - 2  ~/.coodra/ writable — install location
  *   - 3  data.db opens          — local SQLite primary store
  *   - 4  migrations at head     — schema invariant
  *   - 5  __global__ sentinel    — F7 invariant for unregistered cwds
- *   - 11 hooks-bridge /healthz  — bridge is the autonomy in-path
+ *   - 10 mcp-server /healthz    — MCP is the sole lifecycle transport
+ *                                 post-COOD-53 (hooks-bridge retired)
  *   - 12 project registered     — the cwd has a working .coodra/config.json
  *   - 14 MCP wiring             — native plugin MCP present
- *   - 20 LOCAL_HOOK_SECRET set  — bridge auth contract
+ *   - 20 LOCAL_HOOK_SECRET set  — MCP HTTP transport auth contract
  *
- * Everything else: debug invariants (6/7/8), redundant probes (10/17/18),
+ * Everything else: debug invariants (6/7), redundant probes (17),
  * dev-only tooling (19), team-mode-only (24/25/26/27), outbox
  * observability (21/22/23), launch-mode dependent (9/15/16),
  * placeholder (13). All available via `coodra doctor --full`.
+ *
+ * COOD-53 (2026-08-08): dropped 11 (hooks-bridge /healthz) and 18
+ * (hooks-bridge port 3101) — that daemon and transport are retired.
+ * Check 10 (mcp-server /healthz) is promoted into the essential set in
+ * 11's place, since MCP is now the only lifecycle transport for every
+ * agent.
  */
 // Slice 5 (2026-05-03 audit §14.1) adds 28+29 to the essential set —
 // these catch the §3.2 / §9.2 bug class (matcher gate, SessionEnd
@@ -69,7 +73,7 @@ import type { Check } from './types.js';
 // now an equally first-class native-plugin agent, and 28's own precedent
 // already accepts an always-yellow result for users on a different agent
 // as the cost of catching this bug class on the happy path.
-const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 11, 12, 14, 20, 28, 29, 39]);
+const ESSENTIAL_IDS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 10, 12, 14, 20, 28, 29, 39]);
 
 function tagEssential(checks: readonly Check[]): readonly Check[] {
   return checks.map((c) => ({ ...c, essential: ESSENTIAL_IDS.has(c.id) }));
@@ -83,17 +87,14 @@ export const ALL_CHECKS: readonly Check[] = tagEssential([
   globalProjectCheck,
   policyKeyShapeCheck,
   runEventsRunIdCheck,
-  bridgeRunIdLogsCheck,
   mcpStdioCheck,
   mcpHealthzCheck,
-  bridgeHealthzCheck,
   projectRegisteredCheck,
   auditDurabilityCheck,
   mcpConfigValidityCheck,
   ideDetectionCheck,
   daemonManagerCheck,
   port3100Check,
-  port3101Check,
   pnpmPathCheck,
   localHookSecretCheck,
   pendingJobsDepthCheck,

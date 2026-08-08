@@ -460,10 +460,8 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     localHookSecret = randomBytes(32).toString('hex');
   }
   // F3 (E2E finding, 2026-07-04): honour the operator's port env instead
-  // of hardcoding. Pre-fix, `HOOKS_BRIDGE_PORT=39101 coodra init` still
-  // wrote 3101 into project .env + the Claude Code hook URLs, so hooks
-  // POSTed to the wrong bridge. A parse guard keeps the documented defaults
-  // when the env var is absent or non-numeric.
+  // of hardcoding. A parse guard keeps the documented default when the
+  // env var is absent or non-numeric.
   const portFromEnv = (name: string, fallback: string): string => {
     const raw = env[name];
     if (raw === undefined) return fallback;
@@ -471,7 +469,6 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     return Number.isInteger(n) && n > 0 && n < 65536 ? String(n) : fallback;
   };
   const mcpServerPort = portFromEnv('MCP_SERVER_PORT', '3100');
-  const hooksBridgePort = portFromEnv('HOOKS_BRIDGE_PORT', '3101');
 
   // F1 (E2E finding, 2026-07-04): persist the resolved LOCAL_HOOK_SECRET to
   // $COODRA_HOME/.env so subsequent inits + the daemons all read the SAME
@@ -488,7 +485,6 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     try {
       upsertEnvKey(homeEnvPath, 'LOCAL_HOOK_SECRET', localHookSecret);
       upsertEnvKey(homeEnvPath, 'MCP_SERVER_PORT', mcpServerPort);
-      upsertEnvKey(homeEnvPath, 'HOOKS_BRIDGE_PORT', hooksBridgePort);
       ensureGraphifyLlmEnvTemplate(homeEnvPath);
     } catch (err) {
       io.writeStdout(
@@ -551,7 +547,7 @@ export async function runInitCommand(options: InitOptions = {}, io: InitIO = DEF
     `${hintLine('  → If you have not already wired your agent, run `coodra agent add codex` or `coodra agent add claude`.')}\n`,
   );
   io.writeStdout(`${hintLine('  → Run `coodra doctor` to verify the install.')}\n`);
-  io.writeStdout(`${hintLine('  → Run `coodra start` to launch the MCP server + Hooks Bridge daemons.')}\n`);
+  io.writeStdout(`${hintLine('  → Run `coodra start` to launch the MCP server daemon.')}\n`);
 
   if (dryRun) {
     io.writeStdout(`${pc.yellow('Note')}: --dry-run was set; no files were actually written.\n`);

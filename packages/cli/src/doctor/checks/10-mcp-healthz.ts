@@ -22,7 +22,7 @@ export interface ProbeHealthzArgs {
   readonly label: string;
   /** Coodra home directory — used to read `<home>/pids/<unitName>.pid`. */
   readonly coodraHome: string;
-  /** Daemon unit name; e.g. `mcp-server` or `hooks-bridge`. */
+  /** Daemon unit name; e.g. `mcp-server`. */
   readonly unitName: string;
 }
 

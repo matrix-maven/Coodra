@@ -126,7 +126,7 @@ describe('coodra db backup + db restore integration', () => {
 
   it('Fixture 2 — backup --include-logs produces a tarball with data.db.bak + logs/* entries', async () => {
     writeFileSync(join(logsDir, 'mcp-server.log'), 'line one\nline two\n');
-    writeFileSync(join(logsDir, 'hooks-bridge.log'), 'bridge log\n');
+    writeFileSync(join(logsDir, 'sync-daemon.log'), 'sync log\n');
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() => runDbBackupCommand({ json: true, includeLogs: true }, backupIo(homePath, cap)));
     expect(code).toBe(EXIT_OK);
@@ -140,7 +140,7 @@ describe('coodra db backup + db restore integration', () => {
     await tar.list({ file: payload.destination, onentry: (entry) => members.push(entry.path as string) });
     expect(members).toContain('data.db.bak');
     expect(members).toContain('logs/mcp-server.log');
-    expect(members).toContain('logs/hooks-bridge.log');
+    expect(members).toContain('logs/sync-daemon.log');
   });
 
   it('Fixture 3 — backup → restore roundtrip yields a byte-identical DB on a quiescent system', async () => {

@@ -10,12 +10,12 @@
 //   1. `coodra --version`         → the bin runs at all.
 //   2. `coodra install` + `coodra init` → writes machine runtime state and
 //      project-local `.coodra/` state, without agent config side effects.
-//   3. `coodra start --no-web --no-sync` → the bundled mcp-server +
-//      hooks-bridge daemons boot and pass their /healthz gate. This is THE
-//      decisive proof on Windows: it means better-sqlite3 + sqlite-vec
-//      loaded, the SQLite DB migrated, and the HTTP servers bound.
-//   4. /healthz probes on both ports return 200.
-//   5. `coodra status` reports them running; `coodra stop` tears down.
+//   3. `coodra start --no-web --no-sync` → the bundled mcp-server daemon
+//      boots and passes its /healthz gate. This is THE decisive proof on
+//      Windows: it means better-sqlite3 + sqlite-vec loaded, the SQLite
+//      DB migrated, and the HTTP server bound.
+//   4. /healthz probe on the mcp-server port returns 200.
+//   5. `coodra status` reports it running; `coodra stop` tears down.
 //
 // The `web` dashboard is intentionally out of scope; it's skipped via --no-web
 // here and auto-skipped on win32 by `coodra start`.
@@ -34,10 +34,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const cliRoot = resolve(here, '..');
 const cliBin = resolve(cliRoot, 'dist', 'index.js');
 
-// Uncommon ports so the smoke never collides with a real `coodra start` the
-// developer may have running locally (or anything else on 3100/3101).
+// Uncommon port so the smoke never collides with a real `coodra start` the
+// developer may have running locally (or anything else on 3100).
 const MCP_PORT = 39100;
-const BRIDGE_PORT = 39101;
 
 const coodraHome = mkdtempSync(join(tmpdir(), 'coodra-smoke-home-'));
 const projectDir = mkdtempSync(join(tmpdir(), 'coodra-smoke-proj-'));
@@ -50,7 +49,6 @@ const childEnv = {
   CLERK_SECRET_KEY: 'sk_test_replace_me',
   LOG_LEVEL: 'error',
   MCP_SERVER_PORT: String(MCP_PORT),
-  HOOKS_BRIDGE_PORT: String(BRIDGE_PORT),
   // STRICT sqlite-vec: forwarded to the spawned mcp-server (buildServiceEnv
   // passes COODRA_* through). With this set, a failed load of the platform
   // vector extension (sqlite-vec-windows-x64's .dll on Windows) makes the
@@ -120,7 +118,7 @@ async function waitForHealthz(port, attempts = 20) {
 }
 
 function dumpLogs() {
-  for (const name of ['mcp-server', 'hooks-bridge']) {
+  for (const name of ['mcp-server']) {
     const p = join(coodraHome, 'logs', `${name}.log`);
     if (existsSync(p)) {
       process.stderr.write(`\n----- ${name}.log -----\n${readFileSync(p, 'utf8')}\n`);
@@ -154,11 +152,9 @@ async function main() {
   // 3. start the core daemons (web skipped; sync is solo-skipped anyway)
   runCli(['start', '--no-web', '--no-sync']);
 
-  // 4. /healthz on both core ports
+  // 4. /healthz on the core port
   const mcpHealthy = await waitForHealthz(MCP_PORT);
   assert(mcpHealthy, `mcp-server /healthz 200 on :${MCP_PORT} (better-sqlite3 + sqlite-vec loaded, DB migrated, HTTP bound)`);
-  const bridgeHealthy = await waitForHealthz(BRIDGE_PORT);
-  assert(bridgeHealthy, `hooks-bridge /healthz 200 on :${BRIDGE_PORT}`);
 
   // 5. `coodra status` executes on this platform. Its rich output is
   // TTY-gated and the daemon-manager differs per OS (launchd/systemd vs the

@@ -91,7 +91,7 @@ describe('coodra db migrate integration', () => {
   it('Fixture 3 — alive daemon PID file → exit 1 with remediation', async () => {
     // Write a fake PID file referencing this very process — `kill(pid, 0)`
     // returns alive for our own pid, so the check correctly reports alive.
-    writeFileSync(join(pidsDir, 'hooks-bridge.pid'), String(process.pid));
+    writeFileSync(join(pidsDir, 'mcp-server.pid'), String(process.pid));
 
     const cap: Capture = { stdout: [], stderr: [], exitCode: null };
     const code = await expectExit(() => runDbMigrateCommand({ json: true }, makeIo(homePath, cap)));
@@ -101,7 +101,7 @@ describe('coodra db migrate integration', () => {
       daemonsRunning?: { unit: string; pid: number }[];
     };
     expect(payload.ok).toBe(false);
-    expect(payload.daemonsRunning?.[0]?.unit).toBe('hooks-bridge');
+    expect(payload.daemonsRunning?.[0]?.unit).toBe('mcp-server');
   });
 
   it('Fixture 4 — --dry-run does not apply migrations and reports pendingBefore', async () => {

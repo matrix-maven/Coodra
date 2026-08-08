@@ -159,10 +159,13 @@ jobs:
         # next (its dist/migrate.js is consumed by both apps' auto-migrate
         # at boot); `policy` next; `cli build:tsc-only` emits cli lib
         # subpaths that mcp-server + hooks-bridge tsc need; then their
-        # builds; then web-v2 next build (produces .next/standalone);
-        # finally `cli build` (full, with bundle) so cli integration
-        # tests like cold-install + npm-pack-lock + doctor-binary see
-        # dist/runtime/{mcp-server,hooks-bridge,sync-daemon,web} present.
+        # builds (hooks-bridge stays a buildable package — its own test
+        # suite and the e2e job still exercise it directly — even though
+        # COOD-53 dropped it from `coodra start` / the cli bundle); then
+        # web-v2 next build (produces .next/standalone); finally `cli
+        # build` (full, with bundle) so cli integration tests like
+        # cold-install + npm-pack-lock + doctor-binary see
+        # dist/runtime/{mcp-server,sync-daemon,web} present.
         run: |
           pnpm --filter @coodra/shared build
           pnpm --filter @coodra/db build
@@ -173,7 +176,7 @@ jobs:
           pnpm --filter @coodra/web-v2 build
           pnpm --filter @coodra/cli build
 
-      - name: Integration tests (Postgres migrations + hooks-bridge auth chain + mcp-server boot)
+      - name: Integration tests (Postgres migrations + hooks-bridge lifecycle + mcp-server boot)
         # `--concurrency=1` is load-bearing: each workspace's integration
         # suite owns the shared CI Postgres exclusively for its run (the
         # tests DROP / re-migrate the public schema in `beforeAll`). With
@@ -206,10 +209,11 @@ jobs:
     name: windows core (Claude Code) install smoke
     # Proves the Core (Claude Code) install path works on Windows x64
     # (2026-06-16): native deps install, `coodra init` wires .mcp.json +
-    # the Claude Code hooks, and `coodra start` brings up the mcp-server +
-    # hooks-bridge daemons (sqlite-vec-windows-x64 + better-sqlite3 prebuild
-    # load, SQLite migrates, HTTP /healthz binds). The `web` dashboard and
-    # the Cursor/Windsurf shell hook adapters are deliberately out of scope.
+    # the Claude Code hooks, and `coodra start` brings up the mcp-server
+    # daemon (sqlite-vec-windows-x64 + better-sqlite3 prebuild load,
+    # SQLite migrates, HTTP /healthz binds; hooks-bridge dropped from
+    # `coodra start` COOD-53). The `web` dashboard and the Cursor/Windsurf
+    # shell hook adapters are deliberately out of scope.
     runs-on: windows-latest
     needs: verify
     timeout-minutes: 25
@@ -253,8 +257,8 @@ jobs:
 
       - name: Build the core in dependency order (no web — Core scope)
         # `cli build`'s bundle.mjs soft-skips the web standalone (absent here)
-        # and produces dist/index.js + dist/runtime/{mcp-server,hooks-bridge,
-        # sync-daemon} + dist/runtime/drizzle — everything the smoke needs.
+        # and produces dist/index.js + dist/runtime/{mcp-server,sync-daemon}
+        # + dist/runtime/drizzle — everything the smoke needs.
         # The Windows-specific CLI logic (coodra-home, daemon selection,
         # web-skip) is unit-tested cross-platform via `platform` overrides on
         # the `verify` job, so this job's authoritative signal is the live

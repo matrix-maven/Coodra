@@ -128,24 +128,34 @@ pnpm --filter @coodra/mcp-server dev
 
 The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 21 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
 
-### Iterating on Module 03 (Hooks Bridge)
+### Iterating on Module 03 (Hooks Bridge) — legacy, not part of `coodra start`
 
-The Hooks Bridge is a separate Hono service on `127.0.0.1:3101`. Native Coodra plugins POST PreToolUse / PostToolUse / SessionStart / Stop / UserPromptSubmit events to it via plugin-managed hook wiring. To run live:
+COOD-53 (2026-08-08) retired the HTTP Hooks Bridge from the runtime path:
+`coodra start` no longer launches it, and no native plugin (Claude, Codex,
+Devin, Cursor, Antigravity) POSTs hook events to it anymore. All five now
+route lifecycle events through the native `lifecycle_event` MCP tool —
+Claude Code via an already-persistent `mcp_tool` session, the other four
+via `hook-runner.mjs` spawning `mcp-server --transport stdio` per hook call
+(see COOD-54 for moving that to a persistent HTTP daemon connection).
+
+`apps/hooks-bridge`'s source still exists and still builds — its own test
+suite and the root `e2e` suite exercise it directly — but there is no
+supported install path that talks to it anymore. To run it standalone
+(e.g. to debug its own code, independent of any live plugin):
 
 ```bash
 # Terminal 1 — bridge in watch mode
 LOCAL_HOOK_SECRET=$(openssl rand -hex 24) \
   pnpm --filter @coodra/hooks-bridge dev
 
-# Terminal 2 — tail the bridge log to watch hooks land
+# Terminal 2 — tail the bridge log to watch requests land
 # (the bridge writes pino JSON to stderr by default)
 
-# In your shell that launches Claude Code, export the same secret:
-export LOCAL_HOOK_SECRET=<paste from terminal 1>
-
-# Restart Claude Code so it re-reads the native plugin hook wiring.
-# Trigger any agent action (read a file, bash command, etc.) and confirm
-# the bridge logs `hook_ingress` events.
+# POST a synthetic hook payload yourself — no live agent POSTs here anymore:
+curl -X POST http://127.0.0.1:3101/v1/hooks/claude-code \
+  -H "Content-Type: application/json" \
+  -H "X-Local-Hook-Secret: $LOCAL_HOOK_SECRET" \
+  -d '{"hook_event_name":"SessionStart","session_id":"dev-test","cwd":"'"$PWD"'"}'
 ```
 
 ### Iterating on the CLI (Module 08a)
@@ -220,18 +230,18 @@ The Core (Claude Code) install path is supported on Windows x64 and gated by a
 same end-to-end check runs on any OS, so you can validate it locally before CI:
 
 ```bash
-pnpm --filter @coodra/cli build        # produces dist/ + dist/runtime/{mcp-server,hooks-bridge}
+pnpm --filter @coodra/cli build        # produces dist/ + dist/runtime/{mcp-server,sync-daemon}
 pnpm --filter @coodra/cli smoke:core   # init → start → /healthz → status → stop, against a temp COODRA_HOME
 ```
 
 It asserts `coodra install` prepares the machine runtime, `coodra init` registers
 the project-local `.coodra/` layout, and `coodra start` brings up the mcp-server
-+ hooks-bridge daemons and both pass `/healthz`. The smoke sets
+daemon and it passes `/healthz`. The smoke sets
 `COODRA_REQUIRE_VEC=1`, so the mcp-server boots only
 if **both** native deps loaded (`better-sqlite3` prebuild + `sqlite-vec`'s
 platform `.dll`/`.so`/`.dylib`) — a `/healthz` 200 then proves the native load
-**and** that the SQLite DB migrated and the HTTP server bound. It uses ports
-39100/39101 and forces `COODRA_DAEMON_MANAGER=fallback` (the PID-file manager)
+**and** that the SQLite DB migrated and the HTTP server bound. It uses port
+39100 and forces `COODRA_DAEMON_MANAGER=fallback` (the PID-file manager)
 so it never collides with a real `coodra start` — launchd/systemd unit names
 are global per user (`com.coodra.<name>`), so without the override the smoke's
 stop would boot out your live daemons. The `web` dashboard is out of scope on
@@ -366,33 +376,39 @@ which sources the PID from `launchctl print` rather than writing
 
 - A healthy macOS install has the daemons running but `~/.coodra/pids/`
   is **empty**. That's not a missed write — that's launchd's design.
-- `coodra doctor` check 11 (Hooks Bridge healthz) is **PID-aware via
-  the active manager**: on macOS it asks `launchctl` for liveness; on
-  Linux/Docker the **fallback manager** writes `<name>.pid` and check 11
-  reads it directly. Same green/yellow/red surface, different sources.
+- `coodra doctor` check 10 (mcp-server healthz — the only daemon-liveness
+  check left in the essential set since COOD-53 retired the hooks-bridge)
+  is **PID-aware via the active manager**: on macOS it asks `launchctl`
+  for liveness; on Linux/Docker the **fallback manager** writes
+  `<name>.pid` and check 10 reads it directly. Same green/yellow/red
+  surface, different sources.
 - The fallback PID-file path (`~/.coodra/pids/<name>.pid`) is the
   contract for the fallback manager only — don't `cat` it on macOS.
 
 If you genuinely want to crash a daemon on macOS to verify recovery,
 remember launchd's `KeepAlive` will respawn it within ~1s. Use
 `coodra stop` (which deregisters the unit) to observe doctor moving
-from green to yellow on checks 10/11 with `ECONNREFUSED — service not
+from green to yellow on check 10 with `ECONNREFUSED — service not
 running`.
 
-### Pure-MCP runs don't generate `run_events`
+### `run_events` — how it actually gets populated
 
-Running an agent that calls **only** the MCP server (no Claude Code or
-Codex hooks firing at the bridge) populates `runs`, `policy_decisions`,
-`decisions`, and `context_packs` — but **not** `run_events`. The
-`run_events` table is written by `apps/hooks-bridge/src/handlers/post-tool-use.ts`
-on `PostToolUse` hook ingress; the MCP server itself never inserts there.
+Both transports write to `run_events`: the native `lifecycle_event` MCP
+tool records every non-self-call tool event via `ctx.runRecorder.record()`
+once a `runId` has resolved (`apps/mcp-server/src/tools/lifecycle-event/handler.ts`),
+and — for Claude Code installs still running the standalone
+`apps/hooks-bridge` — its `PostToolUse` handler
+(`apps/hooks-bridge/src/handlers/post-tool-use.ts`) does the same. Either
+path populates `runs`, `policy_decisions`, `decisions`, `context_packs`,
+AND `run_events` — there is no "pure-MCP, no run_events" case anymore.
 
 Practical consequence: doctor check 7 (the F8 invariant — `run_events.run_id
-NOT NULL when session has runs row`) is **vacuously green** when no hooks
-have fired. To exercise it non-vacuously, drive the audit chain through
-the bridge — either run an interactive Claude Code session or POST hook
-payloads to `http://127.0.0.1:<HOOKS_BRIDGE_PORT>/v1/hooks/claude-code`
-and watch `run_events` populate.
+NOT NULL when session has runs row`) is only vacuously green when NO
+tool-use hooks have fired at all for the session (e.g. a session that
+opened but never called a tool). To exercise it non-vacuously, drive an
+interactive agent session (any of the five native-plugin agents) through
+at least one `PreToolUse`/`PostToolUse` pair and watch `run_events`
+populate.
 
 ## Pointers
 

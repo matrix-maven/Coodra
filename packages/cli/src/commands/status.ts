@@ -189,7 +189,7 @@ async function collectProjectState(
   if (projectConfig !== null) {
     slug = projectConfig.projectSlug;
   } else {
-    notes.push('.coodra/config.json missing — bridge will fall back to __global__ for this cwd');
+    notes.push('.coodra/config.json missing — lifecycle events will fall back to __global__ for this cwd');
   }
   // Resolve the slug to a projects.id in local SQLite so `collectRecent`
   // can scope the "Last run / Last decision" query to THIS project.
@@ -238,11 +238,6 @@ async function collectServiceStates(
   coodraHome: string,
 ): Promise<ServiceState[]> {
   const mcpPort = parsePort(env.MCP_SERVER_PORT, 3100);
-  const bridgePort = parsePort(env.HOOKS_BRIDGE_PORT, 3101);
-  // W6 / beta.6 — the web service (W1) was never wired into status's
-  // port resolution; the `: bridgePort` fallthrough showed it on :3101
-  // (the bridge's port), probed the bridge's non-existent /api/healthz,
-  // got a 404, and reported the web as "unknown" forever.
   const webPort = parsePort(env.COODRA_WEB_PORT, 3001);
   const isTeamMode = env.COODRA_MODE === 'team';
 
@@ -253,7 +248,7 @@ async function collectServiceStates(
       continue;
     }
     if (descriptor.kind === 'http') {
-      const port = descriptor.name === 'mcp-server' ? mcpPort : descriptor.name === 'web' ? webPort : bridgePort;
+      const port = descriptor.name === 'mcp-server' ? mcpPort : webPort;
       const url = descriptor.healthUrl(port);
       let state: ServiceState['state'] = 'stopped';
       try {

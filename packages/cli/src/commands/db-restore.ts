@@ -18,7 +18,7 @@ import { pc } from '../ui/index.js';
  *   - Auto-backup of current DB to `<current>.pre-restore-<ISO>` before
  *     swap. `--no-auto-backup` skips it (warns aloud first via stderr).
  *   - Refuses if ANY daemon that opens the SQLite store is alive —
- *     mcp-server, hooks-bridge, sync-daemon, AND web (the web app reads
+ *     mcp-server, sync-daemon, AND web (the web app reads
  *     the same DB). No `--with-daemons-running` escape hatch — daemons +
  *     atomic replace = silent corruption. Liveness is checked via TWO
  *     signals so no strategy is missed (2026-07-18 hardening): the PID

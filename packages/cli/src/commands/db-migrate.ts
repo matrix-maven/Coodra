@@ -17,15 +17,15 @@ import { pc } from '../ui/index.js';
  * Refuses to run while daemons are still writing to the DB unless
  * `--with-daemons-running` is set. The daemons check uses the
  * existing `pid-status.ts` helper from M08a — alive PID files for
- * any of {mcp-server, hooks-bridge, sync-daemon} block the run with
- * exit 1 + a `coodra stop` remediation pointer.
+ * any of {mcp-server, sync-daemon} block the run with exit 1 + a
+ * `coodra stop` remediation pointer.
  *
  * `--dry-run` reports what would change (file count vs applied count)
  * without invoking the migrator. Useful for operator verification
  * before a `coodra upgrade` flow.
  */
 
-const TRACKED_DAEMON_UNITS = ['mcp-server', 'hooks-bridge', 'sync-daemon'] as const;
+const TRACKED_DAEMON_UNITS = ['mcp-server', 'sync-daemon'] as const;
 
 export interface DbMigrateOptions {
   readonly dryRun?: boolean;

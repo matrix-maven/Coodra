@@ -87,7 +87,7 @@
   },
   "scripts": {
     "prebuild": "node scripts/sync-version.mjs",
-    "//build": "Two-phase build (decision dec_83ba10c1, 2026-05-02). tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that workspace consumers (apps in dev) import via the `@coodra/cli/lib/outbox` exports entry. Then `scripts/bundle.mjs` runs esbuild to OVERWRITE `dist/index.js` with a self-contained bundle (workspace + npm deps inlined) and writes the bundled apps under `dist/runtime/{mcp-server,hooks-bridge}/` so `npm i -g @coodra/cli` ships everything needed. Externals: better-sqlite3 + sqlite-vec (native).",
+    "//build": "Two-phase build (decision dec_83ba10c1, 2026-05-02). tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that workspace consumers (apps in dev) import via the `@coodra/cli/lib/outbox` exports entry. Then `scripts/bundle.mjs` runs esbuild to OVERWRITE `dist/index.js` with a self-contained bundle (workspace + npm deps inlined) and writes the bundled apps under `dist/runtime/{mcp-server,sync-daemon}/` (hooks-bridge dropped COOD-53) so `npm i -g @coodra/cli` ships everything needed. Externals: better-sqlite3 + sqlite-vec (native).",
     "build": "tsc -p tsconfig.json && node scripts/bundle.mjs",
     "build:tsc-only": "tsc -p tsconfig.json",
     "build:bundle-only": "node scripts/bundle.mjs",
@@ -97,7 +97,7 @@
     "start": "node dist/index.js",
     "cli": "node dist/index.js",
     "test:unit": "vitest run",
-    "//smoke:core": "Cross-platform end-to-end smoke for the Core (Claude Code) install path: init → start (mcp-server + hooks-bridge) → /healthz → status → stop. Requires `build` first. Drives the windows-latest CI job; runs identically on any OS for local validation.",
+    "//smoke:core": "Cross-platform end-to-end smoke for the Core (Claude Code) install path: init → start (mcp-server) → /healthz → status → stop. Requires `build` first. Drives the windows-latest CI job; runs identically on any OS for local validation.",
     "smoke:core": "node scripts/core-smoke.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",

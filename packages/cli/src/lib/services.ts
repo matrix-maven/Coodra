@@ -5,7 +5,7 @@ import type { DaemonUnit } from './daemon/index.js';
 import { loadHomeEnv } from './load-home-env.js';
 import { bundledMigrationsDir, resolveRuntimeBinary } from './runtime-paths.js';
 
-export type ServiceName = 'mcp-server' | 'hooks-bridge' | 'sync-daemon' | 'web';
+export type ServiceName = 'mcp-server' | 'sync-daemon' | 'web';
 
 /**
  * Service descriptors are a discriminated union: HTTP services bind to
@@ -41,15 +41,6 @@ export const SERVICES: readonly ServiceDescriptor[] = [
     port: 3100,
     defaultPort: 3100,
     relativeEntry: 'apps/mcp-server/dist/index.js',
-    healthUrl: (port) => `http://127.0.0.1:${port}/healthz`,
-  },
-  {
-    kind: 'http',
-    name: 'hooks-bridge',
-    displayName: 'Coodra Hooks Bridge',
-    port: 3101,
-    defaultPort: 3101,
-    relativeEntry: 'apps/hooks-bridge/dist/index.js',
     healthUrl: (port) => `http://127.0.0.1:${port}/healthz`,
   },
   {
@@ -92,11 +83,10 @@ export interface ResolvedService {
 }
 
 /**
- * Build the DaemonUnit each service runs as. The mcp-server and
- * hooks-bridge binary paths come from `lib/runtime-paths.ts::
- * resolveRuntimeBinary` — bundled (`@coodra/cli/dist/runtime/<app>/
- * index.js`) when available, monorepo dev path
- * (`apps/<app>/dist/index.js`) as fallback. Pre dec_83ba10c1 this
+ * Build the DaemonUnit each service runs as. The mcp-server binary path
+ * comes from `lib/runtime-paths.ts::resolveRuntimeBinary` — bundled
+ * (`@coodra/cli/dist/runtime/<app>/index.js`) when available, monorepo dev
+ * path (`apps/<app>/dist/index.js`) as fallback. Pre dec_83ba10c1 this
  * threw outright when no monorepo was detected; bundled artifacts in
  * the published tarball mean the throw path now only fires when the
  * dev contributor has not built the apps yet.
@@ -117,7 +107,6 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
   const layered = loadHomeEnv(options.coodraHome, process.cwd());
   const env: NodeJS.ProcessEnv = { ...layered, ...options.env };
   const mcpPort = parsePort(env.MCP_SERVER_PORT, 3100);
-  const bridgePort = parsePort(env.HOOKS_BRIDGE_PORT, 3101);
   // COODRA_WEB_PORT — env override path for the rare case the user
   // already runs something on 3001 (e.g. an unrelated Next.js dev server).
   // Default matches apps/web-v2/package.json's dev port.
@@ -134,7 +123,6 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
     let port: number | null = null;
     if (descriptor.kind === 'http') {
       if (descriptor.name === 'mcp-server') port = mcpPort;
-      else if (descriptor.name === 'hooks-bridge') port = bridgePort;
       else if (descriptor.name === 'web') port = webPort;
     }
     // The `web` dashboard is OPTIONAL (W1 2026-05-13): the Claude Code /
@@ -144,9 +132,9 @@ export async function resolveServices(options: BuildServiceUnitOptions): Promise
     // legitimately ships no web runtime. Skip web when its binary can't
     // be resolved instead of aborting the whole batch — otherwise
     // `coodra start` (and every caller) fails outright because the
-    // optional dashboard is absent. mcp-server / hooks-bridge /
-    // sync-daemon stay strict: their absence is a real install fault and
-    // must throw with the structured remediation.
+    // optional dashboard is absent. mcp-server / sync-daemon stay strict:
+    // their absence is a real install fault and must throw with the
+    // structured remediation.
     let resolvedBin: Awaited<ReturnType<typeof resolveRuntimeBinary>>;
     try {
       resolvedBin = await resolveRuntimeBinary(descriptor.name);
@@ -230,8 +218,6 @@ function buildServiceEnv(args: {
     'MCP_SERVER_PORT',
     'MCP_SERVER_TRANSPORT',
     'MCP_SERVER_HOST',
-    'HOOKS_BRIDGE_PORT',
-    'HOOKS_BRIDGE_HOST',
     // Web (W1 2026-05-13): standalone server reads PORT/HOSTNAME directly.
     // NODE_ENV must be 'production' so Next picks the prebuilt server (the
     // standalone bundle has no source maps / HMR baked in).
@@ -250,9 +236,6 @@ function buildServiceEnv(args: {
     env.MCP_SERVER_PORT = String(args.port);
     env.MCP_SERVER_TRANSPORT = 'http';
     env.MCP_SERVER_HOST = '127.0.0.1';
-  } else if (args.name === 'hooks-bridge' && args.port !== null) {
-    env.HOOKS_BRIDGE_PORT = String(args.port);
-    env.HOOKS_BRIDGE_HOST = '127.0.0.1';
   } else if (args.name === 'web' && args.port !== null) {
     // Bind to `::` (IPv6 wildcard, dual-stack). With the kernel default
     // `IPV6_V6ONLY=0` on macOS and Linux, this accepts BOTH native IPv6

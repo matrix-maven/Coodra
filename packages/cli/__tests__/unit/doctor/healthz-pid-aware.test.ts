@@ -6,8 +6,9 @@ import { probeHealthz } from '../../../src/doctor/checks/10-mcp-healthz.js';
 
 /**
  * Locks the post-08a-cleanup PID-aware severity refinement: doctor
- * checks 10/11 distinguish "process crashed" (RED) from "never started"
- * (YELLOW) by reading `<coodra-home>/pids/<unitName>.pid`.
+ * check 10 (and, pre-COOD-53, check 11) distinguishes "process crashed"
+ * (RED) from "never started" (YELLOW) by reading
+ * `<coodra-home>/pids/<unitName>.pid`.
  *
  * The probe target is a local port that's guaranteed unbound (we use a
  * high random port nobody listens on). fetch fails ECONNREFUSED, then
@@ -34,9 +35,9 @@ describe('probeHealthz — PID-aware severity', () => {
     const result = await probeHealthz({
       url: URL,
       timeoutMs: 1000,
-      label: 'Hooks Bridge',
+      label: 'MCP server',
       coodraHome: home,
-      unitName: 'hooks-bridge',
+      unitName: 'mcp-server',
     });
     expect(result.status).toBe('yellow');
     expect(result.detail).toMatch(/ECONNREFUSED|probe failed/);
@@ -59,14 +60,14 @@ describe('probeHealthz — PID-aware severity', () => {
     // the freshly-reaped PID returns ESRCH ("no such process").
     await new Promise((r) => setTimeout(r, 50));
 
-    await writeFile(join(home, 'pids', 'hooks-bridge.pid'), `${deadPid}\n`, 'utf8');
+    await writeFile(join(home, 'pids', 'mcp-server.pid'), `${deadPid}\n`, 'utf8');
 
     const result = await probeHealthz({
       url: URL,
       timeoutMs: 1000,
-      label: 'Hooks Bridge',
+      label: 'MCP server',
       coodraHome: home,
-      unitName: 'hooks-bridge',
+      unitName: 'mcp-server',
     });
     expect(result.status).toBe('red');
     expect(result.detail).toMatch(new RegExp(`PID file points at PID ${deadPid}.*no longer alive`));
@@ -77,14 +78,14 @@ describe('probeHealthz — PID-aware severity', () => {
     // The current process is, by definition, alive. Use process.pid as
     // a stand-in for a daemon that started successfully but isn't yet
     // serving healthz (booting / jammed).
-    await writeFile(join(home, 'pids', 'hooks-bridge.pid'), `${process.pid}\n`, 'utf8');
+    await writeFile(join(home, 'pids', 'mcp-server.pid'), `${process.pid}\n`, 'utf8');
 
     const result = await probeHealthz({
       url: URL,
       timeoutMs: 1000,
-      label: 'Hooks Bridge',
+      label: 'MCP server',
       coodraHome: home,
-      unitName: 'hooks-bridge',
+      unitName: 'mcp-server',
     });
     // Process is alive but probe fails — yellow with remediation,
     // not red (no crash signal).

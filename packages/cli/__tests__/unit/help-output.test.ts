@@ -26,8 +26,8 @@ describe('coodra --help (snapshot-locked surface)', () => {
         init [options]            Initialise Coodra in the current project (writes
                                   project-local .coodra/ config, manifest, recipes,
                                   graphify, wiki, and work-packs dirs).
-        start [options]           Start MCP Server + Hooks Bridge + Web Dashboard (+
-                                  Sync Daemon in team mode) as background daemons.
+        start [options]           Start MCP Server + Web Dashboard (+ Sync Daemon in
+                                  team mode) as background daemons.
         stop [options]            Stop Coodra daemons. Idempotent.
         status [options]          Print unified project + service state for the
                                   current cwd.
@@ -98,8 +98,7 @@ describe('coodra --help (snapshot-locked surface)', () => {
                                   daemons.
         logs [options] <service>  Tail or print recent lines from
                                   ~/.coodra/logs/<service>.log. Pure file-read; no DB.
-                                  Service ∈ {mcp-server, hooks-bridge, sync-daemon,
-                                  web}.
+                                  Service ∈ {mcp-server, sync-daemon, web}.
         pause [options]           Pause Coodra enforcement on the local machine via a
                                   row in \`kill_switches\`. Hard mode (default) denies;
                                   soft mode allows + audits. Local-only (M08b OQ-8);

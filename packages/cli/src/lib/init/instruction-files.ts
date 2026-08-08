@@ -27,10 +27,11 @@ import type { WriteOutcome } from './types.js';
  * instead of "unknown agent" when the client's MCP handshake name isn't
  * one the server recognises.
  *
- * For Claude Code specifically, the hooks-bridge ALSO injects a
- * runtime `additionalContext` payload at SessionStart — so CLAUDE.md
- * is defense-in-depth: it works even when the bridge isn't running,
- * and gives the user something visible/editable on disk.
+ * For Claude Code specifically, the native plugin's `lifecycle_event`
+ * ALSO injects a runtime `additionalContext` payload at SessionStart —
+ * so CLAUDE.md is defense-in-depth: it works even before the plugin's
+ * own injection lands, and gives the user something visible/editable
+ * on disk.
  *
  * **Marker-block discipline.** The generated content lives between
  * `<!-- coodra:start -->` / `<!-- coodra:end -->`. `init` only ever
@@ -70,7 +71,7 @@ export function buildInstructionBlock(
   const policyBlock = renderWorkflowPolicyContext(workflowPolicy, { projectSlug });
   const sessionIdHint =
     filename === 'CLAUDE.md'
-      ? ' When a Coodra SessionStart hook gave you a session id, pass it as\n   `agentSessionId` so this call and the hooks-bridge resolve to ONE run.'
+      ? ' When a Coodra SessionStart hook gave you a session id, pass it as\n   `agentSessionId` so this call and that hook resolve to ONE run.'
       : '';
   return `${INSTRUCTION_BLOCK_START}
 ## Coodra — agent operating contract (${agent.displayName})

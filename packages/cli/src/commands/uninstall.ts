@@ -36,7 +36,7 @@ import { hintLine, pc } from '../ui/index.js';
  * block the rest):
  *
  *   0. Stop AND uninstall every Coodra daemon unit (mcp-server,
- *      hooks-bridge, sync-daemon, web) via the platform daemon
+ *      sync-daemon, web) via the platform daemon
  *      manager (launchd / systemd / fallback). This runs FIRST so
  *      (a) `coodra uninstall` actually tears the running system down —
  *      pre-2026-07-18 it left the daemons alive, so the web daemon
@@ -676,8 +676,8 @@ async function purgeProjectDataDirs(args: {
 }
 
 /**
- * Stop AND uninstall every Coodra daemon unit (mcp-server, hooks-bridge,
- * sync-daemon, web). Best-effort per unit — a stop/uninstall failure for
+ * Stop AND uninstall every Coodra daemon unit (mcp-server, sync-daemon,
+ * web). Best-effort per unit — a stop/uninstall failure for
  * one service is recorded and does not block the rest of uninstall.
  *
  * `manager.stop` + `manager.uninstall` are both idempotent (per the

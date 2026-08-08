@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * Windows-readiness (2026-06-16, Core scope): `coodra start` on win32 must
- * bring up the Claude Code essentials (mcp-server + hooks-bridge) and SKIP
+ * bring up the Claude Code essentials (mcp-server + sync-daemon) and SKIP
  * the `web` dashboard cleanly — the bundled Next.js standalone is traced on
  * the maintainer's machine and won't boot under win32, and the Claude Code
  * integration needs no web. On darwin/linux web is still attempted.
@@ -33,7 +33,7 @@ vi.mock('../../../src/lib/services.js', () => {
     unit: { name, command: 'node', args: [`/fake/${name}.js`], env: {} },
   });
   return {
-    resolveServices: vi.fn(async () => [http('mcp-server', 3100), http('hooks-bridge', 3101), http('web', 3001)]),
+    resolveServices: vi.fn(async () => [http('mcp-server', 3100), http('sync-daemon', 3101), http('web', 3001)]),
   };
 });
 
@@ -111,13 +111,13 @@ describe('coodra start — web is platform-gated', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('skips web on win32 but starts mcp-server + hooks-bridge (exit 0)', async () => {
+  it('skips web on win32 but starts mcp-server + sync-daemon (exit 0)', async () => {
     const { io, out } = makeIO();
     const code = await runAndCaptureExit({ platform: 'win32', home, env: {} }, io);
 
     expect(code).toBe(EXIT_OK);
     expect(installed).toContain('mcp-server');
-    expect(installed).toContain('hooks-bridge');
+    expect(installed).toContain('sync-daemon');
     expect(installed).not.toContain('web');
     expect(out()).toContain('Skipping');
     expect(out()).toMatch(/not yet supported on Windows/i);
@@ -129,7 +129,7 @@ describe('coodra start — web is platform-gated', () => {
 
     expect(code).toBe(EXIT_OK);
     expect(installed).toContain('mcp-server');
-    expect(installed).toContain('hooks-bridge');
+    expect(installed).toContain('sync-daemon');
     expect(installed).toContain('web');
   });
 

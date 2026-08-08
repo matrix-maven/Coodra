@@ -74,7 +74,6 @@ describe('runInitCommand — integration', () => {
     const homeEnvBody = await readFile(join(home, '.env'), 'utf8');
     expect(homeEnvBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
     expect(homeEnvBody).toContain('MCP_SERVER_PORT=3100');
-    expect(homeEnvBody).toContain('HOOKS_BRIDGE_PORT=3101');
 
     const manifest = JSON.parse(await readFile(join(cwd, '.coodra', 'manifest.json'), 'utf8'));
     expect(manifest.entries).toEqual(

@@ -46,7 +46,6 @@ describe('doctor binary — integration spawn', () => {
         // Force LOCAL_HOOK_SECRET and ports off the parent so the test is hermetic.
         LOCAL_HOOK_SECRET: '',
         MCP_SERVER_PORT: '53100',
-        HOOKS_BRIDGE_PORT: '53101',
       },
       reject: false,
       timeout: 30_000,
@@ -107,14 +106,13 @@ describe('doctor binary — integration spawn', () => {
     expect(stdout).toMatch(/12 essential checks shown\. Run `coodra doctor --full`/);
   }, 30_000);
 
-  it('--full runs the complete 39-check registry', async () => {
+  it('--full runs the complete check registry', async () => {
     const result = await execa('node', [distBin, 'doctor', '--json', '--full', '--timeout-ms', '500'], {
       env: {
         ...process.env,
         COODRA_HOME: home,
         LOCAL_HOOK_SECRET: '',
         MCP_SERVER_PORT: '53102',
-        HOOKS_BRIDGE_PORT: '53103',
       },
       reject: false,
       timeout: 30_000,
@@ -125,10 +123,10 @@ describe('doctor binary — integration spawn', () => {
     });
     const stdout = String(result.stdout);
     const parsed = JSON.parse(stdout) as { checks: Array<{ id: number }> };
-    // 39 = 30 original checks + 36-team-config + 37-web-healthz + 38-tunnel-reachability
-    // + 39-codex-hook-registration (W1 web-bundle-initiative landed checks
-    // 37-38; 36 added with team-config; 39 added 2026-08-08).
+    // 36 = the 39 IDs 1-39 minus 08/11/18 (hooks-bridge-specific checks
+    // retired COOD-53, 2026-08-08 — the old HTTP bridge and its port
+    // 3101 no longer exist for anything to check).
     // Source of truth: packages/cli/src/doctor/registry.ts imports.
-    expect(parsed.checks).toHaveLength(39);
+    expect(parsed.checks).toHaveLength(36);
   }, 30_000);
 });

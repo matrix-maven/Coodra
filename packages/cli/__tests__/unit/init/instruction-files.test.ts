@@ -152,7 +152,7 @@ describe('mergeInstructionFile — AGENTS.md / CLAUDE.md generator', () => {
     expect(body).not.toContain('ALWAYS pass');
   });
 
-  it('only CLAUDE.md carries the agentSessionId (hooks-bridge reconciliation) hint', () => {
+  it('only CLAUDE.md carries the agentSessionId (SessionStart hook reconciliation) hint', () => {
     expect(buildInstructionBlock('s', 'CLAUDE.md')).toContain('agentSessionId');
     expect(buildInstructionBlock('s', 'AGENTS.md')).not.toContain('agentSessionId');
   });

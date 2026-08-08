@@ -9,18 +9,19 @@ import { runChecks } from '../../../src/doctor/run.js';
 import { openLocalDb } from '../../../src/lib/open-local-db.js';
 
 /**
- * Drives the full 20-check registry against a controlled tmp `~/.coodra/`
+ * Drives the full check registry against a controlled tmp `~/.coodra/`
  * fixture. This is the slice's "real test" — every check executes against
  * real fs + real SQLite (with migrations applied + F7 sentinel seeded).
  *
- * **Why we exclude check 29.** Check 29 (synthetic PreToolUse → bridge →
- * policy enforcement loop) fires a real HTTP POST at `127.0.0.1:<bridgePort>`.
- * If the developer happens to have a production hooks-bridge running while
- * tests execute, that bridge writes to the real `~/.coodra/data.db` —
- * one synthetic projects row + one in_progress run + one policy_decision
- * per fixture iteration. The fixture has no use for the result (no `it()`
- * asserts on check 29). Filtering it out keeps the test hermetic without
- * losing coverage; check 29 has its own dedicated mock-bridge unit test.
+ * **Why we exclude check 29.** Check 29 (synthetic PreToolUse →
+ * `lifecycle_event` → policy enforcement loop, rewired COOD-53 to spawn
+ * `mcp-server --transport stdio` directly instead of POSTing to the
+ * retired hooks-bridge) spawns a real Node child process and does a full
+ * JSON-RPC handshake against it — meaningfully slower than every other
+ * check in this fixture and dependent on the mcp-server binary being
+ * built. The fixture has no use for the result (no `it()` asserts on
+ * check 29). Filtering it out keeps this fixture fast; check 29 has its
+ * own dedicated unit test.
  */
 const FIXTURE_CHECKS = ALL_CHECKS.filter((c) => c.id !== 29);
 describe('doctor — full registry against a controlled fixture', () => {
@@ -56,9 +57,8 @@ describe('doctor — full registry against a controlled fixture', () => {
     expect(get(5)?.status).toBe('skipped');
     expect(get(12)?.status).toBe('yellow'); // .coodra/config.json missing → yellow w/ remediation
     expect(get(13)?.status).toBe('green'); // M03.1 closed; placeholder converted to green
-    // 17/18 may be green (port free) or yellow (in use); both are acceptable in CI runners.
+    // 17 may be green (port free) or yellow (in use); both are acceptable in CI runners.
     expect(['green', 'yellow']).toContain(get(17)?.status);
-    expect(['green', 'yellow']).toContain(get(18)?.status);
     // 21/22/23 — pending_jobs checks. data.db missing → all skipped.
     expect(get(21)?.status).toBe('skipped');
     expect(get(22)?.status).toBe('skipped');
@@ -89,8 +89,6 @@ describe('doctor — full registry against a controlled fixture', () => {
     expect(get(6)?.status).toBe('green');
     // No run_events orphans (no rows at all) — check 7 is green.
     expect(get(7)?.status).toBe('green');
-    // Bridge runId logs check — no log files → skipped.
-    expect(get(8)?.status).toBe('skipped');
     // .coodra/config.json absent → yellow.
     expect(get(12)?.status).toBe('yellow');
     expect(get(20)?.status).toBe('green'); // LOCAL_HOOK_SECRET via env

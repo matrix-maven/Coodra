@@ -17,7 +17,7 @@ export const projectRegisteredCheck: Check = {
       const cwd = resolve(ctx.cwd);
       return {
         status: 'yellow',
-        detail: `${configPath} missing or invalid — bridge will fall back to __global__ for this cwd`,
+        detail: `${configPath} missing or invalid — lifecycle events will fall back to __global__ for this cwd`,
         remediation:
           cwd === userHome
             ? 'Open a project directory, then run `coodra init` to register that project.'

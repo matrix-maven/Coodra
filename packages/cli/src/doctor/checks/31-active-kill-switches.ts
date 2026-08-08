@@ -9,7 +9,7 @@ import type { Check } from '../types.js';
  * Module 08b S18 check 31 — active kill switch count.
  *
  * YELLOW when count > 0 (pause is intentional — operator should know
- * the bridge is denying / soft-allowing real events). RED only when
+ * policy enforcement is denying / soft-allowing real events). RED only when
  * the DB read fails. Reports the age of the oldest active switch so
  * the operator can spot an "I forgot to resume after the demo" case.
  */

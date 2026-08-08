@@ -10,7 +10,6 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 export interface StartOptions {
   readonly mcp?: boolean;
-  readonly hooks?: boolean;
   readonly sync?: boolean;
   /** W1 (2026-05-13) — `--no-web` flag opts out of the bundled Next.js standalone server. */
   readonly web?: boolean;
@@ -54,7 +53,7 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
   if (options.foreground === true) {
     io.writeStderr(
       `${pc.yellow('coodra start --foreground')}: not implemented in 08a — for foreground debug use ` +
-        '`pnpm --filter @coodra/{mcp-server,hooks-bridge} dev` directly per docs/DEVELOPMENT.md.\n',
+        '`pnpm --filter @coodra/mcp-server dev` directly per docs/DEVELOPMENT.md.\n',
     );
     return io.exit(EXIT_USER_RECOVERABLE);
   }
@@ -109,24 +108,23 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
         `${pc.cyan('~/.coodra/.env')}.\n` +
         `  Team setup is incomplete — the Sync Daemon needs a cloud Postgres URL.\n` +
         `  Finish setup with ${pc.cyan('coodra team init')} (it writes DATABASE_URL + Clerk keys + local config).\n` +
-        `  ${pc.gray('Skipping the Sync Daemon for now; MCP server + Hooks Bridge + Web will still start.')}\n`,
+        `  ${pc.gray('Skipping the Sync Daemon for now; MCP server + Web will still start.')}\n`,
     );
   }
 
   // Windows (Core scope, 2026-06-16): the bundled `web` dashboard is the
   // Next.js standalone tree traced on the maintainer's machine and is not
   // yet supported on Windows (a darwin/linux-traced standalone won't boot
-  // under win32). The Claude Code integration — MCP server + Hooks Bridge —
-  // is fully functional without it, so default-skip web on win32 rather
-  // than attempting a boot that would hang the health probe and flip the
-  // whole `coodra start` to a failure. mcp-server + hooks-bridge stay the
-  // essential pair. Revisit when a Windows-native web build ships.
+  // under win32). The Claude Code integration — the MCP server — is fully
+  // functional without it, so default-skip web on win32 rather than
+  // attempting a boot that would hang the health probe and flip the whole
+  // `coodra start` to a failure. mcp-server stays essential. Revisit when
+  // a Windows-native web build ships.
   const platform = options.platform ?? process.platform;
   const webUnsupportedOnPlatform = platform === 'win32';
 
   const skip = (name: string): boolean =>
     (name === 'mcp-server' && options.mcp === false) ||
-    (name === 'hooks-bridge' && options.hooks === false) ||
     (name === 'sync-daemon' && (options.sync === false || teamSetupIncomplete)) ||
     (name === 'web' && (options.web === false || webUnsupportedOnPlatform));
 

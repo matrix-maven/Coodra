@@ -12,7 +12,6 @@ function ctx(coodraHome: string, env: NodeJS.ProcessEnv = {}): CheckContext {
     dataDb: join(coodraHome, 'data.db'),
     env,
     mcpPort: 3100,
-    bridgePort: 3101,
     webPort: 3001,
     now: () => new Date('2026-07-31T00:00:00.000Z'),
     timeoutMs: 500,
@@ -26,7 +25,7 @@ describe('localHookSecretCheck', () => {
     const home = await mkdtemp(join(tmpdir(), 'coodra-doctor-runtime-env-'));
     await writeFile(
       join(home, '.env'),
-      [`LOCAL_HOOK_SECRET=${'a'.repeat(64)}`, 'MCP_SERVER_PORT=3100', 'HOOKS_BRIDGE_PORT=3101'].join('\n'),
+      [`LOCAL_HOOK_SECRET=${'a'.repeat(64)}`, 'MCP_SERVER_PORT=3100'].join('\n'),
       'utf8',
     );
 
@@ -55,6 +54,5 @@ describe('localHookSecretCheck', () => {
 
     expect(result.status).toBe('yellow');
     expect(result.detail).toContain('MCP_SERVER_PORT');
-    expect(result.detail).toContain('HOOKS_BRIDGE_PORT');
   });
 });

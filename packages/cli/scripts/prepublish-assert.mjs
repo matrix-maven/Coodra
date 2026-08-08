@@ -43,7 +43,6 @@ const required = [
   // The MCP server runtime. Less likely to be missing (its build path
   // doesn't depend on web-v2) but still worth asserting before publish.
   resolve(cliRoot, 'dist/runtime/mcp-server/index.js'),
-  resolve(cliRoot, 'dist/runtime/hooks-bridge/index.js'),
   resolve(cliRoot, 'dist/runtime/sync-daemon/index.js'),
 ];
 

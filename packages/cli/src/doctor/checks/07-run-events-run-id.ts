@@ -44,7 +44,7 @@ export const runEventsRunIdCheck: Check = {
         detail: `${orphanCount}/${total} run_events rows in last 24h have NULL run_id`,
         remediation:
           'F8 closure (commit 900e55c) plumbs runId on every write. ' +
-          'A non-zero orphan count means the bridge is running pre-F8 binary or the project resolver is not finding the project. ' +
+          'A non-zero orphan count means an agent/mcp-server is running a pre-F8 binary or the project resolver is not finding the project. ' +
           'The runs↔run_events join (foundational NHI query) is broken for these rows.',
       };
     } catch (err) {

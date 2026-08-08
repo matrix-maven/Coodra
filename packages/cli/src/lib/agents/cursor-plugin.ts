@@ -206,7 +206,9 @@ function hooksConfig(hookRunnerPath: string): unknown {
       preToolUse: [{ command, matcher: TOOL_MATCHER, timeout: 10 }],
       postToolUse: [{ command, matcher: TOOL_MATCHER, timeout: 10 }],
       stop: [{ command, timeout: 10 }],
-      sessionEnd: [{ command, timeout: 3 }],
+      // Bumped from 3s (safety margin for finalizeRunOnSessionEnd running
+      // synchronously post-COOD-52; see codex-plugin.ts's SessionEnd comment).
+      sessionEnd: [{ command, timeout: 20 }],
       // Four events added (Cursor hook coverage expansion, mirroring
       // Claude Code's 91e8803 / Codex's a96e042). postToolUseFailure is
       // pure logging — left unmatched for full visibility, same choice

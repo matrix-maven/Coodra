@@ -41,9 +41,7 @@ describe('cold install — bundled binary works end-to-end', () => {
       );
     }
     if (!existsSync(mcpBundle)) {
-      throw new Error(
-        `Bundle missing at ${mcpBundle}. The CLI's build step bundles apps/{mcp-server,hooks-bridge}/dist into here.`,
-      );
+      throw new Error(`Bundle missing at ${mcpBundle}. The CLI's build step bundles apps/mcp-server/dist into here.`);
     }
   });
 
@@ -106,14 +104,13 @@ describe('cold install — bundled binary works end-to-end', () => {
     await expect(stat(join(cwd, '.codex', 'config.toml'))).rejects.toThrow();
 
     // 4) Coodra runtime config lives in COODRA_HOME, not the user's
-    // project .env. The bridge / mcp-server boot path defaults to
-    // solo when COODRA_MODE is absent.
+    // project .env. The mcp-server boot path defaults to solo when
+    // COODRA_MODE is absent.
     await expect(stat(join(cwd, '.env'))).rejects.toThrow();
     const envBody = await readFile(join(home, '.env'), 'utf8');
     expect(envBody).not.toContain('COODRA_MODE=');
     expect(envBody).toMatch(/LOCAL_HOOK_SECRET=[0-9a-f]{64}/);
     expect(envBody).toContain('MCP_SERVER_PORT=3100');
-    expect(envBody).toContain('HOOKS_BRIDGE_PORT=3101');
 
     await expect(stat(join(claudeHome, '.claude', 'settings.json'))).rejects.toThrow();
     await expect(stat(join(cwd, 'docs', 'feature-packs', 'cold-install'))).rejects.toThrow();

@@ -52,7 +52,7 @@ export const pendingJobsOldestCheck: Check = {
           status: 'yellow',
           detail: `oldest pending row is ${formatAge(ageSec)} old`,
           remediation:
-            'Worker draining slowly. Inspect `<coodra-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` outcomes. ' +
+            'Worker draining slowly. Inspect `<coodra-home>/logs/mcp-server.log` for `outbox_dispatch_*` outcomes. ' +
             'A repeated transient_failure on the same row will eventually mark it dead via `maxAttempts`.',
         };
       }

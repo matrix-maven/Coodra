@@ -12,7 +12,7 @@ import { probeHealthz } from './10-mcp-healthz.js';
  * outage doesn't make the supervisor restart-loop the process.
  *
  * Reuses `probeHealthz` so PID-state-aware diagnostics work the same
- * way as the mcp-server / hooks-bridge checks: if the PID file exists
+ * way as the mcp-server check: if the PID file exists
  * but the process is dead the result is RED with a clean recovery
  * remediation, otherwise YELLOW with `coodra start`.
  *

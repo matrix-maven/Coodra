@@ -49,7 +49,7 @@ export const pendingJobsDepthCheck: Check = {
           status: 'yellow',
           detail: `${depth} pending row(s) — queue is building up`,
           remediation:
-            'OutboxWorker may be slow. Check `<coodra-home>/logs/{hooks-bridge,mcp-server}.log` for `outbox_dispatch_*` lines. ' +
+            'OutboxWorker may be slow. Check `<coodra-home>/logs/mcp-server.log` for `outbox_dispatch_*` lines. ' +
             'If the worker is wedged on a single row, restarting the daemons (`coodra stop && coodra start`) reclaims it via the lease.',
         };
       }

@@ -32,7 +32,7 @@ import { findRepoRoot } from './find-repo-root.js';
  * with one canonical resolver that tries bundled paths first.
  */
 
-export type RuntimeApp = 'mcp-server' | 'hooks-bridge' | 'sync-daemon' | 'web';
+export type RuntimeApp = 'mcp-server' | 'sync-daemon' | 'web';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -101,7 +101,7 @@ export function bundledRuntimeCandidates(app: RuntimeApp): string[] {
 /**
  * Resolve the absolute path of the bundled drizzle migrations folder
  * for the given dialect. Used to set `COODRA_MIGRATIONS_DIR` before
- * spawning a bundled mcp-server or hooks-bridge so the embedded
+ * spawning a bundled mcp-server so the embedded
  * `@coodra/db::migrateSqlite` finds the SQL files inside the
  * published tarball.
  *
