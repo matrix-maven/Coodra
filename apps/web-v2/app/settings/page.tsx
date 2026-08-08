@@ -109,7 +109,7 @@ export default async function SettingsPage() {
               <KV k="COODRA_HOME" v={home} />
               <KV k="LOG_LEVEL" v={process.env.LOG_LEVEL ?? 'info'} />
               <KV k="MCP port" v={process.env.MCP_SERVER_PORT ?? '3100'} />
-              <KV k="Bridge port" v={process.env.HOOKS_BRIDGE_PORT ?? '3101'} />
+              <KV k="Web port" v={process.env.COODRA_WEB_PORT ?? '3001'} />
             </div>
 
             <div className="aside-card">

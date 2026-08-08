@@ -152,6 +152,13 @@ describe('Codex native plugin installer', () => {
       const entry = (hooksJson.hooks as Record<string, unknown>)[event] as Array<Record<string, unknown>>;
       expect(entry[0]).not.toHaveProperty('matcher');
     }
+
+    const hookRunner = await readFile(join(paths.pluginRoot, 'hooks', 'hook-runner.mjs'), 'utf8');
+    expect(hookRunner).toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('mcp-http-session.json');
+    expect(hookRunner).toContain('HTTP_SESSION_END_TIMEOUT_MS');
+    expect(hookRunner).toContain("method: 'tools/call'");
+    expect(hookRunner).not.toContain('fireAndForgetAck');
   });
 
   it('calls `codex plugin marketplace add` + `codex plugin add` with the resolved CLI path', async () => {

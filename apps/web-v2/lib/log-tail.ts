@@ -23,7 +23,7 @@ import { join } from 'node:path';
  * any other slug returns null.
  */
 
-export const LOG_SERVICES = ['hooks-bridge', 'mcp-server', 'sync-daemon'] as const;
+export const LOG_SERVICES = ['mcp-server', 'web', 'sync-daemon'] as const;
 export type LogService = (typeof LOG_SERVICES)[number];
 
 export function isLogService(s: string): s is LogService {

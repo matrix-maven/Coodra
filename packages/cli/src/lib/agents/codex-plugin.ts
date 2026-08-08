@@ -523,11 +523,10 @@ function hooksConfig(): unknown {
       ],
       // SessionEnd's timeout was 3s pre-COOD-52; finalizeRunOnSessionEnd
       // (run-diff capture, auto Context Pack save, linked Work Pack sync,
-      // ask-outcome sweep) now runs synchronously inside this window,
-      // after the hook-runner's own spawn+JSON-RPC-handshake overhead.
-      // Bumped to 20s as a safety margin until COOD-54 (HTTP daemon
-      // fire-and-forget) removes the synchronous-await requirement
-      // entirely for hosts with `coodra start` running.
+      // ask-outcome sweep) now runs inside this window. COOD-54 keeps the
+      // persistent HTTP daemon fast path, but SessionEnd still waits for
+      // the result so stale HTTP sessions can fall back instead of
+      // silently skipping finalization.
       SessionEnd: [
         {
           hooks: [
@@ -614,12 +613,20 @@ function hooksConfig(): unknown {
 
 function hookRunner(): string {
   return `import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PLUGIN_ROOT = process.env.PLUGIN_ROOT || dirname(dirname(fileURLToPath(import.meta.url)));
 const MCP_REQUEST_TIMEOUT_MS = 8000;
+// COOD-54: short budget for the HTTP-daemon-first attempt. Kept well
+// under the hooks.json per-event timeout so a slow/unreachable daemon
+// still leaves time for the stdio-spawn fallback within the same hook
+// invocation.
+const HTTP_DAEMON_TIMEOUT_MS = 800;
+const HTTP_SESSION_END_TIMEOUT_MS = 18000;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -751,6 +758,177 @@ function callLifecycleTool(rawPayload) {
   });
 }
 
+// COOD-54: read LOCAL_HOOK_SECRET + MCP_SERVER_PORT from ~/.coodra/.env
+// (the same file \`coodra install\`/\`coodra init\` write) so the HTTP path
+// below can talk to an already-running \`coodra start\` daemon without
+// needing anything threaded through .mcp.json.
+function readCoodraRuntimeEnv() {
+  const coodraHome = process.env.COODRA_HOME || join(homedir(), '.coodra');
+  let localHookSecret = process.env.LOCAL_HOOK_SECRET || '';
+  let mcpServerPort = process.env.MCP_SERVER_PORT || '3100';
+  try {
+    const envBody = readFileSync(join(coodraHome, '.env'), 'utf8');
+    if (!localHookSecret) {
+      const m = envBody.match(/^LOCAL_HOOK_SECRET=(\\S+)/m);
+      if (m) localHookSecret = m[1];
+    }
+    const p = envBody.match(/^MCP_SERVER_PORT=(\\S+)/m);
+    if (p) mcpServerPort = p[1];
+  } catch {
+    // no ~/.coodra/.env yet (coodra install never ran) — HTTP path is
+    // skipped below when localHookSecret stays empty.
+  }
+  return { coodraHome, localHookSecret, mcpServerPort: Number(mcpServerPort) || 3100 };
+}
+
+// The Streamable HTTP transport rejects requests that don't accept
+// BOTH content types (it may reply with a plain JSON body or an SSE
+// stream depending on the request) with 406 Not Acceptable.
+const MCP_ACCEPT_HEADER = 'application/json, text/event-stream';
+
+function httpRoundTrip(port, path, method, headers, jsonBody, timeoutMs = HTTP_DAEMON_TIMEOUT_MS) {
+  return new Promise((resolvePromise, reject) => {
+    const payload = jsonBody === undefined ? undefined : JSON.stringify(jsonBody);
+    const req = httpRequest(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        method,
+        headers: {
+          accept: MCP_ACCEPT_HEADER,
+          ...(payload ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) } : {}),
+          ...headers,
+        },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => resolvePromise({ statusCode: res.statusCode, headers: res.headers, body: data }));
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('coodra_http_daemon_timeout')));
+    req.on('error', reject);
+    if (payload) req.end(payload);
+    else req.end();
+  });
+}
+
+// The Streamable HTTP transport may answer with a plain JSON body or
+// with an SSE-framed one (\`event: message\\ndata: <json>\\n\\n\`) depending
+// on internal transport state. Handle both.
+function parseJsonRpcResponseBody(body) {
+  const trimmed = body.trim();
+  if (trimmed.length === 0) throw new Error('coodra_http_daemon_empty_response');
+  if (trimmed.startsWith('{')) return JSON.parse(trimmed);
+  const dataLines = trimmed.split('\\n').filter((l) => l.startsWith('data:'));
+  if (dataLines.length === 0) throw new Error('coodra_http_daemon_unparseable_response');
+  return JSON.parse(dataLines[dataLines.length - 1].slice('data:'.length).trim());
+}
+
+// The daemon's underlying MCP \`Server\` accepts exactly ONE \`initialize\`
+// per process lifetime — a second caller's \`initialize\` fails with
+// "Server already initialized" (confirmed against a real daemon while
+// building this). So the transport session id from the first successful
+// \`initialize\` has to be cached to disk and REUSED by every later hook
+// call for as long as this daemon process stays up; there is no way to
+// mint a second one. \`coodra stop && coodra start\` (a fresh daemon
+// process) is what invalidates the cache.
+function sessionCachePath(coodraHome) {
+  return join(coodraHome, 'mcp-http-session.json');
+}
+
+function readCachedSessionId(coodraHome, port) {
+  try {
+    const raw = readFileSync(sessionCachePath(coodraHome), 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.port === port && typeof parsed.sessionId === 'string' && parsed.sessionId) {
+      return parsed.sessionId;
+    }
+  } catch {
+    // no cache yet, or unreadable/corrupt — treat as no cache.
+  }
+  return null;
+}
+
+function writeCachedSessionId(coodraHome, port, sessionId) {
+  try {
+    writeFileSync(sessionCachePath(coodraHome), JSON.stringify({ port, sessionId }), 'utf8');
+  } catch {
+    // Best-effort — a failed cache write just means the next hook call
+    // re-initializes (and likely fails, since only one initialize is
+    // allowed — see below) rather than reusing this session. Degrades
+    // to the stdio-spawn fallback for that call, not a hard failure.
+  }
+}
+
+async function initializeHttpSession(port, secret) {
+  const initRes = await httpRoundTrip(port, '/mcp', 'POST', { 'x-local-hook-secret': secret }, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2024-11-05',
+      capabilities: {},
+      clientInfo: { name: 'coodra-codex-hook-runner-http', version: '1.0.0' },
+    },
+  });
+  if (initRes.statusCode < 200 || initRes.statusCode >= 300) {
+    throw new Error('coodra_http_daemon_init_failed_' + initRes.statusCode);
+  }
+  const sessionId = initRes.headers['mcp-session-id'];
+  if (!sessionId) throw new Error('coodra_http_daemon_no_session_id');
+  return sessionId;
+}
+
+// Single tools/call attempt against a given session id. Returns
+// \`{ sessionInvalid: true }\` on 404 "Session not found" so the caller
+// can re-initialize and retry once; throws for any other failure
+// (daemon down, timeout, non-2xx/non-404).
+async function tryToolCall(port, secret, sessionId, rawPayload) {
+  const headers = { 'x-local-hook-secret': secret, 'mcp-session-id': sessionId };
+  const body = {
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: { name: 'lifecycle_event', arguments: { agentType: 'codex', rawPayload } },
+  };
+  const timeoutMs = rawPayload && rawPayload.hook_event_name === 'SessionEnd'
+    ? HTTP_SESSION_END_TIMEOUT_MS
+    : HTTP_DAEMON_TIMEOUT_MS;
+  const res = await httpRoundTrip(port, '/mcp', 'POST', headers, body, timeoutMs);
+  if (res.statusCode === 404) return { sessionInvalid: true };
+  if (res.statusCode < 200 || res.statusCode >= 300) {
+    throw new Error('coodra_http_daemon_call_failed_' + res.statusCode);
+  }
+  return { value: parseMcpResult(parseJsonRpcResponseBody(res.body)) };
+}
+
+// Tries the already-running \`coodra start\` MCP HTTP daemon: reuse the
+// cached transport session if one exists for this port, re-initializing
+// (and re-caching) only when there is no cache yet or the cached session
+// was rejected as invalid. On ANY failure this throws and the caller
+// falls back to the stdio-spawn path below, unchanged from pre-COOD-54
+// behavior.
+async function callLifecycleToolViaHttp(rawPayload, coodraHome, port, secret) {
+  const cached = readCachedSessionId(coodraHome, port);
+  if (cached !== null) {
+    const attempt = await tryToolCall(port, secret, cached, rawPayload);
+    if (!attempt.sessionInvalid) return attempt.value;
+    // Cached session was for a since-restarted daemon — fall through to
+    // mint a fresh one below.
+  }
+  const sessionId = await initializeHttpSession(port, secret);
+  writeCachedSessionId(coodraHome, port, sessionId);
+  const attempt = await tryToolCall(port, secret, sessionId, rawPayload);
+  if (attempt.sessionInvalid) throw new Error('coodra_http_daemon_session_invalid_after_fresh_init');
+  return attempt.value;
+}
+
 const raw = await readStdin();
 let payload;
 try {
@@ -758,6 +936,30 @@ try {
 } catch {
   process.stdout.write(JSON.stringify(failOpen('invalid_hook_payload')));
   process.exit(0);
+}
+
+// COOD-54: prefer the persistent HTTP daemon (\`coodra start\` already
+// running) over spawning a fresh stdio subprocess. SessionEnd uses the
+// same request/response path with a longer timeout: correctness matters
+// more than shaving a few milliseconds because a stale cached MCP HTTP
+// session must be detected and retried instead of silently losing the
+// finalizer's run-diff / auto-pack / Work Pack update.
+const { coodraHome, localHookSecret, mcpServerPort } = readCoodraRuntimeEnv();
+if (localHookSecret) {
+  try {
+    const hookOutput = await callLifecycleToolViaHttp(
+      payload,
+      coodraHome,
+      mcpServerPort,
+      localHookSecret,
+    );
+    process.stdout.write(JSON.stringify(hookOutput || {}));
+    process.exit(0);
+  } catch {
+    // Daemon unreachable, unauthenticated, or any other HTTP-path
+    // failure — fall through to the stdio-spawn path below. Never
+    // surface this as a hook failure to the agent.
+  }
 }
 
 try {

@@ -71,7 +71,7 @@ function stripAnsi(s: string): string {
 
 export interface RunStartInput {
   readonly mcp?: boolean;
-  readonly hooks?: boolean;
+  readonly web?: boolean;
   readonly sync?: boolean;
   readonly waitTimeoutMs?: number;
 }
@@ -98,7 +98,7 @@ export async function runStart(input: RunStartInput = {}): Promise<RunStartResul
   const options: StartOptions = {
     foreground: false,
     ...(input.mcp !== undefined ? { mcp: input.mcp } : {}),
-    ...(input.hooks !== undefined ? { hooks: input.hooks } : {}),
+    ...(input.web !== undefined ? { web: input.web } : {}),
     ...(input.sync !== undefined ? { sync: input.sync } : {}),
     ...(input.waitTimeoutMs !== undefined ? { waitTimeoutMs: input.waitTimeoutMs } : {}),
   };
@@ -132,7 +132,7 @@ export async function runStart(input: RunStartInput = {}): Promise<RunStartResul
 
 export interface RunStopInput {
   /** Stop a single service by name. Omit to stop all. */
-  readonly service?: 'mcp-server' | 'hooks-bridge' | 'sync-daemon';
+  readonly service?: 'mcp-server' | 'web' | 'sync-daemon';
 }
 
 export interface RunStopResult {

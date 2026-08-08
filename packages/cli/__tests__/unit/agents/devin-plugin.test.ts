@@ -143,6 +143,10 @@ describe('Devin native plugin installer', () => {
     expect(hookRunner).toContain("agentType: 'devin'");
     expect(hookRunner).toContain("method: 'tools/call'");
     expect(hookRunner).toContain('DEVIN_PROJECT_DIR');
+    expect(hookRunner).toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('mcp-http-session.json');
+    expect(hookRunner).toContain('HTTP_SESSION_END_TIMEOUT_MS');
+    expect(hookRunner).not.toContain('fireAndForgetAck');
 
     expect(await readFile(join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), 'utf8')).toContain(
       'name: coodra-context',

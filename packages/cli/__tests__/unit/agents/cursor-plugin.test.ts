@@ -101,6 +101,10 @@ describe('Cursor native plugin installer', () => {
     const hookRunner = await readFile(paths.hookRunnerPath, 'utf8');
     expect(hookRunner).toContain("agentType: 'cursor'");
     expect(hookRunner).toContain("method: 'tools/call'");
+    expect(hookRunner).toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('mcp-http-session.json');
+    expect(hookRunner).toContain('HTTP_SESSION_END_TIMEOUT_MS');
+    expect(hookRunner).not.toContain('fireAndForgetAck');
 
     expect(await readFile(join(paths.skillsRoot, 'coodra-context', 'SKILL.md'), 'utf8')).toContain(
       'name: coodra-context',

@@ -10,7 +10,7 @@ import { refuseInTeamHosted } from '@/lib/action-guards';
  *
  * Three actions, reachable from /workspace + topbar:
  *
- *   startServicesAction()  — spawns hooks-bridge + mcp-server (+ sync
+ *   startServicesAction()  — spawns mcp-server + web (+ sync
  *                            in team mode); wraps `runStart`.
  *   stopServicesAction()   — kills the same; wraps `runStop`.
  *   refreshStatusAction()  — no-op redirect that triggers a rerun
@@ -29,10 +29,10 @@ const WORKSPACE_HREF = '/workspace';
 export async function startServicesAction(formData: FormData): Promise<void> {
   refuseInTeamHosted('startServicesAction');
   const onlyMcp = formData.get('only') === 'mcp';
-  const onlyHooks = formData.get('only') === 'hooks';
+  const onlyWeb = formData.get('only') === 'web';
   const result = await runStart({
-    ...(onlyMcp ? { mcp: true, hooks: false } : {}),
-    ...(onlyHooks ? { hooks: true, mcp: false } : {}),
+    ...(onlyMcp ? { mcp: true, web: false } : {}),
+    ...(onlyWeb ? { web: true, mcp: false } : {}),
   });
   if (!result.ok) {
     redirect(
@@ -46,7 +46,7 @@ export async function stopServicesAction(formData: FormData): Promise<void> {
   refuseInTeamHosted('stopServicesAction');
   const service = formData.get('service');
   const result = await runStop(
-    typeof service === 'string' && (service === 'mcp-server' || service === 'hooks-bridge' || service === 'sync-daemon')
+    typeof service === 'string' && (service === 'mcp-server' || service === 'web' || service === 'sync-daemon')
       ? { service }
       : {},
   );

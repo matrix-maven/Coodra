@@ -221,7 +221,10 @@ describe('coodra agent add', () => {
     expect(hookRunner).toContain("method: 'tools/call'");
     expect(hookRunner).not.toContain('/v1/hooks/codex');
     expect(hookRunner).not.toContain('HOOKS_BRIDGE_PORT');
-    expect(hookRunner).not.toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('mcp-http-session.json');
+    expect(hookRunner).toContain('HTTP_SESSION_END_TIMEOUT_MS');
+    expect(hookRunner).not.toContain('fireAndForgetAck');
     expect(await readFile(join(pluginRoot, 'skills', 'coodra-context', 'SKILL.md'), 'utf8')).toContain(
       'name: coodra-context',
     );

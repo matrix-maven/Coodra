@@ -129,9 +129,14 @@ describe('Antigravity native plugin installer', () => {
     await installAntigravityPlugin(ctx());
     const hookRunner = await readFile(paths.hookRunnerPath, 'utf8');
     expect(hookRunner).toContain('process.argv[2]');
+    expect(hookRunner).toContain('const eventName = process.argv[2] || payload.hook_event_name');
     expect(hookRunner).toContain('payload.hookEventName');
     expect(hookRunner).toContain("agentType: 'antigravity'");
     expect(hookRunner).toContain("method: 'tools/call'");
+    expect(hookRunner).toContain('LOCAL_HOOK_SECRET');
+    expect(hookRunner).toContain('mcp-http-session.json');
+    expect(hookRunner).toContain('HTTP_SESSION_END_TIMEOUT_MS');
+    expect(hookRunner).not.toContain('fireAndForgetAck');
   });
 
   it('removeAntigravityPlugin removes the whole plugin directory unconditionally (no shared registry to preserve)', async () => {

@@ -7,6 +7,7 @@ import { VERSION } from '../../version.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
 import { terminalReadPrompt } from '../terminal-prompt.js';
+import { commandHookRunner } from './command-hook-runner.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
 import type { AgentContext, AgentPathContext, AgentRemoveContext } from './types.js';
 
@@ -548,143 +549,11 @@ function hooksConfig(hookRunnerPath: string): unknown {
 }
 
 function hookRunner(): string {
-  return `import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const MCP_REQUEST_TIMEOUT_MS = 8000;
-
-function readStdin() {
-  return new Promise((resolve) => {
-    let body = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      body += chunk;
-    });
-    process.stdin.on('end', () => resolve(body));
-  });
-}
-
-function loadCoodraMcpEntry() {
-  const mcpPath = join(PLUGIN_ROOT, 'mcp_config.json');
-  const parsed = JSON.parse(readFileSync(mcpPath, 'utf8'));
-  const servers = parsed.mcpServers || parsed;
-  const entry = servers && servers.coodra;
-  if (!entry || typeof entry !== 'object' || typeof entry.command !== 'string') {
-    throw new Error('coodra_mcp_entry_missing');
-  }
-  return {
-    command: entry.command,
-    args: Array.isArray(entry.args) ? entry.args.map(String) : [],
-    env: entry.env && typeof entry.env === 'object' ? entry.env : {},
-  };
-}
-
-function parseMcpResult(response) {
-  const result = response && response.result;
-  const structured = result && result.structuredContent;
-  if (structured && typeof structured === 'object' && structured.hookOutput) {
-    return structured.hookOutput;
-  }
-  const firstText = result && Array.isArray(result.content) ? result.content.find((c) => c.type === 'text') : null;
-  if (firstText && typeof firstText.text === 'string') {
-    const parsed = JSON.parse(firstText.text);
-    if (parsed && typeof parsed === 'object' && parsed.hookOutput) return parsed.hookOutput;
-  }
-  throw new Error('coodra_lifecycle_output_missing');
-}
-
-function callLifecycleTool(rawPayload) {
-  return new Promise((resolve, reject) => {
-    const entry = loadCoodraMcpEntry();
-    const child = spawn(entry.command, entry.args, {
-      env: { ...process.env, ...entry.env, COODRA_LOG_DESTINATION: 'stderr' },
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    let buffer = '';
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill('SIGTERM');
-      reject(new Error('coodra_mcp_lifecycle_timeout'));
-    }, MCP_REQUEST_TIMEOUT_MS);
-
-    function send(message) {
-      child.stdin.write(JSON.stringify(message) + '\\n');
-    }
-
-    function settleWith(value) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.kill('SIGTERM');
-      resolve(value);
-    }
-
-    function settleError(err) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      child.kill('SIGTERM');
-      reject(err);
-    }
-
-    child.on('error', settleError);
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk) => {
-      buffer += chunk;
-      for (;;) {
-        const idx = buffer.indexOf('\\n');
-        if (idx < 0) break;
-        const line = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 1);
-        if (!line) continue;
-        let msg;
-        try {
-          msg = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        if (msg.id === 1) {
-          send({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} });
-          send({
-            jsonrpc: '2.0',
-            id: 2,
-            method: 'tools/call',
-            params: { name: 'lifecycle_event', arguments: { agentType: 'devin', rawPayload } },
-          });
-        } else if (msg.id === 2) {
-          if (msg.error) settleError(new Error(String(msg.error.message || 'coodra_lifecycle_tool_failed')));
-          else settleWith(parseMcpResult(msg));
-        }
-      }
-    });
-
-    send({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'coodra-devin-hook-runner', version: '1.0.0' },
-      },
-    });
-  });
-}
-
-const raw = await readStdin();
-let payload;
-try {
-  payload = JSON.parse(raw || '{}');
-} catch {
-  process.stdout.write(JSON.stringify({}));
-  process.exit(0);
-}
-
+  return commandHookRunner({
+    agentType: 'devin',
+    clientName: 'coodra-devin-hook-runner',
+    mcpConfigFilename: 'mcp_config.json',
+    enrichPayload: `
 // Devin's stdin payload carries no cwd field in any documented event
 // (unlike Cursor's, which does) — Devin instead sets DEVIN_PROJECT_DIR
 // as an environment variable. Enrich rather than assume the field is
@@ -692,18 +561,8 @@ try {
 if (payload && typeof payload === 'object' && payload.cwd === undefined && process.env.DEVIN_PROJECT_DIR) {
   payload.cwd = process.env.DEVIN_PROJECT_DIR;
 }
-
-try {
-  const hookOutput = await callLifecycleTool(payload);
-  process.stdout.write(JSON.stringify(hookOutput || {}));
-} catch {
-  // Fail open with an empty object — every field in every Devin hook
-  // output schema is optional, so \`{}\` is the one shape that's safe
-  // for all eight events without knowing which event this invocation
-  // was for (same reasoning as Cursor's own hook-runner.mjs).
-  process.stdout.write(JSON.stringify({}));
-}
-`;
+`,
+  });
 }
 
 function coodraInitSkill(): string {

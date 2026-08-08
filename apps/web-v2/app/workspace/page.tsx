@@ -20,7 +20,7 @@ interface SearchParams {
 }
 
 interface ServiceRow {
-  readonly key: 'mcp-server' | 'hooks-bridge' | 'sync-daemon';
+  readonly key: 'mcp-server' | 'web' | 'sync-daemon';
   readonly name: string;
   readonly addr: string;
   readonly status: 'reachable' | 'unreachable' | 'idle';
@@ -40,7 +40,7 @@ async function probe(url: string, timeoutMs = 600): Promise<boolean> {
 }
 
 export default async function WorkspacePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  // /workspace shows the status of LOCAL daemons (MCP server, Hooks Bridge,
+  // /workspace shows the status of LOCAL daemons (MCP server, web,
   // Sync Daemon) on this machine. On a team-hosted deployment server those
   // don't exist — hide the page so users don't dead-end on a probe-fail UI.
   if (resolveDeploymentMode() === 'team-hosted') notFound();
@@ -53,11 +53,11 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const dbSize = dbExists ? statSync(dbPath).size : 0;
 
   const mcpPort = process.env.MCP_SERVER_PORT ?? '3100';
-  const bridgePort = process.env.HOOKS_BRIDGE_PORT ?? '3101';
+  const webPort = process.env.COODRA_WEB_PORT ?? '3001';
 
-  const [mcpOk, bridgeOk, projects] = await Promise.all([
+  const [mcpOk, webOk, projects] = await Promise.all([
     probe(`http://127.0.0.1:${mcpPort}/healthz`),
-    probe(`http://127.0.0.1:${bridgePort}/healthz`),
+    probe(`http://127.0.0.1:${webPort}/api/healthz`),
     listProjects(),
   ]);
 
@@ -70,11 +70,11 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       note: mcpOk ? 'health check OK' : 'no response',
     },
     {
-      key: 'hooks-bridge',
-      name: 'Hooks bridge',
-      addr: `127.0.0.1:${bridgePort} · http · 4 handlers`,
-      status: bridgeOk ? 'reachable' : 'unreachable',
-      note: bridgeOk ? 'health check OK' : 'no response',
+      key: 'web',
+      name: 'Web dashboard',
+      addr: `127.0.0.1:${webPort} · next.js`,
+      status: webOk ? 'reachable' : 'unreachable',
+      note: webOk ? 'health check OK' : 'no response',
     },
     {
       key: 'sync-daemon',
@@ -96,7 +96,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
               Local <em>services</em>.
             </h1>
             <p className="head__lede">
-              All Coodra daemons running on this machine. Health-probed live; solo mode runs MCP + Hooks; team mode adds
+              All Coodra daemons running on this machine. Health-probed live; solo mode runs MCP + Web; team mode adds
               Sync.
             </p>
           </div>
@@ -187,23 +187,21 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {canControl ? (
-                    <>
-                      {svc.status === 'reachable' ? (
-                        <form action={stopServicesAction} style={{ display: 'inline' }}>
-                          <input type="hidden" name="service" value={svc.key} />
-                          <button className="btn btn--sm btn--ghost" type="submit">
-                            Stop
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={startServicesAction} style={{ display: 'inline' }}>
-                          <input type="hidden" name="only" value={svc.key === 'mcp-server' ? 'mcp' : 'hooks'} />
-                          <button className="btn btn--sm" type="submit">
-                            Start
-                          </button>
-                        </form>
-                      )}
-                    </>
+                    svc.status === 'reachable' ? (
+                      <form action={stopServicesAction} style={{ display: 'inline' }}>
+                        <input type="hidden" name="service" value={svc.key} />
+                        <button className="btn btn--sm btn--ghost" type="submit">
+                          Stop
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={startServicesAction} style={{ display: 'inline' }}>
+                        <input type="hidden" name="only" value={svc.key === 'mcp-server' ? 'mcp' : 'web'} />
+                        <button className="btn btn--sm" type="submit">
+                          Start
+                        </button>
+                      </form>
+                    )
                   ) : (
                     <span style={{ color: 'var(--ink-mute)', fontFamily: 'var(--mono)', fontSize: 10 }}>—</span>
                   )}

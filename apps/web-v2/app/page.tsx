@@ -294,8 +294,8 @@ export default async function DashboardPage({
               {dm === 'team-hosted' ? (
                 <>
                   {/* Team-hosted: the web is the only thing running on
-                      this server. The bridge + MCP + sync daemons all
-                      run on individual developers' laptops, not here. */}
+                      this server. MCP + sync daemons run on individual
+                      developers' laptops, not here. */}
                   <SystemRow title="Web shell" sub="Next.js · this deployment" tone="ok" />
                   <SystemRow title="Identity" sub="Clerk session JWT" tone="ok" />
                   <SystemRow title="Storage" sub="cloud postgres · supabase" tone="ok" />
@@ -304,7 +304,7 @@ export default async function DashboardPage({
               ) : (
                 <>
                   <SystemRow title="MCP server" sub="127.0.0.1:3100 · stdio + http" tone="ok" />
-                  <SystemRow title="Hooks bridge" sub="127.0.0.1:3101 · 4 handlers" tone="ok" />
+                  <SystemRow title="Web dashboard" sub="127.0.0.1:3001 · next.js" tone="ok" />
                   <SystemRow
                     title="Sync daemon"
                     sub={snap.mode === 'solo' ? 'standby · solo' : 'queue depth · 0'}
@@ -418,12 +418,12 @@ function CoverageCell({
   explainerLow: React.ReactNode;
 }) {
   const hasData = ratio !== null;
-  const pct = hasData ? Math.round(ratio * 100) : null;
+  const pct = ratio === null ? 0 : Math.round(ratio * 100);
   const tone = !hasData
     ? { fg: 'var(--ink-mute)', glow: 'transparent', label: 'NO DATA' }
-    : pct! >= 80
+    : pct >= 80
       ? { fg: 'var(--accent)', glow: 'var(--accent-glow)', label: 'HEALTHY' }
-      : pct! >= 50
+      : pct >= 50
         ? { fg: 'var(--caution)', glow: 'var(--caution-glow)', label: 'WATCH' }
         : { fg: 'var(--warn)', glow: 'var(--warn-glow)', label: 'LOW' };
   return (
@@ -472,7 +472,7 @@ function CoverageCell({
           <>
             <strong style={{ color: 'var(--ink)' }}>{numerator}</strong> of{' '}
             <strong style={{ color: 'var(--ink)' }}>{denominator}</strong> {denominatorLabel}{' '}
-            {pct! >= 50 ? explainerOk : explainerLow}
+            {pct >= 50 ? explainerOk : explainerLow}
           </>
         ) : (
           emptyHint
