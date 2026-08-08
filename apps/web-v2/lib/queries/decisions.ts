@@ -1,4 +1,12 @@
-import { type DbHandle, type DecisionWithProject, type ListDecisionsFilter, listAllDecisions } from '@coodra/db';
+import {
+  type ContextPackRow,
+  type DbHandle,
+  type DecisionWithProject,
+  getDecisionById,
+  type ListDecisionsFilter,
+  listAllDecisions,
+  listContextPacksForRuns,
+} from '@coodra/db';
 
 import { createWebDb } from '@/lib/db';
 
@@ -16,4 +24,23 @@ export async function listDecisions(
 ): Promise<DecisionWithProject[]> {
   const handle = filter.db ?? createWebDb();
   return listAllDecisions(handle, filter);
+}
+
+export async function getDecision(id: string, db?: DbHandle): Promise<DecisionWithProject | null> {
+  const handle = db ?? createWebDb();
+  return getDecisionById(handle, id);
+}
+
+/**
+ * Context packs across every run these decisions belong to — the raw
+ * material for `packsLinkingDecision` (see `lib/context-pack-links.ts`).
+ * Batched by distinct runId rather than one query per decision.
+ */
+export async function listContextPacksForDecisions(
+  decisions: ReadonlyArray<{ readonly runId: string | null }>,
+  db?: DbHandle,
+): Promise<ContextPackRow[]> {
+  const handle = db ?? createWebDb();
+  const runIds = [...new Set(decisions.map((d) => d.runId).filter((id): id is string => id !== null))];
+  return listContextPacksForRuns(handle, runIds);
 }

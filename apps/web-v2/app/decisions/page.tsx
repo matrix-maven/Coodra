@@ -3,9 +3,11 @@ import Link from 'next/link';
 import { ActorBadge } from '@/components/ActorBadge';
 import { Topbar } from '@/components/Topbar';
 import { actorDisplayNameProp } from '@/lib/actor-display';
+import { agentTypeLabel } from '@/lib/agent-label';
+import { packsLinkingDecision } from '@/lib/context-pack-links';
 import { fmtClockSec, fmtRelative } from '@/lib/format';
 import { resolveClerkDisplayNames } from '@/lib/queries/clerk-users';
-import { listDecisions } from '@/lib/queries/decisions';
+import { listContextPacksForDecisions, listDecisions } from '@/lib/queries/decisions';
 import { listProjects } from '@/lib/queries/projects';
 import { readTeamConfig } from '@/lib/team-config';
 
@@ -38,6 +40,10 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
     ...(selectedProject !== undefined ? { projectId: selectedProject.id } : {}),
     limit,
   });
+  // Batched across every decision's runId, not one query per row — the
+  // Pack column shows which context pack(s) claimed each decision via
+  // `meta.decisionIds` (populated by save_context_pack).
+  const contextPacks = await listContextPacksForDecisions(decisions);
 
   // Team-mode "decided by" attribution: show the viewer's own writes as
   // "You", other teammates by their resolved name / email (via Clerk).
@@ -144,6 +150,8 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
                   <th style={{ width: 18 }}></th>
                   <th>Decision</th>
                   <th>Project</th>
+                  <th>Agent</th>
+                  <th>Pack</th>
                   {showAuthorColumn ? <th>Decided by</th> : null}
                   <th>Confidence</th>
                   <th>Rev?</th>
@@ -167,7 +175,14 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
                         <span className="row__dot" style={{ background: confColor }} />
                       </td>
                       <td style={{ maxWidth: 540 }}>
-                        <div className="tbl__title">{d.description}</div>
+                        <div className="tbl__title">
+                          <Link
+                            href={`/decisions/${encodeURIComponent(d.id)}`}
+                            style={{ color: 'inherit', textDecoration: 'none' }}
+                          >
+                            {d.description}
+                          </Link>
+                        </div>
                         <div
                           style={{
                             fontSize: 12,
@@ -208,6 +223,38 @@ export default async function DecisionsPage({ searchParams }: { searchParams: Pr
                         ) : (
                           <span style={{ color: 'var(--ink-mute)' }}>—</span>
                         )}
+                      </td>
+                      <td className="tbl__mono">
+                        {d.agentType !== null ? (
+                          agentTypeLabel(d.agentType)
+                        ) : (
+                          <span style={{ color: 'var(--ink-mute)' }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ maxWidth: 200 }}>
+                        {(() => {
+                          const linkingPacks = packsLinkingDecision(contextPacks, d.id);
+                          if (linkingPacks.length === 0) {
+                            return <span style={{ color: 'var(--ink-mute)' }}>—</span>;
+                          }
+                          return linkingPacks.map((pack, i) => (
+                            <span key={pack.id}>
+                              {i > 0 ? ', ' : ''}
+                              <Link
+                                href={d.runId !== null ? `/runs/${encodeURIComponent(d.runId)}` : '#'}
+                                style={{
+                                  color: 'var(--ink-dim)',
+                                  fontSize: 12,
+                                  textDecoration: 'underline',
+                                  textDecorationStyle: 'dotted',
+                                }}
+                                title={pack.title}
+                              >
+                                {pack.title.length > 28 ? `${pack.title.slice(0, 28)}…` : pack.title}
+                              </Link>
+                            </span>
+                          ));
+                        })()}
                       </td>
                       {showAuthorColumn ? (
                         <td>

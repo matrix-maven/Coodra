@@ -1,38 +1,14 @@
-import type { ContextPackRow, DecisionRow } from '@coodra/db';
+import type { DecisionRow } from '@coodra/db';
 import { notFound } from 'next/navigation';
 
 import { Topbar } from '@/components/Topbar';
 import { cancelRunAction } from '@/lib/actions/runs';
 import { agentTypeLabel } from '@/lib/agent-label';
+import { groupDecisionsByPack } from '@/lib/context-pack-links';
 import { compactDuration, fmtClockSec, fmtRelative } from '@/lib/format';
 import { getRun, getRunLastActivity } from '@/lib/queries/runs';
 
 export const dynamic = 'force-dynamic';
-
-/**
- * `context_packs.meta` is agent-curated JSON (see `save_context_pack`'s
- * `meta.decisionIds`) — best-effort parse, never throws on a malformed or
- * legacy-shaped row.
- */
-function linkedDecisionIds(pack: ContextPackRow): ReadonlySet<string> {
-  if (pack.meta === null) return new Set();
-  try {
-    const parsed: unknown = JSON.parse(pack.meta);
-    if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      'decisionIds' in parsed &&
-      Array.isArray((parsed as { decisionIds: unknown }).decisionIds)
-    ) {
-      return new Set(
-        (parsed as { decisionIds: unknown[] }).decisionIds.filter((x): x is string => typeof x === 'string'),
-      );
-    }
-  } catch {
-    // Malformed meta — treat as no linkage rather than failing the page.
-  }
-  return new Set();
-}
 
 export default async function RunDetailPage({
   params,
@@ -52,19 +28,11 @@ export default async function RunDetailPage({
   const denyCount = policyDecisions.filter((p) => p.permissionDecision === 'deny').length;
 
   // Most-recent pack first for the sidebar; each pack's own linked
-  // decisions render underneath it (see `linkedDecisionIds` — populated
-  // from `meta.decisionIds` when the agent set it on save). Decisions
-  // with no linking pack (legacy rows, or the agent didn't tag them)
-  // fall into a trailing "Other decisions" bucket rather than vanishing.
-  const packsNewestFirst = [...contextPacks].reverse();
-  const claimedDecisionIds = new Set<string>();
-  const packsWithDecisions = packsNewestFirst.map((pack) => {
-    const ids = linkedDecisionIds(pack);
-    const linked = decisions.filter((d) => ids.has(d.id));
-    for (const d of linked) claimedDecisionIds.add(d.id);
-    return { pack, linked };
-  });
-  const otherDecisions = decisions.filter((d) => !claimedDecisionIds.has(d.id));
+  // decisions render underneath it (populated from `meta.decisionIds`
+  // when the agent set it on save). Decisions with no linking pack
+  // (legacy rows, or the agent didn't tag them) fall into a trailing
+  // "Other decisions" bucket rather than vanishing.
+  const { packsWithDecisions, otherDecisions } = groupDecisionsByPack([...contextPacks].reverse(), decisions);
 
   const durationLabel =
     run.endedAt === null

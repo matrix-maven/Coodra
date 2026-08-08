@@ -724,15 +724,17 @@ function toContextPackDetailRow(r: unknown): ContextPackDetailRow {
 // ---------------------------------------------------------------------------
 
 /**
- * `decisions` row joined to its run's `project_id` so the web app can
- * group / filter by project without a second query. The decision's
- * runId can be NULL (decisions outlive their runs via ON DELETE SET
- * NULL — ADR-007 spirit), so the projectId comes from the join only
- * when runId is set.
+ * `decisions` row joined to its run's `project_id` (and, since
+ * 2026-08-08, `agent_type`) so the web app can group / filter by
+ * project and show which agent recorded the decision without a second
+ * query. The decision's runId can be NULL (decisions outlive their runs
+ * via ON DELETE SET NULL — ADR-007 spirit), so the projectId/agentType
+ * come from the join only when runId is set.
  */
 export interface DecisionWithProject extends DecisionRow {
   readonly projectId: string | null;
   readonly projectSlug: string | null;
+  readonly agentType: string | null;
 }
 
 export interface ListDecisionsFilter {
@@ -763,6 +765,7 @@ export async function listAllDecisions(db: DbHandle, filter: ListDecisionsFilter
         createdAt: d.createdAt,
         projectId: r.projectId,
         projectSlug: p.slug,
+        agentType: r.agentType,
       })
       .from(d)
       .leftJoin(r, eq(r.id, d.runId))
@@ -786,6 +789,7 @@ export async function listAllDecisions(db: DbHandle, filter: ListDecisionsFilter
       createdAt: row.createdAt,
       projectId: row.projectId,
       projectSlug: row.projectSlug,
+      agentType: row.agentType ?? null,
     }));
   }
   const d = postgresSchema.decisions;
@@ -807,6 +811,7 @@ export async function listAllDecisions(db: DbHandle, filter: ListDecisionsFilter
       createdAt: d.createdAt,
       projectId: r.projectId,
       projectSlug: p.slug,
+      agentType: r.agentType,
     })
     .from(d)
     .leftJoin(r, eq(r.id, d.runId))
@@ -830,7 +835,103 @@ export async function listAllDecisions(db: DbHandle, filter: ListDecisionsFilter
     createdAt: row.createdAt,
     projectId: row.projectId,
     projectSlug: row.projectSlug,
+    agentType: row.agentType ?? null,
   }));
+}
+
+/**
+ * Single decision by id, same shape/join as `listAllDecisions` — backs
+ * the `/decisions/[id]` detail page, which needs the full untruncated
+ * row (the list view only ever shows an excerpt).
+ */
+export async function getDecisionById(db: DbHandle, id: string): Promise<DecisionWithProject | null> {
+  if (id.length === 0) return null;
+
+  if (db.kind === 'sqlite') {
+    const d = sqliteSchema.decisions;
+    const r = sqliteSchema.runs;
+    const p = sqliteSchema.projects;
+    const rows = await db.db
+      .select({
+        id: d.id,
+        idempotencyKey: d.idempotencyKey,
+        runId: d.runId,
+        description: d.description,
+        rationale: d.rationale,
+        alternatives: d.alternatives,
+        context: d.context,
+        impact: d.impact,
+        confidence: d.confidence,
+        reversible: d.reversible,
+        createdByUserId: d.createdByUserId,
+        createdAt: d.createdAt,
+        projectId: r.projectId,
+        projectSlug: p.slug,
+        agentType: r.agentType,
+      })
+      .from(d)
+      .leftJoin(r, eq(r.id, d.runId))
+      .leftJoin(p, eq(p.id, r.projectId))
+      .where(eq(d.id, id))
+      .limit(1);
+    const row = rows[0];
+    if (row === undefined) return null;
+    return { ...row, createdByUserId: row.createdByUserId ?? null, agentType: row.agentType ?? null };
+  }
+
+  const d = postgresSchema.decisions;
+  const r = postgresSchema.runs;
+  const p = postgresSchema.projects;
+  const rows = await db.db
+    .select({
+      id: d.id,
+      idempotencyKey: d.idempotencyKey,
+      runId: d.runId,
+      description: d.description,
+      rationale: d.rationale,
+      alternatives: d.alternatives,
+      context: d.context,
+      impact: d.impact,
+      confidence: d.confidence,
+      reversible: d.reversible,
+      createdByUserId: d.createdByUserId,
+      createdAt: d.createdAt,
+      projectId: r.projectId,
+      projectSlug: p.slug,
+      agentType: r.agentType,
+    })
+    .from(d)
+    .leftJoin(r, eq(r.id, d.runId))
+    .leftJoin(p, eq(p.id, r.projectId))
+    .where(eq(d.id, id))
+    .limit(1);
+  const row = rows[0];
+  if (row === undefined) return null;
+  return { ...row, createdByUserId: row.createdByUserId ?? null, agentType: row.agentType ?? null };
+}
+
+/**
+ * Context packs across a batch of runs — backs the decision list/detail
+ * pages' reverse lookup ("which pack(s) linked this decision via
+ * `meta.decisionIds`?"). Unordered; callers group/sort as needed. Empty
+ * input short-circuits without a round-trip, same convention as
+ * `getLastEventAtForRuns`.
+ */
+export async function listContextPacksForRuns(db: DbHandle, runIds: ReadonlyArray<string>): Promise<ContextPackRow[]> {
+  if (runIds.length === 0) return [];
+
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select()
+      .from(sqliteSchema.contextPacks)
+      .where(inArray(sqliteSchema.contextPacks.runId, runIds as string[]));
+    return rows.map(toContextPackRow);
+  }
+  const rows = await db.db
+    .select()
+    .from(postgresSchema.contextPacks)
+    .where(inArray(postgresSchema.contextPacks.runId, runIds as string[]));
+  return rows.map(toContextPackRow);
 }
 
 /**
