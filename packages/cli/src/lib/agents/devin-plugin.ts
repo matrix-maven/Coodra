@@ -494,17 +494,27 @@ function pluginManifest(): string {
 
 /**
  * Devin's matcher is a real regex tested against `tool_name` (confirmed
- * in docs). Devin's MCP tool names use the SAME `mcp__<server>__<tool>`
- * prefix format as Claude Code/Codex (confirmed in both the MCP and
- * hook-matcher docs) — unlike Cursor's bare `MCP:<tool_name>` shape, so
- * this reuses Claude/Codex's exact structural-prefix negative-lookahead
- * instead of Cursor's maintained-name-list workaround. `read`/`grep`/
- * `glob`/`webfetch` excluded — same noise-reduction precedent as every
- * other agent's matcher (Devin's own tool vocabulary, confirmed in
- * docs: read, write, edit, apply_patch, notebook_read, notebook_edit,
- * grep, glob, exec, ...).
+ * in docs, engine/flavor not specified). Devin's MCP tool names use the
+ * SAME `mcp__<server>__<tool>` prefix format as Claude Code/Codex
+ * (confirmed in both the MCP and hook-matcher docs) — unlike Cursor's
+ * bare `MCP:<tool_name>` shape. `read`/`grep`/`glob`/`webfetch` excluded —
+ * same noise-reduction precedent as every other agent's matcher (Devin's
+ * own tool vocabulary, confirmed in docs: read, write, edit, apply_patch,
+ * notebook_read, notebook_edit, grep, glob, exec, ...).
+ *
+ * Broadened to plain `mcp__.*` (2026-08-08), same fix as the CONFIRMED
+ * Codex bug (codex-plugin.ts's TOOL_MATCHER docblock): Codex's engine
+ * rejects look-around outright and silently drops the whole hooks.json,
+ * and Devin's own docs never confirm which regex engine it uses either —
+ * this reused Claude/Codex's exact `(?!coodra__|graphify__)` structural
+ * exclusion on unverified faith that Devin's engine tolerates it. Rather
+ * than wait for a live report to prove or disprove that, apply the same
+ * defensive posture already validated for Codex: match broadly, filter
+ * Coodra's own two managed servers server-side via `isCoodraOwnMcpTool`
+ * in the mcp-server's `lifecycle_event` handler instead — a construct no
+ * hook host can reject, regardless of its regex flavor.
  */
-const TOOL_MATCHER = 'write|edit|apply_patch|notebook_edit|exec|mcp__(?!coodra__|graphify__).*' as const;
+const TOOL_MATCHER = 'write|edit|apply_patch|notebook_edit|exec|mcp__.*' as const;
 
 /**
  * Devin hooks are pure command/prompt hooks (stdin/stdout JSON, no

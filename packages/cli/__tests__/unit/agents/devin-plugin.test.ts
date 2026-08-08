@@ -151,7 +151,7 @@ describe('Devin native plugin installer', () => {
     expect(graphifySkill).toContain('Do not inspect or print environment variables');
   });
 
-  it("preToolUse/postToolUse/permissionRequest matcher reaches third-party MCP tools while excluding Coodra's own two managed servers (mcp__ prefix shape, same as Claude/Codex)", async () => {
+  it("preToolUse/postToolUse/permissionRequest matcher reaches every mcp__ tool call, including Coodra's own (2026-08-08 broadening, same defensive posture as the confirmed Codex look-around bug)", async () => {
     const paths = devinPluginPaths(userHome, coodraHome);
     await installDevinPlugin(ctx(), fakeCliRunner());
     const hooks = JSON.parse(await readFile(paths.hooksPath, 'utf8')) as Record<string, Array<{ matcher?: string }>>;
@@ -160,14 +160,18 @@ describe('Devin native plugin installer', () => {
     expect(hooks.PostToolUse?.[0]?.matcher).toBe(matcher);
     expect(hooks.PermissionRequest?.[0]?.matcher).toBe(matcher);
     if (matcher === undefined) return;
+    expect(matcher).not.toContain('(?!');
     const re = new RegExp(matcher);
     expect(re.test('write')).toBe(true);
     expect(re.test('exec')).toBe(true);
     expect(re.test('read')).toBe(false);
     expect(re.test('grep')).toBe(false);
     expect(re.test('mcp__github__create_issue')).toBe(true);
-    expect(re.test('mcp__coodra__get_run_id')).toBe(false);
-    expect(re.test('mcp__graphify__query_graph')).toBe(false);
+    // Coodra's own two managed servers now match at the regex level too —
+    // the exclusion moved server-side to isCoodraOwnMcpTool, same as Cursor
+    // and Codex.
+    expect(re.test('mcp__coodra__get_run_id')).toBe(true);
+    expect(re.test('mcp__graphify__query_graph')).toBe(true);
   });
 
   it('installDevinPlugin attempts the real install unconditionally — never pre-gates on authStatus', async () => {

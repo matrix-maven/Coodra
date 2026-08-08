@@ -109,11 +109,15 @@ describe('Cursor native plugin installer', () => {
     expect(graphifySkill).toContain('Do not inspect or print environment variables');
   });
 
-  it("preToolUse/postToolUse matcher reaches third-party MCP tools while excluding Coodra's own two managed servers", async () => {
-    // Regression coverage for the 2026-08-05 MCP:* widening — Cursor's
-    // matcher is a real regex over the bare tool name (`MCP:<tool_name>`,
-    // confirmed against Cursor's own hooks docs), unlike Claude Code's/
-    // Codex's server-prefixed `mcp__<server>__<tool>` shape.
+  it("preToolUse/postToolUse matcher reaches every MCP tool call, including Coodra's own (2026-08-08 broadening, no client-side exclusion)", async () => {
+    // Cursor's matcher is a real regex over the bare tool name
+    // (`MCP:<tool_name>`, confirmed against Cursor's own hooks docs),
+    // unlike Claude Code's/Codex's server-prefixed `mcp__<server>__<tool>`
+    // shape. Broadened (2026-08-08, same defensive posture as the
+    // CONFIRMED Codex look-around bug) to match every MCP tool call
+    // unconditionally — Coodra's own two managed servers are now excluded
+    // server-side only, via `isCoodraOwnMcpTool` in the mcp-server's
+    // `lifecycle_event` handler, not by the matcher regex itself.
     const paths = cursorPluginPaths(userHome);
     await installCursorPlugin(ctx());
     const hooks = JSON.parse(await readFile(paths.hooksPath, 'utf8')) as {
@@ -124,21 +128,17 @@ describe('Cursor native plugin installer', () => {
     expect(preMatcher).toBeDefined();
     expect(postMatcher).toBe(preMatcher);
     if (preMatcher === undefined) return;
+    expect(preMatcher).not.toContain('(?!');
     const re = new RegExp(preMatcher);
     // Original shared-core coverage is unaffected.
     expect(re.test('Shell')).toBe(true);
     expect(re.test('Write')).toBe(true);
     expect(re.test('Read')).toBe(false);
-    // Third-party MCP tool calls are now reachable.
+    // Every MCP tool call now matches at the regex level, including
+    // Coodra's own — the exclusion moved entirely server-side.
     expect(re.test('MCP:browser_navigate')).toBe(true);
-    // Coodra's own two managed servers stay excluded (matches
-    // isCoodraOwnMcpTool's server-side backstop for the same shape).
-    expect(re.test('MCP:get_run_id')).toBe(false);
-    expect(re.test('MCP:query_graph')).toBe(false);
-    // A longer third-party name that merely starts with an excluded
-    // name must still match — the `$` anchor on each excluded name
-    // prevents a false-exclusion prefix collision.
-    expect(re.test('MCP:get_run_id_details')).toBe(true);
+    expect(re.test('MCP:get_run_id')).toBe(true);
+    expect(re.test('MCP:query_graph')).toBe(true);
   });
 
   it('never shells out to anything — install/remove/probe are pure filesystem operations', async () => {
