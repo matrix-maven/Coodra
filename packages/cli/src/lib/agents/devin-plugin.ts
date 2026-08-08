@@ -481,6 +481,11 @@ function pluginManifest(): string {
       keywords: ['coodra', 'devin', 'mcp', 'context', 'wiki', 'graphify', 'jira'],
       mcpServers: './mcp_config.json',
       skills: './skills/',
+      // Unlike Claude/Codex (nested `hooks/hooks.json`), Devin's own
+      // hooksPath is at the plugin root — `devinPluginPaths().hooksPath ===
+      // join(pluginRoot, 'hooks.json')` — so the manifest entry must point
+      // there, not at a `hooks/` subdirectory.
+      hooks: './hooks.json',
     },
     null,
     2,

@@ -392,6 +392,7 @@ function pluginManifest(): string {
       license: 'MIT',
       keywords: ['coodra', 'codex', 'mcp', 'context', 'wiki', 'graphify', 'jira'],
       skills: './skills/',
+      hooks: './hooks/hooks.json',
       mcpServers: './.mcp.json',
       interface: {
         displayName: 'Coodra',
@@ -415,15 +416,26 @@ function pluginManifest(): string {
   )}\n`;
 }
 
-// Codex hook coverage expansion — mirrors Claude's TOOL_MATCHER
-// (claude-plugin.ts): excludes Coodra's own two managed MCP servers so
-// calling Coodra's own tools never triggers a pointless self-policing
-// round-trip through hook-runner.mjs (which spawns a whole new MCP
-// subprocess per call) and never pollutes the run_events activity
-// ledger with Coodra's own calls. The server-side isCoodraOwnMcpTool
-// backstop in lifecycle-event/handler.ts already prevents mis-policing
-// regardless, but the CLI-side matcher gap was still pure waste.
-const TOOL_MATCHER = 'Bash|apply_patch|Edit|Write|mcp__(?!coodra__|graphify__).*' as const;
+// CONFIRMED BUG (live smoke, 2026-08-08): Codex's matcher regex engine
+// does NOT support look-around. The original `mcp__(?!coodra__|graphify__).*`
+// — copied from Claude's TOOL_MATCHER, which does work there — made Codex
+// reject the whole hooks.json at load time ("look-around, including
+// look-ahead and look-behind, is not supported"), so PreToolUse/PostToolUse/
+// PermissionRequest never registered at all: not "excluded Coodra's own
+// calls" but "never fired for ANY tool call, ever." Codex's own docs don't
+// name the underlying regex engine, but the error text matches Rust's
+// `regex` crate, which deliberately excludes look-around for guaranteed
+// linear-time matching — this is not a bug Codex is likely to lift.
+//
+// Fix: match every `mcp__*` call broadly (no exclusion in the regex at
+// all) and rely entirely on the server-side `isCoodraOwnMcpTool` filter in
+// `lifecycle-event/handler.ts` to skip Coodra's own two managed servers —
+// that backstop already existed (originally defense-in-depth for a
+// "matcher-regex edge case" that turned out to be the actual, only-working
+// path for Codex) and needed no changes. "All MCP tools except these two"
+// cannot be expressed in Codex-compatible regex; broad-match-then-filter
+// server-side is the only correct shape here, not just a workaround.
+const TOOL_MATCHER = 'Bash|apply_patch|Edit|Write|mcp__.*' as const;
 
 function hooksConfig(): unknown {
   const command = 'node "$PLUGIN_ROOT/hooks/hook-runner.mjs"';

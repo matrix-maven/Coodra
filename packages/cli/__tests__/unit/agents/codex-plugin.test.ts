@@ -112,6 +112,14 @@ describe('Codex native plugin installer', () => {
       command: join(coodraHome, 'graphify-mcp', '.venv', 'bin', 'python'),
       args: ['-m', 'graphify.serve', '.coodra/graphify/out/graph.json'],
     });
+
+    // plugin.json must declare `hooks` — without it, some agents (or some
+    // versions of Codex) may not know to load `hooks/hooks.json` at all,
+    // even though Codex's own live default-loading behaviour (confirmed
+    // 2026-08-08) means this is defense-in-depth rather than the primary
+    // fix for the hooks-never-fired report.
+    const manifest = JSON.parse(await readFile(paths.manifestPath, 'utf8')) as { hooks?: string };
+    expect(manifest.hooks).toBe('./hooks/hooks.json');
     const wikiSkill = await readFile(join(paths.skillsRoot, 'coodra-wiki', 'SKILL.md'), 'utf8');
     expect(wikiSkill).toContain('wiki_save_structure');
     expect(wikiSkill).toContain('run `coodra wiki build` first');
@@ -125,12 +133,18 @@ describe('Codex native plugin installer', () => {
     for (const event of ['PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop']) {
       expect(hooksJson.hooks).toHaveProperty(event);
     }
-    // PreToolUse/PostToolUse/PermissionRequest all watch the same mcp__*
-    // set, EXCLUDING Coodra's own two managed servers — calling Coodra's
-    // own tools must never trigger a self-policing round-trip.
+    // PreToolUse/PostToolUse/PermissionRequest all watch the same broad
+    // mcp__* set — NOT excluding Coodra's own two managed servers in the
+    // regex itself (confirmed live 2026-08-08: Codex's matcher regex
+    // engine rejects look-around, so the old `(?!coodra__|graphify__)`
+    // exclusion made Codex reject hooks.json outright and these three
+    // events never registered at all). Self-calls are filtered
+    // server-side instead — see `isCoodraOwnMcpTool` in
+    // apps/mcp-server/src/tools/lifecycle-event/handler.ts.
     for (const event of ['PreToolUse', 'PostToolUse', 'PermissionRequest']) {
       const matcherJson = JSON.stringify((hooksJson.hooks as Record<string, unknown>)[event]);
-      expect(matcherJson).toContain('Bash|apply_patch|Edit|Write|mcp__(?!coodra__|graphify__).*');
+      expect(matcherJson).toContain('Bash|apply_patch|Edit|Write|mcp__.*');
+      expect(matcherJson).not.toContain('(?!');
     }
     // PreCompact/PostCompact/SubagentStart/SubagentStop fire on every
     // trigger/agent type — no matcher narrows them.

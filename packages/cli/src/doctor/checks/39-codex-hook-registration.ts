@@ -1,38 +1,88 @@
+import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { createCodexCliRunner, probeCodexPlugin } from '../../lib/agents/codex-plugin.js';
+import { join } from 'node:path';
+import {
+  CODEX_MARKETPLACE_NAME,
+  CODEX_PLUGIN_NAME,
+  createCodexCliRunner,
+  probeCodexPlugin,
+} from '../../lib/agents/codex-plugin.js';
 import type { Check } from '../types.js';
 
 /**
- * Mirrors check 28 (`claude-hook-registration.ts`) for the Codex native
- * plugin: doctor check 14 (`mcp-config-validity.ts`) only ever reads
- * `probeCodexPlugin()`'s `.mcp` field, so a Codex install with MCP wired
- * but hooks/skills/manifest missing has never had its own doctor signal —
- * this check closes that gap the same way 28 does for Claude.
+ * Mirrors check 28 (claude-hook-registration.ts) for the Codex native
+ * plugin: doctor check 14 (mcp-config-validity.ts) only ever reads
+ * probeCodexPlugin()'s `.mcp` field, so a Codex install with MCP wired but
+ * hooks/skills/manifest missing has never had its own doctor signal — this
+ * check closes that gap the same way 28 does for Claude.
  *
  * Found investigating a live report (2026-08-08): a user's Codex Desktop
- * task produced zero `SessionStart`/`UserPromptSubmit`/`PreToolUse`/
- * `PostToolUse` rows in `run_events` even though `coodra plugin list`
- * showed `coodra@coodra` installed and enabled, and manual smokes against
- * the same MCP server worked fine. Root cause: Codex Desktop gates
- * plugin-bundled hooks behind a one-time interactive trust review (its own
- * docs — developers.openai.com/codex/hooks) that is invisible to
- * `codex plugin list --json` and to `~/.codex/config.toml` (confirmed live,
- * 2026-08-08: `[plugins."coodra@coodra"]` only ever carries `enabled`, no
- * hook-trust field exists anywhere in that file). `probeCodexPlugin`'s own
- * CLI fast-path — `isInstalled(codexBin)` true ⇒ manifest/marketplace/mcp/
- * hooks/skills all reported true — is accurate as far as it goes (the hook
- * DEFINITION really is registered), but "registered" and "trusted to
- * actually fire" are two different Codex-side facts, and only the first is
- * checkable from here. Rather than downgrade a real positive signal to a
- * false "missing" (Coodra has no better evidence either way), a green
- * result here says exactly what was verified and hands the user the one
- * manual step Coodra cannot perform or detect on its own.
+ * task produced zero SessionStart/UserPromptSubmit/PreToolUse/PostToolUse
+ * rows in run_events even though `coodra plugin list` showed coodra@coodra
+ * installed and enabled, and manual smokes against the same MCP server
+ * worked fine. Two independently confirmed root causes, in order of what
+ * actually blocks hook execution:
  *
- * Read-only — `probeCodexPlugin` never writes to config.toml or the plugin
- * cache.
+ * 1. Codex's matcher regex engine rejects look-around ("look-around,
+ *    including look-ahead and look-behind, is not supported"), confirmed
+ *    via a live `codex exec --dangerously-bypass-hook-trust` smoke. The
+ *    original TOOL_MATCHER (copied from Claude's, whose engine DOES
+ *    support look-around) used a negative lookahead to exclude Coodra's
+ *    own two managed MCP servers, which made Codex reject the whole
+ *    hooks.json at load — PreToolUse/PostToolUse/PermissionRequest never
+ *    registered at all, silently, for every install made before this fix.
+ *    installCodexPlugin now writes a look-around-free matcher (see
+ *    codex-plugin.ts's TOOL_MATCHER docblock) and filters Coodra's own
+ *    tool calls server-side instead — but a plugin installed before this
+ *    fix has the broken matcher baked into Codex's OWN cache
+ *    (~/.codex/plugins/cache/coodra/coodra/<version>/hooks/hooks.json, a
+ *    version-pinned copy Codex itself owns) until reinstalled. This check
+ *    scans that live cache directly — not just Coodra's own generated
+ *    source, which will always look correct post-fix regardless of what
+ *    Codex actually has cached.
+ * 2. Separately, Codex Desktop gates plugin-bundled hooks behind a
+ *    one-time interactive trust review (its own docs —
+ *    developers.openai.com/codex/hooks) that is invisible to `codex
+ *    plugin list --json` and to ~/.codex/config.toml (confirmed live,
+ *    2026-08-08: the plugin's config.toml entry only ever carries
+ *    `enabled`, no hook-trust field exists anywhere in that file). This is
+ *    the part genuinely unverifiable from here — see the green-path
+ *    caveat below.
+ *
+ * probeCodexPlugin's own CLI fast-path — isInstalled(codexBin) true means
+ * manifest/marketplace/mcp/hooks/skills are all reported true — is
+ * accurate as far as it goes (the hook DEFINITION really is registered),
+ * but "registered" and "trusted to actually fire" are two different
+ * Codex-side facts, and only the first is checkable from here. Rather than
+ * downgrade a real positive signal to a false "missing" (Coodra has no
+ * better evidence either way), a green result says exactly what was
+ * verified and hands the user the one manual step Coodra cannot perform
+ * or detect.
+ *
+ * Read-only — never writes to config.toml or the plugin cache.
  */
+const LOOKAROUND_PATTERN = /\(\?[=!<]/;
 
 const DOCTOR_CLI_PROBE_TIMEOUT_MS = 1200;
+
+/**
+ * Best-effort scan of every version Codex has cached for coodra@coodra —
+ * `codex plugin add` refreshes this cache in place on reinstall, but never
+ * prunes stale versions on its own, and Coodra doesn't manage this
+ * directory (Codex owns its shape entirely). Missing directories (nothing
+ * cached yet) are not an error here — `probe.hooks`'s file-presence check
+ * already covers that case via the marketplace source.
+ */
+async function findLookaroundInCodexCache(userHome: string): Promise<string | null> {
+  const cacheRoot = join(userHome, '.codex', 'plugins', 'cache', CODEX_MARKETPLACE_NAME, CODEX_PLUGIN_NAME);
+  const versions = await readdir(cacheRoot).catch(() => []);
+  for (const version of versions) {
+    const hooksPath = join(cacheRoot, version, 'hooks', 'hooks.json');
+    const content = await readFile(hooksPath, 'utf8').catch(() => null);
+    if (content !== null && LOOKAROUND_PATTERN.test(content)) return hooksPath;
+  }
+  return null;
+}
 
 export const codexHookRegistrationCheck: Check = {
   id: 39,
@@ -41,6 +91,21 @@ export const codexHookRegistrationCheck: Check = {
   async run(ctx) {
     const userHome = ctx.env.HOME || ctx.env.USERPROFILE || homedir();
     const probe = await probeCodexPlugin({ cwd: ctx.cwd, userHome }, createCodexCliRunner(DOCTOR_CLI_PROBE_TIMEOUT_MS));
+
+    const staleCacheHooksPath = await findLookaroundInCodexCache(userHome);
+    if (staleCacheHooksPath !== null) {
+      return {
+        status: 'red',
+        detail:
+          `Codex's own cached hooks.json at ${staleCacheHooksPath} contains a look-around regex ` +
+          "(e.g. `(?!...)`), which Codex's matcher engine rejects outright — PreToolUse/PostToolUse/" +
+          'PermissionRequest hooks silently never register, even though the plugin looks fully installed ' +
+          "and Coodra's own generated source may already be fixed.",
+        remediation:
+          'Run `coodra agent add codex --force` (or `coodra agent repair codex`) to make Codex refresh its ' +
+          'cached copy with the corrected matcher, then start a fresh Codex task.',
+      };
+    }
 
     const missing: string[] = [];
     if (!probe.manifest) missing.push('plugin manifest');
@@ -60,11 +125,11 @@ export const codexHookRegistrationCheck: Check = {
     return {
       status: 'green',
       detail:
-        'native Codex plugin (coodra@coodra) is installed with manifest, MCP, hooks, and skills wired. ' +
-        "This confirms the hook definitions are registered — it cannot confirm Codex Desktop's separate, " +
-        'one-time hook-trust review has been completed, since Codex exposes no CLI/file signal for that. ' +
-        'If hooks still do not fire (no SessionStart/PreToolUse/PostToolUse rows appear for new tasks), open ' +
-        'Codex Desktop, run `/hooks`, and review/trust the Coodra hook definition, then start a fresh task.',
+        'native Codex plugin (coodra@coodra) is installed with manifest, MCP, hooks, and skills wired, and no ' +
+        "look-around regex was found in any cached version of hooks.json. This cannot confirm Codex Desktop's " +
+        'separate, one-time hook-trust review has been completed, since Codex exposes no CLI/file signal for ' +
+        'that. If hooks still do not fire (no SessionStart/PreToolUse/PostToolUse rows appear for new tasks), ' +
+        'open Codex Desktop, run `/hooks`, and review/trust the Coodra hook definition, then start a fresh task.',
     };
   },
 };

@@ -725,12 +725,23 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     // Coodra from policy-checking its own tool calls for this agent.
     const isAntigravityOwnBareTool =
       input.agentType === 'antigravity' && COODRA_OWN_BARE_TOOL_NAMES.has(event.toolName);
+    // Hoisted (2026-08-08, Codex matcher fix): this used to be a pure
+    // policy-check gate, but Codex's CLI-side matcher can no longer exclude
+    // Coodra's own two managed MCP servers itself — its regex engine
+    // rejects the look-around that expressed "all mcp__ tools except
+    // these" (see codex-plugin.ts's TOOL_MATCHER docblock), so the matcher
+    // now broadly matches every `mcp__*` call and self-calls genuinely
+    // reach this handler for the first time. Reused below to also skip
+    // recording Coodra's own calls to `run_events` — without this, every
+    // `record_decision`/`save_context_pack`/... call would show up
+    // redundantly as its own PreToolUse/PostToolUse audit row alongside
+    // the real one it already writes (decisions/context_packs).
+    const isSelfCall = isCoodraOwnMcpTool(event.toolName) || isAntigravityOwnBareTool;
     if (
       projectSlug !== null &&
       (hookEventName === 'PreToolUse' || hookEventName === 'PermissionRequest') &&
       event.toolName.length > 0 &&
-      !isCoodraOwnMcpTool(event.toolName) &&
-      !isAntigravityOwnBareTool
+      !isSelfCall
     ) {
       const checkPolicy = createCheckPolicyHandler({ db: deps.db });
       const policy = await checkPolicy(
@@ -786,7 +797,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       await markRunFailed(deps.db, runId, ctx.now());
     }
 
-    if (runId !== null) {
+    if (runId !== null && !isSelfCall) {
       const isSubagentEvent = hookEventName === 'SubagentStart' || hookEventName === 'SubagentStop';
       await ctx.runRecorder.record({
         runId,

@@ -98,10 +98,14 @@ describe('Devin native plugin installer', () => {
       name: string;
       mcpServers: string;
       skills: string;
+      hooks: string;
     };
     expect(manifest.name).toBe(DEVIN_PLUGIN_NAME);
     expect(manifest.mcpServers).toBe('./mcp_config.json');
     expect(manifest.skills).toBe('./skills/');
+    // Points at the plugin ROOT, not a `hooks/` subdirectory — Devin's own
+    // hooksPath layout differs from Claude/Codex (see devinPluginPaths).
+    expect(manifest.hooks).toBe('./hooks.json');
   });
 
   it('writes a native plugin bundle with Coodra and managed Graphify MCP servers, and root-level hooks.json', async () => {

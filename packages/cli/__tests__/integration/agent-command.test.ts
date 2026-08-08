@@ -186,8 +186,16 @@ describe('coodra agent add', () => {
       path: './plugins/coodra',
     });
     const manifest = JSON.parse(await readFile(join(pluginRoot, '.codex-plugin', 'plugin.json'), 'utf8'));
-    expect(manifest).toMatchObject({ name: 'coodra', skills: './skills/', mcpServers: './.mcp.json' });
-    expect(manifest.hooks).toBeUndefined();
+    // `hooks` was missing here until 2026-08-08 — added for explicitness
+    // (Codex's own default-loading of `hooks/hooks.json` made this
+    // non-fatal, confirmed live, but every other agent's manifest declares
+    // it and there's no reason Codex's shouldn't too).
+    expect(manifest).toMatchObject({
+      name: 'coodra',
+      skills: './skills/',
+      hooks: './hooks/hooks.json',
+      mcpServers: './.mcp.json',
+    });
     const mcp = JSON.parse(await readFile(join(pluginRoot, '.mcp.json'), 'utf8'));
     expect(mcp.mcpServers.coodra.env.COODRA_AGENT_TYPE).toBe('codex');
     const hooks = JSON.parse(await readFile(join(pluginRoot, 'hooks', 'hooks.json'), 'utf8'));
