@@ -1,5 +1,6 @@
 import {
   type DbHandle,
+  getLastEventAtForRuns,
   getRunWithEverything,
   type ListRunsFilter,
   listProjects,
@@ -21,8 +22,14 @@ import { createWebDb } from '@/lib/db';
  * for an S3 follow-up if needed.
  */
 
+/** A run row enriched with its last recorded activity — see `getLastEventAtForRuns`. */
+export interface RunRowWithActivity extends RunRow {
+  /** `MAX(run_events.created_at)` for this run, or `startedAt` if it has no events yet. */
+  readonly updatedAt: Date;
+}
+
 export interface ListRunsResult {
-  readonly runs: ReadonlyArray<RunRow>;
+  readonly runs: ReadonlyArray<RunRowWithActivity>;
   readonly hasMore: boolean;
   readonly limit: number;
 }
@@ -33,12 +40,25 @@ export async function listRuns(filter: ListRunsFilter & { db?: DbHandle } = {}):
   // We over-fetch by 1 to detect whether more rows exist beyond the page.
   const rows = await listRunsForProject(handle, { ...filter, limit: limit + 1 });
   const hasMore = rows.length > limit;
-  return { runs: hasMore ? rows.slice(0, limit) : rows, hasMore, limit };
+  const page = hasMore ? rows.slice(0, limit) : rows;
+  const lastActivity = await getLastEventAtForRuns(
+    handle,
+    page.map((r) => r.id),
+  );
+  const runs = page.map((r) => ({ ...r, updatedAt: lastActivity.get(r.id) ?? r.startedAt }));
+  return { runs, hasMore, limit };
 }
 
 export async function getRun(runId: string, db?: DbHandle): Promise<RunWithEverything | null> {
   const handle = db ?? createWebDb();
   return getRunWithEverything(handle, runId);
+}
+
+/** Last recorded activity for a single run — same source as `listRuns`' `updatedAt`. */
+export async function getRunLastActivity(runId: string, db?: DbHandle): Promise<Date | null> {
+  const handle = db ?? createWebDb();
+  const lastActivity = await getLastEventAtForRuns(handle, [runId]);
+  return lastActivity.get(runId) ?? null;
 }
 
 export interface ProjectFilterOption {

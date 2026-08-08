@@ -30,11 +30,19 @@ import type { GetRunIdInput, GetRunIdOutput } from './schema.js';
  *        user-actionable guidance.
  *
  *   2. SELECT most recent `runs` row for (projectId, sessionId).
- *      - If found → return { ok: true, runId, startedAt }. Emit a
- *        WARN when `status !== 'in_progress'` so we see the
- *        non-in-progress-return case in ops logs; trigger for a
- *        future migration-0003 if volume crosses a threshold
- *        (decisions-log 2026-04-24 "Q3 approved with WARN").
+ *      - If found and `status === 'in_progress'` → return { ok: true,
+ *        runId, startedAt } as-is.
+ *      - If found but terminal (`completed`/`cancelled`/`failed`/
+ *        `abandoned`) → resume it: UPDATE `status = 'in_progress'`,
+ *        `ended_at = NULL`, then return it (2026-08-08 — a Claude Code
+ *        session's own `session_id` is stable across context-compaction/
+ *        continuation, so a run that spans multiple days keeps resolving
+ *        to the same row; a `SessionEnd` firing once mid-session
+ *        shouldn't strand every later prompt against a run that reads as
+ *        "done" while still recording activity. Deliberately does NOT
+ *        mint a fresh row — `(project_id, session_id)` stays the unique
+ *        identity for "this session's run," by design, not as a
+ *        deferred migration).
  *      - If not found → INSERT with `generateRunKey({ projectId,
  *        sessionId })` as the row id. `onConflictDoNothing` on the
  *        `(project_id, session_id)` unique index handles the
@@ -79,7 +87,9 @@ interface RunRow {
 async function resolveProjectId(
   deps: GetRunIdHandlerDeps,
   projectSlug: string,
-): Promise<{ readonly kind: 'found'; readonly projectId: string; readonly orgId: string } | { readonly kind: 'missing' }> {
+): Promise<
+  { readonly kind: 'found'; readonly projectId: string; readonly orgId: string } | { readonly kind: 'missing' }
+> {
   if (deps.db.kind === 'sqlite') {
     const rows = await deps.db.db
       .select({ id: sqliteSchema.projects.id, orgId: sqliteSchema.projects.orgId })
@@ -199,6 +209,27 @@ async function selectLatestRun(
   return rows[0] ?? null;
 }
 
+/**
+ * Resume a terminal run back to `in_progress` when the same session's
+ * next prompt lands after it was already marked done — see `selectLatestRun`
+ * call site for why this beats minting a new row. `ended_at` is cleared so
+ * the run reads as genuinely active again, not just relabeled; a future
+ * SessionEnd/cancel/complete sets both fields again same as any other run.
+ */
+async function resumeRun(deps: GetRunIdHandlerDeps, runId: string): Promise<void> {
+  if (deps.db.kind === 'sqlite') {
+    await deps.db.db
+      .update(sqliteSchema.runs)
+      .set({ status: 'in_progress', endedAt: null })
+      .where(eq(sqliteSchema.runs.id, runId));
+    return;
+  }
+  await deps.db.db
+    .update(postgresSchema.runs)
+    .set({ status: 'in_progress', endedAt: null })
+    .where(eq(postgresSchema.runs.id, runId));
+}
+
 async function insertRun(
   deps: GetRunIdHandlerDeps,
   row: {
@@ -310,14 +341,15 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
     const existing = await selectLatestRun(deps, projectId, effectiveSessionId);
     if (existing) {
       if (existing.status !== 'in_progress') {
-        handlerLogger.warn(
+        await resumeRun(deps, existing.id);
+        handlerLogger.info(
           {
-            event: 'get_run_id_returning_non_in_progress',
+            event: 'get_run_id_resumed',
             runId: existing.id,
             sessionId: effectiveSessionId,
-            status: existing.status,
+            previousStatus: existing.status,
           },
-          'get_run_id returning non-in-progress run; if this WARN grows common, consider migration 0003 to relax the runs unique index to (project_id, session_id, status)',
+          'get_run_id resumed a terminal run back to in_progress — same session reused after it was marked done',
         );
       }
       return {

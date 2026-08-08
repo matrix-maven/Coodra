@@ -198,6 +198,7 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
                   <th>Status</th>
                   <th>Project</th>
                   <th style={{ textAlign: 'right' }}>Started</th>
+                  <th style={{ textAlign: 'right' }}>Updated</th>
                   <th></th>
                 </tr>
               </thead>
@@ -246,6 +247,10 @@ export default async function RunsPage({ searchParams }: { searchParams: Promise
                       <td className="tbl__mono" style={{ textAlign: 'right' }}>
                         {fmtClockSec(run.startedAt)}
                         <div style={{ color: 'var(--ink-mute)', fontSize: 10 }}>{fmtRelative(run.startedAt)}</div>
+                      </td>
+                      <td className="tbl__mono" style={{ textAlign: 'right' }}>
+                        {fmtClockSec(run.updatedAt)}
+                        <div style={{ color: 'var(--ink-mute)', fontSize: 10 }}>{fmtRelative(run.updatedAt)}</div>
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         {run.status === 'in_progress' ? (

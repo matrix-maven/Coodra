@@ -20,8 +20,11 @@ import { makeFakeDeps } from '../../helpers/fake-deps.js';
  *   - Team mode: structured `project_not_found` soft-failure when
  *     slug unknown (NO projects row inserted).
  *   - Existing in-progress run: returns the cached runId.
- *   - Existing non-in-progress run: returns its runId AND emits the
- *     WARN locked in the decisions-log (Q3 escalation trigger).
+ *   - Existing terminal run (completed/cancelled/...): returns the same
+ *     runId AND resumes it — flips `status` back to `in_progress` and
+ *     clears `ended_at` (2026-08-08 — a session reused after being marked
+ *     done should read as active again, not stay stuck "done" while still
+ *     recording activity; see get-run-id/handler.ts's `resumeRun`).
  *   - Concurrent inserts: Promise.all of two calls with the same
  *     (projectSlug, sessionId) returns the same runId on both
  *     (ON CONFLICT race resolution).
@@ -259,7 +262,7 @@ describe('get_run_id — team mode returns project_not_found on unknown slug', (
 });
 
 // ---------------------------------------------------------------------------
-// Existing runs — return cached, WARN on non-in-progress
+// Existing runs — return cached, resume if terminal
 // ---------------------------------------------------------------------------
 
 describe('get_run_id — returns the existing run for (projectId, sessionId)', () => {
@@ -283,25 +286,28 @@ describe('get_run_id — returns the existing run for (projectId, sessionId)', (
     }
   });
 
-  it('returns a non-in-progress run when that is the only existing row for the session (WARN logged)', async () => {
+  it('resumes a terminal run back to in_progress (same runId, status flipped, ended_at cleared)', async () => {
     const registry = buildRegistry(h.handle, 'solo');
     const first = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'completed-slug' }, 'sess_done'));
     if (!first.ok) throw new Error('expected first call to succeed');
-    // Mark the run as completed — simulates a later state after save_context_pack.
+    // Mark the run as completed with an ended_at — simulates a real
+    // SessionEnd firing mid-session before the same session_id resumes.
     await h.handle.db
       .update(sqliteSchema.runs)
-      .set({ status: 'completed' })
+      .set({ status: 'completed', endedAt: new Date() })
       .where(eq(sqliteSchema.runs.id, first.runId));
+
     const second = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'completed-slug' }, 'sess_done'));
     expect(second.ok).toBe(true);
-    if (second.ok) {
-      expect(second.runId).toBe(first.runId);
-      // Can't easily grep log output in-test; the WARN event presence
-      // is verified by `structuredLoggerCallable` in unit tests if
-      // we ever add that surface. The decisions-log documents the
-      // WARN as a future-migration escalation trigger — if it grows
-      // common, migration 0003 relaxes the unique index.
-    }
+    if (!second.ok) return;
+    expect(second.runId).toBe(first.runId);
+
+    const rows = await h.handle.db
+      .select({ status: sqliteSchema.runs.status, endedAt: sqliteSchema.runs.endedAt })
+      .from(sqliteSchema.runs)
+      .where(eq(sqliteSchema.runs.id, first.runId));
+    expect(rows[0]?.status).toBe('in_progress');
+    expect(rows[0]?.endedAt).toBeNull();
   });
 });
 

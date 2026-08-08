@@ -22,13 +22,28 @@ export function fmtClock(iso: string | Date | null): string {
   return `${hh}:${mm}`;
 }
 
-export function fmtClockSec(iso: string | Date | null): string {
+/**
+ * Time-of-day with seconds — plus the date, when `iso` isn't from today
+ * (2026-08-08: this used to always omit the date, which read as "just
+ * now" for a timestamp that was actually days old — misleading on any
+ * page showing rows that can span more than a day, e.g. a run resumed
+ * across sessions). `now` is injectable for tests; defaults to the real
+ * clock.
+ */
+export function fmtClockSec(iso: string | Date | null, now: Date = new Date()): string {
   if (iso === null) return '—';
   const d = typeof iso === 'string' ? new Date(iso) : iso;
   const hh = String(d.getHours()).padStart(2, '0');
   const mm = String(d.getMinutes()).padStart(2, '0');
   const ss = String(d.getSeconds()).padStart(2, '0');
-  return `${hh}:${mm}:${ss}`;
+  const time = `${hh}:${mm}:${ss}`;
+  const sameDay =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  if (sameDay) return time;
+  const yyyy = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mo}-${dd} ${time}`;
 }
 
 export function fmtRelative(iso: string | Date | null): string {

@@ -238,7 +238,7 @@ function serializeRunWithEverything(r: RunWithEverything): {
   events: ReadonlyArray<unknown>;
   policyDecisions: ReadonlyArray<unknown>;
   decisions: ReadonlyArray<unknown>;
-  contextPack: unknown | null;
+  contextPacks: ReadonlyArray<unknown>;
 } {
   return {
     run: serializeRun(r.run),
@@ -275,17 +275,17 @@ function serializeRunWithEverything(r: RunWithEverything): {
       alternatives: d.alternatives,
       createdAt: d.createdAt.toISOString(),
     })),
-    contextPack:
-      r.contextPack === null
-        ? null
-        : {
-            id: r.contextPack.id,
-            runId: r.contextPack.runId,
-            projectId: r.contextPack.projectId,
-            title: r.contextPack.title,
-            contentExcerpt: r.contextPack.contentExcerpt,
-            createdAt: r.contextPack.createdAt.toISOString(),
-          },
+    // Array (2026-08-08 — was a single `contextPack: X | null`; a run can
+    // accumulate several packs across distinct pieces of work, especially
+    // one that spans multiple days via get_run_id's resume path).
+    contextPacks: r.contextPacks.map((cp) => ({
+      id: cp.id,
+      runId: cp.runId,
+      projectId: cp.projectId,
+      title: cp.title,
+      contentExcerpt: cp.contentExcerpt,
+      createdAt: cp.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -379,23 +379,26 @@ function printRunWithEverythingHuman(io: RunIO, x: RunWithEverything): void {
     }
   }
 
-  io.writeStdout(`\n${sectionHead('04', 'context pack', { width })}\n`);
-  if (x.contextPack === null) {
+  io.writeStdout(`\n${sectionHead('04', `context packs (${x.contextPacks.length})`, { width })}\n`);
+  if (x.contextPacks.length === 0) {
     io.writeStdout(`  ${hintLine('(none — no context pack saved for this run)')}\n`);
   } else {
-    io.writeStdout(
-      `${kvBlock(
-        [
-          { key: 'id', value: x.contextPack.id },
-          { key: 'title', value: x.contextPack.title },
-          {
-            key: 'excerpt',
-            value: `${x.contextPack.contentExcerpt.slice(0, 200)}${x.contextPack.contentExcerpt.length > 200 ? '…' : ''}`,
-          },
-        ],
-        { keyWidth: 10, indent: 2 },
-      )}\n`,
-    );
+    for (const pack of x.contextPacks) {
+      io.writeStdout(
+        `${kvBlock(
+          [
+            { key: 'id', value: pack.id },
+            { key: 'title', value: pack.title },
+            { key: 'saved', value: pack.createdAt.toISOString() },
+            {
+              key: 'excerpt',
+              value: `${pack.contentExcerpt.slice(0, 200)}${pack.contentExcerpt.length > 200 ? '…' : ''}`,
+            },
+          ],
+          { keyWidth: 10, indent: 2 },
+        )}\n`,
+      );
+    }
   }
 }
 

@@ -22,15 +22,14 @@ export function renderJson(data: RunWithEverything): string {
       startedAt: data.run.startedAt.toISOString(),
       endedAt: data.run.endedAt?.toISOString() ?? null,
     },
-    contextPack:
-      data.contextPack === null
-        ? null
-        : {
-            id: data.contextPack.id,
-            title: data.contextPack.title,
-            contentExcerpt: data.contextPack.contentExcerpt,
-            createdAt: data.contextPack.createdAt.toISOString(),
-          },
+    // Array (2026-08-08 — was a single `contextPack: X | null`; a run can
+    // accumulate several packs across distinct pieces of work).
+    contextPacks: data.contextPacks.map((cp) => ({
+      id: cp.id,
+      title: cp.title,
+      contentExcerpt: cp.contentExcerpt,
+      createdAt: cp.createdAt.toISOString(),
+    })),
     events: data.events.map((e) => ({
       id: e.id,
       phase: e.phase,

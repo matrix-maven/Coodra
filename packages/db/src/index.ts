@@ -121,6 +121,7 @@ export {
   type DecisionRow,
   type DecisionWithProject,
   getContextPackById,
+  getLastEventAtForRuns,
   getRunCompactionNudgedAt,
   getRunWithEverything,
   hasContextPackForRun,

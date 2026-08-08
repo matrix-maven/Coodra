@@ -1,12 +1,38 @@
+import type { ContextPackRow, DecisionRow } from '@coodra/db';
 import { notFound } from 'next/navigation';
 
 import { Topbar } from '@/components/Topbar';
 import { cancelRunAction } from '@/lib/actions/runs';
 import { agentTypeLabel } from '@/lib/agent-label';
 import { compactDuration, fmtClockSec, fmtRelative } from '@/lib/format';
-import { getRun } from '@/lib/queries/runs';
+import { getRun, getRunLastActivity } from '@/lib/queries/runs';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * `context_packs.meta` is agent-curated JSON (see `save_context_pack`'s
+ * `meta.decisionIds`) — best-effort parse, never throws on a malformed or
+ * legacy-shaped row.
+ */
+function linkedDecisionIds(pack: ContextPackRow): ReadonlySet<string> {
+  if (pack.meta === null) return new Set();
+  try {
+    const parsed: unknown = JSON.parse(pack.meta);
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'decisionIds' in parsed &&
+      Array.isArray((parsed as { decisionIds: unknown }).decisionIds)
+    ) {
+      return new Set(
+        (parsed as { decisionIds: unknown[] }).decisionIds.filter((x): x is string => typeof x === 'string'),
+      );
+    }
+  } catch {
+    // Malformed meta — treat as no linkage rather than failing the page.
+  }
+  return new Set();
+}
 
 export default async function RunDetailPage({
   params,
@@ -18,12 +44,27 @@ export default async function RunDetailPage({
   const { id: rawId } = await params;
   const sp = await searchParams;
   const id = decodeURIComponent(rawId);
-  const snapshot = await getRun(id);
+  const [snapshot, lastActivity] = await Promise.all([getRun(id), getRunLastActivity(id)]);
   if (snapshot === null) notFound();
 
-  const { run, events, decisions, policyDecisions, contextPack } = snapshot;
+  const { run, events, decisions, policyDecisions, contextPacks } = snapshot;
   const allowCount = policyDecisions.filter((p) => p.permissionDecision === 'allow').length;
   const denyCount = policyDecisions.filter((p) => p.permissionDecision === 'deny').length;
+
+  // Most-recent pack first for the sidebar; each pack's own linked
+  // decisions render underneath it (see `linkedDecisionIds` — populated
+  // from `meta.decisionIds` when the agent set it on save). Decisions
+  // with no linking pack (legacy rows, or the agent didn't tag them)
+  // fall into a trailing "Other decisions" bucket rather than vanishing.
+  const packsNewestFirst = [...contextPacks].reverse();
+  const claimedDecisionIds = new Set<string>();
+  const packsWithDecisions = packsNewestFirst.map((pack) => {
+    const ids = linkedDecisionIds(pack);
+    const linked = decisions.filter((d) => ids.has(d.id));
+    for (const d of linked) claimedDecisionIds.add(d.id);
+    return { pack, linked };
+  });
+  const otherDecisions = decisions.filter((d) => !claimedDecisionIds.has(d.id));
 
   const durationLabel =
     run.endedAt === null
@@ -45,12 +86,15 @@ export default async function RunDetailPage({
               session <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink-dim)' }}>{run.sessionId}</span> ·
               started {fmtClockSec(run.startedAt)}
               {run.endedAt === null ? '' : ` · ended ${fmtClockSec(run.endedAt)}`}
-              {contextPack === null ? (
+              {lastActivity === null ? '' : ` · updated ${fmtClockSec(lastActivity)} (${fmtRelative(lastActivity)})`}
+              {contextPacks.length === 0 ? (
                 ''
               ) : (
                 <>
-                  {' · pack '}
-                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>landed</span>
+                  {' · '}
+                  <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+                    {contextPacks.length} pack{contextPacks.length === 1 ? '' : 's'}
+                  </span>
                 </>
               )}
             </p>
@@ -134,38 +178,11 @@ export default async function RunDetailPage({
           </div>
 
           <div>
-            {contextPack !== null ? (
+            {packsWithDecisions.length === 0 ? (
               <div className="aside-card">
                 <div className="aside-card__head">
                   <h3 className="aside-card__title">
-                    Context <em>pack</em>
-                  </h3>
-                  <span className="badge badge--ok">
-                    <span className="badge__dot"></span>LANDED
-                  </span>
-                </div>
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 400, marginBottom: 6 }}>
-                    {contextPack.title}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--mono)',
-                      fontSize: 10,
-                      color: 'var(--ink-mute)',
-                      letterSpacing: '0.06em',
-                    }}
-                  >
-                    {fmtRelative(contextPack.createdAt)}
-                  </div>
-                </div>
-                <pre style={packPre}>{contextPack.contentExcerpt}</pre>
-              </div>
-            ) : (
-              <div className="aside-card">
-                <div className="aside-card__head">
-                  <h3 className="aside-card__title">
-                    Context <em>pack</em>
+                    Context <em>packs</em>
                   </h3>
                   <span className="badge">
                     <span className="badge__dot"></span>NONE
@@ -175,45 +192,63 @@ export default async function RunDetailPage({
                   No pack written for this run yet. Auto-pack fires on SessionEnd.
                 </div>
               </div>
+            ) : (
+              // One card per pack, newest first — a run can accumulate
+              // several across distinct pieces of work (2026-08-08 fix;
+              // this used to silently show only one, arbitrarily chosen).
+              // Each pack's own linked decisions (meta.decisionIds) render
+              // right under its excerpt, so the "which decisions belong to
+              // which piece of work" grouping that was missing is visible.
+              packsWithDecisions.map(({ pack, linked }) => (
+                <div className="aside-card" key={pack.id}>
+                  <div className="aside-card__head">
+                    <h3 className="aside-card__title">
+                      Context <em>pack</em>
+                    </h3>
+                    <span className="badge badge--ok">
+                      <span className="badge__dot"></span>LANDED
+                    </span>
+                  </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: 18, fontWeight: 400, marginBottom: 6 }}>
+                      {pack.title}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--mono)',
+                        fontSize: 10,
+                        color: 'var(--ink-mute)',
+                        letterSpacing: '0.06em',
+                      }}
+                    >
+                      {fmtRelative(pack.createdAt)}
+                    </div>
+                  </div>
+                  <pre style={packPre}>{pack.contentExcerpt}</pre>
+                  {linked.length > 0 ? (
+                    <div style={{ marginTop: 14 }}>
+                      {linked.map((dec) => (
+                        <DecisionItem key={dec.id} decision={dec} />
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))
             )}
 
             <div className="aside-card">
               <div className="aside-card__head">
-                <h3 className="aside-card__title">Decisions</h3>
-                <span className="card__role">{decisions.length} recorded</span>
+                <h3 className="aside-card__title">
+                  {packsWithDecisions.length === 0 ? 'Decisions' : 'Other decisions'}
+                </h3>
+                <span className="card__role">{otherDecisions.length} recorded</span>
               </div>
-              {decisions.length === 0 ? (
-                <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>No decisions recorded.</div>
+              {otherDecisions.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
+                  {packsWithDecisions.length === 0 ? 'No decisions recorded.' : 'None outside a context pack above.'}
+                </div>
               ) : (
-                decisions.map((dec) => (
-                  <div
-                    key={dec.id}
-                    style={{
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                      color: 'var(--ink-dim)',
-                      padding: '10px 0',
-                      borderBottom: '1px solid var(--rule)',
-                    }}
-                  >
-                    <strong
-                      style={{
-                        fontFamily: 'var(--mono)',
-                        fontSize: 10,
-                        color: 'var(--accent)',
-                        letterSpacing: '0.18em',
-                        display: 'block',
-                        marginBottom: 4,
-                      }}
-                    >
-                      DEC_{dec.id.slice(0, 8).toUpperCase()}
-                    </strong>
-                    {dec.description}
-                    {dec.rationale.length > 0 ? (
-                      <div style={{ marginTop: 4, color: 'var(--ink-mute)' }}>{dec.rationale}</div>
-                    ) : null}
-                  </div>
-                ))
+                otherDecisions.map((dec) => <DecisionItem key={dec.id} decision={dec} />)
               )}
             </div>
 
@@ -274,6 +309,37 @@ const packPre: React.CSSProperties = {
   overflowX: 'auto',
   maxHeight: 280,
 };
+
+function DecisionItem({ decision }: { decision: DecisionRow }) {
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        lineHeight: 1.6,
+        color: 'var(--ink-dim)',
+        padding: '10px 0',
+        borderBottom: '1px solid var(--rule)',
+      }}
+    >
+      <strong
+        style={{
+          fontFamily: 'var(--mono)',
+          fontSize: 10,
+          color: 'var(--accent)',
+          letterSpacing: '0.18em',
+          display: 'block',
+          marginBottom: 4,
+        }}
+      >
+        DEC_{decision.id.slice(0, 8).toUpperCase()}
+      </strong>
+      {decision.description}
+      {decision.rationale.length > 0 ? (
+        <div style={{ marginTop: 4, color: 'var(--ink-mute)' }}>{decision.rationale}</div>
+      ) : null}
+    </div>
+  );
+}
 
 function Cell({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (

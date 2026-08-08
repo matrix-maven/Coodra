@@ -17,7 +17,7 @@ export interface RenderMarkdownOptions {
 }
 
 export function renderMarkdown(data: RunWithEverything, options: RenderMarkdownOptions): string {
-  const { run, events, decisions, policyDecisions, contextPack } = data;
+  const { run, events, decisions, policyDecisions, contextPacks } = data;
   const lines: string[] = [];
 
   lines.push(`# Run \`${run.id}\``);
@@ -32,18 +32,22 @@ export function renderMarkdown(data: RunWithEverything, options: RenderMarkdownO
   if (run.prRef !== null) lines.push(`- **PR:** \`${run.prRef}\``);
   lines.push('');
 
-  // Context Pack first — it's the headline narrative for the run.
-  if (contextPack !== null) {
-    lines.push('## Context Pack');
+  // Context Packs first — they're the headline narrative for the run.
+  // Array (2026-08-08 — a run can accumulate several packs across
+  // distinct pieces of work); oldest first, same order they were saved.
+  if (contextPacks.length > 0) {
+    lines.push(`## Context Packs (${contextPacks.length})`);
     lines.push('');
-    lines.push(`**${contextPack.title}**`);
-    lines.push('');
-    lines.push(contextPack.contentExcerpt);
-    lines.push('');
-    lines.push(
-      `<sub>Saved at ${contextPack.createdAt.toISOString()} (excerpt — full content in DB row \`${contextPack.id}\`)</sub>`,
-    );
-    lines.push('');
+    for (const pack of contextPacks) {
+      lines.push(`### ${pack.title}`);
+      lines.push('');
+      lines.push(pack.contentExcerpt);
+      lines.push('');
+      lines.push(
+        `<sub>Saved at ${pack.createdAt.toISOString()} (excerpt — full content in DB row \`${pack.id}\`)</sub>`,
+      );
+      lines.push('');
+    }
   }
 
   // Decisions (record_decision) — narrative of what was decided.

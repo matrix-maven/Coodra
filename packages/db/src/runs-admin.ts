@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne, notInArray, notLike } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, max, ne, notInArray, notLike } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
@@ -19,6 +19,14 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
  * `getRunWithEverything` bundles every per-run row from every audit
  * table so `run show <runId>` can render a complete picture without
  * the operator having to join 5 tables by hand.
+ *
+ * `contextPacks` is a full array, ordered oldest-first (fixed 2026-08-08 —
+ * the append-only redesign (2026-08-05) made `context_packs` no longer
+ * one-row-per-run, but this read path kept a stale `.limit(1)` with no
+ * `orderBy`, silently returning an arbitrary single pack and discarding
+ * the rest for any run that accumulated more than one — which a
+ * long-running session spanning multiple distinct pieces of work
+ * routinely does).
  */
 
 export interface RunRow {
@@ -108,7 +116,7 @@ export interface RunWithEverything {
   readonly events: ReadonlyArray<RunEventRow>;
   readonly policyDecisions: ReadonlyArray<PolicyDecisionRow>;
   readonly decisions: ReadonlyArray<DecisionRow>;
-  readonly contextPack: ContextPackRow | null;
+  readonly contextPacks: ReadonlyArray<ContextPackRow>;
 }
 
 export interface ListRunsFilter {
@@ -222,15 +230,14 @@ export async function getRunWithEverything(db: DbHandle, runId: string): Promise
       .select()
       .from(sqliteSchema.contextPacks)
       .where(eq(sqliteSchema.contextPacks.runId, runId))
-      .limit(1);
-    const contextPack = contextPacks[0];
+      .orderBy(asc(sqliteSchema.contextPacks.createdAt));
 
     return {
       run,
       events: events.map(toEventRow),
       policyDecisions: policyDecisions.map(toPolicyDecisionRow),
       decisions: decisions.map(toDecisionRow),
-      contextPack: contextPack === undefined ? null : toContextPackRow(contextPack),
+      contextPacks: contextPacks.map(toContextPackRow),
     };
   }
 
@@ -259,16 +266,58 @@ export async function getRunWithEverything(db: DbHandle, runId: string): Promise
     .select()
     .from(postgresSchema.contextPacks)
     .where(eq(postgresSchema.contextPacks.runId, runId))
-    .limit(1);
-  const contextPack = contextPacks[0];
+    .orderBy(asc(postgresSchema.contextPacks.createdAt));
 
   return {
     run,
     events: events.map(toEventRow),
     policyDecisions: policyDecisions.map(toPolicyDecisionRow),
     decisions: decisions.map(toDecisionRow),
-    contextPack: contextPack === undefined ? null : toContextPackRow(contextPack),
+    contextPacks: contextPacks.map(toContextPackRow),
   };
+}
+
+/**
+ * Last-activity timestamp per run, derived from `MAX(run_events.created_at)`
+ * — no dedicated `runs.updated_at` column exists, and none is needed: a
+ * run's own `started_at`/`ended_at` don't move as activity continues
+ * (`ended_at` is only ever set once, by `SessionEnd`/cancel/complete —
+ * see `getRunIdHandler`'s reuse path for why a run can keep recording
+ * events for days after that), so the web app's "Updated" display reads
+ * this instead. Batched (one aggregate query, not N) for the runs-list
+ * page; empty input short-circuits without a round-trip.
+ */
+export async function getLastEventAtForRuns(
+  db: DbHandle,
+  runIds: ReadonlyArray<string>,
+): Promise<ReadonlyMap<string, Date>> {
+  if (runIds.length === 0) return new Map();
+
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.runEvents;
+    const rows = await db.db
+      .select({ runId: t.runId, lastAt: max(t.createdAt) })
+      .from(t)
+      .where(inArray(t.runId, runIds as string[]))
+      .groupBy(t.runId);
+    const out = new Map<string, Date>();
+    for (const row of rows) {
+      if (row.runId !== null && row.lastAt !== null) out.set(row.runId, row.lastAt);
+    }
+    return out;
+  }
+
+  const t = postgresSchema.runEvents;
+  const rows = await db.db
+    .select({ runId: t.runId, lastAt: max(t.createdAt) })
+    .from(t)
+    .where(inArray(t.runId, runIds as string[]))
+    .groupBy(t.runId);
+  const out = new Map<string, Date>();
+  for (const row of rows) {
+    if (row.runId !== null && row.lastAt !== null) out.set(row.runId, row.lastAt);
+  }
+  return out;
 }
 
 export type CancelRunResult =

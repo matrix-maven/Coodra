@@ -26,21 +26,28 @@ export interface RenderSlackOptions {
 }
 
 export function renderSlack(data: RunWithEverything, options: RenderSlackOptions): string {
-  const { run, events, decisions, contextPack, policyDecisions } = data;
+  const { run, events, decisions, contextPacks, policyDecisions } = data;
   const lines: string[] = [];
 
   lines.push(`*Run* \`${run.id}\``);
   lines.push(`_${run.agentType} • ${run.status} • started ${run.startedAt.toISOString()}_`);
   lines.push('');
 
-  if (contextPack !== null) {
-    lines.push(`*${contextPack.title}*`);
-    const excerpt =
-      contextPack.contentExcerpt.length > 600
-        ? `${contextPack.contentExcerpt.slice(0, 600).trim()}…`
-        : contextPack.contentExcerpt;
-    lines.push(excerpt);
-    lines.push('');
+  // Slack stays compact by design — show only the most recent pack (a run
+  // can accumulate several across distinct pieces of work), with a count
+  // note for the rest, same truncation pattern as decisions below.
+  if (contextPacks.length > 0) {
+    const latest = contextPacks[contextPacks.length - 1];
+    if (latest !== undefined) {
+      lines.push(`*${latest.title}*`);
+      const excerpt =
+        latest.contentExcerpt.length > 600 ? `${latest.contentExcerpt.slice(0, 600).trim()}…` : latest.contentExcerpt;
+      lines.push(excerpt);
+      if (contextPacks.length > 1) {
+        lines.push(`_…and ${contextPacks.length - 1} earlier context pack(s) for this run._`);
+      }
+      lines.push('');
+    }
   }
 
   if (decisions.length > 0) {

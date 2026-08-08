@@ -25,8 +25,8 @@ export function runStateLastModified(snapshot: RunWithEverything): Date {
   for (const pd of snapshot.policyDecisions) {
     latest = Math.max(latest, pd.createdAt.getTime());
   }
-  if (snapshot.contextPack !== null) {
-    latest = Math.max(latest, snapshot.contextPack.createdAt.getTime());
+  for (const pack of snapshot.contextPacks) {
+    latest = Math.max(latest, pack.createdAt.getTime());
   }
   return new Date(latest);
 }
@@ -56,10 +56,10 @@ export function serializeRunState(snapshot: RunWithEverything): SerializedRunSta
       ...pd,
       createdAt: pd.createdAt.toISOString(),
     })),
-    contextPack:
-      snapshot.contextPack === null
-        ? null
-        : { ...snapshot.contextPack, createdAt: snapshot.contextPack.createdAt.toISOString() },
+    contextPacks: snapshot.contextPacks.map((pack) => ({
+      ...pack,
+      createdAt: pack.createdAt.toISOString(),
+    })),
   };
 }
 
@@ -77,7 +77,7 @@ export interface SerializedRunState {
   readonly policyDecisions: ReadonlyArray<
     Omit<RunWithEverything['policyDecisions'][number], 'createdAt'> & { readonly createdAt: string }
   >;
-  readonly contextPack:
-    | (Omit<NonNullable<RunWithEverything['contextPack']>, 'createdAt'> & { readonly createdAt: string })
-    | null;
+  readonly contextPacks: ReadonlyArray<
+    Omit<RunWithEverything['contextPacks'][number], 'createdAt'> & { readonly createdAt: string }
+  >;
 }
