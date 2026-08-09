@@ -33,6 +33,7 @@ import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { getActorIdentity } from '../../lib/actor-identity.js';
 import { selectDiversifiedRecentContextPacks } from '../../lib/context-pack.js';
+import { selectPromptRelevantContext } from '../../lib/prompt-context.js';
 import { createCheckPolicyHandler } from '../check-policy/handler.js';
 import { createGetRunIdHandler } from '../get-run-id/handler.js';
 import { createQueryDecisionsHandler } from '../query-decisions/handler.js';
@@ -679,6 +680,18 @@ function sessionAdditionalContext(args: {
   return lines.join('\n');
 }
 
+function promptTextFromEvent(event: HookEvent): string | null {
+  if (event.eventPhase !== 'user_prompt') return null;
+  if (event.toolInput === null || typeof event.toolInput !== 'object' || Array.isArray(event.toolInput)) return null;
+  const prompt = (event.toolInput as { readonly prompt?: unknown }).prompt;
+  return typeof prompt === 'string' && prompt.trim().length > 0 ? prompt : null;
+}
+
+function joinAdditionalContext(parts: ReadonlyArray<string | null | undefined>): string | undefined {
+  const kept = parts.filter((part): part is string => typeof part === 'string' && part.length > 0);
+  return kept.length > 0 ? kept.join('\n\n---\n\n') : undefined;
+}
+
 export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
   if (!deps || typeof deps !== 'object') {
     throw new TypeError('createLifecycleEventHandler requires a deps object');
@@ -1023,7 +1036,23 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         );
       }
     }
-    const additionalContext = isSessionStartEquivalent
+    let promptRelevantContext: string | null = null;
+    const promptText = promptTextFromEvent(event);
+    if (
+      hookEventName === 'UserPromptSubmit' &&
+      promptText !== null &&
+      projectSlug !== null &&
+      input.agentType !== 'cursor' &&
+      input.agentType !== 'antigravity'
+    ) {
+      const promptContext = await selectPromptRelevantContext(
+        { db: deps.db },
+        { projectSlug, prompt: promptText, runId, ctx },
+      );
+      promptRelevantContext = promptContext.additionalContext;
+    }
+
+    const sessionContext = isSessionStartEquivalent
       ? sessionAdditionalContext({
           projectSlug,
           runId,
@@ -1031,9 +1060,11 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
           policyProjectionContext,
           recentContext,
         })
-      : hookEventName === 'ConfigChange'
+      : null;
+    const additionalContext =
+      hookEventName === 'ConfigChange'
         ? (policyProjectionContext ?? undefined)
-        : undefined;
+        : joinAdditionalContext([sessionContext, promptRelevantContext]);
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,
