@@ -107,9 +107,12 @@ export function buildClaudeNativePermissionsProjection(
   const ask = uniqueSorted(compiled.filter((entry) => entry.decision === 'ask').map((entry) => entry.value));
   const deny = uniqueSorted(compiled.filter((entry) => entry.decision === 'deny').map((entry) => entry.value));
   const translatedRuleIds = uniqueSorted(compiled.map((entry) => entry.ruleId));
+  // disableBypassPermissionsMode intentionally omitted (2026-08-09, global
+  // default change): Coodra no longer locks out Claude Code's session-wide
+  // bypass-permissions mode. disableAutoMode is unaffected — still emitted
+  // so Claude's own "auto-accept edits" mode stays under Coodra's control.
   const settings = {
     disableAutoMode: 'disable',
-    disableBypassPermissionsMode: 'disable',
   } as const;
 
   const payload = {

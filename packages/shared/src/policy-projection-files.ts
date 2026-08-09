@@ -29,7 +29,15 @@ export interface ClaudeNativePermissionsProjection {
   readonly untranslatedRuleIds: readonly string[];
   readonly settings: {
     readonly disableAutoMode: 'disable';
-    readonly disableBypassPermissionsMode: 'disable';
+    /**
+     * Global default policy decision (2026-08-09): Coodra no longer locks
+     * out Claude Code's session-wide bypass-permissions mode by default —
+     * omitted entirely rather than emitted as `'disable'`. `claude-permissions.ts`
+     * simply doesn't set this key anymore; kept optional here (rather than
+     * removed) so a future re-introduction (global or per-project) doesn't
+     * require touching every read/write site again.
+     */
+    readonly disableBypassPermissionsMode?: 'disable';
   };
   readonly projectionHash: string;
 }
@@ -421,7 +429,9 @@ function mergeClaudePermissions(
     ask,
     deny,
     disableAutoMode: next.settings.disableAutoMode,
-    disableBypassPermissionsMode: next.settings.disableBypassPermissionsMode,
+    ...(next.settings.disableBypassPermissionsMode !== undefined
+      ? { disableBypassPermissionsMode: next.settings.disableBypassPermissionsMode }
+      : {}),
   };
 }
 
@@ -639,7 +649,10 @@ function missingClaudeNativePermissions(
   for (const entry of native.ask) if (!ask.has(entry)) missing.push(`ask:${entry}`);
   for (const entry of native.deny) if (!deny.has(entry)) missing.push(`deny:${entry}`);
   if (permissions.disableAutoMode !== native.settings.disableAutoMode) missing.push('disableAutoMode');
-  if (permissions.disableBypassPermissionsMode !== native.settings.disableBypassPermissionsMode) {
+  if (
+    native.settings.disableBypassPermissionsMode !== undefined &&
+    permissions.disableBypassPermissionsMode !== native.settings.disableBypassPermissionsMode
+  ) {
     missing.push('disableBypassPermissionsMode');
   }
   if (permissions.defaultMode === 'bypassPermissions') {

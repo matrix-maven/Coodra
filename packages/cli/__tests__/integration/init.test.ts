@@ -233,10 +233,12 @@ describe('runInitCommand — integration', () => {
       );
       expect(envWriteDeny).toBeDefined();
 
-      const gitWriteDeny = rules.find(
-        (r) => r.matchToolName === 'Write' && r.matchPathGlob === '.git/**' && r.decision === 'deny',
+      // .git/** is a hygiene rule, not a security boundary — softened to
+      // ask (2026-08-09), see ensure-default-policy.ts.
+      const gitWriteAsk = rules.find(
+        (r) => r.matchToolName === 'Write' && r.matchPathGlob === '.git/**' && r.decision === 'ask',
       );
-      expect(gitWriteDeny).toBeDefined();
+      expect(gitWriteAsk).toBeDefined();
 
       const bashAsk = rules.find((r) => r.matchToolName === 'Bash' && r.decision === 'ask');
       expect(bashAsk).toBeDefined();
