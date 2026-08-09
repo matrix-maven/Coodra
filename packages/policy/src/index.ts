@@ -1,5 +1,6 @@
 export {
   buildPolicyDecisionIdempotencyKey,
+  buildPolicyGrantFingerprint,
   type CreatePolicyClientOptions,
   createDevNullPolicyClient,
   createPolicyClient,

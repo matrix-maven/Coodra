@@ -2,6 +2,7 @@
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { buildPolicyGrantFingerprint } from '@coodra/policy';
 import { getPolicyEvaluator, policyDecisionForStorage, policyGovernanceVerdictForStorage } from '@coodra/shared';
 import { defaultWorkflowPolicy, workflowPolicyProfileSchema } from '@coodra/shared/workflow-policy';
 import { revalidatePath } from 'next/cache';
@@ -11,9 +12,11 @@ import { assertActorRole } from '@/lib/action-guards';
 import {
   addPolicyRule,
   createPolicyException,
+  createPolicyGrant,
   deletePolicyRule,
   getActivePolicyVersion,
   publishPolicyVersion,
+  revokePolicyGrant,
   setPolicyActive,
   updatePolicyExceptionStatus,
   updatePolicyRule,
@@ -96,6 +99,24 @@ const REQUEST_EXCEPTION_FORM_SCHEMA = z.object({
 const EXCEPTION_STATUS_FORM_SCHEMA = z.object({
   exceptionId: z.string().min(1),
   status: z.enum(['active', 'revoked', 'rejected']),
+  returnTo: z.string().optional(),
+});
+
+const CREATE_GRANT_FORM_SCHEMA = z.object({
+  decisionId: z.string().min(1),
+  projectId: z.string().min(1),
+  runId: z.string().optional(),
+  sessionId: z.string().min(1),
+  toolName: z.string().min(1),
+  toolUseId: z.string().optional(),
+  toolInputSnapshot: z.string(),
+  matchedRuleId: z.string().optional(),
+  scopeType: z.enum(['similar_task', 'session', 'project']),
+  returnTo: z.string().optional(),
+});
+
+const REVOKE_GRANT_FORM_SCHEMA = z.object({
+  grantId: z.string().min(1),
   returnTo: z.string().optional(),
 });
 
@@ -356,6 +377,81 @@ export async function updatePolicyExceptionStatusAction(formData: FormData): Pro
   await updatePolicyExceptionStatus(parsed.data.exceptionId, parsed.data.status);
   revalidatePath('/policies');
   redirect(`${returnTo}?toggled=${encodeURIComponent(`exception-${parsed.data.status}`)}`);
+}
+
+export async function createPolicyGrantFromDecisionAction(formData: FormData): Promise<void> {
+  await assertActorRole('admin');
+  const parsed = CREATE_GRANT_FORM_SCHEMA.safeParse({
+    decisionId: formData.get('decisionId') ?? '',
+    projectId: formData.get('projectId') ?? '',
+    runId: formData.get('runId') ?? undefined,
+    sessionId: formData.get('sessionId') ?? '',
+    toolName: formData.get('toolName') ?? '',
+    toolUseId: formData.get('toolUseId') ?? undefined,
+    toolInputSnapshot: formData.get('toolInputSnapshot') ?? '',
+    matchedRuleId: formData.get('matchedRuleId') ?? undefined,
+    scopeType: formData.get('scopeType') ?? '',
+    returnTo: formData.get('returnTo') ?? undefined,
+  });
+  const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+  }
+  const args = parsed.data;
+  let toolInput: unknown = {};
+  try {
+    toolInput = args.toolInputSnapshot.length > 0 ? JSON.parse(args.toolInputSnapshot) : {};
+  } catch {
+    toolInput = { raw: args.toolInputSnapshot };
+  }
+  const fingerprint = buildPolicyGrantFingerprint({ toolName: args.toolName, input: toolInput });
+  const scopeJson =
+    args.scopeType === 'similar_task'
+      ? JSON.stringify({ fingerprint, toolName: args.toolName })
+      : args.scopeType === 'session'
+        ? JSON.stringify({ sessionId: args.sessionId, toolName: args.toolName })
+        : JSON.stringify({ projectId: args.projectId });
+
+  try {
+    const grant = await createPolicyGrant({
+      projectId: args.projectId,
+      ...(args.runId !== undefined && args.runId !== '' ? { runId: args.runId } : {}),
+      scopeType: args.scopeType,
+      scopeJson,
+      grantKind: 'decision_override',
+      ...(args.matchedRuleId !== undefined && args.matchedRuleId !== '' ? { targetRuleId: args.matchedRuleId } : {}),
+      grantFingerprint: args.scopeType === 'similar_task' ? fingerprint : null,
+      decisionOverride: 'allow',
+      sourcePolicyDecisionId: args.decisionId,
+      reason: `Approved ${args.scopeType.replace(/_/g, ' ')} from policy decision ${args.decisionId.slice(0, 12)}`,
+    });
+    revalidatePath('/policies');
+    redirect(`${returnTo}?added=${encodeURIComponent(`grant-${grant.id.slice(0, 8)}`)}`);
+  } catch (err) {
+    if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
+    redirect(`${returnTo}?error=${encodeURIComponent((err as Error).message)}`);
+  }
+}
+
+export async function revokePolicyGrantAction(formData: FormData): Promise<void> {
+  await assertActorRole('admin');
+  const parsed = REVOKE_GRANT_FORM_SCHEMA.safeParse({
+    grantId: formData.get('grantId') ?? '',
+    returnTo: formData.get('returnTo') ?? undefined,
+  });
+  const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
+  if (!parsed.success) {
+    const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
+    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+  }
+  const revoked = await revokePolicyGrant(parsed.data.grantId);
+  revalidatePath('/policies');
+  redirect(
+    revoked !== null
+      ? `${returnTo}?toggled=${encodeURIComponent(`grant-revoked-${parsed.data.grantId.slice(0, 8)}`)}`
+      : `${returnTo}?error=grant_not_found`,
+  );
 }
 
 function buildExceptionScopeJson(scopeType: string, scopeValue: string | undefined): string {

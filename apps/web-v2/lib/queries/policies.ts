@@ -3,7 +3,9 @@ import {
   type AddPolicyRuleResult,
   addPolicyRule as addPolicyRuleDb,
   type ControlRow,
+  type CreatePolicyGrantArgs,
   createPolicyException as createPolicyExceptionDb,
+  createPolicyGrant as createPolicyGrantDb,
   deletePolicyRule as deletePolicyRuleDb,
   getActivePolicyVersion as getActivePolicyVersionDb,
   getPolicy as getPolicyDb,
@@ -19,9 +21,10 @@ import {
   type PolicyRow,
   type PolicyVersionRow,
   type PolicyWithRules,
-  publishPolicyVersion as publishPolicyVersionDb,
-  setPolicyActive as setPolicyActiveDb,
   postgresSchema,
+  publishPolicyVersion as publishPolicyVersionDb,
+  revokePolicyGrant as revokePolicyGrantDb,
+  setPolicyActive as setPolicyActiveDb,
   sqliteSchema,
   type UpdatePolicyRuleArgs,
   updatePolicyExceptionStatus as updatePolicyExceptionStatusDb,
@@ -104,7 +107,12 @@ export async function listPolicyGrants(projectId: string | null = null): Promise
 
 export interface RecentPolicyDecisionRow {
   readonly id: string;
+  readonly projectId: string;
+  readonly runId: string | null;
+  readonly sessionId: string;
   readonly toolName: string;
+  readonly toolUseId: string | null;
+  readonly toolInputSnapshot: string;
   readonly permissionDecision: string;
   readonly governanceVerdict: string | null;
   readonly enforcementMode: string | null;
@@ -128,7 +136,12 @@ export async function listRecentPolicyDecisions(
         : await handle.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt)).limit(limit);
     return rows.map((row) => ({
       id: row.id,
+      projectId: row.projectId,
+      runId: row.runId,
+      sessionId: row.sessionId,
       toolName: row.toolName,
+      toolUseId: row.toolUseId,
+      toolInputSnapshot: row.toolInputSnapshot,
       permissionDecision: row.permissionDecision,
       governanceVerdict: row.governanceVerdict,
       enforcementMode: row.effectiveDecision ?? row.baseDecision,
@@ -146,7 +159,12 @@ export async function listRecentPolicyDecisions(
       : await handle.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt)).limit(limit);
   return rows.map((row) => ({
     id: row.id,
+    projectId: row.projectId,
+    runId: row.runId,
+    sessionId: row.sessionId,
     toolName: row.toolName,
+    toolUseId: row.toolUseId,
+    toolInputSnapshot: row.toolInputSnapshot,
     permissionDecision: row.permissionDecision,
     governanceVerdict: row.governanceVerdict,
     enforcementMode: row.effectiveDecision ?? row.baseDecision,
@@ -174,6 +192,19 @@ export async function createPolicyException(args: {
 }): Promise<PolicyExceptionRow> {
   const handle = createWebDb();
   return createPolicyExceptionDb(handle, args);
+}
+
+export async function createPolicyGrant(args: CreatePolicyGrantArgs): Promise<PolicyGrantRow> {
+  const handle = createWebDb();
+  return createPolicyGrantDb(handle, args);
+}
+
+export async function revokePolicyGrant(
+  grantId: string,
+  actorUserId: string | null = null,
+): Promise<PolicyGrantRow | null> {
+  const handle = createWebDb();
+  return revokePolicyGrantDb(handle, grantId, actorUserId);
 }
 
 export async function updatePolicyExceptionStatus(

@@ -128,6 +128,26 @@ export function buildPolicyDecisionIdempotencyKey(args: {
   return `pd:${args.sessionId}:${turn}:${args.toolName}:${args.eventType}`;
 }
 
+/**
+ * Stable fingerprint for "allow similar task" grants. This intentionally
+ * keys on the tool name plus normalized tool input, so a grant replays for
+ * the same concrete operation without becoming a broad tool-level allow.
+ */
+export function buildPolicyGrantFingerprint(args: { readonly toolName: string; readonly input: unknown }): string {
+  const raw = stableJson(args.input);
+  return `pg:${fnv1aHex(`${args.toolName}\n${raw}`)}`;
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? String(value);
+  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(record[key])}`)
+    .join(',')}}`;
+}
+
 // ---------------------------------------------------------------------------
 // Test-supporting factories.
 // ---------------------------------------------------------------------------
@@ -312,7 +332,8 @@ function compileRule(row: {
     row.governanceVerdict ?? legacyGovernanceVerdictForDecision(row.decision),
   );
   const enforcementMode = normalizeEnforcementMode(
-    row.ruleEnforcementMode ?? (hasSplitDecision ? row.policyEnforcementMode : legacyEnforcementModeForDecision(row.decision)),
+    row.ruleEnforcementMode ??
+      (hasSplitDecision ? row.policyEnforcementMode : legacyEnforcementModeForDecision(row.decision)),
   );
   const matcher = row.matchPathGlob ? picomatch(row.matchPathGlob, { dot: false, nobrace: true }) : null;
   const commandMatcher =
@@ -355,7 +376,6 @@ function normalizeGovernanceVerdict(value: string | null | undefined): PolicyGov
       return value;
     case 'flag':
       return 'warn';
-    case 'pass':
     default:
       return 'pass';
   }
@@ -382,7 +402,6 @@ function normalizeEnforcementMode(value: string | null | undefined): PolicyEnfor
       return value;
     case 'enforced':
       return 'preventive';
-    case 'detective':
     default:
       return 'detective';
   }
@@ -603,6 +622,13 @@ function grantMatches(
     return false;
   }
 
+  if (grant.scopeType === 'similar_task') {
+    const fingerprint = buildPolicyGrantFingerprint({ toolName: input.toolName, input: input.input });
+    const scopedFingerprint = grant.scope.fingerprint;
+    const expected = typeof scopedFingerprint === 'string' && scopedFingerprint.length > 0 ? scopedFingerprint : null;
+    if (grant.grantFingerprint !== fingerprint && expected !== fingerprint) return false;
+  }
+
   const sessionId = grant.scope.sessionId;
   if (typeof sessionId === 'string' && sessionId.length > 0 && sessionId !== input.sessionId) return false;
   const toolName = grant.scope.toolName;
@@ -712,25 +738,25 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
       : and(eq(postgresSchema.policies.isActive, true), eq(postgresSchema.policies.projectId, projectId));
   const rows = await db.db
     .select({
-    id: postgresSchema.policyRules.id,
-    policyId: postgresSchema.policyRules.policyId,
-    policyVersionId: postgresSchema.policyVersions.id,
-    priority: postgresSchema.policyRules.priority,
-    policyEnforcementMode: postgresSchema.policies.enforcementMode,
-    policyDenyOnPolicyError: postgresSchema.policies.denyOnPolicyError,
-    matchEventType: postgresSchema.policyRules.matchEventType,
-    matchToolName: postgresSchema.policyRules.matchToolName,
-    matchPathGlob: postgresSchema.policyRules.matchPathGlob,
-    matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
-    matchAgentType: postgresSchema.policyRules.matchAgentType,
-    decision: postgresSchema.policyRules.decision,
-    enforcementDecision: postgresSchema.policyRules.enforcementDecision,
-    governanceVerdict: postgresSchema.policyRules.governanceVerdict,
-    ruleEnforcementMode: postgresSchema.policyRules.enforcementMode,
-    requiredCapability: postgresSchema.policyRules.requiredCapability,
-    excludedCapability: postgresSchema.policyRules.excludedCapability,
-    reason: postgresSchema.policyRules.reason,
-  })
+      id: postgresSchema.policyRules.id,
+      policyId: postgresSchema.policyRules.policyId,
+      policyVersionId: postgresSchema.policyVersions.id,
+      priority: postgresSchema.policyRules.priority,
+      policyEnforcementMode: postgresSchema.policies.enforcementMode,
+      policyDenyOnPolicyError: postgresSchema.policies.denyOnPolicyError,
+      matchEventType: postgresSchema.policyRules.matchEventType,
+      matchToolName: postgresSchema.policyRules.matchToolName,
+      matchPathGlob: postgresSchema.policyRules.matchPathGlob,
+      matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
+      matchAgentType: postgresSchema.policyRules.matchAgentType,
+      decision: postgresSchema.policyRules.decision,
+      enforcementDecision: postgresSchema.policyRules.enforcementDecision,
+      governanceVerdict: postgresSchema.policyRules.governanceVerdict,
+      ruleEnforcementMode: postgresSchema.policyRules.enforcementMode,
+      requiredCapability: postgresSchema.policyRules.requiredCapability,
+      excludedCapability: postgresSchema.policyRules.excludedCapability,
+      reason: postgresSchema.policyRules.reason,
+    })
     .from(postgresSchema.policyRules)
     .innerJoin(postgresSchema.policies, eq(postgresSchema.policies.id, postgresSchema.policyRules.policyId))
     .leftJoin(
@@ -922,13 +948,13 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
           baseDecision,
           governanceVerdict: matched.governanceVerdict,
           enforcementMode: matched.enforcementMode,
-            reason: exception.reason,
-            matchedRuleId: matched.id,
-            matchedCapability: matched.requiredCapability,
-            matchedExceptionId: exception.id,
-            matchedGrantId: null,
-            policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
-          };
+          reason: exception.reason,
+          matchedRuleId: matched.id,
+          matchedCapability: matched.requiredCapability,
+          matchedExceptionId: exception.id,
+          matchedGrantId: null,
+          policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
+        };
       }
       const grant =
         baseDecision === 'ask' || (baseDecision === 'allow' && matched.enforcementMode === 'approval')

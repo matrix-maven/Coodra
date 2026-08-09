@@ -19,11 +19,11 @@ export {
 } from './client.js';
 export { buildCodexNativePermissionsProjection } from './codex-permissions.js';
 export {
-  classifyVxiControl,
   type ControlAttestationRow,
   type ControlImplementationMode,
   type ControlRelevanceTrack,
   type ControlRow,
+  classifyVxiControl,
   createControlAttestation,
   implementationModeForTrack,
   listControls,
@@ -72,23 +72,6 @@ export {
 export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
 export {
-  ensureNativeAdvisoryRules,
-  type EnsureNativeAdvisoryRulesResult,
-  NATIVE_ADVISORY_POLICY_NAME,
-  NATIVE_ADVISORY_RULE_TEMPLATES,
-  type NativeAdvisoryRuleTemplate,
-} from './native-advisory-rules.js';
-export {
-  getRunActiveCapabilities,
-  getRunActiveCapabilitiesForSession,
-  normalizeRunCapabilities,
-  normalizeRunCapability,
-  parseRunCapabilitiesJson,
-  serializeRunCapabilities,
-  type RunCapabilityMutation,
-  updateRunActiveCapabilities,
-} from './run-capabilities.js';
-export {
   ensurePgVector,
   MIGRATIONS_FOLDER,
   migratePostgres,
@@ -96,9 +79,17 @@ export {
   resolveMigrationsFolder,
 } from './migrate.js';
 export {
+  type EnsureNativeAdvisoryRulesResult,
+  ensureNativeAdvisoryRules,
+  NATIVE_ADVISORY_POLICY_NAME,
+  NATIVE_ADVISORY_RULE_TEMPLATES,
+  type NativeAdvisoryRuleTemplate,
+} from './native-advisory-rules.js';
+export {
   type AddPolicyRuleArgs,
   type AddPolicyRuleResult,
   addPolicyRule,
+  type CreatePolicyGrantArgs,
   createPolicyException,
   createPolicyGrant,
   DEFAULT_POLICY_NAME,
@@ -152,6 +143,16 @@ export {
   renameProject,
   resetProject,
 } from './projects.js';
+export {
+  getRunActiveCapabilities,
+  getRunActiveCapabilitiesForSession,
+  normalizeRunCapabilities,
+  normalizeRunCapability,
+  parseRunCapabilitiesJson,
+  type RunCapabilityMutation,
+  serializeRunCapabilities,
+  updateRunActiveCapabilities,
+} from './run-capabilities.js';
 export {
   type AuditEventWithProject,
   type CancelRunResult,

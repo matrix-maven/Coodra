@@ -223,6 +223,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       matchedRuleId: evalResult.matchedRuleId,
       policyVersionId: evalResult.policyVersionId ?? null,
       matchedExceptionId: evalResult.matchedExceptionId ?? null,
+      matchedGrantId: evalResult.matchedGrantId ?? null,
       baseDecision: evalResult.baseDecision ?? evalResult.decision,
       effectiveDecision: evalResult.decision,
       failOpen,

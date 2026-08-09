@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { Topbar } from '@/components/Topbar';
 import {
   addRuleAction,
+  createPolicyGrantFromDecisionAction,
   deleteRuleAction,
   publishPolicyVersionAction,
   requestPolicyExceptionAction,
+  revokePolicyGrantAction,
   setActiveAction,
   updatePolicyExceptionStatusAction,
   updateRuleAction,
@@ -84,6 +86,7 @@ export default async function PoliciesPage({
   const activeExceptions = exceptions.filter((exception) => exception.status === 'active').length;
   const activeGrants = grants.filter((grant) => grant.revokedAt === null).length;
   const capabilityNames = collectCapabilities(policies, grants);
+  const returnTo = scopedProject !== null ? `/policies?project=${encodeURIComponent(scopedProject.slug)}` : '/policies';
 
   return (
     <>
@@ -180,7 +183,11 @@ export default async function PoliciesPage({
             <LaneCard
               title="Capabilities"
               value={String(capabilityNames.length)}
-              detail={capabilityNames.length === 0 ? 'no explicit capability axis yet' : capabilityNames.slice(0, 3).join(' · ')}
+              detail={
+                capabilityNames.length === 0
+                  ? 'no explicit capability axis yet'
+                  : capabilityNames.slice(0, 3).join(' · ')
+              }
             />
           </div>
         </section>
@@ -453,6 +460,7 @@ export default async function PoliciesPage({
                   </div>
                   <div className="policy-row__reason">{decision.reason}</div>
                   <div style={monoDim}>{decision.createdAt.toLocaleString()}</div>
+                  <GrantDecisionControls decision={decision} returnTo={returnTo} />
                 </div>
               ))
             )}
@@ -470,7 +478,10 @@ export default async function PoliciesPage({
             ) : (
               grants.slice(0, 8).map((grant) => (
                 <div key={grant.id} className="policy-row">
-                  <div className="policy-row__verdict" style={{ color: grant.revokedAt === null ? 'var(--accent)' : 'var(--ink-dim)' }}>
+                  <div
+                    className="policy-row__verdict"
+                    style={{ color: grant.revokedAt === null ? 'var(--accent)' : 'var(--ink-dim)' }}
+                  >
                     {grant.grantKind.replace(/_/g, ' ').toUpperCase()}
                   </div>
                   <div>
@@ -478,7 +489,10 @@ export default async function PoliciesPage({
                     <div style={monoDim}>{grant.targetCapability ?? grant.targetRuleId ?? 'general scope'}</div>
                   </div>
                   <div className="policy-row__reason">{grant.reason}</div>
-                  <div style={monoDim}>{grant.expiresAt !== null ? `expires ${grant.expiresAt.toLocaleString()}` : 'no expiry'}</div>
+                  <div style={monoDim}>
+                    {grant.expiresAt !== null ? `expires ${grant.expiresAt.toLocaleString()}` : 'no expiry'}
+                  </div>
+                  {grant.revokedAt === null ? <RevokeGrantControl grantId={grant.id} returnTo={returnTo} /> : null}
                 </div>
               ))
             )}
@@ -486,6 +500,87 @@ export default async function PoliciesPage({
         </div>
       </section>
     </>
+  );
+}
+
+function GrantDecisionControls({
+  decision,
+  returnTo,
+}: {
+  decision: {
+    id: string;
+    projectId: string;
+    runId: string | null;
+    sessionId: string;
+    toolName: string;
+    toolUseId: string | null;
+    toolInputSnapshot: string;
+    permissionDecision: string;
+    matchedRuleId: string | null;
+    matchedGrantId: string | null;
+  };
+  returnTo: string;
+}) {
+  if (decision.permissionDecision !== 'ask' || decision.matchedRuleId === null) {
+    return <div style={monoDim}>{decision.matchedGrantId ?? 'no grant action'}</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+      <CreateGrantButton decision={decision} scopeType="similar_task" label="Allow similar" returnTo={returnTo} />
+      <CreateGrantButton decision={decision} scopeType="session" label="Allow session" returnTo={returnTo} />
+      <CreateGrantButton decision={decision} scopeType="project" label="Allow project" returnTo={returnTo} />
+    </div>
+  );
+}
+
+function CreateGrantButton({
+  decision,
+  scopeType,
+  label,
+  returnTo,
+}: {
+  decision: {
+    id: string;
+    projectId: string;
+    runId: string | null;
+    sessionId: string;
+    toolName: string;
+    toolUseId: string | null;
+    toolInputSnapshot: string;
+    matchedRuleId: string | null;
+  };
+  scopeType: 'similar_task' | 'session' | 'project';
+  label: string;
+  returnTo: string;
+}) {
+  return (
+    <form action={createPolicyGrantFromDecisionAction}>
+      <input type="hidden" name="decisionId" value={decision.id} />
+      <input type="hidden" name="projectId" value={decision.projectId} />
+      <input type="hidden" name="runId" value={decision.runId ?? ''} />
+      <input type="hidden" name="sessionId" value={decision.sessionId} />
+      <input type="hidden" name="toolName" value={decision.toolName} />
+      <input type="hidden" name="toolUseId" value={decision.toolUseId ?? ''} />
+      <input type="hidden" name="toolInputSnapshot" value={decision.toolInputSnapshot} />
+      <input type="hidden" name="matchedRuleId" value={decision.matchedRuleId ?? ''} />
+      <input type="hidden" name="scopeType" value={scopeType} />
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <button className="btn" type="submit" title={`Create a ${scopeType.replace(/_/g, ' ')} approval grant`}>
+        {label}
+      </button>
+    </form>
+  );
+}
+
+function RevokeGrantControl({ grantId, returnTo }: { grantId: string; returnTo: string }) {
+  return (
+    <form action={revokePolicyGrantAction} style={{ textAlign: 'right' }}>
+      <input type="hidden" name="grantId" value={grantId} />
+      <input type="hidden" name="returnTo" value={returnTo} />
+      <button className="btn" type="submit" title="Revoke this approval grant">
+        Revoke
+      </button>
+    </form>
   );
 }
 
@@ -929,7 +1024,10 @@ function countRulesByMode(
   mode: string,
 ): number {
   return policies.reduce((sum, policy) => {
-    return sum + policy.rules.filter((rule) => (rule.enforcementMode ?? legacyModeForDecision(rule.decision)) === mode).length;
+    return (
+      sum +
+      policy.rules.filter((rule) => (rule.enforcementMode ?? legacyModeForDecision(rule.decision)) === mode).length
+    );
   }, 0);
 }
 

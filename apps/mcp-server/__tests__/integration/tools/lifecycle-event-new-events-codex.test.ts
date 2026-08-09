@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { buildPolicyGrantFingerprint, createPolicyClient } from '@coodra/policy';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -71,6 +72,18 @@ function buildRegistry(h: Harness): ToolRegistry {
   return registry;
 }
 
+function buildRegistryWithRealPolicy(h: Harness): ToolRegistry {
+  const registry = new ToolRegistry({
+    deps: { ...h.deps, policy: createPolicyClient({ db: h.handle, cacheTtlMs: 0 }) },
+  });
+  registry.register(
+    createLifecycleEventToolRegistration({ db: h.handle, mode: 'solo', contextPacksRoot: h.contextPacksRoot }),
+  );
+  registry.register(createSaveContextPackToolRegistration({ db: h.handle }));
+  registry.register(createRecordDecisionToolRegistration({ db: h.handle }));
+  return registry;
+}
+
 interface HookResult {
   readonly continue?: boolean;
   readonly reason?: string;
@@ -118,6 +131,46 @@ async function readRun(h: Harness, runId: string) {
   const row = rows[0];
   if (row === undefined) throw new Error(`run ${runId} not found`);
   return row;
+}
+
+async function seedApprovalGrantPolicy(h: Harness, projectSlug: string, input: unknown): Promise<void> {
+  const project = await h.handle.db
+    .select({ id: sqliteSchema.projects.id })
+    .from(sqliteSchema.projects)
+    .where(eq(sqliteSchema.projects.slug, projectSlug))
+    .limit(1);
+  const projectId = project[0]?.id;
+  if (projectId === undefined) throw new Error(`project ${projectSlug} not found`);
+  await h.handle.db.insert(sqliteSchema.policies).values({
+    id: 'pol_codex_grant',
+    projectId,
+    name: 'codex grant policy',
+    isActive: true,
+  });
+  await h.handle.db.insert(sqliteSchema.policyRules).values({
+    id: 'rule_codex_grant',
+    policyId: 'pol_codex_grant',
+    priority: 10,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    decision: 'ask',
+    enforcementDecision: 'ask',
+    governanceVerdict: 'confirm',
+    enforcementMode: 'approval',
+    reason: 'confirm bash',
+  });
+  const fingerprint = buildPolicyGrantFingerprint({ toolName: 'Bash', input });
+  await h.handle.db.insert(sqliteSchema.policyGrants).values({
+    id: 'grant_codex_similar',
+    projectId,
+    scopeType: 'similar_task',
+    scopeJson: JSON.stringify({ fingerprint, toolName: 'Bash' }),
+    grantKind: 'decision_override',
+    targetRuleId: 'rule_codex_grant',
+    grantFingerprint: fingerprint,
+    decisionOverride: 'allow',
+    reason: 'approved similar task',
+  });
 }
 
 describe('lifecycle_event (codex) — PreCompact one-shot nudge', () => {
@@ -206,6 +259,23 @@ describe('lifecycle_event (codex) — PermissionRequest / PostCompact / Subagent
       tool_input: { command: 'npm test' },
     });
     expect(out.hookSpecificOutput).toBeUndefined();
+  });
+
+  it('PermissionRequest emits Codex allow only when a Coodra grant matches', async () => {
+    const toolInput = { command: 'npm test' };
+    await seedApprovalGrantPolicy(h, 'proj-misc-events-codex', toolInput);
+    const grantRegistry = buildRegistryWithRealPolicy(h);
+
+    const out = await fireHook(grantRegistry, h, 'sess_pre', {
+      hook_event_name: 'PermissionRequest',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-grant',
+      tool_input: toolInput,
+    });
+    expect(out.hookSpecificOutput).toEqual({
+      hookEventName: 'PermissionRequest',
+      decision: { behavior: 'allow' },
+    });
   });
 
   it("never runs checkPolicy against Coodra's own mcp__coodra__*/mcp__graphify__* tool calls (self-policing guard, still true after the TOOL_MATCHER fix)", async () => {

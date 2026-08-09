@@ -1,7 +1,6 @@
+import { createSqliteDb, migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { createSqliteDb, migrateSqlite, sqliteSchema, type SqliteHandle } from '@coodra/db';
-import { createPolicyClient } from '../../src/index.js';
+import { buildPolicyGrantFingerprint, createPolicyClient } from '../../src/index.js';
 
 let handle: SqliteHandle;
 
@@ -14,7 +13,10 @@ afterEach(() => {
   handle.close();
 });
 
-async function seedPolicy(args: { decision: 'ask' | 'deny'; enforcementMode: 'approval' | 'preventive' }): Promise<void> {
+async function seedPolicy(args: {
+  decision: 'ask' | 'deny';
+  enforcementMode: 'approval' | 'preventive';
+}): Promise<void> {
   await handle.db.insert(sqliteSchema.projects).values({
     id: 'proj_grants',
     slug: 'grants',
@@ -51,6 +53,34 @@ async function seedSessionGrant(): Promise<void> {
     targetRuleId: 'rule_grants',
     decisionOverride: 'allow',
     reason: 'approved for this session',
+  });
+}
+
+async function seedProjectGrant(): Promise<void> {
+  await handle.db.insert(sqliteSchema.policyGrants).values({
+    id: 'grant_project',
+    projectId: 'proj_grants',
+    scopeType: 'project',
+    scopeJson: JSON.stringify({ projectId: 'proj_grants' }),
+    grantKind: 'decision_override',
+    targetRuleId: 'rule_grants',
+    decisionOverride: 'allow',
+    reason: 'approved for this project',
+  });
+}
+
+async function seedSimilarTaskGrant(input: unknown): Promise<void> {
+  const fingerprint = buildPolicyGrantFingerprint({ toolName: 'Bash', input });
+  await handle.db.insert(sqliteSchema.policyGrants).values({
+    id: 'grant_similar',
+    projectId: 'proj_grants',
+    scopeType: 'similar_task',
+    scopeJson: JSON.stringify({ fingerprint, toolName: 'Bash' }),
+    grantKind: 'decision_override',
+    targetRuleId: 'rule_grants',
+    grantFingerprint: fingerprint,
+    decisionOverride: 'allow',
+    reason: 'approved for similar task',
   });
 }
 
@@ -96,6 +126,62 @@ describe('policy grants', () => {
       decision: 'deny',
       baseDecision: 'deny',
       matchedRuleId: 'rule_grants',
+      matchedGrantId: null,
+    });
+  });
+
+  it('applies a project-scoped grant to the matched rule without requiring the same session', async () => {
+    await seedPolicy({ decision: 'ask', enforcementMode: 'approval' });
+    await seedProjectGrant();
+    const client = createPolicyClient({ db: handle, cacheTtlMs: 0 });
+
+    const result = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'another_session',
+      idempotencyKey: { kind: 'mutating', key: 'grant-project' },
+      input: { command: 'npm test' },
+      projectId: 'proj_grants',
+    });
+
+    expect(result).toMatchObject({
+      decision: 'allow',
+      baseDecision: 'ask',
+      matchedRuleId: 'rule_grants',
+      matchedGrantId: 'grant_project',
+      reason: 'approved for this project',
+    });
+  });
+
+  it('applies a similar-task grant only to the same normalized tool input', async () => {
+    await seedPolicy({ decision: 'ask', enforcementMode: 'approval' });
+    await seedSimilarTaskGrant({ command: 'npm test', cwd: '.' });
+    const client = createPolicyClient({ db: handle, cacheTtlMs: 0 });
+
+    const repeated = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'grant-similar-repeat' },
+      input: { cwd: '.', command: 'npm test' },
+      projectId: 'proj_grants',
+    });
+    const different = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'grant-similar-different' },
+      input: { command: 'npm run build', cwd: '.' },
+      projectId: 'proj_grants',
+    });
+
+    expect(repeated).toMatchObject({
+      decision: 'allow',
+      matchedGrantId: 'grant_similar',
+      reason: 'approved for similar task',
+    });
+    expect(different).toMatchObject({
+      decision: 'ask',
       matchedGrantId: null,
     });
   });

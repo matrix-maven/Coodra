@@ -232,15 +232,14 @@ describe('lifecycle_event — PermissionRequest / PermissionDenied / SubagentSta
     await h.close();
   });
 
-  it('PermissionRequest with the default policy returns an explicit allow decision', async () => {
+  it('PermissionRequest with the default policy returns an ack, not an approval decision', async () => {
     const out = await fireHook(registry, h, 'sess_pre', {
       hook_event_name: 'PermissionRequest',
       tool_name: 'Bash',
       tool_use_id: 'tool-1',
       tool_input: { command: 'npm test' },
     });
-    expect(out.hookSpecificOutput?.hookEventName).toBe('PermissionRequest');
-    expect(out.hookSpecificOutput?.decision?.behavior).toBe('allow');
+    expect(out).toEqual({ ok: true });
   });
 
   it("never runs checkPolicy against Coodra's own mcp__coodra__*/mcp__graphify__* tool calls (self-policing guard)", async () => {

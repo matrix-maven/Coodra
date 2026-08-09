@@ -70,6 +70,7 @@ function shapeHookOutput(
     readonly permissionDecision: 'allow' | 'ask' | 'deny';
     readonly reason?: string;
     readonly additionalContext?: string;
+    readonly autoApprovePermissionRequest?: boolean;
   },
 ): Record<string, unknown> {
   const reason = result.reason;
@@ -135,16 +136,21 @@ function shapeHookOutput(
       // so an ambiguous `ask` from Coodra's own policy check must NOT
       // force an answer — omit `decision` entirely and let Claude's
       // native permission prompt still show.
-      case 'PermissionRequest':
-        return result.permissionDecision === 'ask'
-          ? { ok: true }
-          : {
-              ok: true,
-              hookSpecificOutput: {
-                hookEventName,
-                decision: { behavior: result.permissionDecision === 'deny' ? 'deny' : 'allow' },
-              },
-            };
+      case 'PermissionRequest': {
+        if (result.permissionDecision === 'deny') {
+          return {
+            ok: true,
+            hookSpecificOutput: {
+              hookEventName,
+              decision: { behavior: 'deny', ...(reason !== undefined ? { message: reason } : {}) },
+            },
+          };
+        }
+        if (result.autoApprovePermissionRequest === true) {
+          return { ok: true, hookSpecificOutput: { hookEventName, decision: { behavior: 'allow' } } };
+        }
+        return { ok: true };
+      }
       // PermissionDenied / SubagentStart / SubagentStop / PostCompact /
       // PostToolUseFailure / StopFailure (2026-08-04): all pure logging
       // per Claude's own docs — no decision control Coodra uses today
@@ -220,8 +226,6 @@ function shapeHookOutput(
         // handles reinjection" holds here.
         return result.permissionDecision === 'deny' && reason !== undefined ? { user_message: reason } : {};
       }
-      case 'Stop':
-      case 'SessionEnd':
       default:
         return {};
     }
@@ -262,8 +266,6 @@ function shapeHookOutput(
         };
       case 'Stop':
         return result.permissionDecision === 'deny' && reason !== undefined ? { decision: 'block', reason } : {};
-      case 'SessionEnd':
-      case 'PostCompaction':
       default:
         return {};
     }
@@ -358,16 +360,18 @@ function shapeHookOutput(
     // Claude Code's 91e8803 — see learn.chatgpt.com/docs/hooks).
     // Codex's decision-control shapes are NOT a copy of Claude Code's:
     case 'PermissionRequest': {
-      // Codex's docs show a `message` field alongside `deny`; only a
-      // working `deny` is documented — no confirmed `allow` response
-      // shape, so non-deny (including 'ask') returns nothing and lets
-      // Codex's own prompt behavior stand, same rationale as Claude's
-      // PermissionRequest.
-      if (result.permissionDecision !== 'deny') return {};
+      // Codex supports allow/deny here, but rejects Claude-only fields
+      // such as updatedPermissions. Only emit allow when Coodra matched
+      // an intentional approval artifact; a default allow should leave
+      // Codex's native prompt flow intact.
+      if (result.permissionDecision !== 'deny' && result.autoApprovePermissionRequest !== true) return {};
       return {
         hookSpecificOutput: {
           hookEventName,
-          decision: { behavior: 'deny', ...(reason !== undefined ? { message: reason } : {}) },
+          decision:
+            result.permissionDecision === 'deny'
+              ? { behavior: 'deny', ...(reason !== undefined ? { message: reason } : {}) }
+              : { behavior: 'allow' },
         },
       };
     }
@@ -732,6 +736,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
 
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
     let reason = projectSlug === null ? 'project_config_missing' : 'lifecycle_recorded';
+    let autoApprovePermissionRequest = false;
 
     // Pure-logging events added 2026-08-04 — surface the agent-reported
     // reason/error text into the audit `reason` field instead of the
@@ -793,6 +798,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       if (policy.ok) {
         permissionDecision = policy.permissionDecision;
         reason = policy.ruleReason ?? policy.reason;
+        autoApprovePermissionRequest =
+          hookEventName === 'PermissionRequest' &&
+          policy.permissionDecision === 'allow' &&
+          (policy.matchedGrantId != null || policy.matchedExceptionId != null);
       } else {
         reason = policy.error;
       }
@@ -1068,6 +1077,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,
+      autoApprovePermissionRequest,
       ...(additionalContext !== undefined ? { additionalContext } : {}),
     });
 

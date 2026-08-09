@@ -340,7 +340,7 @@ describe('lifecycle_event — registry hook text output', () => {
     expect(text).toEqual({});
   });
 
-  it('PermissionRequest with no project resolves to an explicit allow decision, not the PreToolUse ask/deny shape', async () => {
+  it('PermissionRequest with no project acks without approving, leaving the native prompt flow intact', async () => {
     const registry = new ToolRegistry({ deps: makeFakeDeps(), clock: () => new Date('2026-08-04T00:00:00.000Z') });
     registry.register(createLifecycleEventToolRegistration({ db: fakeDb, mode: 'solo' }));
     const result = await registry.handleCall(
@@ -361,10 +361,7 @@ describe('lifecycle_event — registry hook text output', () => {
     const text = JSON.parse(result.content[0]?.text ?? '{}') as {
       hookSpecificOutput?: { hookEventName?: string; decision?: { behavior?: string } };
     };
-    expect(text.hookSpecificOutput).toEqual({
-      hookEventName: 'PermissionRequest',
-      decision: { behavior: 'allow' },
-    });
+    expect(text).toEqual({ ok: true });
   });
 
   it('PreCompact with no project just acks — no nudge logic runs without a runId', async () => {
