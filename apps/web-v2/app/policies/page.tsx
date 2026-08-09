@@ -11,7 +11,14 @@ import {
   updatePolicyExceptionStatusAction,
   updateRuleAction,
 } from '@/lib/actions/policies';
-import { listPolicies, listPolicyExceptions, listPolicyVersions } from '@/lib/queries/policies';
+import {
+  listControlCatalog,
+  listPolicies,
+  listPolicyExceptions,
+  listPolicyGrants,
+  listPolicyVersions,
+  listRecentPolicyDecisions,
+} from '@/lib/queries/policies';
 import { getProject, listProjects } from '@/lib/queries/projects';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +52,10 @@ const GROUP_LABELS: Readonly<Record<string, { title: string; description: string
     title: 'AI Governance',
     description: 'Model, prompt, data disclosure, context-sharing, and generated-output evidence controls.',
   },
+  governance_advisory: {
+    title: 'Governance Advisory',
+    description: 'Native Coodra advisory rules that record governance verdicts without changing permissions.',
+  },
   custom: {
     title: 'Custom Policies',
     description: 'Project-specific controls that do not fit a built-in governance group.',
@@ -61,6 +72,9 @@ export default async function PoliciesPage({
   const scopedProject = sp.project !== undefined && sp.project !== '' ? await getProject(sp.project) : null;
   const policies = await listPolicies(scopedProject?.id ?? null);
   const exceptions = await listPolicyExceptions(scopedProject?.id ?? null);
+  const controls = await listControlCatalog(scopedProject?.id ?? null);
+  const grants = await listPolicyGrants(scopedProject?.id ?? null);
+  const recentPolicyDecisions = await listRecentPolicyDecisions(scopedProject?.id ?? null);
   const versionsByPolicy = new Map(
     await Promise.all(policies.map(async (policy) => [policy.id, await listPolicyVersions(policy.id)] as const)),
   );
@@ -68,6 +82,8 @@ export default async function PoliciesPage({
   const groupedPolicies = groupPolicies(policies);
   const totalRules = policies.reduce((sum, policy) => sum + policy.rules.length, 0);
   const activeExceptions = exceptions.filter((exception) => exception.status === 'active').length;
+  const activeGrants = grants.filter((grant) => grant.revokedAt === null).length;
+  const capabilityNames = collectCapabilities(policies, grants);
 
   return (
     <>
@@ -121,6 +137,82 @@ export default async function PoliciesPage({
           <Stat title="Ask Evidence" value="approved / unresolved" detail="PostToolUse correlation" />
           <Stat title="Config Projection" value="detective" detail="DB is source of truth" />
         </div>
+
+        <section className="card" style={{ padding: 28, marginBottom: 24 }}>
+          <div className="card__head">
+            <h2 className="card__title">
+              Governance <em>lanes</em>
+            </h2>
+            <span className="card__role">controls / rules / decisions / grants / capabilities</span>
+          </div>
+          <div className="dash-grid">
+            <LaneCard
+              title="Controls"
+              value={String(controls.length)}
+              detail={`${countBy(controls, 'relevanceTrack', 'native_advisory')} native · ${countBy(
+                controls,
+                'relevanceTrack',
+                'evidence_attestation',
+              )} evidence · ${countBy(controls, 'relevanceTrack', 'external_owner')} external`}
+            />
+            <LaneCard
+              title="Rules"
+              value={String(totalRules)}
+              detail={`${countRulesByMode(policies, 'preventive')} preventive · ${countRulesByMode(
+                policies,
+                'advisory',
+              )} advisory`}
+            />
+            <LaneCard
+              title="Decisions"
+              value={String(recentPolicyDecisions.length)}
+              detail={`${countBy(recentPolicyDecisions, 'permissionDecision', 'ask')} ask · ${countBy(
+                recentPolicyDecisions,
+                'permissionDecision',
+                'deny',
+              )} deny · recent audit`}
+            />
+            <LaneCard
+              title="Grants"
+              value={String(grants.length)}
+              detail={`${activeGrants} active · ${grants.length - activeGrants} revoked/expired`}
+            />
+            <LaneCard
+              title="Capabilities"
+              value={String(capabilityNames.length)}
+              detail={capabilityNames.length === 0 ? 'no explicit capability axis yet' : capabilityNames.slice(0, 3).join(' · ')}
+            />
+          </div>
+        </section>
+
+        <section className="card" style={{ padding: 28, marginBottom: 24 }}>
+          <div className="card__head">
+            <h2 className="card__title">
+              Control <em>catalog</em>
+            </h2>
+            <span className="card__role">{controls.length} imported controls</span>
+          </div>
+          {controls.length === 0 ? (
+            <div style={{ color: 'var(--ink-dim)' }}>No VXI controls imported for this scope.</div>
+          ) : (
+            controls.slice(0, 12).map((control) => (
+              <div key={control.id} className="policy-row">
+                <div className="policy-row__verdict" style={{ color: controlTrackColor(control.relevanceTrack) }}>
+                  {control.relevanceTrack.replace(/_/g, ' ').toUpperCase()}
+                </div>
+                <div>
+                  <div className="policy-row__pattern">{control.controlKey}</div>
+                  <div style={monoDim}>
+                    {control.domain ?? 'domain'} · {control.implementationMode.replace(/_/g, ' ')}
+                  </div>
+                </div>
+                <div className="policy-row__reason">{control.title}</div>
+                <div style={monoDim}>{control.owner ?? 'no owner'}</div>
+                <div style={monoDim}>{control.status}</div>
+              </div>
+            ))
+          )}
+        </section>
 
         {groupedPolicies.length === 0 ? (
           <div className="empty">
@@ -336,8 +428,74 @@ export default async function PoliciesPage({
             ))
           )}
         </section>
+
+        <div className="dash-grid" style={{ marginTop: 24 }}>
+          <section className="card" style={{ padding: 28 }}>
+            <div className="card__head">
+              <h2 className="card__title">
+                Policy <em>decisions</em>
+              </h2>
+              <span className="card__role">{recentPolicyDecisions.length} recent</span>
+            </div>
+            {recentPolicyDecisions.length === 0 ? (
+              <div style={{ color: 'var(--ink-dim)' }}>No policy decisions recorded yet.</div>
+            ) : (
+              recentPolicyDecisions.slice(0, 8).map((decision) => (
+                <div key={decision.id} className="policy-row">
+                  <div className="policy-row__verdict" style={{ color: verdictColor(decision.permissionDecision) }}>
+                    {decision.permissionDecision.toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="policy-row__pattern">{decision.toolName}</div>
+                    <div style={monoDim}>
+                      {decision.governanceVerdict ?? 'pass'} · {decision.matchedCapability ?? 'no capability'}
+                    </div>
+                  </div>
+                  <div className="policy-row__reason">{decision.reason}</div>
+                  <div style={monoDim}>{decision.createdAt.toLocaleString()}</div>
+                </div>
+              ))
+            )}
+          </section>
+
+          <section className="card" style={{ padding: 28 }}>
+            <div className="card__head">
+              <h2 className="card__title">
+                Grants <em>& capabilities</em>
+              </h2>
+              <span className="card__role">{grants.length} grants</span>
+            </div>
+            {grants.length === 0 ? (
+              <div style={{ color: 'var(--ink-dim)' }}>No reusable grants yet.</div>
+            ) : (
+              grants.slice(0, 8).map((grant) => (
+                <div key={grant.id} className="policy-row">
+                  <div className="policy-row__verdict" style={{ color: grant.revokedAt === null ? 'var(--accent)' : 'var(--ink-dim)' }}>
+                    {grant.grantKind.replace(/_/g, ' ').toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="policy-row__pattern">{grant.scopeType}</div>
+                    <div style={monoDim}>{grant.targetCapability ?? grant.targetRuleId ?? 'general scope'}</div>
+                  </div>
+                  <div className="policy-row__reason">{grant.reason}</div>
+                  <div style={monoDim}>{grant.expiresAt !== null ? `expires ${grant.expiresAt.toLocaleString()}` : 'no expiry'}</div>
+                </div>
+              ))
+            )}
+          </section>
+        </div>
       </section>
     </>
+  );
+}
+
+function LaneCard({ title, value, detail }: { title: string; value: string; detail: string }) {
+  return (
+    <div className="aside-card" style={{ minHeight: 118 }}>
+      <div style={{ ...monoDim, textTransform: 'uppercase' }}>{title}</div>
+      <div style={{ fontFamily: 'var(--serif)', fontSize: 34, marginTop: 6 }}>{value}</div>
+      <div style={{ color: 'var(--ink-dim)', marginTop: 6 }}>{detail}</div>
+    </div>
   );
 }
 
@@ -754,6 +912,50 @@ function verdictColor(decision: string): string {
   if (decision === 'deny') return 'var(--warn)';
   if (decision === 'ask') return 'var(--caution)';
   return 'var(--accent)';
+}
+
+function controlTrackColor(track: string): string {
+  if (track === 'native_advisory') return 'var(--accent)';
+  if (track === 'external_owner') return 'var(--caution)';
+  return 'var(--ink-dim)';
+}
+
+function countBy<T, K extends keyof T>(rows: ReadonlyArray<T>, key: K, value: T[K]): number {
+  return rows.filter((row) => row[key] === value).length;
+}
+
+function countRulesByMode(
+  policies: ReadonlyArray<{ rules: ReadonlyArray<{ enforcementMode: string | null; decision: string }> }>,
+  mode: string,
+): number {
+  return policies.reduce((sum, policy) => {
+    return sum + policy.rules.filter((rule) => (rule.enforcementMode ?? legacyModeForDecision(rule.decision)) === mode).length;
+  }, 0);
+}
+
+function legacyModeForDecision(decision: string): string {
+  if (decision === 'deny') return 'preventive';
+  if (decision === 'ask') return 'approval';
+  return 'detective';
+}
+
+function collectCapabilities(
+  policies: ReadonlyArray<{
+    rules: ReadonlyArray<{ requiredCapability: string | null; excludedCapability: string | null }>;
+  }>,
+  grants: ReadonlyArray<{ targetCapability: string | null }>,
+): string[] {
+  const names = new Set<string>();
+  for (const policy of policies) {
+    for (const rule of policy.rules) {
+      if (rule.requiredCapability !== null) names.add(rule.requiredCapability);
+      if (rule.excludedCapability !== null) names.add(rule.excludedCapability);
+    }
+  }
+  for (const grant of grants) {
+    if (grant.targetCapability !== null) names.add(grant.targetCapability);
+  }
+  return [...names].sort();
 }
 
 function groupPolicies<T extends { groupKey: string }>(

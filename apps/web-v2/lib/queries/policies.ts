@@ -2,25 +2,32 @@ import {
   type AddPolicyRuleArgs,
   type AddPolicyRuleResult,
   addPolicyRule as addPolicyRuleDb,
+  type ControlRow,
   createPolicyException as createPolicyExceptionDb,
   deletePolicyRule as deletePolicyRuleDb,
   getActivePolicyVersion as getActivePolicyVersionDb,
   getPolicy as getPolicyDb,
+  listControls as listControlsDb,
   listPolicies as listPoliciesDb,
   listPolicyExceptions as listPolicyExceptionsDb,
+  listPolicyGrants as listPolicyGrantsDb,
   listPolicyVersions as listPolicyVersionsDb,
   type PolicyExceptionRow,
   type PolicyExceptionScopeType,
   type PolicyExceptionStatus,
+  type PolicyGrantRow,
   type PolicyRow,
   type PolicyVersionRow,
   type PolicyWithRules,
   publishPolicyVersion as publishPolicyVersionDb,
   setPolicyActive as setPolicyActiveDb,
+  postgresSchema,
+  sqliteSchema,
   type UpdatePolicyRuleArgs,
   updatePolicyExceptionStatus as updatePolicyExceptionStatusDb,
   updatePolicyRule as updatePolicyRuleDb,
 } from '@coodra/db';
+import { desc, eq } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
 
@@ -83,6 +90,72 @@ export async function getActivePolicyVersion(policyId: string): Promise<PolicyVe
 export async function listPolicyExceptions(projectId: string | null = null): Promise<PolicyExceptionRow[]> {
   const handle = createWebDb();
   return listPolicyExceptionsDb(handle, projectId);
+}
+
+export async function listControlCatalog(projectId: string | null = null): Promise<ReadonlyArray<ControlRow>> {
+  const handle = createWebDb();
+  return listControlsDb(handle, { projectId, source: 'vxi' });
+}
+
+export async function listPolicyGrants(projectId: string | null = null): Promise<ReadonlyArray<PolicyGrantRow>> {
+  const handle = createWebDb();
+  return listPolicyGrantsDb(handle, projectId);
+}
+
+export interface RecentPolicyDecisionRow {
+  readonly id: string;
+  readonly toolName: string;
+  readonly permissionDecision: string;
+  readonly governanceVerdict: string | null;
+  readonly enforcementMode: string | null;
+  readonly matchedRuleId: string | null;
+  readonly matchedGrantId: string | null;
+  readonly matchedCapability: string | null;
+  readonly reason: string;
+  readonly createdAt: Date;
+}
+
+export async function listRecentPolicyDecisions(
+  projectId: string | null = null,
+  limit: number = 12,
+): Promise<ReadonlyArray<RecentPolicyDecisionRow>> {
+  const handle = createWebDb();
+  if (handle.kind === 'sqlite') {
+    const t = sqliteSchema.policyDecisions;
+    const rows =
+      projectId === null
+        ? await handle.db.select().from(t).orderBy(desc(t.createdAt)).limit(limit)
+        : await handle.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt)).limit(limit);
+    return rows.map((row) => ({
+      id: row.id,
+      toolName: row.toolName,
+      permissionDecision: row.permissionDecision,
+      governanceVerdict: row.governanceVerdict,
+      enforcementMode: row.effectiveDecision ?? row.baseDecision,
+      matchedRuleId: row.matchedRuleId,
+      matchedGrantId: row.matchedGrantId,
+      matchedCapability: row.matchedCapability,
+      reason: row.reason,
+      createdAt: row.createdAt,
+    }));
+  }
+  const t = postgresSchema.policyDecisions;
+  const rows =
+    projectId === null
+      ? await handle.db.select().from(t).orderBy(desc(t.createdAt)).limit(limit)
+      : await handle.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt)).limit(limit);
+  return rows.map((row) => ({
+    id: row.id,
+    toolName: row.toolName,
+    permissionDecision: row.permissionDecision,
+    governanceVerdict: row.governanceVerdict,
+    enforcementMode: row.effectiveDecision ?? row.baseDecision,
+    matchedRuleId: row.matchedRuleId,
+    matchedGrantId: row.matchedGrantId,
+    matchedCapability: row.matchedCapability,
+    reason: row.reason,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function createPolicyException(args: {
