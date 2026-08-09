@@ -9,7 +9,7 @@ import {
   markRunFailed,
   renderPolicyProjectionDriftContext,
 } from '@coodra/db';
-import { finalizeRunOnSessionEnd } from '@coodra/lifecycle';
+import { captureBaseSha, finalizeRunOnSessionEnd } from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import {
@@ -938,6 +938,51 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
             err: err instanceof Error ? err.message : String(err),
           },
           'recent context lookup failed; SessionStart proceeding without it',
+        );
+      }
+    }
+
+    // COOD-60 (2026-08-09): `git rev-parse HEAD` capture at SessionStart
+    // used to be hooks-bridge-only (apps/hooks-bridge/src/lib/capture-base-sha.ts,
+    // now a re-export of this same function from @coodra/lifecycle). COOD-53
+    // routed every native plugin's SessionStart through this handler instead
+    // of the bridge, but nothing here ever called captureBaseSha — so
+    // `runs.base_sha` stayed NULL forever for native-plugin sessions and
+    // every run-diff landed `error='no_base_sha'`, regardless of whether the
+    // project was actually a git repo. Gated on isSessionStartEquivalent for
+    // the same reason as the recent-context block above: Codex Desktop can
+    // silently skip a real `SessionStart` until hooks are trusted, so the
+    // fallback path (first UserPromptSubmit with no prior SessionStart row)
+    // needs the same capture attempt. Idempotent via captureBaseSha's own
+    // `WHERE base_sha IS NULL` — safe to attempt on every qualifying event.
+    if (
+      isSessionStartEquivalent &&
+      projectSlug !== null &&
+      runId !== null &&
+      typeof event.cwd === 'string' &&
+      event.cwd.length > 0
+    ) {
+      try {
+        const baseShaProject = await lookupProjectBySlug(deps.db, projectSlug);
+        if (baseShaProject !== null) {
+          await captureBaseSha({
+            db: deps.db,
+            projectId: baseShaProject.id,
+            sessionId: event.sessionId,
+            cwd: event.cwd,
+          });
+        }
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_capture_base_sha_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'base-sha capture threw; SessionEnd run-diff runner will land error=no_base_sha',
         );
       }
     }

@@ -137,6 +137,69 @@ describe('finalizeRunOnSessionEnd', () => {
     expect(runRows[0]?.status).toBe('completed');
   });
 
+  it('COOD-60: falls back to projects.cwd for run-diff capture when the SessionEnd event carries no cwd', async () => {
+    const db = createDb({ kind: 'local', sqlite: { path: ':memory:' } });
+    if (db.kind !== 'sqlite') throw new Error('expected sqlite handle');
+    migrateSqlite(db.db);
+
+    const fallbackCwd = await mkdtemp(join(tmpdir(), 'finalize-cwd-fallback-'));
+    await db.db.insert(sqliteSchema.projects).values({
+      id: PROJECT_ID,
+      slug: 'finalize-cwd-fallback',
+      orgId: '__solo__',
+      name: 'finalize-cwd-fallback',
+      cwd: fallbackCwd,
+    });
+    const runId = `run:${PROJECT_ID}:sess-finalize:44444444-5555-6666-7777-888888888888`;
+    await db.db.insert(sqliteSchema.runs).values({
+      id: runId,
+      projectId: PROJECT_ID,
+      sessionId: 'sess-finalize',
+      agentType: 'codex',
+      mode: 'solo',
+      status: 'in_progress',
+    });
+
+    // No `cwd` passed — only `projectId`, matching a SessionEnd event that
+    // didn't carry a cwd field.
+    const result = await finalizeRunOnSessionEnd({
+      db,
+      runId,
+      projectId: PROJECT_ID,
+      now: new Date('2026-08-08T12:00:00Z'),
+    });
+
+    // Before the fix, this branch was skipped entirely (no run_diffs row at
+    // all) — the bug behind "Analysis pending" showing forever. Proving
+    // `runRunDiff` actually ran (not that it ran error-free — no base_sha
+    // was captured for this run, so it correctly lands `no_base_sha`) is
+    // the regression signal: a row exists instead of no row.
+    expect(result.ranRunDiff).toBe(true);
+    const diffRows = await db.db.select().from(sqliteSchema.runDiffs).where(eq(sqliteSchema.runDiffs.runId, runId));
+    expect(diffRows).toHaveLength(1);
+    expect(diffRows[0]?.error).toBe('no_base_sha');
+  });
+
+  it('skips run-diff capture (not throws) when neither event cwd nor projects.cwd is available', async () => {
+    const db = createDb({ kind: 'local', sqlite: { path: ':memory:' } });
+    if (db.kind !== 'sqlite') throw new Error('expected sqlite handle');
+    migrateSqlite(db.db);
+
+    const runId = `run:${PROJECT_ID}:sess-finalize:55555555-6666-7777-8888-999999999999`;
+    await seedProjectAndRun(db, runId);
+
+    const result = await finalizeRunOnSessionEnd({
+      db,
+      runId,
+      projectId: PROJECT_ID,
+      now: new Date('2026-08-08T12:00:00Z'),
+    });
+
+    expect(result.ranRunDiff).toBe(false);
+    const diffRows = await db.db.select().from(sqliteSchema.runDiffs).where(eq(sqliteSchema.runDiffs.runId, runId));
+    expect(diffRows).toHaveLength(0);
+  });
+
   it('sweeps an unresolved `ask` policy decision to `not_executed` when sessionId is given', async () => {
     const db = createDb({ kind: 'local', sqlite: { path: ':memory:' } });
     if (db.kind !== 'sqlite') throw new Error('expected sqlite handle');

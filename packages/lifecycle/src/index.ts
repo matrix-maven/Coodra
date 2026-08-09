@@ -5,6 +5,7 @@ export {
   type SaveAutoContextPackResult,
   saveAutoContextPack,
 } from './auto-context-pack.js';
+export { type CaptureBaseShaInput, type CaptureBaseShaResult, captureBaseSha } from './capture-base-sha.js';
 export {
   type FinalizeRunOnSessionEndInput,
   type FinalizeRunOnSessionEndResult,

@@ -1,4 +1,4 @@
-import { type DbHandle, markRunCompleted } from '@coodra/db';
+import { type DbHandle, lookupProjectById, markRunCompleted } from '@coodra/db';
 import { resolveAskOutcomesNotExecuted } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 
@@ -51,7 +51,12 @@ const logger = createLogger('lifecycle.finalize-run-on-session-end');
 export interface FinalizeRunOnSessionEndInput {
   readonly db: DbHandle;
   readonly runId: string;
-  /** Working directory for the run-diff git plumbing. Diff capture is skipped when absent. */
+  /**
+   * Working directory for the run-diff git plumbing. When absent (COOD-60
+   * — some transports fire SessionEnd without a cwd on the event
+   * payload), falls back to the registered `projects.cwd` for `projectId`
+   * before giving up. Diff capture is skipped only if neither is available.
+   */
   readonly cwd?: string;
   /** Pre-resolved actor identity (team mode) to stamp on the auto-saved Context Pack. Not resolved here. */
   readonly createdByUserId?: string | null;
@@ -92,10 +97,33 @@ export async function finalizeRunOnSessionEnd(
     });
   }
 
-  let ranRunDiff = false;
-  if (typeof input.cwd === 'string' && input.cwd.length > 0) {
+  let runDiffCwd = typeof input.cwd === 'string' && input.cwd.length > 0 ? input.cwd : null;
+  let runDiffCwdSource: 'event' | 'project_fallback' = 'event';
+  if (runDiffCwd === null && input.projectId !== undefined) {
     try {
-      await runRunDiff({ db: input.db, runId: input.runId, cwd: input.cwd });
+      const project = await lookupProjectById(input.db, input.projectId);
+      if (project?.cwd !== null && project?.cwd !== undefined && project.cwd.length > 0) {
+        runDiffCwd = project.cwd;
+        runDiffCwdSource = 'project_fallback';
+      }
+    } catch (err) {
+      logger.warn(
+        { event: 'finalize_run_diff_cwd_fallback_failed', ...logCtx, projectId: input.projectId, err: errMessage(err) },
+        'projects.cwd fallback lookup threw; proceeding without a run-diff cwd',
+      );
+    }
+  }
+
+  let ranRunDiff = false;
+  if (runDiffCwd !== null) {
+    if (runDiffCwdSource === 'project_fallback') {
+      logger.info(
+        { event: 'finalize_run_diff_cwd_fallback_used', ...logCtx, projectId: input.projectId },
+        'SessionEnd event carried no cwd; falling back to projects.cwd for run-diff capture',
+      );
+    }
+    try {
+      await runRunDiff({ db: input.db, runId: input.runId, cwd: runDiffCwd });
       ranRunDiff = true;
     } catch (err) {
       logger.warn(
@@ -104,7 +132,10 @@ export async function finalizeRunOnSessionEnd(
       );
     }
   } else {
-    logger.info({ event: 'finalize_run_diff_skipped', reason: 'no_cwd', ...logCtx }, 'run-diff runner skipped: no cwd');
+    logger.info(
+      { event: 'finalize_run_diff_skipped', reason: 'no_cwd', ...logCtx },
+      'run-diff runner skipped: no cwd on event and no projects.cwd fallback available',
+    );
   }
 
   // Mark the run completed before the auto-pack save (matches the

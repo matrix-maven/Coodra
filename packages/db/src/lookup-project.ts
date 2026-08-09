@@ -53,3 +53,39 @@ export async function lookupProjectBySlug(db: DbHandle, slug: string): Promise<P
     .limit(1);
   return rows[0] ?? null;
 }
+
+/**
+ * `projects.id` → row lookup. COOD-60 — `finalizeRunOnSessionEnd` only
+ * ever has `projectId` on hand (not the slug), and needs `cwd` as a
+ * fallback for the run-diff step when the SessionEnd event itself
+ * didn't carry one. Same strict/side-effect-free contract as
+ * `lookupProjectBySlug`.
+ */
+export async function lookupProjectById(db: DbHandle, projectId: string): Promise<ProjectLookupResult | null> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({
+        id: sqliteSchema.projects.id,
+        slug: sqliteSchema.projects.slug,
+        orgId: sqliteSchema.projects.orgId,
+        name: sqliteSchema.projects.name,
+        cwd: sqliteSchema.projects.cwd,
+      })
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.id, projectId))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+  const rows = await db.db
+    .select({
+      id: postgresSchema.projects.id,
+      slug: postgresSchema.projects.slug,
+      orgId: postgresSchema.projects.orgId,
+      name: postgresSchema.projects.name,
+      cwd: postgresSchema.projects.cwd,
+    })
+    .from(postgresSchema.projects)
+    .where(eq(postgresSchema.projects.id, projectId))
+    .limit(1);
+  return rows[0] ?? null;
+}
