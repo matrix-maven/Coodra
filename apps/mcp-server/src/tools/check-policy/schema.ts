@@ -54,6 +54,7 @@ export const checkPolicyInputSchema = z
     toolName: z.string().min(1, 'toolName is required').max(256),
     toolInput: z.record(z.string(), z.unknown()),
     runId: z.string().min(1).max(256).optional(),
+    activeCapabilities: z.array(z.string().min(1).max(64)).max(64).optional(),
     // F14 closure (2026-04-27 verification): per-invocation turn id
     // (Claude Code `tool_use_id`). Threads into the audit-row idempotency key so
     // distinct invocations of the same tool within a session land
@@ -77,6 +78,7 @@ const successBranch = z
     policyVersionId: z.string().nullable().optional(),
     matchedExceptionId: z.string().nullable().optional(),
     matchedGrantId: z.string().nullable().optional(),
+    matchedCapability: z.string().nullable().optional(),
     baseDecision: z.enum(['allow', 'ask', 'deny']).optional(),
     effectiveDecision: z.enum(['allow', 'ask', 'deny']).optional(),
     failOpen: z

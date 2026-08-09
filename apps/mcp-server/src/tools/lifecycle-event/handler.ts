@@ -1,11 +1,15 @@
 import {
   type DbHandle,
+  getRunActiveCapabilities,
   getRunCompactionNudgedAt,
   hasContextPackForRun,
   hasSessionStartEventForRun,
   lookupProjectBySlug,
   markRunCompactionNudged,
   markRunFailed,
+  normalizeRunCapabilities,
+  serializeRunCapabilities,
+  updateRunActiveCapabilities,
 } from '@coodra/db';
 import { captureBaseSha, finalizeRunOnSessionEnd } from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
@@ -557,6 +561,16 @@ function toolInputRecord(input: unknown): Record<string, unknown> {
     : { value: input };
 }
 
+function parseActiveCapabilitiesFromEnv(value: string | undefined): readonly string[] {
+  if (value === undefined || value.trim().length === 0) return [];
+  return normalizeRunCapabilities(
+    value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0),
+  );
+}
+
 async function resolveRunId(args: {
   readonly deps: LifecycleEventHandlerDeps;
   readonly projectSlug: string | null;
@@ -726,6 +740,48 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     const projectConfig = await readCoodraProjectConfig(event.cwd);
     const projectSlug = projectConfig?.projectSlug ?? null;
     const runId = await resolveRunId({ deps, projectSlug, event, ctx });
+    const isSessionStartEquivalent =
+      hookEventName === 'SessionStart' ||
+      (hookEventName === 'UserPromptSubmit' &&
+        runId !== null &&
+        projectSlug !== null &&
+        !(await hasSessionStartEventForRun(deps.db, runId)));
+    let activeCapabilities: readonly string[] = [];
+
+    if (runId !== null && isSessionStartEquivalent) {
+      activeCapabilities = parseActiveCapabilitiesFromEnv(process.env.COODRA_ACTIVE_CAPABILITIES);
+      try {
+        await updateRunActiveCapabilities(deps.db, { runId, capabilities: activeCapabilities });
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_active_capabilities_update_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'active capability bootstrap threw; continuing with request-local capability context',
+        );
+      }
+    } else if (runId !== null) {
+      try {
+        activeCapabilities = await getRunActiveCapabilities(deps.db, { runId });
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_active_capabilities_lookup_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'active capability lookup threw; continuing without capability context',
+        );
+      }
+    }
 
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
     let reason = projectSlug === null ? 'project_config_missing' : 'lifecycle_recorded';
@@ -784,6 +840,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
           toolName: event.toolName,
           toolInput: toolInputRecord(event.toolInput),
           ...(runId !== null ? { runId } : {}),
+          ...(activeCapabilities.length > 0 ? { activeCapabilities: [...activeCapabilities] } : {}),
           ...(typeof event.turnId === 'string' && event.turnId.length > 0 ? { toolUseId: event.turnId } : {}),
         },
         ctx,
@@ -913,13 +970,6 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     // `UserPromptSubmit` output shape has no context-injection field at all
     // (see `shapeHookOutput`), so this is a no-op there — safe to compute
     // unconditionally for every agent.
-    const isSessionStartEquivalent =
-      hookEventName === 'SessionStart' ||
-      (hookEventName === 'UserPromptSubmit' &&
-        runId !== null &&
-        projectSlug !== null &&
-        !(await hasSessionStartEventForRun(deps.db, runId)));
-
     let recentContext: string | null = null;
     if (isSessionStartEquivalent && projectSlug !== null) {
       try {
@@ -1042,6 +1092,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         projectSlug,
         runId,
         permissionDecision,
+        activeCapabilitiesJson: serializeRunCapabilities(activeCapabilities),
       },
       'handled native plugin lifecycle event via MCP',
     );

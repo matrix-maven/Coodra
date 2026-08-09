@@ -1,5 +1,11 @@
 import type { PolicyDecisionPayloadV1, RunIdResolution } from '@coodra/cli/lib/outbox';
-import { type DbHandle, postgresSchema, scheduleAuditWriteWithSync, sqliteSchema } from '@coodra/db';
+import {
+  type DbHandle,
+  postgresSchema,
+  scheduleAuditWriteWithSync,
+  serializeRunCapabilities,
+  sqliteSchema,
+} from '@coodra/db';
 import { buildPolicyDecisionIdempotencyKey } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
@@ -139,6 +145,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       input: input.toolInput,
       idempotencyKey: ctx.idempotencyKey,
       projectId,
+      ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
     });
 
     // Map evaluator reason → locked output enum (user Q4 sign-off).
@@ -185,6 +192,8 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       matchedRuleId: evalResult.matchedRuleId,
       matchedExceptionId: evalResult.matchedExceptionId ?? null,
       matchedGrantId: evalResult.matchedGrantId ?? null,
+      activeCapabilitiesJson: serializeRunCapabilities(input.activeCapabilities ?? []),
+      matchedCapability: evalResult.matchedCapability ?? null,
       baseDecision: evalResult.baseDecision ?? evalResult.decision,
       effectiveDecision: evalResult.decision,
       askOutcome: evalResult.decision === 'ask' ? 'unresolved' : null,
@@ -224,6 +233,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       policyVersionId: evalResult.policyVersionId ?? null,
       matchedExceptionId: evalResult.matchedExceptionId ?? null,
       matchedGrantId: evalResult.matchedGrantId ?? null,
+      matchedCapability: evalResult.matchedCapability ?? null,
       baseDecision: evalResult.baseDecision ?? evalResult.decision,
       effectiveDecision: evalResult.decision,
       failOpen,

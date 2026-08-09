@@ -15,6 +15,7 @@ import { createLifecycleEventToolRegistration } from '../../../src/tools/lifecyc
 import { createRecordDecisionToolRegistration } from '../../../src/tools/record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from '../../../src/tools/save-context-pack/manifest.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
+import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
  * Integration tests for the 5 new Codex hook events (Codex hook
@@ -173,6 +174,35 @@ async function seedApprovalGrantPolicy(h: Harness, projectSlug: string, input: u
   });
 }
 
+async function seedCapabilityDenyPolicy(h: Harness, projectSlug: string): Promise<void> {
+  const project = await h.handle.db
+    .select({ id: sqliteSchema.projects.id })
+    .from(sqliteSchema.projects)
+    .where(eq(sqliteSchema.projects.slug, projectSlug))
+    .limit(1);
+  const projectId = project[0]?.id;
+  if (projectId === undefined) throw new Error(`project ${projectSlug} not found`);
+  await h.handle.db.insert(sqliteSchema.policies).values({
+    id: 'pol_codex_capability',
+    projectId,
+    name: 'codex capability policy',
+    isActive: true,
+  });
+  await h.handle.db.insert(sqliteSchema.policyRules).values({
+    id: 'rule_codex_deploy_deny',
+    policyId: 'pol_codex_capability',
+    priority: 5,
+    matchEventType: 'PreToolUse',
+    matchToolName: 'Bash',
+    decision: 'deny',
+    enforcementDecision: 'deny',
+    governanceVerdict: 'block',
+    enforcementMode: 'preventive',
+    requiredCapability: 'deployment',
+    reason: 'deployment shell is blocked',
+  });
+}
+
 describe('lifecycle_event (codex) — PreCompact one-shot nudge', () => {
   let h: Harness;
   let registry: ToolRegistry;
@@ -308,5 +338,57 @@ describe('lifecycle_event (codex) — PermissionRequest / PostCompact / Subagent
       expect(out.continue).toBeUndefined();
       expect(out.hookSpecificOutput?.decision).toBeUndefined();
     }
+  });
+});
+
+describe('lifecycle_event (codex) — capability axis on the live native path', () => {
+  let h: Harness;
+  let registry: ToolRegistry;
+  let previousCapabilities: string | undefined;
+
+  beforeEach(async () => {
+    previousCapabilities = process.env.COODRA_ACTIVE_CAPABILITIES;
+    process.env.COODRA_ACTIVE_CAPABILITIES = 'deployment, deployment, invalid capability, CLOUD_ADMIN';
+    h = await openHarness('proj-capability-codex');
+    registry = buildRegistryWithRealPolicy(h);
+  });
+
+  afterEach(async () => {
+    if (previousCapabilities === undefined) {
+      delete process.env.COODRA_ACTIVE_CAPABILITIES;
+    } else {
+      process.env.COODRA_ACTIVE_CAPABILITIES = previousCapabilities;
+    }
+    await h.close();
+  });
+
+  it('SessionStart stores capabilities and PreToolUse evaluates requiredCapability rules through mcp-server', async () => {
+    const runId = await sessionStart(registry, h, 'sess_capability');
+    await seedCapabilityDenyPolicy(h, 'proj-capability-codex');
+
+    const run = await readRun(h, runId);
+    expect(JSON.parse(run.activeCapabilitiesJson)).toEqual(['deployment', 'cloud_admin']);
+
+    const out = await fireHook(registry, h, 'sess_capability', {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_use_id: 'tool-capability',
+      tool_input: { command: 'deploy prod' },
+    });
+
+    expect(out.hookSpecificOutput).toMatchObject({
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'deny',
+      permissionDecisionReason: 'deployment shell is blocked',
+    });
+
+    await drainOutbox(h.handle);
+    const decisions = await h.handle.db.select().from(sqliteSchema.policyDecisions);
+    expect(decisions[0]).toMatchObject({
+      permissionDecision: 'deny',
+      matchedRuleId: 'rule_codex_deploy_deny',
+      activeCapabilitiesJson: '["deployment","cloud_admin"]',
+      matchedCapability: 'deployment',
+    });
   });
 });

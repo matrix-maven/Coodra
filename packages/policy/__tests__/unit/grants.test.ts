@@ -56,6 +56,21 @@ async function seedSessionGrant(): Promise<void> {
   });
 }
 
+async function seedSessionException(): Promise<void> {
+  await handle.db.insert(sqliteSchema.policyExceptions).values({
+    id: 'exception_session',
+    projectId: 'proj_grants',
+    policyId: 'pol_grants',
+    ruleId: 'rule_grants',
+    scopeType: 'session',
+    scopeJson: JSON.stringify({ sessionId: 'sess_grants', toolName: 'Bash' }),
+    decisionOverride: 'allow',
+    reason: 'admin-approved preventive exception',
+    justification: 'time-boxed admin exception for a planned operation',
+    status: 'active',
+  });
+}
+
 async function seedProjectGrant(): Promise<void> {
   await handle.db.insert(sqliteSchema.policyGrants).values({
     id: 'grant_project',
@@ -127,6 +142,30 @@ describe('policy grants', () => {
       baseDecision: 'deny',
       matchedRuleId: 'rule_grants',
       matchedGrantId: null,
+    });
+  });
+
+  it('does let an active admin exception override a preventive deny', async () => {
+    await seedPolicy({ decision: 'deny', enforcementMode: 'preventive' });
+    await seedSessionException();
+    const client = createPolicyClient({ db: handle, cacheTtlMs: 0 });
+
+    const result = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'exception-deny' },
+      input: { command: 'rm -rf prod' },
+      projectId: 'proj_grants',
+    });
+
+    expect(result).toMatchObject({
+      decision: 'allow',
+      baseDecision: 'deny',
+      matchedRuleId: 'rule_grants',
+      matchedExceptionId: 'exception_session',
+      matchedGrantId: null,
+      reason: 'admin-approved preventive exception',
     });
   });
 

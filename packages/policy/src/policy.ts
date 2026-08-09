@@ -601,6 +601,9 @@ function applyException(
   input: Pick<PolicyInput, 'toolName' | 'input'>,
   now: Date,
 ): CompiledException | null {
+  // Deliberate security asymmetry: admin-created exceptions are the
+  // sanctioned break-glass path and may override preventive denies,
+  // while prompt-derived grants only short-circuit approval asks.
   for (const exception of exceptions) {
     if (rule !== null && exception.policyId !== rule.policyId) continue;
     if (exceptionMatches(exception, rule, input, now)) return exception;
