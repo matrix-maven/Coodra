@@ -84,18 +84,48 @@ function shapeHookOutput(
     readonly reason?: string;
     readonly additionalContext?: string;
     readonly autoApprovePermissionRequest?: boolean;
+    /**
+     * True when Coodra reached `allow` WITHOUT an opinion — no rule,
+     * grant, exception, or kill switch matched (`no_rule_matched`), or
+     * the policy engine failed open (`policy_engine_unavailable`).
+     *
+     * In that case Coodra must stay out of the way and let the agent's
+     * own permission system decide: omit the permission field entirely
+     * rather than asserting `allow`. Asserting it on every call means
+     * the agent sees a hook actively managing permissions for that
+     * tool, which suppresses its native "always allow"/remember-this
+     * affordance and forces a per-call prompt — the exact friction this
+     * fixes. Auditing is unaffected: the `policy_decisions` row is
+     * written by `check_policy` regardless of the wire shape.
+     *
+     * Devin and Antigravity already behaved this way; `claude_code`,
+     * `codex`, and `cursor` did not. This makes all five consistent and
+     * matches the discipline already documented on the
+     * `PermissionRequest` branches ("a default allow should leave the
+     * native prompt flow intact").
+     */
+    readonly deferToNativePermissions?: boolean;
   },
 ): Record<string, unknown> {
   const reason = result.reason;
+  const defer = result.deferToNativePermissions === true;
   if (agentType === 'claude_code') {
     switch (hookEventName) {
       case 'PreToolUse':
+        // `defer` → Coodra has no opinion; omit permissionDecision so
+        // Claude Code's own permission system decides (and can still
+        // offer "always allow"). additionalContext is unrelated to
+        // permissions and is always safe to pass through.
         return {
           ok: true,
           hookSpecificOutput: {
             hookEventName,
-            permissionDecision: result.permissionDecision,
-            ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+            ...(defer
+              ? {}
+              : {
+                  permissionDecision: result.permissionDecision,
+                  ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+                }),
             ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
           },
         };
@@ -188,6 +218,11 @@ function shapeHookOutput(
     // to force a block the way Claude/Codex's `decision:'block'` can).
     switch (hookEventName) {
       case 'PreToolUse':
+        // `defer` → omit `permission` entirely so Cursor's native
+        // permission flow decides. Cursor has no `ask` value, so an
+        // upstream `ask` still collapses to `allow` (see the note
+        // above) — but a no-opinion allow is no longer asserted.
+        if (defer) return {};
         return {
           permission: result.permissionDecision === 'deny' ? 'deny' : 'allow',
           ...(result.permissionDecision === 'deny' && reason !== undefined
@@ -340,11 +375,18 @@ function shapeHookOutput(
 
   switch (hookEventName) {
     case 'PreToolUse':
+      // `defer` → Coodra has no opinion; omit permissionDecision so
+      // Codex's native permission flow decides. Same discipline this
+      // branch's own `PermissionRequest` case already documents.
       return {
         hookSpecificOutput: {
           hookEventName,
-          permissionDecision: result.permissionDecision,
-          ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+          ...(defer
+            ? {}
+            : {
+                permissionDecision: result.permissionDecision,
+                ...(reason !== undefined ? { permissionDecisionReason: reason } : {}),
+              }),
           ...(result.additionalContext !== undefined ? { additionalContext: result.additionalContext } : {}),
         },
       };
@@ -807,6 +849,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     let permissionDecision: 'allow' | 'ask' | 'deny' = 'allow';
     let reason = projectSlug === null ? 'project_config_missing' : 'lifecycle_recorded';
     let autoApprovePermissionRequest = false;
+    // Default TRUE: when no policy evaluation runs at all for this event
+    // (non-tool events, self-calls, unregistered project), Coodra has no
+    // permission opinion by definition and must not assert one.
+    let deferToNativePermissions = true;
 
     // Pure-logging events added 2026-08-04 — surface the agent-reported
     // reason/error text into the audit `reason` field instead of the
@@ -876,6 +922,16 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
           hookEventName === 'PermissionRequest' &&
           policy.permissionDecision === 'allow' &&
           (policy.matchedGrantId != null || policy.matchedExceptionId != null);
+        // Coodra only asserts a permission when it actually decided
+        // something. `no_rule_matched` is a default-allow and
+        // `policy_engine_unavailable` is a fail-open — in neither case
+        // did a rule, grant, exception, or kill switch fire, so the
+        // agent's own permission system should decide. `rule_matched`
+        // and `kill_switch_paused` ARE opinions and are always asserted
+        // (this keeps explicit allow rules working as a fast-path that
+        // suppresses the native prompt, which is their whole purpose).
+        deferToNativePermissions =
+          policy.reason === 'no_rule_matched' || policy.reason === 'policy_engine_unavailable';
       } else {
         reason = policy.error;
       }
@@ -1104,6 +1160,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       permissionDecision,
       reason,
       autoApprovePermissionRequest,
+      deferToNativePermissions,
       ...(additionalContext !== undefined ? { additionalContext } : {}),
     });
 

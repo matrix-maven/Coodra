@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { insertKillSwitch, migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { createKillSwitchEvaluator } from '@coodra/lifecycle';
+import { createPolicyClient } from '@coodra/policy';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -138,8 +139,9 @@ describe('lifecycle_event — kill switches enforced on the native path (COOD-61
     await sessionStart(registry, h, 'sess_no_switch');
 
     const out = await preToolUse(registry, h, 'sess_no_switch', 'Write');
-    expect(out.permissionDecision).toBe('allow');
-    expect(out.permissionDecisionReason).not.toContain('kill_switch_paused');
+    // No switch and no matching rule → Coodra has no opinion, so it
+    // omits the permission field entirely and lets Claude Code decide.
+    expect(out.permissionDecision).toBeUndefined();
   });
 
   it('denies a tool call when a hard-mode global kill switch is active', async () => {
@@ -204,7 +206,87 @@ describe('lifecycle_event — kill switches enforced on the native path (COOD-61
     const denied = await preToolUse(registry, h, 'sess_tool_scope', 'Write');
     expect(denied.permissionDecision).toBe('deny');
 
+    // Read is outside the switch's scope and matches no rule → deferred.
     const allowed = await preToolUse(registry, h, 'sess_tool_scope', 'Read');
-    expect(allowed.permissionDecision).toBe('allow');
+    expect(allowed.permissionDecision).toBeUndefined();
+  });
+});
+
+describe('lifecycle_event — defers to native permissions when Coodra has no opinion', () => {
+  let h: Harness;
+
+  beforeEach(async () => {
+    h = await openHarness('proj-defer-native');
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('omits permissionDecision on a default allow, but still writes the audit row', async () => {
+    const registry = buildRegistry(h);
+    await sessionStart(registry, h, 'sess_defer');
+
+    // `Edit` matches no seeded rule for this path → `no_rule_matched`.
+    const out = await preToolUse(registry, h, 'sess_defer', 'Edit');
+    expect(out.permissionDecision, 'Coodra must not assert a permission it did not decide').toBeUndefined();
+    expect(out.permissionDecisionReason).toBeUndefined();
+
+    // Deferring on the wire must NOT cost us the audit trail — that is
+    // the whole point of "don't interfere, but still log".
+    await drainOutbox(h.handle);
+    const decisions = await h.handle.db
+      .select({
+        reason: sqliteSchema.policyDecisions.reason,
+        permissionDecision: sqliteSchema.policyDecisions.permissionDecision,
+        toolName: sqliteSchema.policyDecisions.toolName,
+      })
+      .from(sqliteSchema.policyDecisions)
+      .where(eq(sqliteSchema.policyDecisions.sessionId, 'sess_defer'));
+    const row = decisions.find((d) => d.toolName === 'Edit');
+    expect(row, 'a deferred default-allow must still be audited').toBeDefined();
+    expect(row?.reason).toBe('no_rule_matched');
+    expect(row?.permissionDecision).toBe('allow');
+  });
+
+  it('still asserts deny when a rule actually matched', async () => {
+    // `makeFakeDeps()` stubs the policy client to always-allow, so this
+    // one test wires the REAL DB-backed evaluator — otherwise no seeded
+    // rule could ever fire and the assertion would be vacuous.
+    const registry = new ToolRegistry({
+      deps: Object.freeze({ ...h.deps, policy: createPolicyClient({ db: h.handle }) }),
+    });
+    registry.register(
+      createLifecycleEventToolRegistration({
+        db: h.handle,
+        mode: 'solo',
+        killSwitchEvaluator: createKillSwitchEvaluator({ db: h.handle, cacheMs: 0 }),
+      }),
+    );
+    await sessionStart(registry, h, 'sess_opinion');
+
+    // `.env` writes are a seeded preventive deny — a real opinion, so
+    // Coodra must assert it rather than defer.
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'claude_code',
+        rawPayload: {
+          hook_event_name: 'PreToolUse',
+          session_id: 'sess_opinion',
+          cwd: h.cwd,
+          tool_name: 'Write',
+          tool_input: { file_path: '.env', content: 'SECRET=1' },
+          tool_use_id: 'tu-env-deny',
+        },
+      },
+      'mcp-session',
+      { agentType: 'claude_code' },
+    );
+    const structured = result.structuredContent as
+      | { hookOutput?: { hookSpecificOutput?: HookSpecificOutput } }
+      | undefined;
+    const out = structured?.hookOutput?.hookSpecificOutput ?? {};
+    expect(out.permissionDecision).toBe('deny');
+    expect(out.permissionDecisionReason).toBeTruthy();
   });
 });

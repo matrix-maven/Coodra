@@ -108,11 +108,16 @@ describe('lifecycle_event — registry hook text output', () => {
     };
     expect(text.ok).toBe(true);
     expect(text.data).toBeUndefined();
-    expect(text.hookSpecificOutput).toMatchObject({
-      hookEventName: 'PreToolUse',
-      permissionDecision: 'allow',
-      permissionDecisionReason: 'project_config_missing',
-    });
+    // No `.coodra/config.json` here, so no policy evaluation ran at all —
+    // Coodra has no permission opinion and must NOT assert one on the
+    // wire. Omitting `permissionDecision` lets Claude Code's own
+    // permission system decide (and keep offering "always allow").
+    expect(text.hookSpecificOutput).toMatchObject({ hookEventName: 'PreToolUse' });
+    expect(text.hookSpecificOutput?.permissionDecision).toBeUndefined();
+    expect(text.hookSpecificOutput?.permissionDecisionReason).toBeUndefined();
+    // The structured envelope still carries the internal decision +
+    // reason for auditing/observability — only the agent-facing hook
+    // shape defers.
     expect(result.structuredContent).toMatchObject({
       ok: true,
       hookEventName: 'PreToolUse',
@@ -152,7 +157,9 @@ describe('lifecycle_event — registry hook text output', () => {
       hookSpecificOutput?: unknown;
       decision?: unknown;
     };
-    expect(text.permission).toBe('allow');
+    // Same defer rule as Claude: no policy evaluation ran, so Coodra
+    // omits `permission` and lets Cursor's native flow decide.
+    expect(text.permission).toBeUndefined();
     expect(text.hookSpecificOutput).toBeUndefined();
     expect(text.decision).toBeUndefined();
     expect(result.structuredContent).toMatchObject({
