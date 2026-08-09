@@ -6,6 +6,7 @@ import {
   serializeRunCapabilities,
   sqliteSchema,
 } from '@coodra/db';
+import type { KillSwitchEvaluator } from '@coodra/lifecycle';
 import { buildPolicyDecisionIdempotencyKey } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
@@ -79,6 +80,15 @@ const EVALUATOR_FAIL_OPEN_REASON = 'policy_check_unavailable';
 
 export interface CheckPolicyHandlerDeps {
   readonly db: DbHandle;
+  /**
+   * COOD-61. When provided, kill switches (`coodra pause`) are consulted
+   * BEFORE rule evaluation — a hard-mode match denies outright and the
+   * policy chain is skipped; a soft-mode match allows but is still
+   * audited. Omitted by callers that only want rule evaluation (and by
+   * legacy tests). Callers should build ONE evaluator and reuse it: it
+   * owns a 5s cache that a per-call instance would defeat.
+   */
+  readonly killSwitchEvaluator?: KillSwitchEvaluator;
 }
 
 async function resolveProjectId(db: DbHandle, projectSlug: string): Promise<string | null> {
@@ -138,20 +148,74 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
     }
 
     const phase: 'pre' | 'post' = input.eventType === 'PreToolUse' ? 'pre' : 'post';
-    const evalResult = await ctx.policy.evaluate({
-      toolName: input.toolName,
-      phase,
-      sessionId: input.sessionId,
-      input: input.toolInput,
-      idempotencyKey: ctx.idempotencyKey,
-      projectId,
-      ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
-    });
+
+    // COOD-61 — kill switches short-circuit BEFORE rule evaluation,
+    // preserving the bridge's Module 08b S2 contract on the native path:
+    //   - hard-mode match → deny, rule evaluation skipped entirely
+    //   - soft-mode match → allow, rules still skipped, but the decision
+    //     is audited below (observability without enforcement)
+    //   - no match, or the evaluator failed open (DB unavailable) →
+    //     `check()` returns null and we fall through to rules, whose own
+    //     breaker is the second-line defense
+    // The synthesized result carries `matchedRuleId: null` and the
+    // `kill_switch_paused:<id>` reason, matching what the bridge wrote
+    // via `runRecorder.recordPolicyDecision`.
+    const killSwitch =
+      deps.killSwitchEvaluator !== undefined && phase === 'pre'
+        ? await deps.killSwitchEvaluator.check({
+            projectId,
+            toolName: input.toolName,
+            agentType: input.agentType,
+          })
+        : null;
+
+    const evalResult =
+      killSwitch !== null
+        ? {
+            decision: killSwitch.decision,
+            baseDecision: killSwitch.decision,
+            reason: killSwitch.reason,
+            matchedRuleId: null,
+            matchedExceptionId: null,
+            matchedGrantId: null,
+            matchedCapability: null,
+            policyVersionId: null,
+          }
+        : await ctx.policy.evaluate({
+            toolName: input.toolName,
+            phase,
+            sessionId: input.sessionId,
+            input: input.toolInput,
+            idempotencyKey: ctx.idempotencyKey,
+            projectId,
+            ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
+          });
+
+    if (killSwitch !== null) {
+      handlerLogger.info(
+        {
+          event: 'check_policy_kill_switch_match',
+          projectSlug: input.projectSlug,
+          sessionId: input.sessionId,
+          toolName: input.toolName,
+          agentType: input.agentType,
+          killSwitchId: killSwitch.matched.id,
+          killSwitchScope: killSwitch.matched.scope,
+          killSwitchTarget: killSwitch.matched.target,
+          killSwitchMode: killSwitch.matched.mode,
+          permissionDecision: killSwitch.decision,
+        },
+        `kill switch matched (${killSwitch.matched.mode}-mode → ${killSwitch.decision}); rule evaluation skipped`,
+      );
+    }
 
     // Map evaluator reason → locked output enum (user Q4 sign-off).
-    let reason: 'no_rule_matched' | 'rule_matched' | 'policy_engine_unavailable';
+    let reason: 'no_rule_matched' | 'rule_matched' | 'policy_engine_unavailable' | 'kill_switch_paused';
     let ruleReason: string | null;
-    if (evalResult.reason === EVALUATOR_FAIL_OPEN_REASON) {
+    if (killSwitch !== null) {
+      reason = 'kill_switch_paused';
+      ruleReason = killSwitch.reason;
+    } else if (evalResult.reason === EVALUATOR_FAIL_OPEN_REASON) {
       reason = 'policy_engine_unavailable';
       ruleReason = null;
     } else if (evalResult.matchedRuleId === null) {

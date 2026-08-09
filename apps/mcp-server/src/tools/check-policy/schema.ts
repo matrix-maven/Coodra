@@ -21,12 +21,22 @@ import { z } from 'zod';
  *   - `rule_matched`            — explicit allow/deny from a fired rule
  *   - `policy_engine_unavailable` — fail-open (breaker-open, timeout,
  *                                  or evaluator-throw all collapse here)
+ *   - `kill_switch_paused`      — COOD-61: an operator kill switch
+ *                                  (`coodra pause`) matched and
+ *                                  short-circuited rule evaluation. NOT
+ *                                  folded into `no_rule_matched` (which
+ *                                  means "default allow") because a
+ *                                  hard-mode switch is an explicit deny
+ *                                  and a soft-mode one is an explicit,
+ *                                  audited allow — both are decisions,
+ *                                  not the absence of one.
  * `failOpen: boolean` is computed from the reason enum; a unit test
  * locks the reason→failOpen mapping so observability can rely on either
  * axis.
  *
  * `ruleReason` carries the matched rule's human-readable `reason` column
- * text when `reason === 'rule_matched'`; otherwise `null`. Agents that
+ * text when `reason === 'rule_matched'`, or `kill_switch_paused:<id>`
+ * when a kill switch matched; otherwise `null`. Agents that
  * need to display "why was this blocked?" read `ruleReason`; systems
  * that branch on machine state read `reason`.
  *
@@ -69,7 +79,7 @@ const successBranch = z
   .object({
     ok: z.literal(true),
     permissionDecision: z.enum(['allow', 'ask', 'deny']),
-    reason: z.enum(['no_rule_matched', 'rule_matched', 'policy_engine_unavailable']),
+    reason: z.enum(['no_rule_matched', 'rule_matched', 'policy_engine_unavailable', 'kill_switch_paused']),
     ruleReason: z
       .string()
       .nullable()

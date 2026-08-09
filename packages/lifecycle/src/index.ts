@@ -11,5 +11,12 @@ export {
   type FinalizeRunOnSessionEndResult,
   finalizeRunOnSessionEnd,
 } from './finalize-run-on-session-end.js';
+export {
+  type CreateKillSwitchEvaluatorDeps,
+  createKillSwitchEvaluator,
+  type KillSwitchEvaluationInput,
+  type KillSwitchEvaluator,
+  type KillSwitchMatch,
+} from './kill-switch-evaluator.js';
 export { type RunDiffRunnerInput, type RunDiffRunnerResult, runRunDiff } from './run-diff-runner.js';
 export { updateLinkedWorkPackFromRun } from './work-pack-session-update.js';

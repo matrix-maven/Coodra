@@ -11,7 +11,12 @@ import {
   serializeRunCapabilities,
   updateRunActiveCapabilities,
 } from '@coodra/db';
-import { captureBaseSha, finalizeRunOnSessionEnd } from '@coodra/lifecycle';
+import {
+  captureBaseSha,
+  createKillSwitchEvaluator,
+  finalizeRunOnSessionEnd,
+  type KillSwitchEvaluator,
+} from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
 import {
@@ -63,6 +68,12 @@ export interface LifecycleEventHandlerDeps {
    * auto-save doesn't write into a real home directory.
    */
   readonly contextPacksRoot?: string;
+  /**
+   * COOD-61 test seam. Production omits this and gets a real evaluator
+   * built once per handler; tests inject one with `cacheMs: 0` / a fake
+   * clock so pause/resume is observable without waiting out the 5s TTL.
+   */
+  readonly killSwitchEvaluator?: KillSwitchEvaluator;
 }
 
 function shapeHookOutput(
@@ -714,6 +725,16 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     throw new TypeError(`createLifecycleEventHandler: deps.mode must be 'solo' | 'team', got '${String(deps.mode)}'`);
   }
 
+  // COOD-61 (2026-08-09): kill-switch evaluation used to be
+  // hooks-bridge-only (`pre-tool-use.ts` consulted it BEFORE the policy
+  // chain). COOD-53 routed every native plugin's PreToolUse through this
+  // handler instead, and nothing here consulted it — so `coodra pause`
+  // was silently non-functional for all five supported agents. Built
+  // once per handler (not per call) because the evaluator owns a 5s
+  // cache; a per-call instance would defeat it and hit `kill_switches`
+  // on every tool use.
+  const killSwitchEvaluator = deps.killSwitchEvaluator ?? createKillSwitchEvaluator({ db: deps.db });
+
   return async function lifecycleEventHandler(
     input: LifecycleEventInput,
     ctx: ToolContext,
@@ -830,7 +851,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       event.toolName.length > 0 &&
       !isSelfCall
     ) {
-      const checkPolicy = createCheckPolicyHandler({ db: deps.db });
+      // COOD-61: kill switches short-circuit inside `check_policy`
+      // (before rule evaluation) so the decision still flows through the
+      // one audit path — see that handler for the Module 08b S2 contract.
+      const checkPolicy = createCheckPolicyHandler({ db: deps.db, killSwitchEvaluator });
       const policy = await checkPolicy(
         {
           projectSlug,
