@@ -47,6 +47,7 @@ export const COODRA_MCP_TOOL_NAMES = [
   'search_packs_nl',
   'record_decision',
   'query_decisions',
+  'query_decisions_by_file',
   'query_run_history',
   'query_run_diff',
   'list_recipes',

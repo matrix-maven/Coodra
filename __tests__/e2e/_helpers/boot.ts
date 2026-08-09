@@ -10,7 +10,6 @@ import { ToolRegistry } from '../../../apps/mcp-server/src/framework/tool-regist
 import { createAuthClient } from '../../../apps/mcp-server/src/lib/auth.js';
 import { createContextPackStore } from '../../../apps/mcp-server/src/lib/context-pack.js';
 import { createDbClient } from '../../../apps/mcp-server/src/lib/db.js';
-import { createFeaturePackStore } from '../../../apps/mcp-server/src/lib/feature-pack.js';
 import { createPolicyClient } from '../../../apps/mcp-server/src/lib/policy.js';
 import { createRunRecorder } from '../../../apps/mcp-server/src/lib/run-recorder.js';
 // `sqlite-vec` was removed in the M05 reshape (2026-05-08) — search is
@@ -56,7 +55,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
   const dbHandle = opts.db;
   const auth = createAuthClient(opts.env);
   const policy = createPolicyClient({ db: dbHandle });
-  const featurePack = createFeaturePackStore({ db: dbHandle });
   const contextPacksRoot = opts.contextPacksRoot ?? mkdtempSync(join(tmpdir(), 'e2e-cp-'));
   const contextPack = createContextPackStore({ db: dbHandle, contextPacksRoot });
   const runRecorder = createRunRecorder({ db: dbHandle });
@@ -66,7 +64,6 @@ export async function bootForE2E(opts: BootOpts): Promise<BootHandle> {
     logger: sharedLogger,
     auth,
     policy,
-    featurePack,
     contextPack,
     runRecorder,
   });

@@ -1,3 +1,4 @@
+import { COODRA_MCP_TOOL_NAMES } from '@coodra/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -34,39 +35,15 @@ import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_h
  *   Module 09 G2 (2026-05-21): seed_feature_packs_from_graph added → 16
  */
 
-const EXPECTED_TOOLS = [
-  'ping',
-  'get_run_id',
-  'get_feature_pack',
-  'save_context_pack',
-  'search_packs_nl',
-  'record_decision',
-  'query_run_history',
-  'check_policy',
-  'query_decisions',
-  'list_context_packs',
-  'read_context_pack',
-  // Phase 5 (2026-07) — Features→Skills rename. tools/list advertises the
-  // skill names; list_features / get_feature / get_feature_file remain callable
-  // as hidden registry aliases (not listed), so the count is unchanged.
-  'list_skills',
-  'get_skill',
-  'get_skill_file',
-  'query_run_diff',
-  // Module 09 J2 (2026-05-31, ADR-016 — Jira = Direct). Replaces the retired
-  // seed_feature_packs_from_graph (ADR-015): that entry was stale here because
-  // this e2e is main-only and the retirement run didn't exercise it.
-  'link_run_to_issue',
-  // Module 09 J3 (2026-05-31) — the on-request write-back helper (assembles
-  // the session summary; the agent posts it via Rovo's addCommentToJiraIssue).
-  'prepare_jira_comment',
-  // Module 10 (2026-06-06) — Deep Wiki two-pass flow: plan the structure,
-  // author each page, resume via status. The agent is the model; Coodra is
-  // the schema + persistence + web render (ADR-012/013).
-  'wiki_save_structure',
-  'wiki_save_page',
-  'wiki_status',
-] as const;
+// Derived from the canonical registry constant rather than a
+// hand-maintained copy. The previous local list had drifted badly —
+// it still named `get_skill`/`list_skills` (renamed to recipes long
+// ago) and missed `lifecycle_event`, `link_run_to_pr`,
+// `query_decisions_by_file`, and the work_pack_* tools. That went
+// unnoticed because the whole e2e suite failed to load (a dead
+// `feature-pack.js` import in the boot harness), so these assertions
+// never executed. Deriving removes the drift class entirely.
+const EXPECTED_TOOLS = [...COODRA_MCP_TOOL_NAMES];
 
 interface Harness {
   readonly boot: BootHandle;
@@ -144,7 +121,7 @@ describe('manifest-e2e — minimal-valid-input round-trip per tool', () => {
   // Each tool gets a curated minimal-valid payload. The handler may
   // return success OR a soft-failure (isError: true) — both are
   // legitimate protocol shapes; what matters is the SDK doesn't throw.
-  const PROBE_INPUTS: Readonly<Record<(typeof EXPECTED_TOOLS)[number], Record<string, unknown>>> = {
+  const PROBE_INPUTS: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
     ping: { echo: 'hello' },
     get_run_id: { projectSlug: 'e2e-probe', sessionId: 'sess-probe', agentType: 'claude_code', mode: 'solo' },
     get_feature_pack: { projectSlug: 'e2e-probe' },
@@ -202,11 +179,13 @@ describe('manifest-e2e — minimal-valid-input round-trip per tool', () => {
     wiki_status: { wikiId: 'wiki_x' },
   };
 
-  for (const name of EXPECTED_TOOLS) {
+  // Only tools with a curated minimal-valid payload are probed; the
+  // inventory assertions above already cover the full advertised set.
+  for (const name of EXPECTED_TOOLS.filter((n) => PROBE_INPUTS[n] !== undefined)) {
     it(`${name}: minimal-valid-input round-trips`, async () => {
       const result = await h.client.callTool({
         name,
-        arguments: PROBE_INPUTS[name],
+        arguments: PROBE_INPUTS[name] ?? {},
       });
       // Result is either { content: [...], isError?: true, structuredContent?: ... }
       // — both success and structured-failure are valid protocol shapes.

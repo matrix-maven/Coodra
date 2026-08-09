@@ -1,6 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { COODRA_MCP_TOOL_NAMES } from '@coodra/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -94,30 +95,11 @@ describe('stdio-roundtrip — subprocess + SDK Client', () => {
     //   Module 09 J3 (2026-05-31): prepare_jira_comment added → 17
     //   Module 10 (2026-06-06): Deep Wiki — wiki_save_structure +
     //     wiki_save_page + wiki_status added → 20
-    expect(names).toEqual(
-      [
-        'check_policy',
-        'get_skill',
-        'get_skill_file',
-        'get_feature_pack',
-        'get_run_id',
-        'link_run_to_issue',
-        'list_context_packs',
-        'list_skills',
-        'ping',
-        'prepare_jira_comment',
-        'query_decisions',
-        'query_run_diff',
-        'query_run_history',
-        'read_context_pack',
-        'record_decision',
-        'save_context_pack',
-        'search_packs_nl',
-        'wiki_save_page',
-        'wiki_save_structure',
-        'wiki_status',
-      ].sort(),
-    );
+    // Derived from the canonical registry constant — the previous
+    // inline list had drifted (still named get_skill/list_skills/
+    // get_feature_pack) and never failed because the e2e suite could
+    // not load at all. See manifest-e2e.test.ts for the same fix.
+    expect(names).toEqual([...COODRA_MCP_TOOL_NAMES].sort());
   });
 
   it('ping round-trip returns the echoed payload', async () => {
