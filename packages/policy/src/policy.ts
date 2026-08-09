@@ -14,7 +14,15 @@ import {
 import { and, desc, eq, isNull, or } from 'drizzle-orm';
 import picomatch from 'picomatch';
 
-import type { PolicyCheck, PolicyClient, PolicyInput, PolicyResult } from './types.js';
+import type {
+  PolicyCheck,
+  PolicyClient,
+  PolicyDecision,
+  PolicyEnforcementMode,
+  PolicyGovernanceVerdict,
+  PolicyInput,
+  PolicyResult,
+} from './types.js';
 
 /**
  * `@coodra/policy` — cache-first policy evaluator backed by the
@@ -144,12 +152,18 @@ export function createPolicyClientFromCheck(check: PolicyCheck): PolicyClient {
         input: input.input,
         phase: input.phase,
         ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+        ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
       };
       const out: PolicyResult = await check(req);
       return {
         decision: out.decision,
         reason: out.reason,
         matchedRuleId: out.matchedRuleId,
+        ...(out.baseDecision !== undefined ? { baseDecision: out.baseDecision } : {}),
+        ...(out.governanceVerdict !== undefined ? { governanceVerdict: out.governanceVerdict } : {}),
+        ...(out.enforcementMode !== undefined ? { enforcementMode: out.enforcementMode } : {}),
+        ...(out.matchedExceptionId !== undefined ? { matchedExceptionId: out.matchedExceptionId } : {}),
+        ...(out.policyVersionId !== undefined ? { policyVersionId: out.policyVersionId } : {}),
       };
     },
   };
@@ -212,7 +226,13 @@ interface CompiledRule {
   /** `null` = any command matches; otherwise the compiled shell-command matcher. */
   readonly matchCommand: ((command: string) => boolean) | null;
   readonly matchAgentType: string | null;
-  readonly decision: 'allow' | 'deny' | 'ask';
+  readonly decision: PolicyDecision;
+  readonly enforcementDecision: PolicyDecision;
+  readonly governanceVerdict: PolicyGovernanceVerdict;
+  readonly enforcementMode: PolicyEnforcementMode;
+  readonly denyOnPolicyError: boolean;
+  readonly requiredCapability: string | null;
+  readonly excludedCapability: string | null;
   readonly reason: string;
 }
 
@@ -246,19 +266,35 @@ function compileRule(row: {
   id: string;
   policyId: string;
   priority: number;
+  policyEnforcementMode: string;
+  policyDenyOnPolicyError: boolean;
   matchEventType: string;
   matchToolName: string;
   matchPathGlob: string | null;
   matchCommandPattern?: string | null;
   matchAgentType: string | null;
   decision: string;
+  enforcementDecision?: string | null;
+  governanceVerdict?: string | null;
+  ruleEnforcementMode?: string | null;
+  requiredCapability?: string | null;
+  excludedCapability?: string | null;
   reason: string;
 }): CompiledRule {
   // F6 (2026-07-04): preserve all three tiers. Pre-fix this collapsed
   // `'ask'` → `'allow'`, so the seeded "ask before Bash" rule matched but
   // silently allowed. `'ask'` now propagates through evaluate() → the
   // check_policy response + the bridge's Claude Code permissionDecision.
-  const decision = row.decision === 'deny' ? 'deny' : row.decision === 'ask' ? 'ask' : 'allow';
+  const decision = normalizePolicyDecision(row.decision);
+  const hasSplitDecision =
+    row.enforcementDecision != null || row.governanceVerdict != null || row.ruleEnforcementMode != null;
+  const enforcementDecision = normalizePolicyDecision(row.enforcementDecision ?? row.decision);
+  const governanceVerdict = normalizeGovernanceVerdict(
+    row.governanceVerdict ?? legacyGovernanceVerdictForDecision(row.decision),
+  );
+  const enforcementMode = normalizeEnforcementMode(
+    row.ruleEnforcementMode ?? (hasSplitDecision ? row.policyEnforcementMode : legacyEnforcementModeForDecision(row.decision)),
+  );
   const matcher = row.matchPathGlob ? picomatch(row.matchPathGlob, { dot: false, nobrace: true }) : null;
   const commandMatcher =
     row.matchCommandPattern !== undefined && row.matchCommandPattern !== null && row.matchCommandPattern.length > 0
@@ -275,8 +311,68 @@ function compileRule(row: {
     matchCommand: commandMatcher,
     matchAgentType: row.matchAgentType,
     decision,
+    enforcementDecision,
+    governanceVerdict,
+    enforcementMode,
+    denyOnPolicyError: row.policyDenyOnPolicyError,
+    requiredCapability: normalizeCapability(row.requiredCapability),
+    excludedCapability: normalizeCapability(row.excludedCapability),
     reason: row.reason,
   };
+}
+
+function normalizePolicyDecision(value: string | null | undefined): PolicyDecision {
+  return value === 'deny' ? 'deny' : value === 'ask' ? 'ask' : 'allow';
+}
+
+function normalizeGovernanceVerdict(value: string | null | undefined): PolicyGovernanceVerdict {
+  switch (value) {
+    case 'record':
+    case 'advise':
+    case 'warn':
+    case 'confirm':
+    case 'escalate':
+    case 'block':
+      return value;
+    case 'flag':
+      return 'warn';
+    case 'pass':
+    default:
+      return 'pass';
+  }
+}
+
+function legacyGovernanceVerdictForDecision(decision: string | null | undefined): PolicyGovernanceVerdict {
+  if (decision === 'deny' || decision === 'block') return 'block';
+  if (decision === 'ask') return 'confirm';
+  return 'pass';
+}
+
+function legacyEnforcementModeForDecision(decision: string | null | undefined): PolicyEnforcementMode {
+  if (decision === 'deny') return 'preventive';
+  if (decision === 'ask') return 'approval';
+  return 'detective';
+}
+
+function normalizeEnforcementMode(value: string | null | undefined): PolicyEnforcementMode {
+  switch (value) {
+    case 'advisory':
+    case 'approval':
+    case 'preventive':
+    case 'disabled':
+      return value;
+    case 'enforced':
+      return 'preventive';
+    case 'detective':
+    default:
+      return 'detective';
+  }
+}
+
+function normalizeCapability(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function compileException(row: {
@@ -350,12 +446,16 @@ function extractCommand(input: unknown): string {
  */
 export function evaluateRules(
   rules: ReadonlyArray<CompiledRule>,
-  input: Pick<PolicyInput, 'phase' | 'toolName' | 'input'>,
+  input: Pick<PolicyInput, 'phase' | 'toolName' | 'input' | 'activeCapabilities'>,
 ): CompiledRule | null {
   const eventType = PHASE_TO_EVENT_TYPE[input.phase];
   const path = extractPath(input.input);
   const command = extractCommand(input.input);
+  const activeCapabilities = new Set(input.activeCapabilities ?? []);
   for (const rule of rules) {
+    if (rule.enforcementMode === 'disabled') continue;
+    if (rule.requiredCapability !== null && !activeCapabilities.has(rule.requiredCapability)) continue;
+    if (rule.excludedCapability !== null && activeCapabilities.has(rule.excludedCapability)) continue;
     if (rule.matchEventType !== '*' && rule.matchEventType !== eventType) continue;
     if (!toolNameMatches(rule, input.toolName)) continue;
     if (rule.matchPath) {
@@ -368,6 +468,15 @@ export function evaluateRules(
     return rule;
   }
   return null;
+}
+
+function effectiveDecisionForRule(rule: CompiledRule): PolicyDecision {
+  if (rule.enforcementMode === 'detective' || rule.enforcementMode === 'advisory') return 'allow';
+  if (rule.enforcementMode === 'approval') {
+    if (rule.enforcementDecision === 'deny') return 'ask';
+    return rule.enforcementDecision;
+  }
+  return rule.enforcementDecision;
 }
 
 function exceptionMatches(
@@ -429,12 +538,19 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
         policyId: sqliteSchema.policyRules.policyId,
         policyVersionId: sqliteSchema.policyVersions.id,
         priority: sqliteSchema.policyRules.priority,
+        policyEnforcementMode: sqliteSchema.policies.enforcementMode,
+        policyDenyOnPolicyError: sqliteSchema.policies.denyOnPolicyError,
         matchEventType: sqliteSchema.policyRules.matchEventType,
         matchToolName: sqliteSchema.policyRules.matchToolName,
         matchPathGlob: sqliteSchema.policyRules.matchPathGlob,
         matchCommandPattern: sqliteSchema.policyRules.matchCommandPattern,
         matchAgentType: sqliteSchema.policyRules.matchAgentType,
         decision: sqliteSchema.policyRules.decision,
+        enforcementDecision: sqliteSchema.policyRules.enforcementDecision,
+        governanceVerdict: sqliteSchema.policyRules.governanceVerdict,
+        ruleEnforcementMode: sqliteSchema.policyRules.enforcementMode,
+        requiredCapability: sqliteSchema.policyRules.requiredCapability,
+        excludedCapability: sqliteSchema.policyRules.excludedCapability,
         reason: sqliteSchema.policyRules.reason,
       })
       .from(sqliteSchema.policyRules)
@@ -471,18 +587,25 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
       : and(eq(postgresSchema.policies.isActive, true), eq(postgresSchema.policies.projectId, projectId));
   const rows = await db.db
     .select({
-      id: postgresSchema.policyRules.id,
-      policyId: postgresSchema.policyRules.policyId,
-      policyVersionId: postgresSchema.policyVersions.id,
-      priority: postgresSchema.policyRules.priority,
-      matchEventType: postgresSchema.policyRules.matchEventType,
-      matchToolName: postgresSchema.policyRules.matchToolName,
-      matchPathGlob: postgresSchema.policyRules.matchPathGlob,
-      matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
-      matchAgentType: postgresSchema.policyRules.matchAgentType,
-      decision: postgresSchema.policyRules.decision,
-      reason: postgresSchema.policyRules.reason,
-    })
+    id: postgresSchema.policyRules.id,
+    policyId: postgresSchema.policyRules.policyId,
+    policyVersionId: postgresSchema.policyVersions.id,
+    priority: postgresSchema.policyRules.priority,
+    policyEnforcementMode: postgresSchema.policies.enforcementMode,
+    policyDenyOnPolicyError: postgresSchema.policies.denyOnPolicyError,
+    matchEventType: postgresSchema.policyRules.matchEventType,
+    matchToolName: postgresSchema.policyRules.matchToolName,
+    matchPathGlob: postgresSchema.policyRules.matchPathGlob,
+    matchCommandPattern: postgresSchema.policyRules.matchCommandPattern,
+    matchAgentType: postgresSchema.policyRules.matchAgentType,
+    decision: postgresSchema.policyRules.decision,
+    enforcementDecision: postgresSchema.policyRules.enforcementDecision,
+    governanceVerdict: postgresSchema.policyRules.governanceVerdict,
+    ruleEnforcementMode: postgresSchema.policyRules.enforcementMode,
+    requiredCapability: postgresSchema.policyRules.requiredCapability,
+    excludedCapability: postgresSchema.policyRules.excludedCapability,
+    reason: postgresSchema.policyRules.reason,
+  })
     .from(postgresSchema.policyRules)
     .innerJoin(postgresSchema.policies, eq(postgresSchema.policies.id, postgresSchema.policyRules.policyId))
     .leftJoin(
@@ -515,6 +638,8 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
 const FAIL_OPEN_RESULT: PolicyResult = Object.freeze({
   decision: 'allow',
   baseDecision: 'allow',
+  governanceVerdict: 'pass',
+  enforcementMode: 'detective',
   reason: 'policy_check_unavailable',
   matchedRuleId: null,
   matchedExceptionId: null,
@@ -619,6 +744,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         phase: input.phase,
         toolName: input.toolName,
         input: input.input,
+        ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
       });
 
       if (!matched) {
@@ -627,6 +753,8 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
           return {
             decision: exception.decisionOverride,
             baseDecision: 'allow',
+            governanceVerdict: 'pass',
+            enforcementMode: 'detective',
             reason: exception.reason,
             matchedRuleId: null,
             matchedExceptionId: exception.id,
@@ -636,6 +764,8 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         return {
           decision: 'allow',
           baseDecision: 'allow',
+          governanceVerdict: 'pass',
+          enforcementMode: 'detective',
           reason: 'no_rule_matched',
           matchedRuleId: null,
           matchedExceptionId: null,
@@ -644,10 +774,13 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
       }
 
       const exception = applyException(state.exceptions, matched, input, new Date(now()));
+      const baseDecision = effectiveDecisionForRule(matched);
       if (exception !== null) {
         return {
           decision: exception.decisionOverride,
-          baseDecision: matched.decision,
+          baseDecision,
+          governanceVerdict: matched.governanceVerdict,
+          enforcementMode: matched.enforcementMode,
           reason: exception.reason,
           matchedRuleId: matched.id,
           matchedExceptionId: exception.id,
@@ -656,8 +789,10 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
       }
 
       return {
-        decision: matched.decision,
-        baseDecision: matched.decision,
+        decision: baseDecision,
+        baseDecision,
+        governanceVerdict: matched.governanceVerdict,
+        enforcementMode: matched.enforcementMode,
         reason: matched.reason,
         matchedRuleId: matched.id,
         matchedExceptionId: null,
@@ -690,6 +825,7 @@ export interface RecordPolicyDecisionArgs {
   /** JSON string of the tool input — caller controls truncation. */
   readonly toolInputSnapshot: string;
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
+  readonly governanceVerdict?: PolicyGovernanceVerdict | null;
   readonly policyVersionId?: string | null;
   readonly reason: string;
   readonly matchedRuleId: string | null;
@@ -699,6 +835,10 @@ export interface RecordPolicyDecisionArgs {
   readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
   readonly askOutcomeAt?: Date | null;
   readonly correlatedRunEventId?: string | null;
+  readonly evidenceJson?: string | null;
+  readonly resultLabelsJson?: string | null;
+  readonly activeCapabilitiesJson?: string | null;
+  readonly matchedCapability?: string | null;
   /** Nullable FK — PreToolUse before a run exists writes NULL per §4.3. */
   readonly runId: string | null;
   /** UUID minter; defaults to `crypto.randomUUID()`. Exposed for tests. */
@@ -746,6 +886,7 @@ export async function recordPolicyDecision(
     permissionMode: args.permissionMode ?? null,
     toolInputSnapshot: args.toolInputSnapshot,
     permissionDecision: args.permissionDecision,
+    governanceVerdict: args.governanceVerdict ?? null,
     policyVersionId: args.policyVersionId ?? null,
     matchedRuleId: args.matchedRuleId,
     matchedExceptionId: args.matchedExceptionId ?? null,
@@ -755,6 +896,10 @@ export async function recordPolicyDecision(
     askOutcome: args.askOutcome ?? (args.permissionDecision === 'ask' ? 'unresolved' : null),
     askOutcomeAt: args.askOutcomeAt ?? null,
     correlatedRunEventId: args.correlatedRunEventId ?? null,
+    evidenceJson: args.evidenceJson ?? null,
+    resultLabelsJson: args.resultLabelsJson ?? null,
+    activeCapabilitiesJson: args.activeCapabilitiesJson ?? null,
+    matchedCapability: args.matchedCapability ?? null,
   };
 
   if (db.kind === 'sqlite') {

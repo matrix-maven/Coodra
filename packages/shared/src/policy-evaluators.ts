@@ -10,6 +10,7 @@ export type PolicyEventName =
   | 'SessionEnd';
 
 export type PolicyRuleDecision = 'allow' | 'ask' | 'deny' | 'record' | 'flag' | 'block' | 'warn' | 'pass';
+export type PolicyGovernanceVerdict = 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block';
 
 export interface PolicyEvaluatorDefinition {
   readonly key: PolicyEvaluatorKey;
@@ -104,6 +105,16 @@ export function getPolicyEvaluator(key: string | null | undefined): PolicyEvalua
 
 export function policyDecisionForStorage(decision: string): 'allow' | 'ask' | 'deny' {
   if (decision === 'deny' || decision === 'block') return 'deny';
-  if (decision === 'ask' || decision === 'warn' || decision === 'flag') return 'ask';
+  if (decision === 'ask') return 'ask';
   return 'allow';
+}
+
+export function policyGovernanceVerdictForStorage(decision: string, severity: string = 'medium'): PolicyGovernanceVerdict {
+  if (decision === 'deny' || decision === 'block') return 'block';
+  if (decision === 'ask') return 'confirm';
+  if (decision === 'warn') return 'warn';
+  if (decision === 'flag') return severity === 'low' ? 'record' : 'warn';
+  if (decision === 'record') return 'record';
+  if (decision === 'pass') return 'pass';
+  return 'pass';
 }

@@ -34,6 +34,12 @@ function rule(overrides: Partial<CompiledRule> & { id: string }): CompiledRule {
     matchCommand: overrides.matchCommand !== undefined ? overrides.matchCommand : null,
     matchAgentType: overrides.matchAgentType ?? null,
     decision: overrides.decision ?? 'allow',
+    enforcementDecision: overrides.enforcementDecision ?? overrides.decision ?? 'allow',
+    governanceVerdict: overrides.governanceVerdict ?? 'pass',
+    enforcementMode: overrides.enforcementMode ?? 'preventive',
+    denyOnPolicyError: overrides.denyOnPolicyError ?? false,
+    requiredCapability: overrides.requiredCapability ?? null,
+    excludedCapability: overrides.excludedCapability ?? null,
     reason: overrides.reason ?? 'default',
   };
 }
@@ -173,5 +179,36 @@ describe('evaluateRules — first-match-wins by priority', () => {
       input: {},
     });
     expect(result?.id).toBe('hit');
+  });
+});
+
+describe('evaluateRules — capability axis', () => {
+  it('skips a rule when its required capability is not active', () => {
+    const r = rule({ id: 'deploy-only', requiredCapability: 'deployment' });
+    expect(evaluateRules([r], { phase: 'pre', toolName: 'x', input: {} })).toBeNull();
+  });
+
+  it('matches a rule when its required capability is active', () => {
+    const r = rule({ id: 'deploy-only', requiredCapability: 'deployment' });
+    expect(
+      evaluateRules([r], {
+        phase: 'pre',
+        toolName: 'x',
+        input: {},
+        activeCapabilities: ['deployment'],
+      })?.id,
+    ).toBe('deploy-only');
+  });
+
+  it('skips a rule when its excluded capability is active', () => {
+    const r = rule({ id: 'not-dev', excludedCapability: 'dev' });
+    expect(
+      evaluateRules([r], {
+        phase: 'pre',
+        toolName: 'x',
+        input: {},
+        activeCapabilities: ['dev'],
+      }),
+    ).toBeNull();
   });
 });

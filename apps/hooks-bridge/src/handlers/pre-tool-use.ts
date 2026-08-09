@@ -271,6 +271,7 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         policyVersionId: result.policyVersionId ?? null,
         matchedExceptionId: result.matchedExceptionId ?? null,
         baseDecision: result.baseDecision ?? result.decision,
+        governanceVerdict: result.governanceVerdict ?? null,
       });
     }
 

@@ -87,6 +87,10 @@ export const runs = sqliteTable(
     // same run allows compaction unconditionally rather than blocking
     // repeatedly.
     compactionNudgedAt: integer('compaction_nudged_at', { mode: 'timestamp' }),
+    // COOD-34 — explicit capability context for policy matching. JSON text
+    // with an array/object shape owned by the policy layer; default keeps
+    // legacy runs capability-free without NULL checks.
+    activeCapabilitiesJson: text('active_capabilities_json').notNull().default('[]'),
   },
   (t) => [uniqueIndex('runs_project_session_idx').on(t.projectId, t.sessionId), index('runs_status_idx').on(t.status)],
 );
@@ -236,6 +240,9 @@ export const policies = sqliteTable('policies', {
   groupKey: text('group_key').notNull().default('agent_guardrails'),
   profile: text('profile').notNull().default('default'),
   enforcementMode: text('enforcement_mode').notNull().default('detective'),
+  // COOD-34 — keeps today's fail-open default while allowing selected
+  // preventive policies to fail closed once a compiled local fallback exists.
+  denyOnPolicyError: integer('deny_on_policy_error', { mode: 'boolean' }).notNull().default(false),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
   // admin who created/last-edited this policy. NULL on solo. Surfaced
@@ -262,6 +269,11 @@ export const policyRules = sqliteTable(
     matchCommandPattern: text('match_command_pattern'),
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
+    enforcementDecision: text('enforcement_decision'),
+    governanceVerdict: text('governance_verdict'),
+    enforcementMode: text('enforcement_mode'),
+    requiredCapability: text('required_capability'),
+    excludedCapability: text('excluded_capability'),
     reason: text('reason').notNull(),
     controlKey: text('control_key'),
     ruleType: text('rule_type').notNull().default('tool_call'),
@@ -363,6 +375,7 @@ export const policyDecisions = sqliteTable(
     permissionMode: text('permission_mode'),
     toolInputSnapshot: text('tool_input_snapshot').notNull(),
     permissionDecision: text('permission_decision').notNull(),
+    governanceVerdict: text('governance_verdict'),
     policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
     matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
@@ -372,6 +385,10 @@ export const policyDecisions = sqliteTable(
     askOutcome: text('ask_outcome'),
     askOutcomeAt: integer('ask_outcome_at', { mode: 'timestamp' }),
     correlatedRunEventId: text('correlated_run_event_id').references(() => runEvents.id),
+    evidenceJson: text('evidence_json'),
+    resultLabelsJson: text('result_labels_json'),
+    activeCapabilitiesJson: text('active_capabilities_json'),
+    matchedCapability: text('matched_capability'),
     createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   },
   (t) => [

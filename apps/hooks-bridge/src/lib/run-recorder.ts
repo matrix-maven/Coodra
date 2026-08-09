@@ -143,6 +143,9 @@ export interface RunRecorder {
     readonly policyVersionId?: string | null;
     readonly matchedExceptionId?: string | null;
     readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
+    readonly governanceVerdict?: 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block' | null;
+    readonly activeCapabilitiesJson?: string | null;
+    readonly matchedCapability?: string | null;
   }): void;
   /**
    * Enqueue a `runs` row open when SessionStart fires. Idempotent at
@@ -500,6 +503,9 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       policyVersionId,
       matchedExceptionId,
       baseDecision,
+      governanceVerdict,
+      activeCapabilitiesJson,
+      matchedCapability,
     }) {
       // M04 Phase 2 S1 (F3 root-cause fix): defensive session_open
       // before the first audit row for this (projectId, sessionId).
@@ -527,12 +533,15 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         permissionMode: event.permissionMode ?? null,
         toolInputSnapshot,
         permissionDecision: decision,
+        governanceVerdict: governanceVerdict ?? null,
         policyVersionId: policyVersionId ?? null,
         matchedRuleId,
         matchedExceptionId: matchedExceptionId ?? null,
         baseDecision: baseDecision ?? decision,
         effectiveDecision: decision,
         askOutcome: decision === 'ask' ? 'unresolved' : null,
+        activeCapabilitiesJson: activeCapabilitiesJson ?? null,
+        matchedCapability: matchedCapability ?? null,
         reason,
       };
       const idempotencyKey = buildPolicyDecisionIdempotencyKey({

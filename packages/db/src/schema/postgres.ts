@@ -69,6 +69,8 @@ export const runs = pgTable(
     // Claude Code hook coverage expansion (2026-08-04) — see
     // ./sqlite.ts::runs.compactionNudgedAt for the full rationale.
     compactionNudgedAt: timestamp('compaction_nudged_at', { withTimezone: true, mode: 'date' }),
+    // COOD-34 — see ./sqlite.ts::runs.activeCapabilitiesJson.
+    activeCapabilitiesJson: text('active_capabilities_json').notNull().default('[]'),
   },
   (t) => [uniqueIndex('runs_project_session_idx').on(t.projectId, t.sessionId), index('runs_status_idx').on(t.status)],
 );
@@ -186,6 +188,8 @@ export const policies = pgTable('policies', {
   groupKey: text('group_key').notNull().default('agent_guardrails'),
   profile: text('profile').notNull().default('default'),
   enforcementMode: text('enforcement_mode').notNull().default('detective'),
+  // COOD-34 — see ./sqlite.ts::policies.denyOnPolicyError.
+  denyOnPolicyError: boolean('deny_on_policy_error').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
   // Module 04 Phase 4 — see ./sqlite.ts::policies.createdByUserId.
   createdByUserId: text('created_by_user_id'),
@@ -210,6 +214,11 @@ export const policyRules = pgTable(
     matchCommandPattern: text('match_command_pattern'),
     matchAgentType: text('match_agent_type'),
     decision: text('decision').notNull(),
+    enforcementDecision: text('enforcement_decision'),
+    governanceVerdict: text('governance_verdict'),
+    enforcementMode: text('enforcement_mode'),
+    requiredCapability: text('required_capability'),
+    excludedCapability: text('excluded_capability'),
     reason: text('reason').notNull(),
     controlKey: text('control_key'),
     ruleType: text('rule_type').notNull().default('tool_call'),
@@ -307,6 +316,7 @@ export const policyDecisions = pgTable(
     permissionMode: text('permission_mode'),
     toolInputSnapshot: text('tool_input_snapshot').notNull(),
     permissionDecision: text('permission_decision').notNull(),
+    governanceVerdict: text('governance_verdict'),
     policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
     matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
@@ -316,6 +326,10 @@ export const policyDecisions = pgTable(
     askOutcome: text('ask_outcome'),
     askOutcomeAt: timestamp('ask_outcome_at', { withTimezone: true, mode: 'date' }),
     correlatedRunEventId: text('correlated_run_event_id').references(() => runEvents.id),
+    evidenceJson: text('evidence_json'),
+    resultLabelsJson: text('result_labels_json'),
+    activeCapabilitiesJson: text('active_capabilities_json'),
+    matchedCapability: text('matched_capability'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [

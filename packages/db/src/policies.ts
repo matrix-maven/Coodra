@@ -35,6 +35,8 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
 export const DEFAULT_POLICY_NAME = '__default__' as const;
 
 export type PolicyDecisionKind = 'allow' | 'deny' | 'ask';
+export type PolicyGovernanceVerdict = 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block';
+export type PolicyEnforcementMode = 'detective' | 'advisory' | 'approval' | 'preventive' | 'disabled';
 
 export interface PolicyRow {
   readonly id: string;
@@ -45,6 +47,7 @@ export interface PolicyRow {
   readonly groupKey: string;
   readonly profile: string;
   readonly enforcementMode: string;
+  readonly denyOnPolicyError: boolean;
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -60,6 +63,11 @@ export interface PolicyRuleRow {
   readonly matchCommandPattern: string | null;
   readonly matchAgentType: string | null;
   readonly decision: PolicyDecisionKind;
+  readonly enforcementDecision: PolicyDecisionKind | null;
+  readonly governanceVerdict: PolicyGovernanceVerdict | null;
+  readonly enforcementMode: PolicyEnforcementMode | null;
+  readonly requiredCapability: string | null;
+  readonly excludedCapability: string | null;
   readonly reason: string;
   readonly controlKey: string | null;
   readonly ruleType: string;
@@ -81,6 +89,7 @@ type RawPolicyRow = {
   groupKey: string;
   profile: string;
   enforcementMode: string;
+  denyOnPolicyError: boolean;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -96,6 +105,11 @@ type RawRuleRow = {
   matchCommandPattern: string | null;
   matchAgentType: string | null;
   decision: string;
+  enforcementDecision: string | null;
+  governanceVerdict: string | null;
+  enforcementMode: string | null;
+  requiredCapability: string | null;
+  excludedCapability: string | null;
   reason: string;
   controlKey: string | null;
   ruleType: string;
@@ -114,6 +128,7 @@ function toPolicyRow(row: RawPolicyRow): PolicyRow {
     groupKey: row.groupKey,
     profile: row.profile,
     enforcementMode: row.enforcementMode,
+    denyOnPolicyError: row.denyOnPolicyError,
     isActive: row.isActive,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -131,6 +146,11 @@ function toRuleRow(row: RawRuleRow): PolicyRuleRow {
     matchCommandPattern: row.matchCommandPattern,
     matchAgentType: row.matchAgentType,
     decision: row.decision as PolicyDecisionKind,
+    enforcementDecision: row.enforcementDecision as PolicyDecisionKind | null,
+    governanceVerdict: row.governanceVerdict as PolicyGovernanceVerdict | null,
+    enforcementMode: row.enforcementMode as PolicyEnforcementMode | null,
+    requiredCapability: row.requiredCapability,
+    excludedCapability: row.excludedCapability,
     reason: row.reason,
     controlKey: row.controlKey,
     ruleType: row.ruleType,
@@ -138,6 +158,18 @@ function toRuleRow(row: RawRuleRow): PolicyRuleRow {
     details: row.details,
     createdAt: row.createdAt,
   };
+}
+
+function defaultGovernanceVerdict(decision: PolicyDecisionKind): PolicyGovernanceVerdict {
+  if (decision === 'deny') return 'block';
+  if (decision === 'ask') return 'confirm';
+  return 'pass';
+}
+
+function defaultRuleEnforcementMode(decision: PolicyDecisionKind): PolicyEnforcementMode {
+  if (decision === 'deny') return 'preventive';
+  if (decision === 'ask') return 'approval';
+  return 'detective';
 }
 
 export type PolicyVersionStatus = 'draft' | 'active' | 'retired';
@@ -343,6 +375,7 @@ export interface AddPolicyRuleArgs {
   readonly groupKey?: string;
   readonly profile?: string;
   readonly enforcementMode?: string;
+  readonly denyOnPolicyError?: boolean;
   /** Defaults to max(existing rule priority on the policy) + 10, or 100 if first rule. */
   readonly priority?: number;
   /** Defaults to 'PreToolUse'. */
@@ -352,6 +385,11 @@ export interface AddPolicyRuleArgs {
   readonly matchCommandPattern?: string | null;
   readonly matchAgentType?: string | null;
   readonly decision: PolicyDecisionKind;
+  readonly enforcementDecision?: PolicyDecisionKind | null;
+  readonly governanceVerdict?: PolicyGovernanceVerdict | null;
+  readonly ruleEnforcementMode?: PolicyEnforcementMode | null;
+  readonly requiredCapability?: string | null;
+  readonly excludedCapability?: string | null;
   /** Required — operators need attribution context for every deny/ask. */
   readonly reason: string;
   readonly controlKey?: string | null;
@@ -376,6 +414,11 @@ export interface UpdatePolicyRuleArgs {
   readonly matchCommandPattern?: string | null;
   readonly matchAgentType?: string | null;
   readonly decision: PolicyDecisionKind;
+  readonly enforcementDecision?: PolicyDecisionKind | null;
+  readonly governanceVerdict?: PolicyGovernanceVerdict | null;
+  readonly ruleEnforcementMode?: PolicyEnforcementMode | null;
+  readonly requiredCapability?: string | null;
+  readonly excludedCapability?: string | null;
   readonly reason: string;
   readonly controlKey?: string | null;
   readonly ruleType?: string;
@@ -413,6 +456,7 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
   const groupKey = args.groupKey ?? (policyName === DEFAULT_POLICY_NAME ? 'agent_guardrails' : 'custom');
   const profile = args.profile ?? 'default';
   const enforcementMode = args.enforcementMode ?? 'detective';
+  const denyOnPolicyError = args.denyOnPolicyError ?? false;
   const matchEventType = args.matchEventType ?? 'PreToolUse';
   const matchAgentType = args.matchAgentType ?? '*';
   const matchPathGlob = args.matchPathGlob ?? null;
@@ -421,6 +465,11 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
   const ruleType = args.ruleType ?? 'tool_call';
   const severity = args.severity ?? 'medium';
   const details = args.details ?? null;
+  const enforcementDecision = args.enforcementDecision ?? args.decision;
+  const governanceVerdict = args.governanceVerdict ?? defaultGovernanceVerdict(args.decision);
+  const ruleEnforcementMode = args.ruleEnforcementMode ?? defaultRuleEnforcementMode(args.decision);
+  const requiredCapability = args.requiredCapability ?? null;
+  const excludedCapability = args.excludedCapability ?? null;
 
   if (db.kind === 'sqlite') {
     const t = sqliteSchema.policies;
@@ -449,6 +498,7 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
         groupKey,
         profile,
         enforcementMode,
+        denyOnPolicyError,
         isActive: true,
       });
       policyCreated = true;
@@ -476,6 +526,11 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
       matchCommandPattern,
       matchAgentType,
       decision: args.decision,
+      enforcementDecision,
+      governanceVerdict,
+      enforcementMode: ruleEnforcementMode,
+      requiredCapability,
+      excludedCapability,
       reason: args.reason,
       controlKey,
       ruleType,
@@ -513,6 +568,7 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
       groupKey,
       profile,
       enforcementMode,
+      denyOnPolicyError,
       isActive: true,
     });
     policyCreated = true;
@@ -535,6 +591,11 @@ export async function addPolicyRule(db: DbHandle, args: AddPolicyRuleArgs): Prom
     matchCommandPattern,
     matchAgentType,
     decision: args.decision,
+    enforcementDecision,
+    governanceVerdict,
+    enforcementMode: ruleEnforcementMode,
+    requiredCapability,
+    excludedCapability,
     reason: args.reason,
     controlKey,
     ruleType,
@@ -567,6 +628,11 @@ export async function updatePolicyRule(db: DbHandle, args: UpdatePolicyRuleArgs)
     matchCommandPattern: args.matchCommandPattern ?? null,
     matchAgentType: args.matchAgentType ?? '*',
     decision: args.decision,
+    enforcementDecision: args.enforcementDecision ?? args.decision,
+    governanceVerdict: args.governanceVerdict ?? defaultGovernanceVerdict(args.decision),
+    enforcementMode: args.ruleEnforcementMode ?? defaultRuleEnforcementMode(args.decision),
+    requiredCapability: args.requiredCapability ?? null,
+    excludedCapability: args.excludedCapability ?? null,
     reason: args.reason,
     controlKey: args.controlKey ?? null,
     ruleType: args.ruleType ?? 'tool_call',
@@ -711,6 +777,7 @@ export async function publishPolicyVersion(
       groupKey: policy.groupKey,
       profile: policy.profile,
       enforcementMode: policy.enforcementMode,
+      denyOnPolicyError: policy.denyOnPolicyError,
       isActive: policy.isActive,
     },
     rules: policy.rules.map((rule) => ({
@@ -722,6 +789,11 @@ export async function publishPolicyVersion(
       matchCommandPattern: rule.matchCommandPattern,
       matchAgentType: rule.matchAgentType,
       decision: rule.decision,
+      enforcementDecision: rule.enforcementDecision,
+      governanceVerdict: rule.governanceVerdict,
+      enforcementMode: rule.enforcementMode,
+      requiredCapability: rule.requiredCapability,
+      excludedCapability: rule.excludedCapability,
       reason: rule.reason,
       controlKey: rule.controlKey,
       ruleType: rule.ruleType,

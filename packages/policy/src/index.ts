@@ -18,6 +18,8 @@ export {
   type PolicyClient,
   type PolicyDecision,
   PolicyDenyError,
+  type PolicyEnforcementMode,
+  type PolicyGovernanceVerdict,
   type PolicyInput,
   type PolicyResult,
 } from './types.js';

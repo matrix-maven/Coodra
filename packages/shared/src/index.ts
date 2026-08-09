@@ -35,8 +35,10 @@ export {
   type PolicyEvaluatorDefinition,
   type PolicyEvaluatorKey,
   type PolicyEventName,
+  type PolicyGovernanceVerdict,
   type PolicyRuleDecision,
   policyDecisionForStorage,
+  policyGovernanceVerdictForStorage,
 } from './policy-evaluators.js';
 export {
   type ClaudeNativePermissionsProjection,

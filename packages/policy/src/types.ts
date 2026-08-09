@@ -24,6 +24,8 @@ import type { IdempotencyKey } from '@coodra/shared/idempotency';
  * prompt). `FAIL_OPEN_RESULT` stays `'allow'`.
  */
 export type PolicyDecision = 'allow' | 'deny' | 'ask';
+export type PolicyGovernanceVerdict = 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block';
+export type PolicyEnforcementMode = 'detective' | 'advisory' | 'approval' | 'preventive' | 'disabled';
 
 export interface PolicyInput {
   readonly toolName: string;
@@ -33,6 +35,8 @@ export interface PolicyInput {
   readonly input: unknown;
   /** `'pre'` or `'post'` — mirrors the Claude Code hook phase. */
   readonly phase: 'pre' | 'post';
+  /** Capability context in force for this run/session. Capabilities select rules; they never override denies. */
+  readonly activeCapabilities?: readonly string[];
   /**
    * Project scope for the evaluation, if known. Additive-optional slot
    * (Module 02 S14 sign-off 2026-04-24). Auto-wrap callers that omit
@@ -46,6 +50,8 @@ export interface PolicyInput {
 export interface PolicyResult {
   readonly decision: PolicyDecision;
   readonly baseDecision?: PolicyDecision;
+  readonly governanceVerdict?: PolicyGovernanceVerdict;
+  readonly enforcementMode?: PolicyEnforcementMode;
   readonly reason: string;
   readonly matchedRuleId: string | null;
   readonly matchedExceptionId?: string | null;
@@ -72,9 +78,12 @@ export interface PolicyClient {
     readonly input: unknown;
     readonly idempotencyKey: IdempotencyKey;
     readonly projectId?: string;
+    readonly activeCapabilities?: readonly string[];
   }): Promise<{
     decision: PolicyDecision;
     baseDecision?: PolicyDecision;
+    governanceVerdict?: PolicyGovernanceVerdict;
+    enforcementMode?: PolicyEnforcementMode;
     reason: string;
     matchedRuleId: string | null;
     matchedExceptionId?: string | null;

@@ -2,7 +2,7 @@
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { getPolicyEvaluator, policyDecisionForStorage } from '@coodra/shared';
+import { getPolicyEvaluator, policyDecisionForStorage, policyGovernanceVerdictForStorage } from '@coodra/shared';
 import { defaultWorkflowPolicy, workflowPolicyProfileSchema } from '@coodra/shared/workflow-policy';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -169,6 +169,8 @@ export async function addRuleAction(formData: FormData): Promise<void> {
       projectId: args.projectId,
       matchToolName,
       decision: policyDecisionForStorage(args.decision),
+      enforcementDecision: policyDecisionForStorage(args.decision),
+      governanceVerdict: policyGovernanceVerdictForStorage(args.decision, args.severity),
       reason: args.reason,
       ...(args.policyName !== undefined && args.policyName !== '' ? { policyName: args.policyName } : {}),
       ...(args.groupKey !== undefined && args.groupKey !== '' ? { groupKey: args.groupKey } : {}),
@@ -249,6 +251,8 @@ export async function updateRuleAction(formData: FormData): Promise<void> {
       matchEventType: args.matchEventType,
       matchToolName,
       decision: policyDecisionForStorage(args.decision),
+      enforcementDecision: policyDecisionForStorage(args.decision),
+      governanceVerdict: policyGovernanceVerdictForStorage(args.decision, args.severity),
       reason: args.reason,
       ...(args.controlKey !== undefined && args.controlKey !== '' ? { controlKey: args.controlKey } : {}),
       ...(args.severity !== undefined ? { severity: args.severity } : {}),

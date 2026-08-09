@@ -66,6 +66,7 @@ export interface PolicyDecisionPayloadV1 {
   readonly permissionMode?: string | null;
   readonly toolInputSnapshot: string;
   readonly permissionDecision: 'allow' | 'deny' | 'ask';
+  readonly governanceVerdict?: 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block' | null;
   readonly policyVersionId?: string | null;
   readonly matchedRuleId: string | null;
   readonly matchedExceptionId?: string | null;
@@ -74,6 +75,10 @@ export interface PolicyDecisionPayloadV1 {
   readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
   readonly askOutcomeAt?: string | null;
   readonly correlatedRunEventId?: string | null;
+  readonly evidenceJson?: string | null;
+  readonly resultLabelsJson?: string | null;
+  readonly activeCapabilitiesJson?: string | null;
+  readonly matchedCapability?: string | null;
   readonly reason: string;
 }
 
@@ -203,6 +208,16 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
           const toolName = payload.toolName;
           const toolInputSnapshot = payload.toolInputSnapshot;
           const permissionDecision = payload.permissionDecision;
+          const governanceVerdict =
+            payload.governanceVerdict === 'pass' ||
+            payload.governanceVerdict === 'record' ||
+            payload.governanceVerdict === 'advise' ||
+            payload.governanceVerdict === 'warn' ||
+            payload.governanceVerdict === 'confirm' ||
+            payload.governanceVerdict === 'escalate' ||
+            payload.governanceVerdict === 'block'
+              ? payload.governanceVerdict
+              : null;
           const reason = payload.reason;
           const matchedRuleId =
             payload.matchedRuleId === null || typeof payload.matchedRuleId === 'string' ? payload.matchedRuleId : null;
@@ -235,6 +250,20 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             payload.correlatedRunEventId === null || typeof payload.correlatedRunEventId === 'string'
               ? payload.correlatedRunEventId
               : null;
+          const evidenceJson =
+            payload.evidenceJson === null || typeof payload.evidenceJson === 'string' ? payload.evidenceJson : null;
+          const resultLabelsJson =
+            payload.resultLabelsJson === null || typeof payload.resultLabelsJson === 'string'
+              ? payload.resultLabelsJson
+              : null;
+          const activeCapabilitiesJson =
+            payload.activeCapabilitiesJson === null || typeof payload.activeCapabilitiesJson === 'string'
+              ? payload.activeCapabilitiesJson
+              : null;
+          const matchedCapability =
+            payload.matchedCapability === null || typeof payload.matchedCapability === 'string'
+              ? payload.matchedCapability
+              : null;
           const resolution = readResolution(payload.resolution);
           if (
             typeof projectId !== 'string' ||
@@ -266,6 +295,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             permissionMode,
             toolInputSnapshot,
             permissionDecision: parsedPermissionDecision,
+            governanceVerdict,
             policyVersionId,
             reason,
             matchedRuleId,
@@ -275,6 +305,10 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             askOutcome,
             askOutcomeAt,
             correlatedRunEventId,
+            evidenceJson,
+            resultLabelsJson,
+            activeCapabilitiesJson,
+            matchedCapability,
             runId,
           });
           log.debug(
