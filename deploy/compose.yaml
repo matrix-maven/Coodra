@@ -10,8 +10,7 @@
 #   1. postgres        — pgvector image; healthchecked
 #   2. cloud-migrate   — one-shot; runs `coodra cloud-migrate`
 #   3. mcp-server      — depends on cloud-migrate completing
-#   4. hooks-bridge    — depends on cloud-migrate completing
-#   5. sync-daemon     — depends on cloud-migrate completing
+#   4. sync-daemon     — depends on cloud-migrate completing
 
 name: coodra
 
@@ -69,26 +68,6 @@ services:
       LOCAL_HOOK_SECRET: ${LOCAL_HOOK_SECRET}
     ports:
       - "${MCP_SERVER_PORT:-3100}:3100"
-    volumes:
-      - coodra_home:/home/node/.coodra
-
-  hooks-bridge:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.hooks-bridge
-    image: coodra/hooks-bridge:dev
-    container_name: coodra-hooks-bridge
-    depends_on:
-      cloud-migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    environment:
-      COODRA_MODE: team
-      COODRA_HOME: /home/node/.coodra
-      DATABASE_URL: ${DATABASE_URL}
-      LOCAL_HOOK_SECRET: ${LOCAL_HOOK_SECRET}
-    ports:
-      - "${HOOKS_BRIDGE_PORT:-3101}:3101"
     volumes:
       - coodra_home:/home/node/.coodra
 

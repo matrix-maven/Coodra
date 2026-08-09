@@ -9,7 +9,6 @@ The stack runs four long-lived services + one one-shot migration container:
 | `postgres` (pgvector/pgvector:pg16) | 5432 | Cloud audit store |
 | `cloud-migrate` (one-shot) | — | Runs `coodra cloud-migrate` once, then exits |
 | `mcp-server` | 3100 | MCP HTTP transport for AI agents |
-| `hooks-bridge` | 3101 | HTTP hook ingress for Claude Code / Codex |
 | `sync-daemon` | — | Pushes local SQLite audit rows to cloud Postgres |
 
 Total time to a working stack on a fresh machine: **~10 minutes** (most of it the first Docker build).
@@ -52,7 +51,6 @@ Expected log lines:
 
 - `cloud-migrate` exits 0 with a line like `coodra cloud-migrate: applied against postgres://coodra:***@postgres:5432/coodra`.
 - `mcp-server` logs `tool_registered` for 9 tools, then `http_transport_ready`.
-- `hooks-bridge` logs `migrations_applied` then `listener_started`.
 - `sync-daemon` logs `cloud_db_opened` then `sync_worker_started`.
 
 ## 3. Smoke-test
@@ -65,7 +63,6 @@ curl http://localhost:3100/healthz
 # {"ok":true,...}
 
 # Hooks bridge is up
-curl http://localhost:3101/healthz
 # {"ok":true,...}
 
 # Cloud-side sanity: connect to the bundled postgres and list tables
@@ -88,7 +85,7 @@ Expected: zero RED, zero unexpected YELLOW. The sync-daemon's checks 24–27 sho
 Point Claude Code / Codex at:
 
 - MCP transport: `http://<host>:3100/mcp`
-- Hooks ingress: `http://<host>:3101/hooks/<agent-type>`
+- Hook + tool ingress: `http://<host>:3100/mcp` (MCP Streamable HTTP; agents send lifecycle events through the `lifecycle_event` tool)
 
 with the same `LOCAL_HOOK_SECRET` you set in `.env`.
 
@@ -132,7 +129,7 @@ For all three, the `deploy/Dockerfile.cloud-migrate` runs once before the long-r
 | Symptom | Diagnose |
 |---|---|
 | `cloud-migrate` refuses with "unknown non-empty tables" | Wrong `DATABASE_URL` — pointing at a different application's DB. Triple-check it. |
-| `hooks-bridge` returns 401 to all hook calls | `LOCAL_HOOK_SECRET` mismatch between bridge env and agent config. |
+| `mcp-server` returns 401 to all hook calls | `LOCAL_HOOK_SECRET` mismatch between the mcp-server env and agent config. |
 | `sync-daemon` reports `transient_failure: local … row not found` | Bridge audit-dispatch hasn't landed the parent row yet. Self-corrects on next worker tick. |
 | `doctor` check 24 RED for >1h | Cloud Postgres permanently unreachable. Check `DATABASE_URL` + network. Local audits continue to land. |
 | Build fails with `gyp ERR! python` | Multi-stage build's `apk add python3` step failed. Re-run `docker compose build --no-cache <service>`. |
