@@ -19,6 +19,24 @@ export {
 } from './client.js';
 export { buildCodexNativePermissionsProjection } from './codex-permissions.js';
 export {
+  classifyVxiControl,
+  type ControlAttestationRow,
+  type ControlImplementationMode,
+  type ControlRelevanceTrack,
+  type ControlRow,
+  createControlAttestation,
+  implementationModeForTrack,
+  listControls,
+  mapVxiCatalogRows,
+  normalizeVxiControlKey,
+  type UpsertControlInput,
+  type UpsertControlsResult,
+  upsertControls,
+  VXI_EXTERNAL_OWNER_CONTROLS,
+  VXI_NATIVE_ADVISORY_CONTROLS,
+  type VxiCatalogInputRow,
+} from './control-catalog.js';
+export {
   type CloseRunArgs,
   closeRun,
   type InsertRunEventRow,

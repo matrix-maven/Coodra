@@ -58,12 +58,14 @@ import {
 import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pause.js';
 import {
   type PolicyAddOptions,
+  type PolicyCatalogImportOptions,
   type PolicyEnableDisableOptions,
   type PolicyIO,
   type PolicyListOptions,
   type PolicyShowOptions,
   type PolicySyncOptions,
   runPolicyAddCommand,
+  runPolicyCatalogImportCommand,
   runPolicyDisableCommand,
   runPolicyEnableCommand,
   runPolicyListCommand,
@@ -241,6 +243,11 @@ interface BuildProgramOptions {
   readonly runPolicyList?: (options: PolicyListOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyShow?: (identifier: string, options: PolicyShowOptions, io?: PolicyIO) => Promise<unknown>;
   readonly runPolicyAdd?: (options: PolicyAddOptions, io?: PolicyIO) => Promise<unknown>;
+  readonly runPolicyCatalogImport?: (
+    filePath: string,
+    options: PolicyCatalogImportOptions,
+    io?: PolicyIO,
+  ) => Promise<unknown>;
   readonly runPolicyEnable?: (
     identifier: string,
     options: PolicyEnableDisableOptions,
@@ -885,6 +892,17 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (opts: PolicySyncOptions) => {
       await policySyncRunner(opts, options.policyIO);
+    });
+  const policyCatalog = policy.command('catalog').description('Manage imported governance control catalogs.');
+  const policyCatalogImportRunner = options.runPolicyCatalogImport ?? runPolicyCatalogImportCommand;
+  policyCatalog
+    .command('import-vxi <file>')
+    .description('Import the VXI control catalog workbook and classify controls into Coodra relevance tracks.')
+    .option('--project <slug>', 'Project slug. Omit for a global/reference catalog.')
+    .option('--sheet <name>', 'Workbook sheet name (default: Control Catalog).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (filePath: string, opts: PolicyCatalogImportOptions) => {
+      await policyCatalogImportRunner(filePath, opts, options.policyIO);
     });
   const policyWorkflow = policy
     .command('workflow')

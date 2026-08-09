@@ -327,6 +327,61 @@ export const policyGrants = pgTable(
   ],
 );
 
+export const controls = pgTable(
+  'controls',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    controlKey: text('control_key').notNull(),
+    source: text('source').notNull().default('vxi'),
+    domain: text('domain'),
+    subdomain: text('subdomain'),
+    title: text('title').notNull(),
+    description: text('description'),
+    owner: text('owner'),
+    relevanceTrack: text('relevance_track').notNull(),
+    implementationMode: text('implementation_mode').notNull(),
+    status: text('status').notNull().default('active'),
+    guidance: text('guidance'),
+    sourceMetadataJson: text('source_metadata_json').notNull().default('{}'),
+    createdByUserId: text('created_by_user_id'),
+    updatedByUserId: text('updated_by_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('controls_project_source_key_idx').on(t.projectId, t.source, t.controlKey),
+    index('controls_track_idx').on(t.projectId, t.relevanceTrack),
+  ],
+);
+
+export const controlAttestations = pgTable(
+  'control_attestations',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    controlId: text('control_id')
+      .notNull()
+      .references(() => controls.id),
+    runId: text('run_id').references(() => runs.id),
+    workPackId: text('work_pack_id'),
+    status: text('status').notNull().default('recorded'),
+    evidenceType: text('evidence_type').notNull().default('note'),
+    evidenceRef: text('evidence_ref'),
+    evidenceJson: text('evidence_json').notNull().default('{}'),
+    notes: text('notes'),
+    createdByUserId: text('created_by_user_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('control_attestations_control_idx').on(t.controlId, t.createdAt),
+    index('control_attestations_project_status_idx').on(t.projectId, t.status, t.expiresAt),
+  ],
+);
+
 export const policyDecisions = pgTable(
   'policy_decisions',
   {
@@ -1010,6 +1065,10 @@ export type Wiki = typeof wikis.$inferSelect;
 export type NewWiki = typeof wikis.$inferInsert;
 export type WikiPageRow = typeof wikiPages.$inferSelect;
 export type NewWikiPageRow = typeof wikiPages.$inferInsert;
+export type Control = typeof controls.$inferSelect;
+export type NewControl = typeof controls.$inferInsert;
+export type ControlAttestation = typeof controlAttestations.$inferSelect;
+export type NewControlAttestation = typeof controlAttestations.$inferInsert;
 
 /**
  * Phase F.3.c — `knowledge_audit` (2026-05-11). **Postgres-only**.

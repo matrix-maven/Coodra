@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 
-import { migrateSqlite, resolveMigrationsFolder } from '@coodra/db';
+import { MIGRATIONS_FOLDER, migrateSqlite, resolveMigrationsFolder } from '@coodra/db';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -105,7 +105,7 @@ export async function runDbMigrateCommand(options: DbMigrateOptions, ioOverride?
     }
   }
 
-  const migrationsDir: string | null = io.migrationsDir ?? resolveMigrationsDirForCli();
+  const migrationsDir: string | null = io.migrationsDir ?? (await resolveMigrationsDirForCli());
   const dbPath = resolveCoodraDataDb(homePath);
   // The migration set includes the `sqlite-vec` vec0 virtual table on
   // migration 0001 — opening without the extension errors at apply
@@ -172,8 +172,13 @@ export async function runDbMigrateCommand(options: DbMigrateOptions, ioOverride?
  * (`MIGRATIONS_FOLDER.sqlite`). Returning null lets the caller defer
  * to that default.
  */
-function resolveMigrationsDirForCli(): string | null {
-  return bundledMigrationsDir('sqlite');
+async function resolveMigrationsDirForCli(): Promise<string | null> {
+  const bundled = bundledMigrationsDir('sqlite');
+  if (bundled === null) return null;
+  const bundledCount = (await listOnDiskMigrations(bundled)).length;
+  const packageCount = (await listOnDiskMigrations(MIGRATIONS_FOLDER.sqlite)).length;
+  if (packageCount > bundledCount) return MIGRATIONS_FOLDER.sqlite;
+  return bundled;
 }
 
 interface RawSqliteHandle {

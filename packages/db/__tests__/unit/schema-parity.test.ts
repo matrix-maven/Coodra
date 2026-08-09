@@ -48,6 +48,8 @@ const tablePairs = [
   ['policy_versions', sq.policyVersions, pg.policyVersions],
   ['policy_exceptions', sq.policyExceptions, pg.policyExceptions],
   ['policy_grants', sq.policyGrants, pg.policyGrants],
+  ['controls', sq.controls, pg.controls],
+  ['control_attestations', sq.controlAttestations, pg.controlAttestations],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
   ['integration_connections', sq.integrationConnections, pg.integrationConnections],
   ['external_work_items', sq.externalWorkItems, pg.externalWorkItems],
@@ -102,6 +104,9 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(sq.policyRules).toBeDefined();
     expect(sq.policyVersions).toBeDefined();
     expect(sq.policyExceptions).toBeDefined();
+    expect(sq.policyGrants).toBeDefined();
+    expect(sq.controls).toBeDefined();
+    expect(sq.controlAttestations).toBeDefined();
     expect(sq.policyDecisions).toBeDefined();
     expect(sq.decisions).toBeDefined();
     expect(sq.killSwitches).toBeDefined();
@@ -131,6 +136,9 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(pg.policyRules).toBeDefined();
     expect(pg.policyVersions).toBeDefined();
     expect(pg.policyExceptions).toBeDefined();
+    expect(pg.policyGrants).toBeDefined();
+    expect(pg.controls).toBeDefined();
+    expect(pg.controlAttestations).toBeDefined();
     expect(pg.policyDecisions).toBeDefined();
     expect(pg.decisions).toBeDefined();
     expect(pg.killSwitches).toBeDefined();
@@ -220,6 +228,7 @@ describe('schema conventions for audit-ready mutable tables', () => {
     ['policies', sq.policies],
     ['policy_rules', sq.policyRules],
     ['policy_exceptions', sq.policyExceptions],
+    ['controls', sq.controls],
     ['features', sq.features],
     ['integration_connections', sq.integrationConnections],
     ['work_packs', sq.workPacks],

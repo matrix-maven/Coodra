@@ -239,6 +239,13 @@
 			"when": 1786275900000,
 			"tag": "0033_policy_grants",
 			"breakpoints": true
+		},
+		{
+			"idx": 34,
+			"version": "7",
+			"when": 1786276000000,
+			"tag": "0034_control_catalog",
+			"breakpoints": true
 		}
 	]
 }

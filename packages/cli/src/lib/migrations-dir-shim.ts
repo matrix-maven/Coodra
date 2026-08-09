@@ -16,12 +16,38 @@
 // `MIGRATIONS_FOLDER` walks `<db-pkg>/dist/../drizzle/<dialect>`
 // correctly, and we leave the env alone.
 
+import { existsSync, readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { bundledMigrationsDir } from './runtime-paths.js';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 const sqlite = bundledMigrationsDir('sqlite');
 if (sqlite !== null && typeof process.env.COODRA_MIGRATIONS_DIR !== 'string') {
+  const source = fresherSourceMigrationsDir('sqlite', sqlite);
+  const selected = source ?? sqlite;
   // bundledMigrationsDir returns the dialect-specific subfolder
   // (`<...>/sqlite`); strip the suffix because
   // `@coodra/db::MIGRATIONS_FOLDER` re-appends the dialect.
-  process.env.COODRA_MIGRATIONS_DIR = sqlite.replace(/[\\/]+sqlite$/, '');
+  process.env.COODRA_MIGRATIONS_DIR = selected.replace(/[\\/]+sqlite$/, '');
+}
+
+function fresherSourceMigrationsDir(dialect: 'sqlite' | 'postgres', bundledDialectDir: string): string | null {
+  const bundledCount = sqlMigrationCount(bundledDialectDir);
+  const candidates = [
+    resolve(here, '..', '..', '..', 'db', 'drizzle', dialect),
+    resolve(here, '..', '..', 'db', 'drizzle', dialect),
+    resolve(here, '..', '..', '..', '..', 'packages', 'db', 'drizzle', dialect),
+  ];
+  for (const candidate of candidates) {
+    const sourceCount = sqlMigrationCount(candidate);
+    if (sourceCount > bundledCount) return candidate;
+  }
+  return null;
+}
+
+function sqlMigrationCount(dir: string): number {
+  if (!existsSync(dir)) return 0;
+  return readdirSync(dir).filter((entry) => /^\d{4,}_.+\.sql$/.test(entry)).length;
 }

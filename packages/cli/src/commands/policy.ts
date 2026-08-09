@@ -3,18 +3,23 @@ import {
   buildPolicyProjection,
   getPolicy,
   getProjectByIdentifier,
+  listControls,
   listPolicies,
   lookupProjectBySlug,
+  mapVxiCatalogRows,
+  type ControlRow,
   type PolicyDecisionKind,
   type PolicyRow,
   type PolicyRuleRow,
   type PolicyWithRules,
   setPolicyActive,
+  upsertControls,
 } from '@coodra/db';
 import { readCoodraProjectConfig, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
+import { readXlsxSheetRows } from '../lib/xlsx-lite.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
 
 /**
@@ -68,6 +73,12 @@ export interface PolicyEnableDisableOptions {
 export interface PolicySyncOptions {
   readonly project?: string;
   readonly cwd?: string;
+  readonly json?: boolean;
+}
+
+export interface PolicyCatalogImportOptions {
+  readonly project?: string;
+  readonly sheet?: string;
   readonly json?: boolean;
 }
 
@@ -335,6 +346,71 @@ export async function runPolicySyncCommand(options: PolicySyncOptions, ioOverrid
   }
 }
 
+// ============================================================================
+// catalog import-vxi
+// ============================================================================
+
+export async function runPolicyCatalogImportCommand(
+  filePath: string,
+  options: PolicyCatalogImportOptions,
+  ioOverride?: PolicyIO,
+): Promise<void> {
+  const io = ioOverride ?? DEFAULT_POLICY_IO;
+  const json = options.json === true;
+  const sheet = options.sheet ?? 'Control Catalog';
+  const handle = await openHandle(io);
+  try {
+    let projectId: string | null = null;
+    let projectSlug: string | null = null;
+    if (options.project !== undefined && options.project.trim().length > 0) {
+      const project = await lookupProjectBySlug(handle, options.project.trim());
+      if (project === null) {
+        return surfaceError(io, json, EXIT_USER_RECOVERABLE, `project slug "${options.project}" does not exist`);
+      }
+      projectId = project.id;
+      projectSlug = project.slug;
+    }
+    const rows = readXlsxSheetRows(filePath, sheet);
+    const controls = mapVxiCatalogRows(rows).map((control) => ({ ...control, projectId }));
+    if (controls.length === 0) {
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `no VXI controls found in sheet "${sheet}"`);
+    }
+    const result = await upsertControls(handle, controls);
+    const counts = summarizeControls(await listControls(handle, { projectId, source: 'vxi' }));
+    if (json) {
+      io.writeStdout(
+        `${JSON.stringify(
+          {
+            ok: true,
+            source: 'vxi',
+            project: projectSlug,
+            sheet,
+            inserted: result.inserted,
+            updated: result.updated,
+            total: counts.total,
+            byTrack: counts.byTrack,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      io.writeStdout(
+        `${pc.green('✓')} Imported VXI control catalog${projectSlug !== null ? ` for ${projectSlug}` : ''}.\n`,
+      );
+      io.writeStdout(`  inserted: ${result.inserted}\n`);
+      io.writeStdout(`  updated:  ${result.updated}\n`);
+      io.writeStdout(`  total:    ${counts.total}\n`);
+      io.writeStdout(`  native advisory:       ${counts.byTrack.native_advisory}\n`);
+      io.writeStdout(`  evidence/attestation:  ${counts.byTrack.evidence_attestation}\n`);
+      io.writeStdout(`  external-owner:        ${counts.byTrack.external_owner}\n`);
+    }
+    io.exit(EXIT_OK);
+  } finally {
+    handle.close();
+  }
+}
+
 async function runPolicySetActive(
   identifier: string,
   active: boolean,
@@ -498,6 +574,17 @@ function printPolicyHuman(io: PolicyIO, p: PolicyRow & { readonly rules?: Readon
       io.writeStdout(`         ${pc.dim(`command=${r.matchCommandPattern}`)}\n`);
     }
   }
+}
+
+function summarizeControls(controls: ReadonlyArray<ControlRow>): {
+  readonly total: number;
+  readonly byTrack: { readonly native_advisory: number; readonly evidence_attestation: number; readonly external_owner: number };
+} {
+  const byTrack = { native_advisory: 0, evidence_attestation: 0, external_owner: 0 };
+  for (const control of controls) {
+    byTrack[control.relevanceTrack] += 1;
+  }
+  return { total: controls.length, byTrack };
 }
 
 function surfaceError(io: PolicyIO, json: boolean, exitCode: number, message: string): void {
