@@ -73,6 +73,11 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(policy).toBeDefined();
     const policySub = policy?.commands.map((c) => c.name()).sort() ?? [];
     expect(policySub).toEqual(['add', 'catalog', 'disable', 'enable', 'list', 'show', 'sync', 'workflow']);
+    const policyCatalog = policy?.commands.find((c) => c.name() === 'catalog');
+    expect(policyCatalog?.commands.map((c) => c.name()).sort() ?? []).toEqual([
+      'import-vxi',
+      'install-native-advisory',
+    ]);
 
     const projectCmd = program.commands.find((c) => c.name() === 'project');
     expect(projectCmd).toBeDefined();

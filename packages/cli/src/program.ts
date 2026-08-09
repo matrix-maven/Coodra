@@ -59,6 +59,7 @@ import { type PauseIO, type PauseOptions, runPauseCommand } from './commands/pau
 import {
   type PolicyAddOptions,
   type PolicyCatalogImportOptions,
+  type PolicyCatalogInstallNativeAdvisoryOptions,
   type PolicyEnableDisableOptions,
   type PolicyIO,
   type PolicyListOptions,
@@ -66,6 +67,7 @@ import {
   type PolicySyncOptions,
   runPolicyAddCommand,
   runPolicyCatalogImportCommand,
+  runPolicyCatalogInstallNativeAdvisoryCommand,
   runPolicyDisableCommand,
   runPolicyEnableCommand,
   runPolicyListCommand,
@@ -246,6 +248,10 @@ interface BuildProgramOptions {
   readonly runPolicyCatalogImport?: (
     filePath: string,
     options: PolicyCatalogImportOptions,
+    io?: PolicyIO,
+  ) => Promise<unknown>;
+  readonly runPolicyCatalogInstallNativeAdvisory?: (
+    options: PolicyCatalogInstallNativeAdvisoryOptions,
     io?: PolicyIO,
   ) => Promise<unknown>;
   readonly runPolicyEnable?: (
@@ -903,6 +909,17 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (filePath: string, opts: PolicyCatalogImportOptions) => {
       await policyCatalogImportRunner(filePath, opts, options.policyIO);
+    });
+  const policyCatalogInstallNativeRunner =
+    options.runPolicyCatalogInstallNativeAdvisory ?? runPolicyCatalogInstallNativeAdvisoryCommand;
+  policyCatalog
+    .command('install-native-advisory')
+    .description('Install Coodra-native advisory policy templates for VXI Track A controls.')
+    .requiredOption('--project <slug>', 'Project slug.')
+    .option('--policy-name <name>', 'Policy name (default: __native_advisory__).')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (opts: PolicyCatalogInstallNativeAdvisoryOptions) => {
+      await policyCatalogInstallNativeRunner(opts, options.policyIO);
     });
   const policyWorkflow = policy
     .command('workflow')

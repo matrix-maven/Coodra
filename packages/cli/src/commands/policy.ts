@@ -1,6 +1,7 @@
 import {
   addPolicyRule,
   buildPolicyProjection,
+  ensureNativeAdvisoryRules,
   getPolicy,
   getProjectByIdentifier,
   listControls,
@@ -79,6 +80,12 @@ export interface PolicySyncOptions {
 export interface PolicyCatalogImportOptions {
   readonly project?: string;
   readonly sheet?: string;
+  readonly json?: boolean;
+}
+
+export interface PolicyCatalogInstallNativeAdvisoryOptions {
+  readonly project: string;
+  readonly policyName?: string;
   readonly json?: boolean;
 }
 
@@ -404,6 +411,50 @@ export async function runPolicyCatalogImportCommand(
       io.writeStdout(`  native advisory:       ${counts.byTrack.native_advisory}\n`);
       io.writeStdout(`  evidence/attestation:  ${counts.byTrack.evidence_attestation}\n`);
       io.writeStdout(`  external-owner:        ${counts.byTrack.external_owner}\n`);
+    }
+    io.exit(EXIT_OK);
+  } finally {
+    handle.close();
+  }
+}
+
+export async function runPolicyCatalogInstallNativeAdvisoryCommand(
+  options: PolicyCatalogInstallNativeAdvisoryOptions,
+  ioOverride?: PolicyIO,
+): Promise<void> {
+  const io = ioOverride ?? DEFAULT_POLICY_IO;
+  const json = options.json === true;
+  if (options.project.trim().length === 0) {
+    return surfaceError(io, json, EXIT_USER_RECOVERABLE, '--project <slug> is required');
+  }
+  const handle = await openHandle(io);
+  try {
+    const project = await lookupProjectBySlug(handle, options.project.trim());
+    if (project === null) {
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `project slug "${options.project}" does not exist`);
+    }
+    const result = await ensureNativeAdvisoryRules(handle, project.id, options.policyName);
+    if (json) {
+      io.writeStdout(
+        `${JSON.stringify(
+          {
+            ok: true,
+            project: project.slug,
+            policyId: result.policyId,
+            policyCreated: result.created,
+            rulesInserted: result.rulesInserted,
+            totalTemplates: result.totalTemplates,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    } else {
+      io.writeStdout(`${pc.green('✓')} Installed native advisory policy for ${project.slug}.\n`);
+      io.writeStdout(`  policy: ${result.policyId}${result.created ? ' (created)' : ''}\n`);
+      io.writeStdout(`  rules inserted: ${result.rulesInserted}/${result.totalTemplates}\n`);
+      io.writeStdout(`  mode: advisory (allows actions while recording governance verdicts)\n`);
+      await syncProjectionBestEffort(handle, project, io);
     }
     io.exit(EXIT_OK);
   } finally {

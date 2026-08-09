@@ -72,6 +72,13 @@ export {
 export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
 export {
+  ensureNativeAdvisoryRules,
+  type EnsureNativeAdvisoryRulesResult,
+  NATIVE_ADVISORY_POLICY_NAME,
+  NATIVE_ADVISORY_RULE_TEMPLATES,
+  type NativeAdvisoryRuleTemplate,
+} from './native-advisory-rules.js';
+export {
   getRunActiveCapabilities,
   getRunActiveCapabilitiesForSession,
   normalizeRunCapabilities,
