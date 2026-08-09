@@ -17,6 +17,7 @@ import {
   createKillSwitchEvaluator,
   finalizeRunOnSessionEnd,
   type KillSwitchEvaluator,
+  loadFeaturesIndexForSession,
 } from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
 import { COODRA_MCP_TOOL_NAMES, createLogger, GRAPHIFY_MCP_TOOL_NAMES } from '@coodra/shared';
@@ -724,6 +725,7 @@ function sessionAdditionalContext(args: {
   readonly runId: string | null;
   readonly workflowPolicy: unknown | null;
   readonly recentContext?: string | null;
+  readonly recipesIndex?: string | null;
 }): string {
   const lines = [SESSION_CONTRACT];
   if (args.projectSlug !== null) {
@@ -738,6 +740,12 @@ function sessionAdditionalContext(args: {
       runId: args.runId,
     });
     if (workflowPolicy !== null) lines.push('', '---', '', workflowPolicy);
+  }
+  // COOD-63 — Agent Recipes index. Placed BEFORE recent context so the
+  // "here is what you can do" catalogue reads ahead of the "here is what
+  // happened before" history, matching the bridge's block ordering.
+  if (args.recipesIndex !== undefined && args.recipesIndex !== null) {
+    lines.push('', '---', '', args.recipesIndex);
   }
   if (args.recentContext !== undefined && args.recentContext !== null) {
     lines.push('', '---', '', args.recentContext);
@@ -1188,12 +1196,54 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       promptRelevantContext = promptContext.additionalContext;
     }
 
+    // COOD-63: Agent Recipes index. Bridge-only until now, so since
+    // COOD-53 no native-plugin agent could discover what recipes exist
+    // without calling `list_recipes` unprompted. The loader is
+    // soft-fail by contract (returns null on a missing `.coodra/recipes/`,
+    // an empty index, or any read error), so a project that hasn't
+    // adopted recipes simply gets no block.
+    let recipesIndex: string | null = null;
+    if (isSessionStartEquivalent && projectSlug !== null && typeof event.cwd === 'string' && event.cwd.length > 0) {
+      try {
+        const loaded = await loadFeaturesIndexForSession({ cwd: event.cwd, projectSlug });
+        if (loaded !== null) {
+          recipesIndex = loaded.content;
+          logger.info(
+            {
+              event: 'native_plugin_recipes_index_loaded',
+              agentType: input.agentType,
+              sessionId: event.sessionId,
+              projectSlug,
+              runId,
+              entriesShown: loaded.entriesShown,
+              entriesTotal: loaded.entriesTotal,
+              bytes: loaded.bytes,
+            },
+            'Agent Recipes index ready for SessionStart injection',
+          );
+        }
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_recipes_index_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'recipes index load threw; SessionStart proceeding without it',
+        );
+      }
+    }
+
     const sessionContext = isSessionStartEquivalent
       ? sessionAdditionalContext({
           projectSlug,
           runId,
           workflowPolicy: projectConfig?.workflowPolicy ?? null,
           recentContext,
+          recipesIndex,
         })
       : null;
     const additionalContext = joinAdditionalContext([sessionContext, promptRelevantContext]);
