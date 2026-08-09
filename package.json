@@ -39,7 +39,6 @@
     "@biomejs/biome": "^2.4.12",
     "@coodra/cli": "workspace:*",
     "@coodra/db": "workspace:*",
-    "@coodra/hooks-bridge": "workspace:*",
     "@coodra/mcp-server": "workspace:*",
     "@coodra/policy": "workspace:*",
     "@coodra/shared": "workspace:*",

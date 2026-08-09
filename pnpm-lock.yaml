@@ -17,9 +17,6 @@ importers:
       '@coodra/db':
         specifier: workspace:*
         version: link:packages/db
-      '@coodra/hooks-bridge':
-        specifier: workspace:*
-        version: link:apps/hooks-bridge
       '@coodra/mcp-server':
         specifier: workspace:*
         version: link:apps/mcp-server
@@ -62,43 +59,6 @@ importers:
       vitest:
         specifier: ^4.1.5
         version: 4.1.6(@types/node@22.19.19)(@vitest/coverage-v8@4.1.6)(happy-dom@15.11.7)(vite@8.0.13(@types/node@22.19.19)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
-
-  apps/hooks-bridge:
-    dependencies:
-      '@coodra/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@coodra/db':
-        specifier: workspace:*
-        version: link:../../packages/db
-      '@coodra/lifecycle':
-        specifier: workspace:*
-        version: link:../../packages/lifecycle
-      '@coodra/policy':
-        specifier: workspace:*
-        version: link:../../packages/policy
-      '@coodra/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
-      '@hono/node-server':
-        specifier: 2.0.0
-        version: 2.0.0(hono@4.12.15)
-      drizzle-orm:
-        specifier: ^0.45.2
-        version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.10.0)(postgres@3.4.9)
-      hono:
-        specifier: 4.12.15
-        version: 4.12.15
-      zod:
-        specifier: ^4.3.6
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: ^22.15.0
-        version: 22.19.19
-      tsx:
-        specifier: ^4.21.0
-        version: 4.22.0
 
   apps/mcp-server:
     dependencies:

@@ -156,13 +156,11 @@ jobs:
 
       - name: Build @coodra/* in dependency order
         # `shared` first (db + policy depend on it transitively); `db`
-        # next (its dist/migrate.js is consumed by both apps' auto-migrate
-        # at boot); `policy` next; `cli build:tsc-only` emits cli lib
-        # subpaths that mcp-server + hooks-bridge tsc need; then their
-        # builds (hooks-bridge stays a buildable package — its own test
-        # suite and the e2e job still exercise it directly — even though
-        # COOD-53 dropped it from `coodra start` / the cli bundle); then
-        # web-v2 next build (produces .next/standalone); finally `cli
+        # next (its dist/migrate.js is consumed by mcp-server's
+        # auto-migrate at boot); `policy` next; `cli build:tsc-only`
+        # emits the cli lib subpaths mcp-server's tsc needs; then its
+        # build; then web-v2 next build (produces .next/standalone);
+        # finally `cli
         # build` (full, with bundle) so cli integration tests like
         # cold-install + npm-pack-lock + doctor-binary see
         # dist/runtime/{mcp-server,sync-daemon,web} present.
@@ -172,11 +170,10 @@ jobs:
           pnpm --filter @coodra/policy build
           pnpm --filter @coodra/cli build:tsc-only
           pnpm --filter @coodra/mcp-server build
-          pnpm --filter @coodra/hooks-bridge build
           pnpm --filter @coodra/web-v2 build
           pnpm --filter @coodra/cli build
 
-      - name: Integration tests (Postgres migrations + hooks-bridge lifecycle + mcp-server boot)
+      - name: Integration tests (Postgres migrations + mcp-server boot)
         # `--concurrency=1` is load-bearing: each workspace's integration
         # suite owns the shared CI Postgres exclusively for its run (the
         # tests DROP / re-migrate the public schema in `beforeAll`). With
@@ -211,8 +208,7 @@ jobs:
     # (2026-06-16): native deps install, `coodra init` wires .mcp.json +
     # the Claude Code hooks, and `coodra start` brings up the mcp-server
     # daemon (sqlite-vec-windows-x64 + better-sqlite3 prebuild load,
-    # SQLite migrates, HTTP /healthz binds; hooks-bridge dropped from
-    # `coodra start` COOD-53). The `web` dashboard and the Cursor/Windsurf
+    # SQLite migrates, HTTP /healthz binds). The `web` dashboard and the Cursor/Windsurf
     # shell hook adapters are deliberately out of scope.
     runs-on: windows-latest
     needs: verify
@@ -308,18 +304,14 @@ jobs:
         # All packages have `main: ./dist/index.js` and `exports`
         # pointing into dist. The e2e tests import them as
         # workspace:* deps; without the build, vitest can't resolve
-        # the entry points. Module 03 S14 will spawn hooks-bridge as
-        # a subprocess for the full-session lifecycle test, so include
-        # its dist here too — keeps each slice self-contained.
-        # `cli build:tsc-only` is required before mcp-server /
-        # hooks-bridge because both import `@coodra/cli/lib/*` subpaths.
+        # the entry points. `cli build:tsc-only` is required before
+        # mcp-server because it imports `@coodra/cli/lib/*` subpaths.
         run: |
           pnpm --filter @coodra/shared build
           pnpm --filter @coodra/db build
           pnpm --filter @coodra/policy build
           pnpm --filter @coodra/cli build:tsc-only
           pnpm --filter @coodra/mcp-server build
-          pnpm --filter @coodra/hooks-bridge build
 
       # `testcontainers` needs a Docker daemon. GitHub-hosted ubuntu
       # runners ship Docker pre-installed; just verify it before the

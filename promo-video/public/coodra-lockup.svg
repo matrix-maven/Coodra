@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 120" width="720" height="120" role="img" aria-label="Coodra">
+  <title>Coodra</title>
+  <defs>
+    <style><![CDATA[
+      .mark-ring   { stroke: #7dd87d; stroke-width: 1; fill: none; }
+      .mark-node   { fill: #7dd87d; }
+      .mark-axis   { stroke: #e8e6e1; stroke-width: 0.6; stroke-dasharray: 2 3; }
+      .rule        { stroke: #e8e6e1; stroke-opacity: 0.22; stroke-width: 1; }
+      .wordmark    { fill: #e8e6e1;
+                     font-family: 'Inter', 'Inter Tight', system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+                     font-weight: 300;
+                     font-size: 88px;
+                     letter-spacing: 6px; }
+      @media (prefers-color-scheme: light) {
+        .mark-axis { stroke: #1a1f2a; }
+        .rule      { stroke: #1a1f2a; stroke-opacity: 0.28; }
+        .wordmark  { fill: #1a1f2a; }
+      }
+    ]]></style>
+  </defs>
+
+  <!-- Mark (96×96, centered vertically in the 120-tall canvas) -->
+  <g transform="translate(0 12) scale(3)" aria-hidden="true">
+    <circle class="mark-ring" cx="16" cy="16" r="14"/>
+    <circle class="mark-node" cx="16" cy="16" r="2.2"/>
+    <line   class="mark-axis" x1="2" y1="16" x2="30" y2="16"/>
+  </g>
+
+  <!-- Vertical separator between mark and wordmark -->
+  <line class="rule" x1="120" y1="30" x2="120" y2="90"/>
+
+  <!-- COODRA wordmark, weight 300, monumental letter-spacing -->
+  <text class="wordmark" x="144" y="92">COODRA</text>
+</svg>
