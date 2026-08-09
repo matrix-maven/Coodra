@@ -1,5 +1,4 @@
 import {
-  attestPolicyProjection,
   type DbHandle,
   getRunCompactionNudgedAt,
   hasContextPackForRun,
@@ -7,7 +6,6 @@ import {
   lookupProjectBySlug,
   markRunCompactionNudged,
   markRunFailed,
-  renderPolicyProjectionDriftContext,
 } from '@coodra/db';
 import { captureBaseSha, finalizeRunOnSessionEnd } from '@coodra/lifecycle';
 import { resolveAskOutcomeApproved } from '@coodra/policy';
@@ -120,9 +118,8 @@ function shapeHookOutput(
       }
       case 'SessionEnd':
         return { ok: true };
-      // ConfigChange added 2026-08-04 alongside the attestPolicyProjection
-      // rewire — previously fell to `default` with no additionalContext
-      // support at all.
+      // ConfigChange remains acknowledged for lifecycle parity. Policy state
+      // is now DB/cache-backed instead of projected into agent config files.
       case 'ConfigChange':
         return {
           ok: true,
@@ -658,7 +655,6 @@ function sessionAdditionalContext(args: {
   readonly projectSlug: string | null;
   readonly runId: string | null;
   readonly workflowPolicy: unknown | null;
-  readonly policyProjectionContext?: string | null;
   readonly recentContext?: string | null;
 }): string {
   const lines = [SESSION_CONTRACT];
@@ -674,9 +670,6 @@ function sessionAdditionalContext(args: {
       runId: args.runId,
     });
     if (workflowPolicy !== null) lines.push('', '---', '', workflowPolicy);
-  }
-  if (args.policyProjectionContext !== undefined && args.policyProjectionContext !== null) {
-    lines.push('', '---', '', args.policyProjectionContext);
   }
   if (args.recentContext !== undefined && args.recentContext !== null) {
     lines.push('', '---', '', args.recentContext);
@@ -1008,43 +1001,6 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         );
       }
     }
-    let policyProjectionContext: string | null = null;
-    // Widened to ConfigChange 2026-08-04 (matcher: 'project_settings' in
-    // claude-plugin.ts) — this attestation used to only ever run at
-    // SessionStart, leaving ConfigChange wired but functionally inert.
-    if (
-      (hookEventName === 'SessionStart' || hookEventName === 'ConfigChange') &&
-      projectSlug !== null &&
-      projectConfig !== null
-    ) {
-      try {
-        const project = await lookupProjectBySlug(deps.db, projectSlug);
-        if (project !== null) {
-          const attestation = await attestPolicyProjection(deps.db, {
-            projectId: project.id,
-            projectSlug,
-            projectRoot: project.cwd ?? projectConfig.root,
-            agentType: input.agentType,
-            sessionId: event.sessionId,
-            runId,
-            now: ctx.now(),
-          });
-          policyProjectionContext = renderPolicyProjectionDriftContext(attestation);
-        }
-      } catch (err) {
-        logger.warn(
-          {
-            event: 'native_plugin_policy_projection_attestation_failed',
-            agentType: input.agentType,
-            hookEventName,
-            sessionId: event.sessionId,
-            projectSlug,
-            err: err instanceof Error ? err.message : String(err),
-          },
-          'policy projection attestation failed',
-        );
-      }
-    }
     let promptRelevantContext: string | null = null;
     const promptText = promptTextFromEvent(event);
     if (
@@ -1066,14 +1022,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
           projectSlug,
           runId,
           workflowPolicy: projectConfig?.workflowPolicy ?? null,
-          policyProjectionContext,
           recentContext,
         })
       : null;
-    const additionalContext =
-      hookEventName === 'ConfigChange'
-        ? (policyProjectionContext ?? undefined)
-        : joinAdditionalContext([sessionContext, promptRelevantContext]);
+    const additionalContext = joinAdditionalContext([sessionContext, promptRelevantContext]);
     const hookOutput = shapeHookOutput(input.agentType, hookEventName, {
       permissionDecision,
       reason,

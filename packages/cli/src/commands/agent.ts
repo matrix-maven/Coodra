@@ -1,7 +1,5 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { buildPolicyProjection, GLOBAL_PROJECT_ID, listProjects, lookupProjectBySlug } from '@coodra/db';
-import { type PolicyProjectionAgent, writePolicyProjectionFiles } from '@coodra/shared';
 import { EXIT_ENVIRONMENT_PROBLEM, EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { antigravityPluginPaths } from '../lib/agents/antigravity-plugin.js';
 import { claudePluginPaths } from '../lib/agents/claude-plugin.js';
@@ -16,12 +14,9 @@ import {
   resolveAgentInput,
   resolveAgentWiringContext,
 } from '../lib/agents/index.js';
-import { resolveCoodraDataDb } from '../lib/coodra-home.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import type { WriteOutcome } from '../lib/init/types.js';
 import { classifyMachineRuntimePath, recordMachineManifest } from '../lib/machine-store/manifest.js';
-import { openLocalDb } from '../lib/open-local-db.js';
-import { classifyGeneratedPath, recordManifestEntries } from '../lib/project-store/index.js';
 import { commandTitle, hintLine, type KvRow, kvBlock, pc, sectionHead, terminalWidth } from '../ui/index.js';
 
 /**
@@ -317,19 +312,6 @@ async function runWire(
     );
   }
 
-  const projectionAgents = results
-    .filter((r) => r.error === undefined && (r.id === 'codex' || r.id === 'claude'))
-    .map((r) => r.id as PolicyProjectionAgent);
-  const projectionOutcome =
-    projectionAgents.length > 0
-      ? await syncPolicyProjectionForAgents({
-          resolved,
-          agents: projectionAgents,
-          dryRun,
-          createdBy: `coodra agent ${mode} ${agentArg}`,
-        })
-      : null;
-
   if (json) {
     io.writeStdout(
       `${JSON.stringify(
@@ -340,7 +322,7 @@ async function runWire(
           mode: resolved.mode,
           dryRun,
           agents: results,
-          ...(projectionOutcome !== null ? { policyProjection: projectionOutcome } : {}),
+          policyProjection: { mode: 'db_runtime_cache', written: [] },
         },
         null,
         2,
@@ -364,14 +346,7 @@ async function runWire(
     }
     if (r.note !== undefined) io.writeStdout(`  ${pc.gray(`→ ${r.note}`)}\n`);
   }
-  if (projectionOutcome !== null) {
-    if (projectionOutcome.written.length > 0) {
-      io.writeStdout(`\n${pc.green('✓')} Policy projection synced for ${projectionOutcome.agents.join(', ')}\n`);
-      for (const path of projectionOutcome.written) io.writeStdout(`  ${pc.gray(path)}\n`);
-    } else if (projectionOutcome.skippedReason !== undefined) {
-      io.writeStdout(`\n${pc.gray('=')} Policy projection skipped: ${projectionOutcome.skippedReason}\n`);
-    }
-  }
+  io.writeStdout(`\n${pc.gray('=')} Policy state is DB-backed at runtime; no agent config policy projection written\n`);
   io.writeStdout(
     `\n${hintLine(
       mode === 'add'
@@ -380,95 +355,6 @@ async function runWire(
     )}\n`,
   );
   return io.exit(EXIT_OK);
-}
-
-async function syncPolicyProjectionForAgents(args: {
-  readonly resolved: Awaited<ReturnType<typeof resolveAgentWiringContext>>;
-  readonly agents: readonly PolicyProjectionAgent[];
-  readonly dryRun: boolean;
-  readonly createdBy: string;
-}): Promise<{ agents: readonly PolicyProjectionAgent[]; written: readonly string[]; skippedReason?: string }> {
-  const uniqueAgents = [...new Set(args.agents)].sort();
-  if (uniqueAgents.length === 0) return { agents: [], written: [] };
-  if (args.dryRun) return { agents: uniqueAgents, written: [], skippedReason: 'dry run' };
-
-  let handle: Awaited<ReturnType<typeof openLocalDb>>;
-  try {
-    handle = await openLocalDb(resolveCoodraDataDb(args.resolved.coodraHome));
-  } catch (err) {
-    return {
-      agents: uniqueAgents,
-      written: [],
-      skippedReason: `local store is not ready; run coodra install/init first (${err instanceof Error ? err.message : String(err)})`,
-    };
-  }
-  try {
-    const project = await lookupProjectBySlug(handle, args.resolved.projectSlug);
-    if (project === null) {
-      return {
-        agents: uniqueAgents,
-        written: [],
-        skippedReason: await describeNoProjectHereReason(handle, args.resolved.projectRoot),
-      };
-    }
-    const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
-    const result = await writePolicyProjectionFiles(args.resolved.projectRoot, projection, { agents: uniqueAgents });
-    const written = [result.codexPath, result.claudePath].filter((path): path is string => path !== undefined);
-    if (written.length > 0) {
-      await recordManifestEntries({
-        root: args.resolved.projectRoot,
-        projectSlug: args.resolved.projectSlug,
-        entries: written.map((path) => classifyGeneratedPath(path, args.resolved.projectRoot, args.createdBy)),
-        dryRun: false,
-      });
-    }
-    return { agents: uniqueAgents, written };
-  } catch (err) {
-    return {
-      agents: uniqueAgents,
-      written: [],
-      skippedReason: `policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  } finally {
-    handle.close();
-  }
-}
-
-const MAX_LISTED_PROJECTS = 5;
-
-/**
- * `coodra agent add` opportunistically syncs the CURRENT directory's policy
- * into the agent config it just wired — but the agent plugin install itself
- * is machine-global, so this command is routinely run from `~` or some other
- * directory that was never `coodra init`-ed. Naming that (often nonsensical)
- * cwd in the skip message, or a bare "run coodra init first" with no
- * indication of where, both read as instructions to init the wrong place.
- * List whatever projects ARE registered so the user can tell at a glance
- * whether this is "nothing registered anywhere yet" vs. "registered, just
- * not here — go there instead."
- */
-async function describeNoProjectHereReason(
-  handle: Awaited<ReturnType<typeof openLocalDb>>,
-  cwd: string,
-): Promise<string> {
-  // Every migrated DB carries the `__global__` sentinel row (F7's
-  // unregistered-cwd audit fallback) — it's never a real project a user
-  // can cd into, so it would be a confusing false positive here.
-  const registered = (await listProjects(handle)).filter((p) => p.id !== GLOBAL_PROJECT_ID);
-  if (registered.length === 0) {
-    return (
-      'no Coodra project registered yet (the agent plugin above is already installed — that part is ' +
-      "machine-global). Run `coodra init` in your project's repo folder, then `coodra agent add` there, to " +
-      'sync its policy.'
-    );
-  }
-  const names = registered.slice(0, MAX_LISTED_PROJECTS).map((p) => p.slug);
-  const more = registered.length > MAX_LISTED_PROJECTS ? `, +${registered.length - MAX_LISTED_PROJECTS} more` : '';
-  return (
-    `not synced — ${cwd} isn't a registered Coodra project. ${registered.length} registered elsewhere: ` +
-    `${names.join(', ')}${more}. cd into one and run \`coodra agent add\` again there, or run \`coodra init\` ` +
-    'here to register this directory.'
-  );
 }
 
 export function runAgentAddCommand(

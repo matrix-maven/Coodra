@@ -161,7 +161,7 @@ function parse(cap: Cap): {
   mcpJson?: { action: string };
   agents: Array<{ id: string; label: string; outcomes: Array<{ path: string; action: string }> }>;
   error?: string;
-  policyProjection?: { agents: readonly string[]; written: readonly string[]; skippedReason?: string };
+  policyProjection?: { mode: string; written: readonly string[] };
 } {
   return JSON.parse(cap.stdout.join(''));
 }
@@ -323,43 +323,12 @@ describe('coodra agent add', () => {
     expect(parse(cap).error).toContain("Unknown agent 'bogus'");
   });
 
-  it('policy projection skip — no project registered anywhere names coodra init, not this (often nonsensical) cwd', async () => {
-    // Mirrors running `coodra agent add` from `~` right after `coodra
-    // install`: the global plugin install always succeeds, but nothing is
-    // registered in the DB yet, so the skip message must not just repeat
-    // an arbitrary cwd back at the user as if it were an instruction.
-    const { openLocalDb } = await import('../../src/lib/open-local-db.js');
-    const { resolveCoodraDataDb } = await import('../../src/lib/coodra-home.js');
-    const { migrateSqlite } = await import('@coodra/db');
-    const handle = await openLocalDb(resolveCoodraDataDb(home), { loadVecExtension: true });
-    migrateSqlite(handle.db);
-    handle.close();
-
+  it('policy projection is DB-runtime only and writes no project agent config', async () => {
     const { io, cap } = makeIO();
     await run(() => runAgentAddCommand('codex', baseOptions(), io));
     const projection = parse(cap).policyProjection;
-    expect(projection?.skippedReason).toContain('no Coodra project registered yet');
-    expect(projection?.skippedReason).toContain('coodra init');
-  });
-
-  it('policy projection skip — other registered projects are named so the user knows where to go instead', async () => {
-    const { openLocalDb } = await import('../../src/lib/open-local-db.js');
-    const { resolveCoodraDataDb } = await import('../../src/lib/coodra-home.js');
-    const { ensureProject, migrateSqlite } = await import('@coodra/db');
-    const handle = await openLocalDb(resolveCoodraDataDb(home), { loadVecExtension: true });
-    migrateSqlite(handle.db);
-    try {
-      await ensureProject(handle, { slug: 'other-registered-project', cwd: '/tmp/other-project' });
-    } finally {
-      handle.close();
-    }
-
-    const { io, cap } = makeIO();
-    await run(() => runAgentAddCommand('codex', baseOptions(), io));
-    const projection = parse(cap).policyProjection;
-    expect(projection?.skippedReason).toContain('other-registered-project');
-    expect(projection?.skippedReason).toContain(cwd);
-    expect(projection?.skippedReason).not.toContain('no Coodra project registered yet');
+    expect(projection).toEqual({ mode: 'db_runtime_cache', written: [] });
+    expect(existsSync(join(cwd, '.codex', 'config.toml'))).toBe(false);
   });
 });
 

@@ -292,6 +292,7 @@ interface CacheEntry {
   readonly exceptions: ReadonlyArray<CompiledException>;
   readonly grants: ReadonlyArray<CompiledGrant>;
   readonly loadedAt: number;
+  readonly revision: string;
 }
 
 const DEFAULTS = {
@@ -799,6 +800,100 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
   };
 }
 
+function normalizeRevisionPart(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+function revisionPart(rows: ReadonlyArray<Record<string, unknown>>): string {
+  const row = rows[0] ?? {};
+  return `${normalizeRevisionPart(row.count)}:${normalizeRevisionPart(row.maxCreatedAt)}:${normalizeRevisionPart(
+    row.maxUpdatedAt,
+  )}:${normalizeRevisionPart(row.maxRevokedAt)}:${normalizeRevisionPart(row.maxRetiredAt)}`;
+}
+
+async function loadPolicyStateRevision(db: DbHandle, projectId: string | null): Promise<string> {
+  if (db.kind === 'sqlite') {
+    const scope = projectId ?? null;
+    const policies = db.raw
+      .prepare(
+        `SELECT COUNT(*) AS count, MAX(created_at) AS maxCreatedAt, MAX(updated_at) AS maxUpdatedAt,
+                NULL AS maxRevokedAt, NULL AS maxRetiredAt
+           FROM policies
+          WHERE (@projectId IS NULL OR project_id IS NULL OR project_id = @projectId)`,
+      )
+      .all({ projectId: scope }) as ReadonlyArray<Record<string, unknown>>;
+    const rules = db.raw
+      .prepare(
+        `SELECT COUNT(*) AS count, MAX(r.created_at) AS maxCreatedAt, MAX(r.updated_at) AS maxUpdatedAt,
+                NULL AS maxRevokedAt, NULL AS maxRetiredAt
+           FROM policy_rules r
+           JOIN policies p ON p.id = r.policy_id
+          WHERE (@projectId IS NULL OR p.project_id IS NULL OR p.project_id = @projectId)`,
+      )
+      .all({ projectId: scope }) as ReadonlyArray<Record<string, unknown>>;
+    const versions = db.raw
+      .prepare(
+        `SELECT COUNT(*) AS count, MAX(created_at) AS maxCreatedAt, NULL AS maxUpdatedAt,
+                NULL AS maxRevokedAt, MAX(retired_at) AS maxRetiredAt
+           FROM policy_versions
+          WHERE (@projectId IS NULL OR project_id IS NULL OR project_id = @projectId)`,
+      )
+      .all({ projectId: scope }) as ReadonlyArray<Record<string, unknown>>;
+    const exceptions = db.raw
+      .prepare(
+        `SELECT COUNT(*) AS count, MAX(created_at) AS maxCreatedAt, MAX(updated_at) AS maxUpdatedAt,
+                MAX(revoked_at) AS maxRevokedAt, NULL AS maxRetiredAt
+           FROM policy_exceptions
+          WHERE (@projectId IS NULL OR project_id IS NULL OR project_id = @projectId)`,
+      )
+      .all({ projectId: scope }) as ReadonlyArray<Record<string, unknown>>;
+    const grants = db.raw
+      .prepare(
+        `SELECT COUNT(*) AS count, MAX(created_at) AS maxCreatedAt, NULL AS maxUpdatedAt,
+                MAX(revoked_at) AS maxRevokedAt, NULL AS maxRetiredAt
+           FROM policy_grants
+          WHERE (@projectId IS NULL OR project_id IS NULL OR project_id = @projectId)`,
+      )
+      .all({ projectId: scope }) as ReadonlyArray<Record<string, unknown>>;
+    return [policies, rules, versions, exceptions, grants].map(revisionPart).join('|');
+  }
+
+  const policies = (await db.raw`
+    SELECT COUNT(*)::text AS count, MAX(created_at) AS "maxCreatedAt", MAX(updated_at) AS "maxUpdatedAt",
+           NULL AS "maxRevokedAt", NULL AS "maxRetiredAt"
+      FROM policies
+     WHERE (${projectId}::text IS NULL OR project_id IS NULL OR project_id = ${projectId})
+  `) as ReadonlyArray<Record<string, unknown>>;
+  const rules = (await db.raw`
+    SELECT COUNT(*)::text AS count, MAX(r.created_at) AS "maxCreatedAt", MAX(r.updated_at) AS "maxUpdatedAt",
+           NULL AS "maxRevokedAt", NULL AS "maxRetiredAt"
+      FROM policy_rules r
+      JOIN policies p ON p.id = r.policy_id
+     WHERE (${projectId}::text IS NULL OR p.project_id IS NULL OR p.project_id = ${projectId})
+  `) as ReadonlyArray<Record<string, unknown>>;
+  const versions = (await db.raw`
+    SELECT COUNT(*)::text AS count, MAX(created_at) AS "maxCreatedAt", NULL AS "maxUpdatedAt",
+           NULL AS "maxRevokedAt", MAX(retired_at) AS "maxRetiredAt"
+      FROM policy_versions
+     WHERE (${projectId}::text IS NULL OR project_id IS NULL OR project_id = ${projectId})
+  `) as ReadonlyArray<Record<string, unknown>>;
+  const exceptions = (await db.raw`
+    SELECT COUNT(*)::text AS count, MAX(created_at) AS "maxCreatedAt", MAX(updated_at) AS "maxUpdatedAt",
+           MAX(revoked_at) AS "maxRevokedAt", NULL AS "maxRetiredAt"
+      FROM policy_exceptions
+     WHERE (${projectId}::text IS NULL OR project_id IS NULL OR project_id = ${projectId})
+  `) as ReadonlyArray<Record<string, unknown>>;
+  const grants = (await db.raw`
+    SELECT COUNT(*)::text AS count, MAX(created_at) AS "maxCreatedAt", NULL AS "maxUpdatedAt",
+           MAX(revoked_at) AS "maxRevokedAt", NULL AS "maxRetiredAt"
+      FROM policy_grants
+     WHERE (${projectId}::text IS NULL OR project_id IS NULL OR project_id = ${projectId})
+  `) as ReadonlyArray<Record<string, unknown>>;
+  return [policies, rules, versions, exceptions, grants].map(revisionPart).join('|');
+}
+
 const FAIL_OPEN_RESULT: PolicyResult = Object.freeze({
   decision: 'allow',
   baseDecision: 'allow',
@@ -860,11 +955,12 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
   async function getPolicyState(projectId: string | null): Promise<LoadedPolicyState> {
     const key = projectId ?? GLOBAL_CACHE_KEY;
     const cached = cache.get(key);
-    if (cached && now() - cached.loadedAt < cacheTtlMs) {
+    const revision = await policy.execute(() => loadPolicyStateRevision(options.db, projectId));
+    if (cached && cached.revision === revision && now() - cached.loadedAt < cacheTtlMs) {
       return { rules: cached.rules, exceptions: cached.exceptions, grants: cached.grants };
     }
     const state = await policy.execute(() => loadPolicyState(options.db, projectId));
-    cache.set(key, { ...state, loadedAt: now() });
+    cache.set(key, { ...state, loadedAt: now(), revision });
     return state;
   }
 

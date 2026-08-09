@@ -1,6 +1,6 @@
 import {
   addPolicyRule,
-  buildPolicyProjection,
+  type ControlRow,
   ensureNativeAdvisoryRules,
   getPolicy,
   getProjectByIdentifier,
@@ -8,7 +8,6 @@ import {
   listPolicies,
   lookupProjectBySlug,
   mapVxiCatalogRows,
-  type ControlRow,
   type PolicyDecisionKind,
   type PolicyRow,
   type PolicyRuleRow,
@@ -16,7 +15,7 @@ import {
   setPolicyActive,
   upsertControls,
 } from '@coodra/db';
-import { readCoodraProjectConfig, writePolicyProjectionFiles } from '@coodra/shared';
+import { readCoodraProjectConfig } from '@coodra/shared';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { openLocalDb } from '../lib/open-local-db.js';
@@ -31,10 +30,10 @@ import { commandTitle, pc, terminalWidth } from '../ui/index.js';
  * `sqlite3 ~/.coodra/data.db "SELECT * FROM policies …"` workflow
  * operators have been using since M02.
  *
- * Cache-staleness note: the bridge's `createPolicyClient` caches
- * policy lookups for 60s. Mutations made via this CLI take up to
- * 60 seconds to be visible to a running bridge. Documented in
- * `spec.md §4.2` for operators who hit the gap.
+ * Cache note: the policy client keeps an in-process cache, but validates it
+ * against a cheap DB revision before each evaluation. Mutations made here are
+ * visible to the next lifecycle/check-policy call without writing agent
+ * config policy projections.
  *
  * Local-only: this surface mutates `~/.coodra/data.db`. No sync
  * to cloud. The cross-developer admin path is M04's surface.
@@ -323,29 +322,23 @@ export async function runPolicySyncCommand(options: PolicySyncOptions, ioOverrid
       'policy sync needs a project. Run inside a Coodra project or pass --project <slug>.',
     );
   }
-  const projectRoot = projectConfig?.root ?? cwd;
   const handle = await openHandle(io);
   try {
     const project = await lookupProjectBySlug(handle, projectSlug);
     if (project === null) {
       return surfaceError(io, json, EXIT_USER_RECOVERABLE, `project slug "${projectSlug}" does not exist`);
     }
-    const root = project.cwd ?? projectRoot;
-    const projection = await buildPolicyProjection(handle, {
-      projectId: project.id,
-      projectSlug: project.slug,
-    });
-    const written = await writePolicyProjectionFiles(root, projection);
     if (json) {
-      io.writeStdout(`${JSON.stringify({ ok: true, project: project.slug, projection, written }, null, 2)}\n`);
+      io.writeStdout(
+        `${JSON.stringify(
+          { ok: true, project: project.slug, policyProjection: { mode: 'db_runtime_cache', written: [] } },
+          null,
+          2,
+        )}\n`,
+      );
     } else {
-      io.writeStdout(`${pc.green('✓')} Synced Coodra policy projection for ${project.slug}.\n`);
-      io.writeStdout(`  hash: ${projection.projectionHash}\n`);
-      if (written.codexPath !== undefined) io.writeStdout(`  Codex:  ${written.codexPath}\n`);
-      if (written.claudePath !== undefined) io.writeStdout(`  Claude: ${written.claudePath}\n`);
-      if (written.codexPath === undefined && written.claudePath === undefined) {
-        io.writeStdout(`  ${pc.dim('No agent policy files were written.')}\n`);
-      }
+      io.writeStdout(`${pc.green('✓')} Policy projection for ${project.slug} is DB-backed at runtime.\n`);
+      io.writeStdout(`  ${pc.dim('No config.toml or settings.json policy projection was written.')}\n`);
     }
     io.exit(EXIT_OK);
   } finally {
@@ -533,22 +526,9 @@ async function syncProjectionBestEffort(
   project: { readonly id: string; readonly slug: string; readonly cwd: string | null },
   io: PolicyIO,
 ): Promise<void> {
-  if (project.cwd === null || project.cwd.length === 0) {
-    io.writeStdout(
-      `  ${pc.dim('Policy projection not written: project has no recorded cwd; run coodra policy sync from the repo.')}\n`,
-    );
-    return;
-  }
-  try {
-    const projection = await buildPolicyProjection(handle, { projectId: project.id, projectSlug: project.slug });
-    const written = await writePolicyProjectionFiles(project.cwd, projection);
-    const paths = [written.codexPath, written.claudePath].filter((path): path is string => path !== undefined);
-    io.writeStdout(`  ${pc.dim(`Policy projection synced: ${paths.join(', ')}`)}\n`);
-  } catch (err) {
-    io.writeStdout(
-      `  ${pc.dim(`Policy projection sync skipped: ${err instanceof Error ? err.message : String(err)}`)}\n`,
-    );
-  }
+  void handle;
+  void project;
+  io.writeStdout(`  ${pc.dim('Policy cache will refresh on the next lifecycle/check-policy call.')}\n`);
 }
 
 interface SerializedPolicy {
@@ -629,7 +609,11 @@ function printPolicyHuman(io: PolicyIO, p: PolicyRow & { readonly rules?: Readon
 
 function summarizeControls(controls: ReadonlyArray<ControlRow>): {
   readonly total: number;
-  readonly byTrack: { readonly native_advisory: number; readonly evidence_attestation: number; readonly external_owner: number };
+  readonly byTrack: {
+    readonly native_advisory: number;
+    readonly evidence_attestation: number;
+    readonly external_owner: number;
+  };
 } {
   const byTrack = { native_advisory: 0, evidence_attestation: 0, external_owner: 0 };
   for (const control of controls) {

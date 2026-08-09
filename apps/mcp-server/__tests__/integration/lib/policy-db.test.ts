@@ -191,6 +191,60 @@ describe('lib/policy — createPolicyClient against real SQLite', () => {
     expect(refreshed.reason).toBe('updated');
   });
 
+  it('reloads a warm cache when a DB grant changes the policy revision', async () => {
+    const policyId = `pol_${randomUUID()}`;
+    const ruleId = `rule_${randomUUID()}`;
+    harness.handle.raw
+      .prepare(`INSERT INTO policies (id, project_id, name, is_active) VALUES (?, ?, ?, 1)`)
+      .run(policyId, harness.projectId, 'grant revision');
+    harness.handle.raw
+      .prepare(
+        `INSERT INTO policy_rules (id, policy_id, priority, match_event_type, match_tool_name,
+          match_path_glob, match_agent_type, decision, reason)
+        VALUES (?, ?, 10, 'PreToolUse', 'Bash', NULL, '*', 'ask', 'ask before shell')`,
+      )
+      .run(ruleId, policyId);
+
+    let tNow = 1_000;
+    const policy = createPolicyClient({
+      db: harness.handle,
+      now: () => tNow,
+      cacheTtlMs: 60_000,
+    });
+
+    const first = await policy.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 's',
+      input: { command: 'git status' },
+      idempotencyKey: { kind: 'readonly', key: 'k' },
+      projectId: harness.projectId,
+    });
+    expect(first.decision).toBe('ask');
+    expect(first.matchedGrantId).toBeNull();
+
+    const grantId = `grant_${randomUUID()}`;
+    harness.handle.raw
+      .prepare(
+        `INSERT INTO policy_grants (id, project_id, scope_type, scope_json, grant_kind,
+          target_rule_id, decision_override, reason)
+         VALUES (?, ?, 'session', ?, 'decision_override', ?, 'allow', 'allow this session')`,
+      )
+      .run(grantId, harness.projectId, JSON.stringify({ sessionId: 's', toolName: 'Bash' }), ruleId);
+
+    tNow += 500;
+    const afterGrant = await policy.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 's',
+      input: { command: 'git status' },
+      idempotencyKey: { kind: 'readonly', key: 'k' },
+      projectId: harness.projectId,
+    });
+    expect(afterGrant.decision).toBe('allow');
+    expect(afterGrant.matchedGrantId).toBe(grantId);
+  });
+
   it('fails open when the DB throws (breaker triggers on consecutive throws)', async () => {
     // Close the DB handle — any subsequent query throws.
     harness.handle.raw.close();
