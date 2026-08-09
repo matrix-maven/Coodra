@@ -1,4 +1,9 @@
 export {
+  type AbandonStaleInProgressRunsInput,
+  type AbandonStaleInProgressRunsResult,
+  abandonStaleInProgressRuns,
+} from './abandon-stale-runs.js';
+export {
   type AutoContextPackInput,
   buildAutoSummary,
   type RunDiffSnapshot,
@@ -19,4 +24,9 @@ export {
   type KillSwitchMatch,
 } from './kill-switch-evaluator.js';
 export { type RunDiffRunnerInput, type RunDiffRunnerResult, runRunDiff } from './run-diff-runner.js';
+export {
+  type StaleRunsSweeperHandle,
+  type StaleRunsSweeperOptions,
+  startStaleRunsSweeper,
+} from './stale-runs-sweeper.js';
 export { updateLinkedWorkPackFromRun } from './work-pack-session-update.js';

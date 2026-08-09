@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
 import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
+import { type StaleRunsSweeperHandle, startStaleRunsSweeper } from '@coodra/lifecycle';
 import { createLogger } from '@coodra/shared';
 
 import { env } from './config/env.js';
@@ -183,6 +184,23 @@ async function main(): Promise<void> {
     httpHandle = await startHttpTransport({ registry, serverName: SERVER_NAME, serverVersion: SERVER_VERSION, env });
   }
 
+  // COOD-62: periodic stale-runs sweep. Gated on `startHttp` — and NOT
+  // on stdio — because stdio is a short-lived per-hook-call subprocess
+  // (`hook-runner.mjs` spawns one, gets its answer, and kills it). A
+  // `setInterval` there would never reach a second tick, while the
+  // boot sweep would re-run on every single hook call. The HTTP
+  // transport is the `coodra start` daemon: exactly one long-lived
+  // process per machine, which is what this needs.
+  //
+  // Before this, the sweep lived only in `apps/hooks-bridge`, which
+  // COOD-53 stopped launching — so runs abandoned by a crash, laptop
+  // sleep, or force-quit stayed `in_progress` forever with nothing to
+  // reap them.
+  let staleRunsSweeper: StaleRunsSweeperHandle | null = null;
+  if (startHttp) {
+    staleRunsSweeper = startStaleRunsSweeper({ db: dbHandle });
+  }
+
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     bootLogger.info({ event: 'shutdown_signal', signal }, 'shutting down');
 
@@ -198,6 +216,21 @@ async function main(): Promise<void> {
         { event: 'shutdown_error', subsystem: 'outbox', err: err instanceof Error ? err.message : String(err) },
         'outbox worker stop threw',
       );
+    }
+
+    // Stop the sweeper before the DB closes — `stop()` awaits any
+    // in-flight sweep so a partially-applied UPDATE can't race the
+    // connection teardown.
+    if (staleRunsSweeper) {
+      try {
+        await staleRunsSweeper.stop();
+        bootLogger.info({ event: 'stale_runs_sweeper_stopped' }, 'stale-runs sweeper stopped');
+      } catch (err) {
+        bootLogger.error(
+          { event: 'shutdown_error', subsystem: 'stale_runs_sweeper', err: err instanceof Error ? err.message : String(err) },
+          'stale-runs sweeper stop threw',
+        );
+      }
     }
 
     if (httpHandle) {

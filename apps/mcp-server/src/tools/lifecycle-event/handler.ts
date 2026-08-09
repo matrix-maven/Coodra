@@ -12,6 +12,7 @@ import {
   updateRunActiveCapabilities,
 } from '@coodra/db';
 import {
+  abandonStaleInProgressRuns,
   captureBaseSha,
   createKillSwitchEvaluator,
   finalizeRunOnSessionEnd,
@@ -1128,6 +1129,46 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
             err: err instanceof Error ? err.message : String(err),
           },
           'base-sha capture threw; SessionEnd run-diff runner will land error=no_base_sha',
+        );
+      }
+    }
+
+    // COOD-62: abandon this project's prior stuck `in_progress` runs
+    // when a new session opens. Bridge-only until now, so since COOD-53
+    // nothing swept them on the native path. Complements the periodic
+    // sweeper in the mcp-server daemon (`src/index.ts`): that one is
+    // global but only runs on the long-lived HTTP process, while this
+    // is project-scoped and works even for stdio-only installs.
+    //
+    // AWAITED, unlike the bridge's `void abandonStaleInProgressRuns(...)`
+    // — same reason `finalizeRunOnSessionEnd` is awaited above:
+    // `hook-runner.mjs` is a short-lived subprocess killed right after
+    // the hook response, so fire-and-forget work would simply never run
+    // for stdio-spawned agents. The helper already spares LIVE runs via
+    // its recent-run_events guard, so a second terminal on the same
+    // project is not insta-abandoned. Errors are logged and swallowed:
+    // orphan cleanup is noise, not load-bearing.
+    if (isSessionStartEquivalent && projectSlug !== null) {
+      try {
+        const abandonProject = await lookupProjectBySlug(deps.db, projectSlug);
+        if (abandonProject !== null) {
+          await abandonStaleInProgressRuns({
+            db: deps.db,
+            projectId: abandonProject.id,
+            excludeSessionId: event.sessionId,
+          });
+        }
+      } catch (err) {
+        logger.warn(
+          {
+            event: 'native_plugin_abandon_stale_runs_failed',
+            agentType: input.agentType,
+            sessionId: event.sessionId,
+            projectSlug,
+            runId,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'stale-run abandon threw; SessionStart unaffected',
         );
       }
     }
