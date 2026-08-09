@@ -66,6 +66,7 @@ export interface PolicyDecisionRow {
   readonly permissionDecision: string;
   readonly matchedRuleId: string | null;
   readonly reason: string;
+  readonly matchedGrantId: string | null;
   readonly createdAt: Date;
 }
 
@@ -547,6 +548,7 @@ interface RawPolicyDecisionRow {
   toolName: string;
   permissionDecision: string;
   matchedRuleId: string | null;
+  matchedGrantId: string | null;
   reason: string;
   createdAt: Date;
 }
@@ -623,6 +625,7 @@ function toPolicyDecisionRow(r: unknown): PolicyDecisionRow {
     toolName: row.toolName,
     permissionDecision: row.permissionDecision,
     matchedRuleId: row.matchedRuleId,
+    matchedGrantId: row.matchedGrantId,
     reason: row.reason,
     createdAt: row.createdAt,
   };

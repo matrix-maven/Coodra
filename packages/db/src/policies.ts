@@ -174,6 +174,8 @@ function defaultRuleEnforcementMode(decision: PolicyDecisionKind): PolicyEnforce
 
 export type PolicyVersionStatus = 'draft' | 'active' | 'retired';
 export type PolicyExceptionStatus = 'requested' | 'active' | 'expired' | 'revoked' | 'rejected';
+export type PolicyGrantKind = 'decision_override' | 'capability_activation';
+export type PolicyGrantScopeType = 'once' | 'similar_task' | 'session' | 'project' | 'work_pack' | 'path' | 'tool';
 export type PolicyExceptionScopeType =
   | 'org'
   | 'project'
@@ -226,6 +228,27 @@ export interface PolicyExceptionRow {
   readonly revokedByUserId: string | null;
 }
 
+export interface PolicyGrantRow {
+  readonly id: string;
+  readonly orgId: string | null;
+  readonly projectId: string | null;
+  readonly runId: string | null;
+  readonly scopeType: PolicyGrantScopeType;
+  readonly scopeJson: string;
+  readonly grantKind: PolicyGrantKind;
+  readonly targetRuleId: string | null;
+  readonly targetCapability: string | null;
+  readonly grantFingerprint: string | null;
+  readonly decisionOverride: PolicyDecisionKind | null;
+  readonly sourcePolicyDecisionId: string | null;
+  readonly reason: string;
+  readonly createdByUserId: string | null;
+  readonly approvedByUserId: string | null;
+  readonly expiresAt: Date | null;
+  readonly revokedAt: Date | null;
+  readonly createdAt: Date;
+}
+
 function toPolicyVersionRow(row: typeof sqliteSchema.policyVersions.$inferSelect): PolicyVersionRow {
   return {
     id: row.id,
@@ -268,6 +291,29 @@ function toPolicyExceptionRow(row: typeof sqliteSchema.policyExceptions.$inferSe
     updatedAt: row.updatedAt,
     revokedAt: row.revokedAt,
     revokedByUserId: row.revokedByUserId,
+  };
+}
+
+function toPolicyGrantRow(row: typeof sqliteSchema.policyGrants.$inferSelect): PolicyGrantRow {
+  return {
+    id: row.id,
+    orgId: row.orgId,
+    projectId: row.projectId,
+    runId: row.runId,
+    scopeType: row.scopeType as PolicyGrantScopeType,
+    scopeJson: row.scopeJson,
+    grantKind: row.grantKind as PolicyGrantKind,
+    targetRuleId: row.targetRuleId,
+    targetCapability: row.targetCapability,
+    grantFingerprint: row.grantFingerprint,
+    decisionOverride: row.decisionOverride as PolicyDecisionKind | null,
+    sourcePolicyDecisionId: row.sourcePolicyDecisionId,
+    reason: row.reason,
+    createdByUserId: row.createdByUserId,
+    approvedByUserId: row.approvedByUserId,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt,
+    createdAt: row.createdAt,
   };
 }
 
@@ -1084,4 +1130,150 @@ export async function listPolicyExceptions(
       ? await db.db.select().from(t).orderBy(desc(t.createdAt))
       : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt));
   return rows.map((row) => toPolicyExceptionRow(row as typeof sqliteSchema.policyExceptions.$inferSelect));
+}
+
+export interface CreatePolicyGrantArgs {
+  readonly projectId?: string | null;
+  readonly runId?: string | null;
+  readonly scopeType: PolicyGrantScopeType;
+  readonly scopeJson?: string;
+  readonly grantKind: PolicyGrantKind;
+  readonly targetRuleId?: string | null;
+  readonly targetCapability?: string | null;
+  readonly grantFingerprint?: string | null;
+  readonly decisionOverride?: PolicyDecisionKind | null;
+  readonly sourcePolicyDecisionId?: string | null;
+  readonly reason: string;
+  readonly createdByUserId?: string | null;
+  readonly approvedByUserId?: string | null;
+  readonly expiresAt?: Date | null;
+}
+
+export async function createPolicyGrant(db: DbHandle, args: CreatePolicyGrantArgs): Promise<PolicyGrantRow> {
+  const row = {
+    id: randomUUID(),
+    projectId: args.projectId ?? null,
+    runId: args.runId ?? null,
+    scopeType: args.scopeType,
+    scopeJson: args.scopeJson ?? '{}',
+    grantKind: args.grantKind,
+    targetRuleId: args.targetRuleId ?? null,
+    targetCapability: args.targetCapability ?? null,
+    grantFingerprint: args.grantFingerprint ?? null,
+    decisionOverride: args.decisionOverride ?? null,
+    sourcePolicyDecisionId: args.sourcePolicyDecisionId ?? null,
+    reason: args.reason,
+    createdByUserId: args.createdByUserId ?? null,
+    approvedByUserId: args.approvedByUserId ?? null,
+    expiresAt: args.expiresAt ?? null,
+  };
+  if (db.kind === 'sqlite') {
+    await db.db.insert(sqliteSchema.policyGrants).values(row);
+    const rows = await db.db
+      .select()
+      .from(sqliteSchema.policyGrants)
+      .where(eq(sqliteSchema.policyGrants.id, row.id))
+      .limit(1);
+    const inserted = rows[0];
+    if (inserted === undefined) throw new Error('createPolicyGrant: inserted row not found');
+    await insertAuditEvent(db, {
+      projectId: inserted.projectId,
+      runId: inserted.runId,
+      actorUserId: inserted.approvedByUserId ?? inserted.createdByUserId,
+      eventType: 'policy.grant.created',
+      subjectTable: 'policy_grants',
+      subjectId: inserted.id,
+      action: 'create',
+      reason: inserted.reason,
+      metadata: {
+        scopeType: inserted.scopeType,
+        grantKind: inserted.grantKind,
+        targetRuleId: inserted.targetRuleId,
+        targetCapability: inserted.targetCapability,
+        decisionOverride: inserted.decisionOverride,
+      },
+    });
+    return toPolicyGrantRow(inserted);
+  }
+  const inserted = await db.db.insert(postgresSchema.policyGrants).values(row).returning();
+  const out = inserted[0];
+  if (out === undefined) throw new Error('createPolicyGrant: insert returned no row');
+  await insertAuditEvent(db, {
+    projectId: out.projectId,
+    runId: out.runId,
+    actorUserId: out.approvedByUserId ?? out.createdByUserId,
+    eventType: 'policy.grant.created',
+    subjectTable: 'policy_grants',
+    subjectId: out.id,
+    action: 'create',
+    reason: out.reason,
+    metadata: {
+      scopeType: out.scopeType,
+      grantKind: out.grantKind,
+      targetRuleId: out.targetRuleId,
+      targetCapability: out.targetCapability,
+      decisionOverride: out.decisionOverride,
+    },
+  });
+  return toPolicyGrantRow(out as typeof sqliteSchema.policyGrants.$inferSelect);
+}
+
+export async function listPolicyGrants(db: DbHandle, projectId: string | null = null): Promise<PolicyGrantRow[]> {
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.policyGrants;
+    const rows =
+      projectId === null
+        ? await db.db.select().from(t).orderBy(desc(t.createdAt))
+        : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt));
+    return rows.map(toPolicyGrantRow);
+  }
+  const t = postgresSchema.policyGrants;
+  const rows =
+    projectId === null
+      ? await db.db.select().from(t).orderBy(desc(t.createdAt))
+      : await db.db.select().from(t).where(eq(t.projectId, projectId)).orderBy(desc(t.createdAt));
+  return rows.map((row) => toPolicyGrantRow(row as typeof sqliteSchema.policyGrants.$inferSelect));
+}
+
+export async function revokePolicyGrant(
+  db: DbHandle,
+  grantId: string,
+  actorUserId: string | null = null,
+): Promise<PolicyGrantRow | null> {
+  const now = new Date();
+  if (db.kind === 'sqlite') {
+    const t = sqliteSchema.policyGrants;
+    await db.db.update(t).set({ revokedAt: now }).where(eq(t.id, grantId));
+    const rows = await db.db.select().from(t).where(eq(t.id, grantId)).limit(1);
+    const row = rows[0];
+    if (row === undefined) return null;
+    await insertAuditEvent(db, {
+      projectId: row.projectId,
+      runId: row.runId,
+      actorUserId,
+      eventType: 'policy.grant.revoked',
+      subjectTable: 'policy_grants',
+      subjectId: row.id,
+      action: 'revoke',
+      reason: row.reason,
+      metadata: { grantKind: row.grantKind, scopeType: row.scopeType },
+    });
+    return toPolicyGrantRow(row);
+  }
+  const t = postgresSchema.policyGrants;
+  const rows = await db.db.update(t).set({ revokedAt: now }).where(eq(t.id, grantId)).returning();
+  const row = rows[0];
+  if (row === undefined) return null;
+  await insertAuditEvent(db, {
+    projectId: row.projectId,
+    runId: row.runId,
+    actorUserId,
+    eventType: 'policy.grant.revoked',
+    subjectTable: 'policy_grants',
+    subjectId: row.id,
+    action: 'revoke',
+    reason: row.reason,
+    metadata: { grantKind: row.grantKind, scopeType: row.scopeType },
+  });
+  return toPolicyGrantRow(row as typeof sqliteSchema.policyGrants.$inferSelect);
 }

@@ -56,6 +56,7 @@ export interface PolicyResult {
   readonly matchedRuleId: string | null;
   readonly matchedCapability?: string | null;
   readonly matchedExceptionId?: string | null;
+  readonly matchedGrantId?: string | null;
   readonly policyVersionId?: string | null;
 }
 
@@ -89,6 +90,7 @@ export interface PolicyClient {
     matchedRuleId: string | null;
     matchedCapability?: string | null;
     matchedExceptionId?: string | null;
+    matchedGrantId?: string | null;
     policyVersionId?: string | null;
   }>;
 }

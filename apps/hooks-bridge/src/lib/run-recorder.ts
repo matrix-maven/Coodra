@@ -142,6 +142,7 @@ export interface RunRecorder {
     readonly matchedRuleId: string | null;
     readonly policyVersionId?: string | null;
     readonly matchedExceptionId?: string | null;
+    readonly matchedGrantId?: string | null;
     readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
     readonly governanceVerdict?: 'pass' | 'record' | 'advise' | 'warn' | 'confirm' | 'escalate' | 'block' | null;
     readonly activeCapabilitiesJson?: string | null;
@@ -504,6 +505,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       matchedRuleId,
       policyVersionId,
       matchedExceptionId,
+      matchedGrantId,
       baseDecision,
       governanceVerdict,
       activeCapabilitiesJson,
@@ -522,7 +524,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         sessionId: event.sessionId,
         projectId: effectiveProjectId,
       };
-      const payload: PolicyDecisionPayloadV1 = {
+      const payload: PolicyDecisionPayloadV1 & { readonly matchedGrantId?: string | null } = {
         v: 1,
         resolution,
         projectId: effectiveProjectId,
@@ -539,6 +541,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
         policyVersionId: policyVersionId ?? null,
         matchedRuleId,
         matchedExceptionId: matchedExceptionId ?? null,
+        matchedGrantId: matchedGrantId ?? null,
         baseDecision: baseDecision ?? decision,
         effectiveDecision: decision,
         askOutcome: decision === 'ask' ? 'unresolved' : null,

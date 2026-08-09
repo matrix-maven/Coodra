@@ -298,6 +298,35 @@ export const policyExceptions = pgTable(
   ],
 );
 
+export const policyGrants = pgTable(
+  'policy_grants',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id),
+    scopeType: text('scope_type').notNull(),
+    scopeJson: text('scope_json').notNull().default('{}'),
+    grantKind: text('grant_kind').notNull(),
+    targetRuleId: text('target_rule_id').references(() => policyRules.id),
+    targetCapability: text('target_capability'),
+    grantFingerprint: text('grant_fingerprint'),
+    decisionOverride: text('decision_override'),
+    sourcePolicyDecisionId: text('source_policy_decision_id'),
+    reason: text('reason').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    approvedByUserId: text('approved_by_user_id'),
+    expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date' }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('policy_grants_active_idx').on(t.projectId, t.grantKind, t.expiresAt, t.revokedAt),
+    index('policy_grants_target_idx').on(t.targetRuleId, t.targetCapability),
+    index('policy_grants_run_idx').on(t.runId, t.scopeType),
+  ],
+);
+
 export const policyDecisions = pgTable(
   'policy_decisions',
   {
@@ -320,6 +349,7 @@ export const policyDecisions = pgTable(
     policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
     matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
+    matchedGrantId: text('matched_grant_id').references(() => policyGrants.id),
     baseDecision: text('base_decision'),
     effectiveDecision: text('effective_decision'),
     reason: text('reason').notNull(),

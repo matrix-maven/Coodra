@@ -47,6 +47,7 @@ const tablePairs = [
   ['policy_rules', sq.policyRules, pg.policyRules],
   ['policy_versions', sq.policyVersions, pg.policyVersions],
   ['policy_exceptions', sq.policyExceptions, pg.policyExceptions],
+  ['policy_grants', sq.policyGrants, pg.policyGrants],
   ['policy_decisions', sq.policyDecisions, pg.policyDecisions],
   ['integration_connections', sq.integrationConnections, pg.integrationConnections],
   ['external_work_items', sq.externalWorkItems, pg.externalWorkItems],

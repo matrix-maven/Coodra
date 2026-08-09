@@ -319,6 +319,7 @@ function serializeRunWithEverything(r: RunWithEverything): {
       toolName: p.toolName,
       permissionDecision: p.permissionDecision,
       matchedRuleId: p.matchedRuleId,
+      matchedGrantId: p.matchedGrantId,
       reason: p.reason,
       createdAt: p.createdAt.toISOString(),
     })),

@@ -296,6 +296,7 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         matchedRuleId: result.matchedRuleId,
         policyVersionId: result.policyVersionId ?? null,
         matchedExceptionId: result.matchedExceptionId ?? null,
+        matchedGrantId: result.matchedGrantId ?? null,
         baseDecision: result.baseDecision ?? result.decision,
         governanceVerdict: result.governanceVerdict ?? null,
         activeCapabilitiesJson: serializeRunCapabilities(activeCapabilities),

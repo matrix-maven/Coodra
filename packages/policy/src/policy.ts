@@ -164,6 +164,7 @@ export function createPolicyClientFromCheck(check: PolicyCheck): PolicyClient {
         ...(out.governanceVerdict !== undefined ? { governanceVerdict: out.governanceVerdict } : {}),
         ...(out.enforcementMode !== undefined ? { enforcementMode: out.enforcementMode } : {}),
         ...(out.matchedExceptionId !== undefined ? { matchedExceptionId: out.matchedExceptionId } : {}),
+        ...(out.matchedGrantId !== undefined ? { matchedGrantId: out.matchedGrantId } : {}),
         ...(out.policyVersionId !== undefined ? { policyVersionId: out.policyVersionId } : {}),
       };
     },
@@ -250,9 +251,26 @@ interface CompiledException {
   readonly expiresAt: Date | null;
 }
 
+interface CompiledGrant {
+  readonly id: string;
+  readonly projectId: string | null;
+  readonly runId: string | null;
+  readonly scopeType: string;
+  readonly scope: Record<string, unknown>;
+  readonly grantKind: string;
+  readonly targetRuleId: string | null;
+  readonly targetCapability: string | null;
+  readonly grantFingerprint: string | null;
+  readonly decisionOverride: 'allow' | 'deny' | 'ask' | null;
+  readonly reason: string;
+  readonly expiresAt: Date | null;
+  readonly revokedAt: Date | null;
+}
+
 interface CacheEntry {
   readonly rules: ReadonlyArray<CompiledRule>;
   readonly exceptions: ReadonlyArray<CompiledException>;
+  readonly grants: ReadonlyArray<CompiledGrant>;
   readonly loadedAt: number;
 }
 
@@ -411,6 +429,54 @@ function compileException(row: {
   };
 }
 
+function compileGrant(row: {
+  id: string;
+  projectId: string | null;
+  runId: string | null;
+  scopeType: string;
+  scopeJson: string;
+  grantKind: string;
+  targetRuleId: string | null;
+  targetCapability: string | null;
+  grantFingerprint: string | null;
+  decisionOverride: string | null;
+  reason: string;
+  expiresAt: Date | null;
+  revokedAt: Date | null;
+}): CompiledGrant {
+  let scope: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(row.scopeJson);
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      scope = parsed as Record<string, unknown>;
+    }
+  } catch {
+    scope = {};
+  }
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    runId: row.runId,
+    scopeType: row.scopeType,
+    scope,
+    grantKind: row.grantKind,
+    targetRuleId: row.targetRuleId,
+    targetCapability: normalizeCapability(row.targetCapability),
+    grantFingerprint: row.grantFingerprint,
+    decisionOverride:
+      row.decisionOverride === 'deny'
+        ? 'deny'
+        : row.decisionOverride === 'ask'
+          ? 'ask'
+          : row.decisionOverride === 'allow'
+            ? 'allow'
+            : null,
+    reason: row.reason,
+    expiresAt: row.expiresAt,
+    revokedAt: row.revokedAt,
+  };
+}
+
 function toolNameMatches(rule: CompiledRule, toolName: string): boolean {
   if (rule.matchToolName === '*') return true;
   if (rule.matchToolName === toolName) return true;
@@ -522,9 +588,54 @@ function applyException(
   return null;
 }
 
+function grantMatches(
+  grant: CompiledGrant,
+  rule: CompiledRule,
+  input: Pick<PolicyInput, 'sessionId' | 'toolName' | 'input' | 'activeCapabilities'>,
+  now: Date,
+): boolean {
+  if (grant.grantKind !== 'decision_override') return false;
+  if (grant.decisionOverride === null) return false;
+  if (grant.revokedAt !== null) return false;
+  if (grant.expiresAt !== null && grant.expiresAt < now) return false;
+  if (grant.targetRuleId !== null && grant.targetRuleId !== rule.id) return false;
+  if (grant.targetCapability !== null && !(input.activeCapabilities ?? []).includes(grant.targetCapability)) {
+    return false;
+  }
+
+  const sessionId = grant.scope.sessionId;
+  if (typeof sessionId === 'string' && sessionId.length > 0 && sessionId !== input.sessionId) return false;
+  const toolName = grant.scope.toolName;
+  if (typeof toolName === 'string' && toolName.length > 0 && toolName !== input.toolName) return false;
+  const pathGlob = grant.scope.pathGlob;
+  if (typeof pathGlob === 'string' && pathGlob.length > 0) {
+    const path = extractPath(input.input);
+    if (path.length === 0 || !picomatch(pathGlob, { dot: false, nobrace: true })(path)) return false;
+  }
+  const commandPattern = grant.scope.commandPattern;
+  if (typeof commandPattern === 'string' && commandPattern.length > 0) {
+    const command = extractCommand(input.input);
+    if (command.length === 0 || !picomatch(commandPattern, { dot: true, nobrace: true })(command)) return false;
+  }
+  return true;
+}
+
+function applyGrant(
+  grants: ReadonlyArray<CompiledGrant>,
+  rule: CompiledRule,
+  input: Pick<PolicyInput, 'sessionId' | 'toolName' | 'input' | 'activeCapabilities'>,
+  now: Date,
+): CompiledGrant | null {
+  for (const grant of grants) {
+    if (grantMatches(grant, rule, input, now)) return grant;
+  }
+  return null;
+}
+
 interface LoadedPolicyState {
   readonly rules: ReadonlyArray<CompiledRule>;
   readonly exceptions: ReadonlyArray<CompiledException>;
+  readonly grants: ReadonlyArray<CompiledGrant>;
 }
 
 async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<LoadedPolicyState> {
@@ -577,9 +688,22 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
             ),
       )
       .orderBy(desc(sqliteSchema.policyExceptions.createdAt));
+    const grants = await db.db
+      .select()
+      .from(sqliteSchema.policyGrants)
+      .where(
+        projectId === null
+          ? isNull(sqliteSchema.policyGrants.revokedAt)
+          : and(
+              isNull(sqliteSchema.policyGrants.revokedAt),
+              or(isNull(sqliteSchema.policyGrants.projectId), eq(sqliteSchema.policyGrants.projectId, projectId)),
+            ),
+      )
+      .orderBy(desc(sqliteSchema.policyGrants.createdAt));
     return {
       rules: rows.map((row) => ({ ...compileRule(row), policyVersionId: row.policyVersionId })),
       exceptions: exceptions.map(compileException),
+      grants: grants.map(compileGrant),
     };
   }
   const where =
@@ -630,9 +754,22 @@ async function loadPolicyState(db: DbHandle, projectId: string | null): Promise<
           ),
     )
     .orderBy(desc(postgresSchema.policyExceptions.createdAt));
+  const grants = await db.db
+    .select()
+    .from(postgresSchema.policyGrants)
+    .where(
+      projectId === null
+        ? isNull(postgresSchema.policyGrants.revokedAt)
+        : and(
+            isNull(postgresSchema.policyGrants.revokedAt),
+            or(isNull(postgresSchema.policyGrants.projectId), eq(postgresSchema.policyGrants.projectId, projectId)),
+          ),
+    )
+    .orderBy(desc(postgresSchema.policyGrants.createdAt));
   return {
     rules: rows.map((row) => ({ ...compileRule(row), policyVersionId: row.policyVersionId })),
     exceptions: exceptions.map(compileException),
+    grants: grants.map(compileGrant),
   };
 }
 
@@ -644,6 +781,7 @@ const FAIL_OPEN_RESULT: PolicyResult = Object.freeze({
   reason: 'policy_check_unavailable',
   matchedRuleId: null,
   matchedExceptionId: null,
+  matchedGrantId: null,
   policyVersionId: null,
 });
 
@@ -697,7 +835,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
     const key = projectId ?? GLOBAL_CACHE_KEY;
     const cached = cache.get(key);
     if (cached && now() - cached.loadedAt < cacheTtlMs) {
-      return { rules: cached.rules, exceptions: cached.exceptions };
+      return { rules: cached.rules, exceptions: cached.exceptions, grants: cached.grants };
     }
     const state = await policy.execute(() => loadPolicyState(options.db, projectId));
     cache.set(key, { ...state, loadedAt: now() });
@@ -759,6 +897,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
             reason: exception.reason,
             matchedRuleId: null,
             matchedExceptionId: exception.id,
+            matchedGrantId: null,
             policyVersionId: exception.policyVersionId ?? null,
           };
         }
@@ -770,6 +909,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
           reason: 'no_rule_matched',
           matchedRuleId: null,
           matchedExceptionId: null,
+          matchedGrantId: null,
           policyVersionId: null,
         };
       }
@@ -786,7 +926,26 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
             matchedRuleId: matched.id,
             matchedCapability: matched.requiredCapability,
             matchedExceptionId: exception.id,
+            matchedGrantId: null,
             policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
+          };
+      }
+      const grant =
+        baseDecision === 'ask' || (baseDecision === 'allow' && matched.enforcementMode === 'approval')
+          ? applyGrant(state.grants, matched, input, new Date(now()))
+          : null;
+      if (grant !== null && grant.decisionOverride !== null) {
+        return {
+          decision: grant.decisionOverride,
+          baseDecision,
+          governanceVerdict: matched.governanceVerdict,
+          enforcementMode: matched.enforcementMode,
+          reason: grant.reason,
+          matchedRuleId: matched.id,
+          matchedCapability: matched.requiredCapability,
+          matchedExceptionId: null,
+          matchedGrantId: grant.id,
+          policyVersionId: matched.policyVersionId ?? null,
         };
       }
 
@@ -799,6 +958,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         matchedRuleId: matched.id,
         matchedCapability: matched.requiredCapability,
         matchedExceptionId: null,
+        matchedGrantId: null,
         policyVersionId: matched.policyVersionId ?? null,
       };
     },
@@ -833,6 +993,7 @@ export interface RecordPolicyDecisionArgs {
   readonly reason: string;
   readonly matchedRuleId: string | null;
   readonly matchedExceptionId?: string | null;
+  readonly matchedGrantId?: string | null;
   readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
   readonly effectiveDecision?: 'allow' | 'deny' | 'ask' | null;
   readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
@@ -893,6 +1054,7 @@ export async function recordPolicyDecision(
     policyVersionId: args.policyVersionId ?? null,
     matchedRuleId: args.matchedRuleId,
     matchedExceptionId: args.matchedExceptionId ?? null,
+    matchedGrantId: args.matchedGrantId ?? null,
     baseDecision: args.baseDecision ?? args.permissionDecision,
     effectiveDecision: args.effectiveDecision ?? args.permissionDecision,
     reason: args.reason,

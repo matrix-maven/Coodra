@@ -357,6 +357,35 @@ export const policyExceptions = sqliteTable(
   ],
 );
 
+export const policyGrants = sqliteTable(
+  'policy_grants',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id),
+    scopeType: text('scope_type').notNull(),
+    scopeJson: text('scope_json').notNull().default('{}'),
+    grantKind: text('grant_kind').notNull(),
+    targetRuleId: text('target_rule_id').references(() => policyRules.id),
+    targetCapability: text('target_capability'),
+    grantFingerprint: text('grant_fingerprint'),
+    decisionOverride: text('decision_override'),
+    sourcePolicyDecisionId: text('source_policy_decision_id'),
+    reason: text('reason').notNull(),
+    createdByUserId: text('created_by_user_id'),
+    approvedByUserId: text('approved_by_user_id'),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    index('policy_grants_active_idx').on(t.projectId, t.grantKind, t.expiresAt, t.revokedAt),
+    index('policy_grants_target_idx').on(t.targetRuleId, t.targetCapability),
+    index('policy_grants_run_idx').on(t.runId, t.scopeType),
+  ],
+);
+
 export const policyDecisions = sqliteTable(
   'policy_decisions',
   {
@@ -379,6 +408,7 @@ export const policyDecisions = sqliteTable(
     policyVersionId: text('policy_version_id').references(() => policyVersions.id),
     matchedRuleId: text('matched_rule_id').references(() => policyRules.id),
     matchedExceptionId: text('matched_exception_id').references(() => policyExceptions.id),
+    matchedGrantId: text('matched_grant_id').references(() => policyGrants.id),
     baseDecision: text('base_decision'),
     effectiveDecision: text('effective_decision'),
     reason: text('reason').notNull(),

@@ -70,6 +70,7 @@ export interface PolicyDecisionPayloadV1 {
   readonly policyVersionId?: string | null;
   readonly matchedRuleId: string | null;
   readonly matchedExceptionId?: string | null;
+  readonly matchedGrantId?: string | null;
   readonly baseDecision?: 'allow' | 'deny' | 'ask' | null;
   readonly effectiveDecision?: 'allow' | 'deny' | 'ask' | null;
   readonly askOutcome?: 'approved' | 'not_executed' | 'unresolved' | null;
@@ -230,6 +231,8 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             payload.matchedExceptionId === null || typeof payload.matchedExceptionId === 'string'
               ? payload.matchedExceptionId
               : null;
+          const matchedGrantId =
+            payload.matchedGrantId === null || typeof payload.matchedGrantId === 'string' ? payload.matchedGrantId : null;
           const baseDecision =
             payload.baseDecision === 'allow' || payload.baseDecision === 'deny' || payload.baseDecision === 'ask'
               ? payload.baseDecision
@@ -301,6 +304,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             reason,
             matchedRuleId,
             matchedExceptionId,
+            matchedGrantId,
             baseDecision: baseDecision as 'allow' | 'deny' | 'ask',
             effectiveDecision: effectiveDecision as 'allow' | 'deny' | 'ask',
             askOutcome,

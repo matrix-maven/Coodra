@@ -170,7 +170,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
     // `pd:{sessionId}:{toolUseId}:{toolName}:{eventType}` key)
     // dedupes retries.
     const resolution: RunIdResolution = { kind: 'pre_resolved', runId: input.runId ?? null };
-    const auditPayload: PolicyDecisionPayloadV1 = {
+    const auditPayload: PolicyDecisionPayloadV1 & { readonly matchedGrantId?: string | null } = {
       v: 1,
       resolution,
       projectId,
@@ -184,6 +184,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       policyVersionId: evalResult.policyVersionId ?? null,
       matchedRuleId: evalResult.matchedRuleId,
       matchedExceptionId: evalResult.matchedExceptionId ?? null,
+      matchedGrantId: evalResult.matchedGrantId ?? null,
       baseDecision: evalResult.baseDecision ?? evalResult.decision,
       effectiveDecision: evalResult.decision,
       askOutcome: evalResult.decision === 'ask' ? 'unresolved' : null,

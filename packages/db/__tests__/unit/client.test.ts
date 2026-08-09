@@ -197,6 +197,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'policies',
         'policy_decisions',
         'policy_exceptions',
+        'policy_grants',
         'policy_rules',
         'policy_versions',
         'projects',
@@ -248,10 +249,10 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
                AND name NOT GLOB '*_fts_idx'`,
         )
         .get() as { n: number };
-      // 27 prior tables + 3 new *_fts virtual tables (context_packs_fts,
+      // 28 prior tables + 3 new *_fts virtual tables (context_packs_fts,
       // decisions_fts, work_packs_fts) from 0024_fts_search.sql +
-      // COOD-58 decision_edges = 31.
-      expect(rows.n).toBe(31);
+      // COOD-58 decision_edges = 32.
+      expect(rows.n).toBe(32);
     } finally {
       first.close();
     }

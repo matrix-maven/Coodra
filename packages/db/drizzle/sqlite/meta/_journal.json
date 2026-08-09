@@ -218,6 +218,13 @@
 			"when": 1786275800000,
 			"tag": "0030_policy_decision_model",
 			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "6",
+			"when": 1786275900000,
+			"tag": "0031_policy_grants",
+			"breakpoints": true
 		}
 	]
 }
