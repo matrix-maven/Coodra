@@ -8,7 +8,9 @@ import {
   getActivePolicyVersion,
   listPolicies,
   listPolicyExceptions,
+  listPolicyGrants,
   type PolicyExceptionRow,
+  type PolicyGrantRow,
   type PolicyWithRules,
 } from './policies.js';
 
@@ -33,6 +35,12 @@ function isCurrentlyActiveException(row: PolicyExceptionRow, now: Date): boolean
   return true;
 }
 
+function isCurrentlyActiveGrant(row: PolicyGrantRow, now: Date): boolean {
+  if (row.revokedAt !== null) return false;
+  if (row.expiresAt !== null && row.expiresAt <= now) return false;
+  return true;
+}
+
 export interface BuildPolicyProjectionArgs {
   readonly projectId: string;
   readonly projectSlug?: string | null;
@@ -45,6 +53,7 @@ export async function buildPolicyProjection(db: DbHandle, args: BuildPolicyProje
   const exceptions = (await listPolicyExceptions(db, args.projectId)).filter((row) =>
     isCurrentlyActiveException(row, now),
   );
+  const grants = (await listPolicyGrants(db, args.projectId)).filter((row) => isCurrentlyActiveGrant(row, now));
   const projectionPolicies: Array<PolicyProjection['policies'][number]> = [];
 
   for (const policy of policies) {
@@ -64,6 +73,17 @@ export async function buildPolicyProjection(db: DbHandle, args: BuildPolicyProje
 
   const activeRuleIds = policies.flatMap((policy: PolicyWithRules) => policy.rules.map((rule) => rule.id)).sort();
   const activeExceptionIds = exceptions.map((row) => row.id).sort();
+  const activeGrantIds = grants.map((row) => row.id).sort();
+  const activeCapabilities = [
+    ...new Set(
+      [
+        ...policies.flatMap((policy) =>
+          policy.rules.flatMap((rule) => [rule.requiredCapability, rule.excludedCapability].filter(Boolean)),
+        ),
+        ...grants.map((grant) => grant.targetCapability).filter(Boolean),
+      ] as string[],
+    ),
+  ].sort();
   const policyVersionIds = projectionPolicies
     .map((policy) => policy.activeVersionId)
     .filter((id): id is string => id !== null)
@@ -77,6 +97,8 @@ export async function buildPolicyProjection(db: DbHandle, args: BuildPolicyProje
     policies: [...projectionPolicies].sort((a, b) => a.policyId.localeCompare(b.policyId)),
     activeRuleIds,
     activeExceptionIds,
+    activeGrantIds,
+    activeCapabilities,
     policyVersionIds,
     nativePermissions: {
       claude: buildClaudeNativePermissionsProjection(policies),

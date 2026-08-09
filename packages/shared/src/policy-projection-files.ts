@@ -72,6 +72,8 @@ export interface PolicyProjection {
   readonly policies: readonly PolicyProjectionPolicy[];
   readonly activeRuleIds: readonly string[];
   readonly activeExceptionIds: readonly string[];
+  readonly activeGrantIds: readonly string[];
+  readonly activeCapabilities: readonly string[];
   readonly policyVersionIds: readonly string[];
   readonly nativePermissions?: {
     readonly claude?: ClaudeNativePermissionsProjection;
@@ -144,6 +146,8 @@ export function renderCodexPolicyProjectionBlock(projection: PolicyProjection): 
     `projection_hash = ${jsonString(projection.projectionHash)}`,
     `active_rule_ids = ${tomlStringArray(projection.activeRuleIds)}`,
     `active_exception_ids = ${tomlStringArray(projection.activeExceptionIds)}`,
+    `active_grant_ids = ${tomlStringArray(projection.activeGrantIds)}`,
+    `active_capabilities = ${tomlStringArray(projection.activeCapabilities)}`,
     `policy_version_ids = ${tomlStringArray(projection.policyVersionIds)}`,
     projection.nativePermissions?.claude !== undefined
       ? `claude_native_permissions_hash = ${jsonString(projection.nativePermissions.claude.projectionHash)}`
@@ -164,9 +168,11 @@ function policyProjectionSurface(projection: PolicyProjection) {
     projectId: projection.projectId,
     projectSlug: projection.projectSlug,
     policies: [...projection.policies].sort((a, b) => a.policyId.localeCompare(b.policyId)),
-    activeRuleIds: [...projection.activeRuleIds].sort(),
-    activeExceptionIds: [...projection.activeExceptionIds].sort(),
-    policyVersionIds: [...projection.policyVersionIds].sort(),
+    activeRuleIds: [...(projection.activeRuleIds ?? [])].sort(),
+    activeExceptionIds: [...(projection.activeExceptionIds ?? [])].sort(),
+    activeGrantIds: [...(projection.activeGrantIds ?? [])].sort(),
+    activeCapabilities: [...(projection.activeCapabilities ?? [])].sort(),
+    policyVersionIds: [...(projection.policyVersionIds ?? [])].sort(),
     nativePermissions: projection.nativePermissions,
   } as const;
 }
@@ -229,6 +235,8 @@ function codexProjectionBlockContentHash(raw: string): string | null {
     projectionHash: parseTomlString(block, 'projection_hash'),
     activeRuleIds: parseTomlStringArray(block, 'active_rule_ids'),
     activeExceptionIds: parseTomlStringArray(block, 'active_exception_ids'),
+    activeGrantIds: parseTomlStringArray(block, 'active_grant_ids'),
+    activeCapabilities: parseTomlStringArray(block, 'active_capabilities'),
     policyVersionIds: parseTomlStringArray(block, 'policy_version_ids'),
     claudeNativePermissionsHash: parseTomlString(block, 'claude_native_permissions_hash'),
     codexNativePermissionsHash: parseTomlString(block, 'codex_native_permissions_hash'),
