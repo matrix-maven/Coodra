@@ -74,7 +74,7 @@ describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)
   it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
     // See `boot.test.ts` for the tool count drift log.
-    expect(tools.length).toBe(24);
+    expect(tools.length).toBe(25);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {

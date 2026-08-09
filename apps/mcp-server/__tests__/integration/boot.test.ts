@@ -102,7 +102,9 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     PR/MR at once → 23
     //   COOD-58 (2026-08-09): query_decisions_by_file added for reverse
     //     lookup over decision_edges target_type=file → 24
-    expect(tools.length).toBe(24);
+    //   Work Pack local revision flow (2026-08-09): work_pack_update added
+    //     for partial local edits + local_ahead sync-state tracking → 25
+    expect(tools.length).toBe(25);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

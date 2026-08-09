@@ -20,7 +20,7 @@ export const EMBEDDING_DIM = 384 as const;
 export type EmbeddingDim = typeof EMBEDDING_DIM;
 
 /**
- * Coodra's own `coodra` MCP server's tool names — mirrors the 23
+ * Coodra's own `coodra` MCP server's tool names — mirrors the registrations
  * registrations in `apps/mcp-server/src/tools/index.ts` 1:1. Update this
  * list whenever a tool is added/removed there.
  *
@@ -53,6 +53,7 @@ export const COODRA_MCP_TOOL_NAMES = [
   'get_recipe',
   'get_recipe_file',
   'work_pack_upsert',
+  'work_pack_update',
   'work_pack_status',
   'link_run_to_issue',
   'link_run_to_pr',

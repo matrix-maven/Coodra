@@ -24,6 +24,7 @@ import { createWikiSavePageToolRegistration } from './wiki-save-page/manifest.js
 import { createWikiSaveStructureToolRegistration } from './wiki-save-structure/manifest.js';
 import { createWikiStatusToolRegistration } from './wiki-status/manifest.js';
 import { createWorkPackStatusToolRegistration } from './work-pack-status/manifest.js';
+import { createWorkPackUpdateToolRegistration } from './work-pack-update/manifest.js';
 import { createWorkPackUpsertToolRegistration } from './work-pack-upsert/manifest.js';
 
 /**
@@ -127,6 +128,7 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // implementation artifact. The agent reads/writes Jira through Atlassian
   // Rovo MCP, then persists local state with these tools.
   registry.register(createWorkPackUpsertToolRegistration({ db: deps.db }));
+  registry.register(createWorkPackUpdateToolRegistration({ db: deps.db }));
   registry.register(createWorkPackStatusToolRegistration({ db: deps.db }));
   // COOD-6 (2026-07-29): lifecycle_event is registered near get_run_id above.
   // It brings the count to 21 and lets native Codex plugin hooks call Coodra
