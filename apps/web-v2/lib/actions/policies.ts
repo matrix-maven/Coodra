@@ -75,6 +75,7 @@ const UPDATE_RULE_FORM_SCHEMA = z.object({
   decision: z.enum(['allow', 'deny', 'ask', 'record', 'flag', 'block', 'warn', 'pass']),
   reason: z.string().min(1, 'reason is required'),
   priority: z.string().transform((v) => Number.parseInt(v, 10)),
+  returnTo: z.string().optional(),
 });
 
 const PUBLISH_POLICY_FORM_SCHEMA = z.object({
@@ -233,31 +234,33 @@ export async function updateRuleAction(formData: FormData): Promise<void> {
     decision: formData.get('decision') ?? '',
     reason: formData.get('reason') ?? '',
     priority: formData.get('priority') ?? '',
+    returnTo: formData.get('returnTo') ?? undefined,
   });
+  const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    redirect(`/policies?error=${encodeURIComponent(msg)}`);
+    redirect(withPolicyStatus(returnTo, 'error', msg));
   }
   const args = parsed.data;
   const evaluator = getPolicyEvaluator(args.evaluator);
   if (!Number.isFinite(args.priority)) {
-    redirect('/policies?error=priority_must_be_a_number');
+    redirect(withPolicyStatus(returnTo, 'error', 'priority_must_be_a_number'));
   }
   if (
     evaluator.requiresTool &&
     evaluator.key !== 'bash_command' &&
     (args.matchToolName === undefined || args.matchToolName.trim().length === 0)
   ) {
-    redirect('/policies?error=tool_name_required_for_evaluator');
+    redirect(withPolicyStatus(returnTo, 'error', 'tool_name_required_for_evaluator'));
   }
   if (evaluator.requiresPath && (args.matchPathGlob === undefined || args.matchPathGlob.trim().length === 0)) {
-    redirect('/policies?error=path_glob_required_for_evaluator');
+    redirect(withPolicyStatus(returnTo, 'error', 'path_glob_required_for_evaluator'));
   }
   if (
     evaluator.requiresCommand &&
     (args.matchCommandPattern === undefined || args.matchCommandPattern.trim().length === 0)
   ) {
-    redirect('/policies?error=command_pattern_required_for_evaluator');
+    redirect(withPolicyStatus(returnTo, 'error', 'command_pattern_required_for_evaluator'));
   }
   const matchToolName =
     args.matchToolName !== undefined && args.matchToolName !== ''
@@ -287,12 +290,12 @@ export async function updateRuleAction(formData: FormData): Promise<void> {
       ruleType: evaluator.key,
       details: `${evaluator.label}: ${evaluator.description}`,
     });
-    if (updated === null) redirect('/policies?error=rule_not_found');
+    if (updated === null) redirect(withPolicyStatus(returnTo, 'error', 'rule_not_found'));
     revalidatePath('/policies');
-    redirect(`/policies?toggled=${encodeURIComponent(`rule-${args.ruleId.slice(0, 8)}`)}`);
+    redirect(withPolicyStatus(returnTo, 'toggled', `rule-${args.ruleId.slice(0, 8)}`));
   } catch (err) {
     if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
-    redirect(`/policies?error=${encodeURIComponent((err as Error).message)}`);
+    redirect(withPolicyStatus(returnTo, 'error', (err as Error).message));
   }
 }
 
@@ -306,15 +309,15 @@ export async function publishPolicyVersionAction(formData: FormData): Promise<vo
   const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+    redirect(withPolicyStatus(returnTo, 'error', msg));
   }
   try {
     const version = await publishPolicyVersion(parsed.data.policyId, parsed.data.changeSummary);
     revalidatePath('/policies');
-    redirect(`${returnTo}?toggled=${encodeURIComponent(`version-${version.versionNumber}`)}`);
+    redirect(withPolicyStatus(returnTo, 'toggled', `version-${version.versionNumber}`));
   } catch (err) {
     if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
-    redirect(`${returnTo}?error=${encodeURIComponent((err as Error).message)}`);
+    redirect(withPolicyStatus(returnTo, 'error', (err as Error).message));
   }
 }
 
@@ -372,11 +375,11 @@ export async function updatePolicyExceptionStatusAction(formData: FormData): Pro
   const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+    redirect(withPolicyStatus(returnTo, 'error', msg));
   }
   await updatePolicyExceptionStatus(parsed.data.exceptionId, parsed.data.status);
   revalidatePath('/policies');
-  redirect(`${returnTo}?toggled=${encodeURIComponent(`exception-${parsed.data.status}`)}`);
+  redirect(withPolicyStatus(returnTo, 'toggled', `exception-${parsed.data.status}`));
 }
 
 export async function createPolicyGrantFromDecisionAction(formData: FormData): Promise<void> {
@@ -396,7 +399,7 @@ export async function createPolicyGrantFromDecisionAction(formData: FormData): P
   const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+    redirect(withPolicyStatus(returnTo, 'error', msg));
   }
   const args = parsed.data;
   let toolInput: unknown = {};
@@ -427,10 +430,10 @@ export async function createPolicyGrantFromDecisionAction(formData: FormData): P
       reason: `Approved ${args.scopeType.replace(/_/g, ' ')} from policy decision ${args.decisionId.slice(0, 12)}`,
     });
     revalidatePath('/policies');
-    redirect(`${returnTo}?added=${encodeURIComponent(`grant-${grant.id.slice(0, 8)}`)}`);
+    redirect(withPolicyStatus(returnTo, 'added', `grant-${grant.id.slice(0, 8)}`));
   } catch (err) {
     if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
-    redirect(`${returnTo}?error=${encodeURIComponent((err as Error).message)}`);
+    redirect(withPolicyStatus(returnTo, 'error', (err as Error).message));
   }
 }
 
@@ -443,14 +446,14 @@ export async function revokePolicyGrantAction(formData: FormData): Promise<void>
   const returnTo = parsed.success && parsed.data.returnTo !== undefined ? parsed.data.returnTo : '/policies';
   if (!parsed.success) {
     const msg = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    redirect(`${returnTo}?error=${encodeURIComponent(msg)}`);
+    redirect(withPolicyStatus(returnTo, 'error', msg));
   }
   const revoked = await revokePolicyGrant(parsed.data.grantId);
   revalidatePath('/policies');
   redirect(
     revoked !== null
-      ? `${returnTo}?toggled=${encodeURIComponent(`grant-revoked-${parsed.data.grantId.slice(0, 8)}`)}`
-      : `${returnTo}?error=grant_not_found`,
+      ? withPolicyStatus(returnTo, 'toggled', `grant-revoked-${parsed.data.grantId.slice(0, 8)}`)
+      : withPolicyStatus(returnTo, 'error', 'grant_not_found'),
   );
 }
 
@@ -502,19 +505,24 @@ export async function deleteRuleAction(formData: FormData): Promise<void> {
   const ruleId = String(formData.get('ruleId') ?? '');
   const returnTo = String(formData.get('returnTo') ?? '/policies');
   if (ruleId.length === 0) {
-    redirect(`${returnTo}?error=missing_rule_id`);
+    redirect(withPolicyStatus(returnTo, 'error', 'missing_rule_id'));
   }
   try {
     const deleted = await deletePolicyRule(ruleId);
     revalidatePath('/policies');
     if (deleted) {
-      redirect(`${returnTo}?deleted=${encodeURIComponent(ruleId.slice(0, 12))}`);
+      redirect(withPolicyStatus(returnTo, 'deleted', ruleId.slice(0, 12)));
     }
-    redirect(`${returnTo}?error=rule_not_found`);
+    redirect(withPolicyStatus(returnTo, 'error', 'rule_not_found'));
   } catch (err) {
     if (err instanceof Error && err.message === 'NEXT_REDIRECT') throw err;
-    redirect(`${returnTo}?error=${encodeURIComponent((err as Error).message)}`);
+    redirect(withPolicyStatus(returnTo, 'error', (err as Error).message));
   }
+}
+
+function withPolicyStatus(returnTo: string, key: 'added' | 'deleted' | 'error' | 'toggled', value: string): string {
+  const separator = returnTo.includes('?') ? '&' : '?';
+  return `${returnTo}${separator}${key}=${encodeURIComponent(value)}`;
 }
 
 export async function saveWorkflowPolicyAction(formData: FormData): Promise<void> {

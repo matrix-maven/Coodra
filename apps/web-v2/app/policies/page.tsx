@@ -1,11 +1,11 @@
 import { getPolicyEvaluator, POLICY_EVALUATORS } from '@coodra/shared';
 import Link from 'next/link';
 
+import { RemoveRuleControl } from '@/app/policies/RemoveRuleControl';
 import { Topbar } from '@/components/Topbar';
 import {
   addRuleAction,
   createPolicyGrantFromDecisionAction,
-  deleteRuleAction,
   publishPolicyVersionAction,
   requestPolicyExceptionAction,
   revokePolicyGrantAction,
@@ -280,7 +280,7 @@ export default async function PoliciesPage({
                         </form>
                         <form action={publishPolicyVersionAction} style={{ textAlign: 'right' }}>
                           <input type="hidden" name="policyId" value={policy.id} />
-                          <input type="hidden" name="returnTo" value="/policies" />
+                          <input type="hidden" name="returnTo" value={returnTo} />
                           <input type="hidden" name="changeSummary" value="Published from Policies UI" />
                           <button className="btn" type="submit" title="Create an immutable active version snapshot">
                             Publish version
@@ -294,9 +294,7 @@ export default async function PoliciesPage({
                           return (
                             <div key={rule.id} style={{ borderTop: '1px solid var(--rule)' }}>
                               <div className="policy-row" style={{ borderTop: 'none' }}>
-                                <div className="policy-row__verdict" style={{ color: verdictColor(rule.decision) }}>
-                                  {rule.decision.toUpperCase()}
-                                </div>
+                                <QuickDecisionControl rule={rule} returnTo={returnTo} />
                                 <div className="policy-row__pattern">
                                   {rule.matchToolName}
                                   {rule.matchPathGlob !== null ? ` · ${rule.matchPathGlob}` : ''}
@@ -308,12 +306,13 @@ export default async function PoliciesPage({
                                 </div>
                                 <div className="policy-row__reason">{rule.reason}</div>
                                 <div style={monoDim}>{rule.details ?? 'No details'}</div>
-                                <RemoveRuleControl ruleId={rule.id} />
+                                <RemoveRuleControl ruleId={rule.id} returnTo={returnTo} />
                               </div>
                               <details style={{ padding: '0 0 16px 0' }}>
                                 <summary style={editSummaryStyle}>edit rule</summary>
                                 <form action={updateRuleAction} style={editRuleGridStyle}>
                                   <input type="hidden" name="ruleId" value={rule.id} />
+                                  <input type="hidden" name="returnTo" value={returnTo} />
                                   <SelectField
                                     label="Evaluator"
                                     name="evaluator"
@@ -423,12 +422,12 @@ export default async function PoliciesPage({
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                   {exception.status === 'requested' ? (
                     <>
-                      <ExceptionStatusButton id={exception.id} status="active" label="approve" />
-                      <ExceptionStatusButton id={exception.id} status="rejected" label="reject" />
+                      <ExceptionStatusButton id={exception.id} status="active" label="approve" returnTo={returnTo} />
+                      <ExceptionStatusButton id={exception.id} status="rejected" label="reject" returnTo={returnTo} />
                     </>
                   ) : null}
                   {exception.status === 'active' ? (
-                    <ExceptionStatusButton id={exception.id} status="revoked" label="revoke" />
+                    <ExceptionStatusButton id={exception.id} status="revoked" label="revoke" returnTo={returnTo} />
                   ) : null}
                 </div>
               </div>
@@ -776,16 +775,18 @@ function ExceptionStatusButton({
   id,
   status,
   label,
+  returnTo,
 }: {
   id: string;
   status: 'active' | 'revoked' | 'rejected';
   label: string;
+  returnTo: string;
 }) {
   return (
     <form action={updatePolicyExceptionStatusAction}>
       <input type="hidden" name="exceptionId" value={id} />
       <input type="hidden" name="status" value={status} />
-      <input type="hidden" name="returnTo" value="/policies" />
+      <input type="hidden" name="returnTo" value={returnTo} />
       <button className="badge" type="submit">
         {label}
       </button>
@@ -793,21 +794,57 @@ function ExceptionStatusButton({
   );
 }
 
-function RemoveRuleControl({ ruleId }: { ruleId: string }) {
+function QuickDecisionControl({
+  rule,
+  returnTo,
+}: {
+  rule: {
+    id: string;
+    priority: number;
+    matchEventType: string;
+    matchToolName: string;
+    matchPathGlob: string | null;
+    matchCommandPattern: string | null;
+    matchAgentType: string | null;
+    decision: 'allow' | 'deny' | 'ask';
+    reason: string;
+    controlKey: string | null;
+    ruleType: string;
+    severity: string;
+  };
+  returnTo: string;
+}) {
   return (
-    <details style={{ textAlign: 'right' }}>
-      <summary className="badge" style={removeSummaryStyle} title="Confirm before deleting this rule">
-        remove
-      </summary>
-      <form action={deleteRuleAction} style={removeConfirmStyle}>
-        <input type="hidden" name="ruleId" value={ruleId} />
-        <input type="hidden" name="returnTo" value="/policies" />
-        <div style={{ ...monoDim, marginBottom: 8 }}>Remove this rule?</div>
-        <button className="badge" type="submit" title="Confirm rule deletion">
-          confirm remove
-        </button>
-      </form>
-    </details>
+    <fieldset style={decisionToggleStyle}>
+      <legend style={visuallyHiddenStyle}>Decision for rule {rule.id.slice(0, 8)}</legend>
+      {(['allow', 'ask', 'deny'] as const).map((decision) => (
+        <form key={decision} action={updateRuleAction}>
+          <input type="hidden" name="ruleId" value={rule.id} />
+          <input type="hidden" name="returnTo" value={returnTo} />
+          <input type="hidden" name="evaluator" value={rule.ruleType} />
+          <input type="hidden" name="matchEventType" value={rule.matchEventType} />
+          <input type="hidden" name="decision" value={decision} />
+          <input type="hidden" name="matchToolName" value={rule.matchToolName} />
+          <input type="hidden" name="matchPathGlob" value={rule.matchPathGlob ?? ''} />
+          <input type="hidden" name="matchCommandPattern" value={rule.matchCommandPattern ?? ''} />
+          <input type="hidden" name="matchAgentType" value={rule.matchAgentType ?? ''} />
+          <input type="hidden" name="controlKey" value={rule.controlKey ?? ''} />
+          <input type="hidden" name="severity" value={rule.severity} />
+          <input type="hidden" name="priority" value={String(rule.priority)} />
+          <input type="hidden" name="reason" value={rule.reason} />
+          <button
+            className={`badge ${decisionBadgeClass(decision, rule.decision)}`}
+            style={decisionButtonStyle}
+            type="submit"
+            aria-pressed={decision === rule.decision}
+            title={`Set rule decision to ${decision}`}
+            disabled={decision === rule.decision}
+          >
+            {decision}
+          </button>
+        </form>
+      ))}
+    </fieldset>
   );
 }
 
@@ -982,18 +1019,29 @@ const editRuleGridStyle: React.CSSProperties = {
   border: '1px solid var(--rule)',
 };
 
-const removeSummaryStyle: React.CSSProperties = {
-  display: 'inline-block',
-  cursor: 'pointer',
-  listStyle: 'none',
+const decisionToggleStyle: React.CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  minWidth: 124,
+  border: 0,
+  padding: 0,
 };
 
-const removeConfirmStyle: React.CSSProperties = {
-  marginTop: 8,
-  padding: 10,
-  border: '1px solid var(--warn)',
-  background: 'var(--warn-glow)',
-  minWidth: 150,
+const decisionButtonStyle: React.CSSProperties = {
+  background: 'transparent',
+};
+
+const visuallyHiddenStyle: React.CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
 };
 
 const monoDim: React.CSSProperties = {
@@ -1007,6 +1055,13 @@ function verdictColor(decision: string): string {
   if (decision === 'deny') return 'var(--warn)';
   if (decision === 'ask') return 'var(--caution)';
   return 'var(--accent)';
+}
+
+function decisionBadgeClass(decision: 'allow' | 'ask' | 'deny', current: string): string {
+  if (decision !== current) return '';
+  if (decision === 'allow') return 'badge--ok';
+  if (decision === 'ask') return 'badge--caution';
+  return 'badge--warn';
 }
 
 function controlTrackColor(track: string): string {
