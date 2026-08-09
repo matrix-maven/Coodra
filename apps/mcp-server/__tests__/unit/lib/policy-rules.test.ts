@@ -31,6 +31,7 @@ function rule(overrides: Partial<CompiledRule> & { id: string }): CompiledRule {
     matchEventType: overrides.matchEventType ?? '*',
     matchToolName: overrides.matchToolName ?? '*',
     matchPath: overrides.matchPath !== undefined ? overrides.matchPath : null,
+    matchCommand: overrides.matchCommand !== undefined ? overrides.matchCommand : null,
     matchAgentType: overrides.matchAgentType ?? null,
     decision: overrides.decision ?? 'allow',
     reason: overrides.reason ?? 'default',

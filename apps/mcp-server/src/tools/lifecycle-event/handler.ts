@@ -604,15 +604,18 @@ function renderRecentContext(
     readonly title: string;
     readonly excerpt: string;
     readonly workPackSlugs: ReadonlyArray<string>;
+    readonly tier: 'hot' | 'warm';
   }>,
   overflow: ReadonlyArray<{ readonly workPackSlug: string; readonly hiddenCount: number }>,
   decisions: ReadonlyArray<{ readonly description: string; readonly rationale: string }>,
 ): string | null {
   if (packs.length === 0 && decisions.length === 0) return null;
   const lines = ['## Recent context'];
-  if (packs.length > 0) {
-    lines.push('', 'Recent Context Packs (tagged by Work Pack; already the most relevant/recent across the project):');
-    for (const pack of packs) {
+  const hotPacks = packs.filter((p) => p.tier === 'hot');
+  const warmPacks = packs.filter((p) => p.tier === 'warm');
+  if (hotPacks.length > 0) {
+    lines.push('', 'Hot Context Packs (active or recent, injected with excerpts):');
+    for (const pack of hotPacks) {
       // A pack can be linked to more than one Work Pack (primary +
       // save_context_pack's alsoLinkWorkPackSlugs) — tag with all of them.
       const tag = pack.workPackSlugs.length > 0 ? `[${pack.workPackSlugs.join(', ')}]` : '[no work pack]';
@@ -625,8 +628,15 @@ function renderRecentContext(
       );
     }
   }
+  if (warmPacks.length > 0) {
+    lines.push('', 'Warm Context Packs (closed Work Packs, one-line only):');
+    for (const pack of warmPacks) {
+      const tag = pack.workPackSlugs.length > 0 ? `[${pack.workPackSlugs.join(', ')}]` : '[no work pack]';
+      lines.push(`- **${tag}** ${pack.title}`);
+    }
+  }
   if (decisions.length > 0) {
-    lines.push('', 'Recent decisions:');
+    lines.push('', 'Hot decisions (active, non-superseded):');
     for (const decision of decisions.slice(0, MAX_RECENT_DECISIONS_SHOWN)) {
       lines.push(`- ${decision.description} — ${decision.rationale}`);
     }
@@ -787,7 +797,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
       const alreadyNudged = await getRunCompactionNudgedAt(deps.db, runId);
       if (alreadyNudged === null) {
         const queryDecisions = createQueryDecisionsHandler({ db: deps.db });
-        const decisionsResult = await queryDecisions({ projectSlug, runId, includeRelated: false, limit: 1 }, ctx);
+        const decisionsResult = await queryDecisions(
+          { projectSlug, runId, includeRelated: false, activeOnly: true, limit: 1 },
+          ctx,
+        );
         const hasUnsavedDecisions = decisionsResult.ok && decisionsResult.decisions.length > 0;
         const hasContextPack = hasUnsavedDecisions ? await hasContextPackForRun(deps.db, runId) : false;
         if (hasUnsavedDecisions && !hasContextPack) {
@@ -904,7 +917,10 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
                 startupBudget: MAX_RECENT_CONTEXT_PACKS_SHOWN,
               })
             : Promise.resolve({ packs: [], overflow: [] }),
-          queryDecisions({ projectSlug, includeRelated: false, limit: MAX_RECENT_DECISIONS_SHOWN }, ctx),
+          queryDecisions(
+            { projectSlug, includeRelated: false, activeOnly: true, limit: MAX_RECENT_DECISIONS_SHOWN },
+            ctx,
+          ),
         ]);
         recentContext = renderRecentContext(
           diversified.packs,

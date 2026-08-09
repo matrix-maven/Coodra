@@ -54,14 +54,14 @@ function insertRun(h: Harness, id: string): void {
     .run(id, h.projectId, id, 'claude_code', 'solo', 'in_progress');
 }
 
-function insertWorkPack(h: Harness, id: string, slug: string): void {
+function insertWorkPack(h: Harness, id: string, slug: string, status = 'draft'): void {
   h.handle.raw
     .prepare(
       `INSERT INTO work_packs
         (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(id, h.projectId, slug, slug, 'task', 'draft', '', '', '', '{}');
+    .run(id, h.projectId, slug, slug, 'task', status, '', '', '', '{}');
 }
 
 function insertPack(
@@ -73,13 +73,14 @@ function insertPack(
     readonly kind: string | null;
     readonly title: string;
     readonly createdAtEpochSeconds: number;
+    readonly archivedInPackId?: string | null;
   },
 ): void {
   h.handle.raw
     .prepare(
       `INSERT INTO context_packs
-        (id, org_id, run_id, project_id, title, content, content_excerpt, source, work_pack_id, kind, created_at)
-       VALUES (?, NULL, ?, ?, ?, ?, ?, 'agent', ?, ?, ?)`,
+        (id, org_id, run_id, project_id, title, content, content_excerpt, source, work_pack_id, kind, archived_in_pack_id, created_at)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, 'agent', ?, ?, ?, ?)`,
     )
     .run(
       args.id,
@@ -90,6 +91,7 @@ function insertPack(
       `${args.title} body`,
       args.workPackId,
       args.kind,
+      args.archivedInPackId ?? null,
       args.createdAtEpochSeconds,
     );
 }
@@ -413,5 +415,57 @@ describe('selectDiversifiedRecentContextPacks', () => {
       maxPerWorkPack: 1,
     });
     expect(result.packs.map((p) => p.id)).toContain('cp_adhoc');
+  });
+
+  it('COOD-59 marks done Work Pack packs as warm while active Work Pack packs stay hot', async () => {
+    insertRun(h, 'run_1');
+    insertWorkPack(h, 'work_active', 'active-pack', 'in_progress');
+    insertWorkPack(h, 'work_done', 'done-pack', 'done');
+    insertPack(h, {
+      id: 'cp_active',
+      runId: 'run_1',
+      workPackId: 'work_active',
+      kind: 'implementation_recap',
+      title: 'active recap',
+      createdAtEpochSeconds: 200,
+    });
+    insertPack(h, {
+      id: 'cp_done',
+      runId: 'run_1',
+      workPackId: 'work_done',
+      kind: 'final_recap',
+      title: 'done recap',
+      createdAtEpochSeconds: 100,
+    });
+
+    const result = await selectDiversifiedRecentContextPacks(h.handle, { projectId: h.projectId });
+    expect(result.packs.find((p) => p.id === 'cp_active')?.tier).toBe('hot');
+    expect(result.packs.find((p) => p.id === 'cp_done')?.tier).toBe('warm');
+  });
+
+  it('COOD-59 treats archived originals as cold and excludes them from startup injection', async () => {
+    insertRun(h, 'run_1');
+    insertWorkPack(h, 'work_a', 'pack-a', 'done');
+    insertPack(h, {
+      id: 'cp_digest',
+      runId: 'run_1',
+      workPackId: 'work_a',
+      kind: 'final_recap',
+      title: 'consolidated digest',
+      createdAtEpochSeconds: 200,
+    });
+    insertPack(h, {
+      id: 'cp_original',
+      runId: 'run_1',
+      workPackId: 'work_a',
+      kind: 'implementation_recap',
+      title: 'original verbose recap',
+      archivedInPackId: 'cp_digest',
+      createdAtEpochSeconds: 300,
+    });
+
+    const result = await selectDiversifiedRecentContextPacks(h.handle, { projectId: h.projectId });
+    expect(result.packs.map((p) => p.id)).toContain('cp_digest');
+    expect(result.packs.map((p) => p.id)).not.toContain('cp_original');
   });
 });

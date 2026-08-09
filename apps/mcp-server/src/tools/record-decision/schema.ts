@@ -31,6 +31,7 @@ const MAX_CONTEXT = 4096 as const;
 const MAX_IMPACT_ITEMS = 30 as const;
 const MAX_IMPACT_LEN = 512 as const;
 const MAX_WORK_PACK_SLUGS = 10 as const;
+const MAX_SUPERSEDES_DECISIONS = 20 as const;
 
 const workPackSlugSchema = z
   .string()
@@ -55,12 +56,24 @@ export const recordDecisionInputSchema = z
       .optional(),
     /** M05 — what triggered this decision (user request, error, design review). */
     context: z.string().min(1).max(MAX_CONTEXT).optional(),
-    /** M05 — affected modules / API surfaces / files. JSON-encoded by handler. */
+    /**
+     * M05/COOD-58 — affected modules / API surfaces / files. Plain values
+     * are stored as file targets. Use graph_node:<id> for Graphify node ids
+     * and work_pack:<id-or-slug> for Work Pack targets; query_decisions_by_file
+     * resolves file lookups through Graphify blast radius when graph artifacts
+     * are available.
+     */
     impact: z.array(z.string().min(1).max(MAX_IMPACT_LEN)).max(MAX_IMPACT_ITEMS).optional(),
     /** M05 — how certain this decision is. Maps directly to decisions.confidence column. */
     confidence: z.enum(['high', 'medium', 'low']).optional(),
     /** M05 — can this be undone without major cost. Stored as boolean (NULL = unknown). */
     reversible: z.boolean().optional(),
+    /**
+     * COOD-58 — explicit authority edge. Pass decision ids that this
+     * new decision reverses/replaces. The handler writes immutable
+     * `decision_edges` rows instead of mutating the old decisions.
+     */
+    supersedesDecisionIds: z.array(z.string().min(1).max(256)).max(MAX_SUPERSEDES_DECISIONS).optional(),
     /**
      * coodra-work redesign, round 2. This decision always links to the
      * run's current Work Pack (runs.work_pack_id) if one is set — no
@@ -91,6 +104,17 @@ const successBranch = z
     // Lets the agent detect silently-deduped retries without re-reading
     // the DB.
     created: z.boolean(),
+    relatedDecisionCandidates: z
+      .array(
+        z
+          .object({
+            decisionId: z.string().min(1),
+            description: z.string(),
+            reason: z.string(),
+          })
+          .strict(),
+      )
+      .describe('Active decisions with overlapping text/impact; pass supersedesDecisionIds on a follow-up if this one overrides them.'),
   })
   .strict();
 
@@ -117,7 +141,31 @@ const authRequiredBranch = z
   })
   .strict();
 
-export const recordDecisionOutputSchema = z.union([successBranch, runNotFoundBranch, authRequiredBranch]);
+const supersedesNotFoundBranch = z
+  .object({
+    ok: z.literal(false),
+    error: z.literal('supersedes_decision_not_found'),
+    decisionId: z.string().min(1),
+    howToFix: z.string().min(1),
+  })
+  .strict();
+
+const supersessionCycleBranch = z
+  .object({
+    ok: z.literal(false),
+    error: z.literal('supersession_cycle'),
+    decisionId: z.string().min(1),
+    howToFix: z.string().min(1),
+  })
+  .strict();
+
+export const recordDecisionOutputSchema = z.union([
+  successBranch,
+  runNotFoundBranch,
+  authRequiredBranch,
+  supersedesNotFoundBranch,
+  supersessionCycleBranch,
+]);
 
 export type RecordDecisionInput = z.infer<typeof recordDecisionInputSchema>;
 export type RecordDecisionOutput = z.infer<typeof recordDecisionOutputSchema>;

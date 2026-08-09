@@ -67,7 +67,7 @@ export async function listWorkPacksDetailed(db: DbHandle): Promise<WorkPackListI
         eq(sqliteSchema.externalWorkItems.id, sqliteSchema.workPackExternalLinks.externalWorkItemId),
       )
       .orderBy(desc(sqliteSchema.workPacks.updatedAt));
-    return rows;
+    return coalesceWorkPackListRows(rows);
   }
 
   const rows = await db.db
@@ -99,7 +99,7 @@ export async function listWorkPacksDetailed(db: DbHandle): Promise<WorkPackListI
       eq(postgresSchema.externalWorkItems.id, postgresSchema.workPackExternalLinks.externalWorkItemId),
     )
     .orderBy(desc(postgresSchema.workPacks.updatedAt));
-  return rows;
+  return coalesceWorkPackListRows(rows);
 }
 
 export async function getWorkPackDetail(db: DbHandle, workPackId: string): Promise<WorkPackDetail | null> {
@@ -138,7 +138,7 @@ export async function getWorkPackDetail(db: DbHandle, workPackId: string): Promi
       )
       .where(eq(sqliteSchema.workPacks.id, workPackId))
       .limit(1);
-    return rows[0] ?? null;
+    return coalesceWorkPackListRows(rows)[0] ?? null;
   }
 
   const rows = await db.db
@@ -175,5 +175,31 @@ export async function getWorkPackDetail(db: DbHandle, workPackId: string): Promi
     )
     .where(eq(postgresSchema.workPacks.id, workPackId))
     .limit(1);
-  return rows[0] ?? null;
+  return coalesceWorkPackListRows(rows)[0] ?? null;
+}
+
+export function coalesceWorkPackListRows<T extends WorkPackListItem>(rows: readonly T[]): T[] {
+  const byWorkPackId = new Map<string, T>();
+  for (const row of rows) {
+    const existing = byWorkPackId.get(row.id);
+    if (existing === undefined || compareExternalLinkPreference(row, existing) > 0) {
+      byWorkPackId.set(row.id, row);
+    }
+  }
+  return [...byWorkPackId.values()];
+}
+
+function compareExternalLinkPreference(a: WorkPackListItem, b: WorkPackListItem): number {
+  const providerRank = rankExternalProvider(a.externalProvider) - rankExternalProvider(b.externalProvider);
+  if (providerRank !== 0) return providerRank;
+  if (a.syncState === 'synced' && b.syncState !== 'synced') return 1;
+  if (a.syncState !== 'synced' && b.syncState === 'synced') return -1;
+  return a.updatedAt.getTime() - b.updatedAt.getTime();
+}
+
+function rankExternalProvider(provider: string | null): number {
+  if (provider === 'atlassian') return 3;
+  if (provider !== null && provider !== 'manual') return 2;
+  if (provider === 'manual') return 1;
+  return 0;
 }

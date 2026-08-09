@@ -73,11 +73,8 @@ afterAll(async () => {
 describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)', () => {
   it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
-    // See `boot.test.ts` for the tool count drift log. 23 = 22 (post-ADR-016
-    // 17 + Module 10 Deep Wiki's three wiki_* tools + COOD-6 lifecycle_event
-    // + Work Pack foundation's work_pack_upsert + work_pack_status) +
-    // coodra-work redesign's link_run_to_pr.
-    expect(tools.length).toBe(23);
+    // See `boot.test.ts` for the tool count drift log.
+    expect(tools.length).toBe(24);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {

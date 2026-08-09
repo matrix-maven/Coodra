@@ -24,10 +24,14 @@ const queryDecisionsIdempotencyKey: IdempotencyKeyBuilder<QueryDecisionsInput> =
   const runId = typeof input?.runId === 'string' && input.runId.length > 0 ? input.runId : 'any';
   const workPackId = typeof input?.workPackId === 'string' && input.workPackId.length > 0 ? input.workPackId : 'any';
   const includeRelated = input?.includeRelated === true ? 'rel' : 'norel';
+  const activeOnly = input?.activeOnly === false ? 'all' : 'active';
   const limit = typeof input?.limit === 'number' ? input.limit : 10;
   return {
     kind: 'readonly',
-    key: `readonly:query_decisions:${slug}:${query}:${runId}:${workPackId}:${includeRelated}:${limit}`.slice(0, 200),
+    key: `readonly:query_decisions:${slug}:${query}:${runId}:${workPackId}:${includeRelated}:${activeOnly}:${limit}`.slice(
+      0,
+      200,
+    ),
   };
 };
 
@@ -39,8 +43,9 @@ export function createQueryDecisionsToolRegistration(
     title: 'Coodra: query_decisions',
     description:
       'Call this when the user asks "what did we decide about X?", you need to reconcile your current approach against earlier decisions, or you are composing a sync-back summary for an external tracker/PR. ' +
-      'Returns decisions logged via record_decision for this project — most-recent-first by default, or BM25-ranked best-match-first when query is set (matched against description+rationale) — optionally narrowed by runId, issueRef, or workPackId (every run tied to that pack, plus any explicitly tagged via workPackSlugs). ' +
-      'Add includeRelated:true to also pull decisions from packs related to workPackId. ' +
+      'Returns record_decision rows for this project, recent-first by default or BM25-ranked when query is set, optionally narrowed by runId, issueRef, or workPackId. ' +
+      'Add includeRelated:true for related Work Packs. ' +
+      'Defaults to activeOnly, hiding superseded decisions; set activeOnly:false for full history with supersededBy annotations. ' +
       'Returns { ok: true, decisions: [...] } (possibly empty), or { ok: false, error: "project_not_found", howToFix }. Default limit 10, max 200.',
     inputSchema: queryDecisionsInputSchema,
     outputSchema: queryDecisionsOutputSchema,

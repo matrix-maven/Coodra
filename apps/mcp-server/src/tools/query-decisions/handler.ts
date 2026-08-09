@@ -1,6 +1,6 @@
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { toSqliteFtsQuery } from '../../lib/fts-query.js';
 import type { DecisionEntry, QueryDecisionsInput, QueryDecisionsOutput } from './schema.js';
@@ -199,6 +199,7 @@ async function selectDecisions(
   workPackIds: ReadonlyArray<string> | undefined,
   linkedDecisionIds: ReadonlyArray<string> | undefined,
   query: string | undefined,
+  activeOnly: boolean,
   limit: number,
 ): Promise<RawRow[]> {
   let rankedIds: RankedId[] | undefined;
@@ -210,7 +211,7 @@ async function selectDecisions(
   if (db.kind === 'sqlite') {
     const decisions = sqliteSchema.decisions;
     const runs = sqliteSchema.runs;
-    const conditions = [eq(runs.projectId, projectId)];
+    const conditions: SQL[] = [eq(runs.projectId, projectId)];
     if (runId !== undefined) conditions.push(eq(decisions.runId, runId));
     // Module 09 J2 (ADR-016) — "what was decided for PROJ-412?": filter to
     // decisions whose run is bound to this tracker issue (runs.issue_ref).
@@ -233,6 +234,16 @@ async function selectDecisions(
           rankedIds.map((r) => r.id),
         ),
       );
+    if (activeOnly) {
+      conditions.push(sql`
+        NOT EXISTS (
+          SELECT 1 FROM decision_edges de
+          WHERE de.edge_type = 'supersedes'
+            AND de.target_type = 'decision'
+            AND de.target_id = ${decisions.id}
+        )
+      `);
+    }
     const where = conditions.length === 1 ? conditions[0] : and(...conditions);
     let selectQuery = db.db
       .select({
@@ -253,7 +264,7 @@ async function selectDecisions(
   }
   const decisions = postgresSchema.decisions;
   const runs = postgresSchema.runs;
-  const conditions = [eq(runs.projectId, projectId)];
+  const conditions: SQL[] = [eq(runs.projectId, projectId)];
   if (runId !== undefined) conditions.push(eq(decisions.runId, runId));
   // Same issueRef/workPackIds filters as the sqlite branch above — these
   // were previously missing on the postgres branch (team mode), silently
@@ -275,6 +286,16 @@ async function selectDecisions(
         rankedIds.map((r) => r.id),
       ),
     );
+  if (activeOnly) {
+    conditions.push(sql`
+      NOT EXISTS (
+        SELECT 1 FROM decision_edges de
+        WHERE de.edge_type = 'supersedes'
+          AND de.target_type = 'decision'
+          AND de.target_id = ${decisions.id}
+      )
+    `);
+  }
   const where = conditions.length === 1 ? conditions[0] : and(...conditions);
   let selectQuery = db.db
     .select({
@@ -316,7 +337,29 @@ function parseAlternatives(raw: string | null): ReadonlyArray<string> {
   }
 }
 
-function toEntry(row: RawRow): DecisionEntry {
+async function selectSupersededBy(db: DbHandle, decisionIds: ReadonlyArray<string>): Promise<Map<string, string>> {
+  const uniqueIds = [...new Set(decisionIds)];
+  const supersededBy = new Map<string, string>();
+  if (uniqueIds.length === 0) return supersededBy;
+  if (db.kind === 'sqlite') {
+    const edges = sqliteSchema.decisionEdges;
+    const rows = await db.db
+      .select({ targetId: edges.targetId, fromDecisionId: edges.fromDecisionId })
+      .from(edges)
+      .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+    for (const row of rows) if (!supersededBy.has(row.targetId)) supersededBy.set(row.targetId, row.fromDecisionId);
+    return supersededBy;
+  }
+  const edges = postgresSchema.decisionEdges;
+  const rows = await db.db
+    .select({ targetId: edges.targetId, fromDecisionId: edges.fromDecisionId })
+    .from(edges)
+    .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+  for (const row of rows) if (!supersededBy.has(row.targetId)) supersededBy.set(row.targetId, row.fromDecisionId);
+  return supersededBy;
+}
+
+function toEntry(row: RawRow, supersededBy: string | null): DecisionEntry {
   return {
     id: row.id,
     runId: row.runId,
@@ -324,6 +367,7 @@ function toEntry(row: RawRow): DecisionEntry {
     rationale: row.rationale,
     alternatives: [...parseAlternatives(row.alternatives)],
     createdAt: row.createdAt.toISOString(),
+    supersededBy,
   };
 }
 
@@ -377,11 +421,16 @@ export function createQueryDecisionsHandler(deps: QueryDecisionsHandlerDeps) {
       workPackIds,
       linkedDecisionIds,
       input.query,
+      input.activeOnly,
       input.limit,
+    );
+    const supersededBy = await selectSupersededBy(
+      deps.db,
+      rows.map((row) => row.id),
     );
     return {
       ok: true,
-      decisions: rows.map(toEntry),
+      decisions: rows.map((row) => toEntry(row, supersededBy.get(row.id) ?? null)),
     };
   };
 }

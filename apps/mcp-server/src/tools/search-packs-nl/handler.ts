@@ -1,6 +1,6 @@
 import { type DbHandle, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { toSqliteFtsQuery } from '../../lib/fts-query.js';
 import type { PackResult, SearchPacksNlInput, SearchPacksNlOutput } from './schema.js';
@@ -67,11 +67,46 @@ interface FtsRow {
   readonly createdAt: Date | string | number;
   readonly runId: string | null;
   readonly source: string;
+  readonly meta: string | null;
   readonly rank: number;
 }
 
 function toDate(value: Date | string | number): Date {
   return value instanceof Date ? value : new Date(value);
+}
+
+function decisionIdsFromMeta(raw: string | null): string[] {
+  if (raw === null) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    const decisionIds = (parsed as { decisionIds?: unknown }).decisionIds;
+    return Array.isArray(decisionIds) ? decisionIds.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function selectSupersededDecisionIds(db: DbHandle, decisionIds: ReadonlyArray<string>): Promise<Set<string>> {
+  const uniqueIds = [...new Set(decisionIds)];
+  const superseded = new Set<string>();
+  if (uniqueIds.length === 0) return superseded;
+  if (db.kind === 'sqlite') {
+    const edges = sqliteSchema.decisionEdges;
+    const rows = await db.db
+      .select({ targetId: edges.targetId })
+      .from(edges)
+      .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+    for (const row of rows) superseded.add(row.targetId);
+    return superseded;
+  }
+  const edges = postgresSchema.decisionEdges;
+  const rows = await db.db
+    .select({ targetId: edges.targetId })
+    .from(edges)
+    .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+  for (const row of rows) superseded.add(row.targetId);
+  return superseded;
 }
 
 async function ftsSearch(
@@ -86,6 +121,7 @@ async function ftsSearch(
     rows = db.db.all<FtsRow>(sql`
       SELECT cp.id AS id, cp.title AS title, cp.content_excerpt AS contentExcerpt,
              cp.created_at AS createdAt, cp.run_id AS runId, cp.source AS source,
+             cp.meta AS meta,
              bm25(context_packs_fts) AS rank
       FROM context_packs_fts
       JOIN context_packs cp ON cp.id = context_packs_fts.context_pack_id
@@ -101,6 +137,7 @@ async function ftsSearch(
     rows = (await db.db.execute(sql`
       SELECT cp.id AS id, cp.title AS title, cp.content_excerpt AS "contentExcerpt",
              cp.created_at AS "createdAt", cp.run_id AS "runId", cp.source AS source,
+             cp.meta AS meta,
              ts_rank(cp.search_vector, plainto_tsquery('english', ${query})) AS rank
       FROM context_packs cp
       WHERE cp.project_id = ${projectId}
@@ -109,6 +146,15 @@ async function ftsSearch(
       LIMIT ${limit}
     `)) as unknown as FtsRow[];
   }
+
+  const decisionIdsByPackId = new Map<string, string[]>();
+  const allDecisionIds: string[] = [];
+  for (const row of rows) {
+    const decisionIds = decisionIdsFromMeta(row.meta);
+    decisionIdsByPackId.set(row.id, decisionIds);
+    allDecisionIds.push(...decisionIds);
+  }
+  const supersededDecisionIds = await selectSupersededDecisionIds(db, allDecisionIds);
 
   const packs: PackResult[] = [];
   for (const row of rows) {
@@ -129,6 +175,7 @@ async function ftsSearch(
       savedAt: toDate(row.createdAt).toISOString(),
       runId: row.runId,
       source,
+      superseded: (decisionIdsByPackId.get(row.id) ?? []).some((decisionId) => supersededDecisionIds.has(decisionId)),
     });
   }
   return packs;

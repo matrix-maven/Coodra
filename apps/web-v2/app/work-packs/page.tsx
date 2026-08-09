@@ -2,13 +2,18 @@ import Link from 'next/link';
 
 import { Topbar } from '@/components/Topbar';
 import { listWorkPacksByProject } from '@/lib/queries/work-packs';
+import {
+  formatWorkPackProviderSummary,
+  formatWorkPackSyncBadge,
+  summarizeWorkPackGroup,
+} from '@/lib/work-pack-display';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkPacksPage() {
   const groups = await listWorkPacksByProject();
   const total = groups.reduce((n, group) => n + group.packs.length, 0);
-  const linked = groups.reduce((n, group) => n + group.packs.filter((pack) => pack.externalKey !== null).length, 0);
+  const allSummary = summarizeWorkPackGroup(groups.flatMap((group) => group.packs));
 
   return (
     <>
@@ -32,7 +37,7 @@ export default async function WorkPacksPage() {
                 {total} work pack{total === 1 ? '' : 's'}
               </strong>
               <br />
-              {linked} Jira-linked
+              {formatWorkPackProviderSummary(allSummary)}
               <br />
               .coodra/work-packs/
             </div>
@@ -50,12 +55,11 @@ export default async function WorkPacksPage() {
         ) : (
           <div className="pack-grid">
             {groups.map((group) => {
-              const synced = group.packs.filter((pack) => pack.syncState === 'synced').length;
+              const summary = summarizeWorkPackGroup(group.packs);
               const latest = group.packs.reduce<Date | null>(
                 (max, pack) => (max === null || pack.updatedAt > max ? pack.updatedAt : max),
                 null,
               );
-              const linkedCount = group.packs.filter((pack) => pack.externalKey !== null).length;
               return (
                 <Link
                   key={group.projectId}
@@ -68,14 +72,21 @@ export default async function WorkPacksPage() {
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
                   >
                     <span>/ {group.projectSlug.toUpperCase()}</span>
-                    <span className={`badge ${synced === group.packs.length ? 'badge--ok' : 'badge--caution'}`}>
+                    <span
+                      className={`badge ${
+                        summary.jiraLinked === 0 || summary.syncedJira === summary.jiraLinked
+                          ? 'badge--ok'
+                          : 'badge--caution'
+                      }`}
+                    >
                       <span className="badge__dot"></span>
-                      {synced}/{group.packs.length} synced
+                      {formatWorkPackSyncBadge(summary)}
                     </span>
                   </div>
                   <h3 className="pack__title">{group.projectName}</h3>
                   <p className="pack__excerpt">
-                    {group.packs.length} work pack{group.packs.length === 1 ? '' : 's'} · {linkedCount} Jira-linked
+                    {group.packs.length} work pack{group.packs.length === 1 ? '' : 's'} ·{' '}
+                    {formatWorkPackProviderSummary(summary)}
                   </p>
                   <div className="pack__meta">
                     <span>{latest !== null ? formatRelative(latest) : 'no updates'}</span>

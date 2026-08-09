@@ -183,6 +183,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'context_packs',
         'context_packs_fts',
         'context_packs_vec',
+        'decision_edges',
         'decisions',
         'decisions_fts',
         'external_work_items',
@@ -248,8 +249,9 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         )
         .get() as { n: number };
       // 27 prior tables + 3 new *_fts virtual tables (context_packs_fts,
-      // decisions_fts, work_packs_fts) from 0024_fts_search.sql = 30.
-      expect(rows.n).toBe(30);
+      // decisions_fts, work_packs_fts) from 0024_fts_search.sql +
+      // COOD-58 decision_edges = 31.
+      expect(rows.n).toBe(31);
     } finally {
       first.close();
     }

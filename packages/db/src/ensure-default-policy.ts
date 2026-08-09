@@ -45,6 +45,29 @@ import { postgresSchema, sqliteSchema } from './schema/index.js';
  *   The matcher in `~/.claude/settings.json` is fixed in the same
  *   slice — see `packages/cli/src/lib/init/claude-settings-merge.ts`.
  *
+ * **Hygiene rules softened to ask (2026-08-09):** of the 24 rules in
+ * DEFAULT_RULES covering `.git/**`/`**\/.git/**`/`node_modules/**`/
+ * `**\/node_modules/**` across the four file-mutating tools, the 16
+ * targeting `.git/**`/`node_modules/**` are now seeded as `ask`
+ * instead of `deny` — these are hygiene rules, not security
+ * boundaries, so a human can confirm through them instead of hitting
+ * a hard block. The 8 targeting `.env`/`**\/.env` in that same block,
+ * the 2 `Read` denies on `.env`, and all 28 self-protection denies
+ * (Coodra/agent control files) are deliberately UNCHANGED — those
+ * protect secrets and anti-tampering respectively, and "ask" is not
+ * an adequate substitute for either (a rubber-stamped approval on a
+ * self-protection rule would let an agent silently disable its own
+ * guardrails). New totals: 38 deny + 21 ask = 59 — same rule count,
+ * 16 rules moved from deny to ask.
+ *
+ * Because the additive-merge below keys rule identity on
+ * `(priority, matchEventType, matchToolName, matchPathGlob)` and
+ * never updates existing rows (see below), this change only affects
+ * FRESH `coodra init` runs. Already-provisioned projects keep
+ * whatever decision was seeded when their policy was first created;
+ * changing an existing project's live rules requires a direct update
+ * against its `policy_rules` rows, not a change here.
+ *
  * **Existing-install repair semantics (Phase 4 Fix F):**
  *
  *   `ensureDefaultPolicy` now performs an additive merge:
@@ -71,9 +94,10 @@ const seedLogger = createLogger('db.ensure-default-policy');
 
 const DEFAULT_POLICY_NAME = '__default__' as const;
 const DEFAULT_POLICY_DESCRIPTION =
-  'Default policy seeded by `coodra init` (Phase 3 Fix D + Phase 4 Fix F, 2026-05-02). ' +
-  'Denies file-mutating tools (Write, Edit, MultiEdit, NotebookEdit) writing to ' +
-  '.env / **/.env / .git/** / **/.git/** / node_modules/** / **/node_modules/**; ' +
+  'Default policy seeded by `coodra init` (Phase 3 Fix D + Phase 4 Fix F, 2026-05-02; ' +
+  'git/node_modules hygiene rules softened to ask, 2026-08-09). ' +
+  'Denies file-mutating tools (Write, Edit, MultiEdit, NotebookEdit) writing to .env / **/.env; ' +
+  'asks before the same tools writing to .git/** / **/.git/** / node_modules/** / **/node_modules/**; ' +
   'denies Read against .env / **/.env; ' +
   'denies writes to Coodra and agent control files; asks before targeted risky Bash commands. ' +
   'Edit via `policy` UI or by writing custom rules with higher priority.';
@@ -106,16 +130,33 @@ interface DefaultRuleSpec {
  * are recognised as already-present and not re-inserted.
  */
 
-const DENY_REASONS: Readonly<Record<string, string>> = {
+// .env stays deny — secrets must never flow through agent edits, and a
+// rubber-stamped "ask" is not an acceptable substitute for a hard block here.
+const ENV_DENY_REASONS: Readonly<Record<string, string>> = {
   '.env': 'writes to .env are denied — secrets must not flow through agent edits',
   '**/.env': 'writes to nested .env are denied — secrets must not flow through agent edits',
-  '.git/**': 'writes inside .git/** are denied — repository metadata is owned by `git`, not the agent',
-  '**/.git/**':
-    'writes inside nested .git/** (submodules, monorepo workspaces) are denied — repository metadata is owned by `git`, not the agent',
-  'node_modules/**': 'writes inside node_modules/** are denied — install via package manager, never edit by hand',
-  '**/node_modules/**':
-    'writes inside nested node_modules/** (workspace packages) are denied — install via package manager, never edit by hand',
 };
+
+// git/node_modules are hygiene rules, not security boundaries — softened to
+// ask (2026-08-09) so an agent can still touch them with human confirmation
+// instead of a hard block.
+const HYGIENE_ASK_REASONS: Readonly<Record<string, string>> = {
+  '.git/**': 'writes inside .git/** require human confirmation — repository metadata is normally owned by `git`, not the agent',
+  '**/.git/**':
+    'writes inside nested .git/** (submodules, monorepo workspaces) require human confirmation — repository metadata is normally owned by `git`, not the agent',
+  'node_modules/**':
+    'writes inside node_modules/** require human confirmation — normally installed via package manager, not hand-edited',
+  '**/node_modules/**':
+    'writes inside nested node_modules/** (workspace packages) require human confirmation — normally installed via package manager, not hand-edited',
+};
+
+function decisionForGlob(glob: string): 'deny' | 'ask' {
+  return glob in ENV_DENY_REASONS ? 'deny' : 'ask';
+}
+
+function reasonForGlob(glob: string): string {
+  return ENV_DENY_REASONS[glob] ?? HYGIENE_ASK_REASONS[glob] ?? `${glob} requires human confirmation`;
+}
 
 interface ToolPriorityBlock {
   readonly toolName: string;
@@ -195,7 +236,7 @@ function buildSelfProtectionRules(): DefaultRuleSpec[] {
   return rules;
 }
 
-const GLOBS_IN_BLOCK_ORDER: readonly (keyof typeof DENY_REASONS)[] = [
+const GLOBS_IN_BLOCK_ORDER: readonly string[] = [
   '.env',
   '**/.env',
   '.git/**',
@@ -205,15 +246,21 @@ const GLOBS_IN_BLOCK_ORDER: readonly (keyof typeof DENY_REASONS)[] = [
 ];
 
 function buildToolBlockRules(block: ToolPriorityBlock): DefaultRuleSpec[] {
-  return GLOBS_IN_BLOCK_ORDER.map((glob, i) => ({
-    priority: block.priorities[i] ?? 0,
-    matchEventType: 'PreToolUse',
-    matchToolName: block.toolName,
-    matchPathGlob: glob,
-    matchAgentType: '*',
-    decision: 'deny' as const,
-    reason: DENY_REASONS[glob] ?? `${block.toolName} → ${glob} is denied`,
-  }));
+  return GLOBS_IN_BLOCK_ORDER.map((glob, i) => {
+    const decision = decisionForGlob(glob);
+    return {
+      priority: block.priorities[i] ?? 0,
+      matchEventType: 'PreToolUse',
+      matchToolName: block.toolName,
+      matchPathGlob: glob,
+      matchAgentType: '*',
+      decision,
+      reason: reasonForGlob(glob),
+      ...(decision === 'ask'
+        ? { controlKey: 'file-hygiene-attestation', ruleType: 'file_protection', severity: 'medium' }
+        : {}),
+    };
+  });
 }
 
 const BASH_ASK_RULES: readonly DefaultRuleSpec[] = [

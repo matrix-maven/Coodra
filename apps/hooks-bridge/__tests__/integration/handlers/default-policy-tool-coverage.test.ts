@@ -37,13 +37,16 @@ import { createProjectSlugResolver } from '../../../src/lib/resolve-project-slug
  *
  * Post-fix state (this test PASSES after Phase 4 Fix F):
  *
- *   `ensureDefaultPolicy` seeds 26 deny rules covering the
- *   cross-product of:
+ *   `ensureDefaultPolicy` seeds 26 rules covering the cross-product of:
  *     tools = { Write, Edit, MultiEdit, NotebookEdit }
  *     globs = { .env, **\/.env, .git/**, **\/.git/**,
  *               node_modules/**, **\/node_modules/** }
  *   plus Read denies for .env / nested .env
  *   plus targeted risky Bash command ask rules.
+ *
+ *   As of 2026-08-09, the `.git/**`/`node_modules/**` rules within
+ *   that cross-product are `ask`, not `deny` — hygiene, not a
+ *   security boundary. `.env` write/read rules remain `deny`.
  *
  * The test wires the SAME code path init does — `ensureGlobalProject`
  * → `ensureProject` → `ensureDefaultPolicy` — so any future divergence
@@ -60,15 +63,18 @@ interface Harness {
 let h: Harness;
 
 const TOOLS_THAT_MUST_DENY = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'] as const;
+// .env is secrets protection — stays a hard deny.
 const PATHS_THAT_MUST_DENY = [
-  // Root-level
   '.env',
+  'apps/web/.env', // nested (monorepo / submodule shape)
+] as const;
+// git/node_modules are hygiene rules, softened to ask (2026-08-09) — a
+// human can confirm through them instead of hitting a hard block.
+const PATHS_THAT_MUST_ASK = [
   '.git/HEAD',
   'node_modules/foo/index.js',
-  // Nested (monorepo / submodule shapes)
-  'apps/web/.env',
-  'apps/web/.git/HEAD',
-  'apps/web/node_modules/foo/index.js',
+  'apps/web/.git/HEAD', // nested (monorepo / submodule shape)
+  'apps/web/node_modules/foo/index.js', // nested (monorepo / submodule shape)
 ] as const;
 
 function makeEnv(): AuthEnv {
@@ -155,13 +161,21 @@ async function postPreToolUse(
   return json.hookSpecificOutput;
 }
 
-describe('default policy — every file-mutating tool denied for dangerous paths (Phase 4 Fix F)', () => {
+describe('default policy — every file-mutating tool covered for dangerous paths (Phase 4 Fix F)', () => {
   for (const tool of TOOLS_THAT_MUST_DENY) {
     for (const path of PATHS_THAT_MUST_DENY) {
       it(`PreToolUse ${tool} → ${path}: deny with non-empty reason`, async () => {
         const out = await postPreToolUse(tool, path, `${tool}-${path.replace(/[^a-zA-Z0-9]/g, '_')}`);
         expect(out.permissionDecision, `${tool} → ${path} must deny`).toBe('deny');
         expect(out.permissionDecisionReason, `${tool} → ${path} deny must carry a reason`).toBeTruthy();
+        expect((out.permissionDecisionReason ?? '').length).toBeGreaterThan(0);
+      });
+    }
+    for (const path of PATHS_THAT_MUST_ASK) {
+      it(`PreToolUse ${tool} → ${path}: ask with non-empty reason`, async () => {
+        const out = await postPreToolUse(tool, path, `${tool}-${path.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        expect(out.permissionDecision, `${tool} → ${path} must ask`).toBe('ask');
+        expect(out.permissionDecisionReason, `${tool} → ${path} ask must carry a reason`).toBeTruthy();
         expect((out.permissionDecisionReason ?? '').length).toBeGreaterThan(0);
       });
     }

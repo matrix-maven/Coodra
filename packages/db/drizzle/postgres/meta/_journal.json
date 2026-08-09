@@ -211,6 +211,20 @@
 			"when": 1785750400000,
 			"tag": "0029_work_packs_activity_rollup",
 			"breakpoints": true
+		},
+		{
+			"idx": 30,
+			"version": "7",
+			"when": 1786275600000,
+			"tag": "0030_decision_edges",
+			"breakpoints": true
+		},
+		{
+			"idx": 31,
+			"version": "7",
+			"when": 1786275700000,
+			"tag": "0031_context_pack_consolidation",
+			"breakpoints": true
 		}
 	]
 }

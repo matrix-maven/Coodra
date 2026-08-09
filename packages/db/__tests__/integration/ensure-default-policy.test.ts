@@ -43,7 +43,10 @@ async function insertBareProject(args: { slug: string; orgId?: string }): Promis
  *                 node_modules/**, **\/node_modules/** }
  *     plus `.env` / nested `.env` read denies, Coodra/agent
  *     self-protection rules, and targeted risky Bash command asks.
- *     54 deny + 5 ask = 59 rules total.
+ *     59 rules total. As of 2026-08-09 the `.git/**`/`node_modules/**`
+ *     write rules within that cross-product are `ask` (hygiene, not a
+ *     security boundary); `.env` write/read rules and self-protection
+ *     rules remain `deny`. 38 deny + 21 ask = 59.
  *
  *   - Phase 4 Fix F also adds an additive-merge repair path: an
  *     existing `__default__` policy missing some rules from the new
@@ -96,15 +99,22 @@ describe('@coodra/db::ensureDefaultPolicy', () => {
       .where(eq(sqliteSchema.policyRules.policyId, result.policyId));
     expect(rules.length).toBe(59);
 
-    // Phase 4 Fix F: every file-mutating tool denied for every dangerous
-    // glob. Walk the cross-product explicitly.
+    // Phase 4 Fix F cross-product, decision split 2026-08-09: .env stays
+    // deny (secrets protection); .git/**/node_modules/** softened to ask
+    // (hygiene, not a security boundary). Walk the cross-product explicitly.
     const tools = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'] as const;
-    const globs = ['.env', '**/.env', '.git/**', '**/.git/**', 'node_modules/**', '**/node_modules/**'] as const;
+    const denyGlobs = ['.env', '**/.env'] as const;
+    const askGlobs = ['.git/**', '**/.git/**', 'node_modules/**', '**/node_modules/**'] as const;
     for (const tool of tools) {
-      for (const glob of globs) {
+      for (const glob of denyGlobs) {
         const rule = rules.find((r) => r.matchToolName === tool && r.matchPathGlob === glob);
         expect(rule, `${tool} → ${glob} must be present in default policy`).toBeDefined();
         expect(rule?.decision, `${tool} → ${glob} must deny`).toBe('deny');
+      }
+      for (const glob of askGlobs) {
+        const rule = rules.find((r) => r.matchToolName === tool && r.matchPathGlob === glob);
+        expect(rule, `${tool} → ${glob} must be present in default policy`).toBeDefined();
+        expect(rule?.decision, `${tool} → ${glob} must ask`).toBe('ask');
       }
     }
     // Targeted Bash ask rules are present, but no blanket Bash ask rule

@@ -458,3 +458,113 @@ describe('record_decision — work_pack_decision_links', () => {
     expect(links.map((l) => l.workPackId)).toEqual(['wp_1']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// COOD-58 — decision_edges
+// ---------------------------------------------------------------------------
+
+describe('record_decision — COOD-58 decision_edges', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('writes supersedes + affects edges idempotently', async () => {
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('dec_old', h.projectId, 'idem_old', h.runId, 'old retry policy', 'legacy', 1000);
+
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        {
+          runId: h.runId,
+          description: 'replace retry policy',
+          rationale: 'new policy is safer',
+          impact: ['apps/mcp-server/src/tools/record-decision/handler.ts', 'graph_node:recordDecision'],
+          supersedesDecisionIds: ['dec_old'],
+        },
+        'sess_rd',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+
+    const retry = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        {
+          runId: h.runId,
+          description: 'replace retry policy',
+          rationale: 'retry should be idempotent',
+          impact: ['apps/mcp-server/src/tools/record-decision/handler.ts', 'graph_node:recordDecision'],
+          supersedesDecisionIds: ['dec_old'],
+        },
+        'sess_rd',
+      ),
+    );
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(retry.decisionId).toBe(out.decisionId);
+
+    const edges = await h.handle.db
+      .select()
+      .from(sqliteSchema.decisionEdges)
+      .where(eq(sqliteSchema.decisionEdges.fromDecisionId, out.decisionId));
+    expect(edges.map((e) => `${e.edgeType}:${e.targetType}:${e.targetId}`).sort()).toEqual([
+      'affects:file:apps/mcp-server/src/tools/record-decision/handler.ts',
+      'affects:graph_node:recordDecision',
+      'supersedes:decision:dec_old',
+    ]);
+  });
+
+  it('rejects supersession cycles on idempotent follow-up calls', async () => {
+    const registry = buildRegistry(h);
+    const first = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        {
+          runId: h.runId,
+          description: 'new authority',
+          rationale: 'newer',
+        },
+        'sess_rd',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('dec_old_cycle', h.projectId, 'idem_old_cycle', h.runId, 'old authority', 'older', 1000);
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decision_edges (id, project_id, from_decision_id, edge_type, target_type, target_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run('de_cycle_seed', h.projectId, 'dec_old_cycle', 'supersedes', 'decision', first.decisionId);
+
+    const cycle = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        {
+          runId: h.runId,
+          description: 'new authority',
+          rationale: 'same idempotency key',
+          supersedesDecisionIds: ['dec_old_cycle'],
+        },
+        'sess_rd',
+      ),
+    );
+    expect(cycle).toMatchObject({ ok: false, error: 'supersession_cycle', decisionId: 'dec_old_cycle' });
+  });
+});

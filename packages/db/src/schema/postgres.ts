@@ -130,6 +130,8 @@ export const contextPacks = pgTable(
     kind: text('kind'),
     // See sqlite.ts contextPacks.importance. Soft-governed free text.
     importance: text('importance'),
+    // COOD-59 — see sqlite.ts contextPacks.archivedInPackId.
+    archivedInPackId: text('archived_in_pack_id'),
   },
   (t) => [
     // Append-only redesign (2026-08-05) — see sqlite.ts contextPacks
@@ -137,6 +139,7 @@ export const contextPacks = pgTable(
     index('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
     index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
+    index('context_packs_archived_in_pack_idx').on(t.archivedInPackId),
   ],
 );
 
@@ -573,6 +576,33 @@ export const decisions = pgTable(
 );
 
 /**
+ * COOD-58 — durable typed edges for the decision memory layer. Mirrors
+ * the SQLite table exactly; see sqlite.ts::decisionEdges for rationale.
+ */
+export const decisionEdges = pgTable(
+  'decision_edges',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    fromDecisionId: text('from_decision_id')
+      .notNull()
+      .references(() => decisions.id, { onDelete: 'cascade' }),
+    edgeType: text('edge_type').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    metadataJson: text('metadata_json'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('decision_edges_unique').on(t.fromDecisionId, t.edgeType, t.targetType, t.targetId),
+    index('decision_edges_project_target_idx').on(t.projectId, t.edgeType, t.targetType, t.targetId),
+    index('decision_edges_from_idx').on(t.fromDecisionId, t.edgeType),
+  ],
+);
+
+/**
  * coodra-work redesign, round 2 — direct many-to-many links from a
  * decision/context pack to the Work Pack(s) it belongs to, written at
  * record time. Mirrors `workPackExternalLinks`'s exact shape.
@@ -784,6 +814,8 @@ export type SyncEvent = typeof syncEvents.$inferSelect;
 export type NewSyncEvent = typeof syncEvents.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type DecisionEdge = typeof decisionEdges.$inferSelect;
+export type NewDecisionEdge = typeof decisionEdges.$inferInsert;
 export type WorkPackDecisionLink = typeof workPackDecisionLinks.$inferSelect;
 export type NewWorkPackDecisionLink = typeof workPackDecisionLinks.$inferInsert;
 export type WorkPackContextPackLink = typeof workPackContextPackLinks.$inferSelect;

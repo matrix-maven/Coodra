@@ -27,6 +27,10 @@ import { z } from 'zod';
  * decisions for that exact run. Combined with `query`, both filters
  * must match.
  *
+ * COOD-58: `activeOnly` defaults to true and excludes decisions with an
+ * incoming `supersedes` edge. Set it false when auditing complete
+ * history; superseded rows include `supersededBy`.
+ *
  * Default limit is 10 (parity with query_run_history). Upper bound 200.
  *
  * Decisions with NULL `run_id` (the orphan case after a run deletion;
@@ -82,6 +86,10 @@ export const queryDecisionsInputSchema = z
     // — e.g. a decision made on Pack 1 that a related, concurrently-worked
     // Pack 2 should already know about. Ignored when workPackId is absent.
     includeRelated: z.boolean().default(false),
+    activeOnly: z
+      .boolean()
+      .default(true)
+      .describe('When true, exclude decisions superseded by a newer decision edge.'),
     limit: z
       .number()
       .int()
@@ -107,6 +115,11 @@ const decisionEntrySchema = z
         'Alternatives the agent considered. Empty array when the original record had no alternatives or stored a non-JSON blob.',
       ),
     createdAt: z.string().datetime().describe('ISO 8601 timestamp the decision was recorded.'),
+    supersededBy: z
+      .string()
+      .min(1)
+      .nullable()
+      .describe('Decision id that supersedes this row, or null when this decision is active.'),
   })
   .strict();
 

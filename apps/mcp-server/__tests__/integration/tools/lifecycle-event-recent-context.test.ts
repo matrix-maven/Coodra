@@ -203,6 +203,39 @@ describe('lifecycle_event — SessionStart recent context', () => {
     expect(additionalContext).toContain('**[no work pack]** Security audit findings');
   });
 
+  it('COOD-59 renders closed Work Pack context as warm one-liners without excerpts', async () => {
+    const registry = buildRegistry(h);
+    const seeded = await sessionStart(registry, h, 'sess_warm');
+    if (seeded.runId === null) throw new Error('expected a runId from SessionStart structuredContent');
+
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, (SELECT id FROM projects WHERE slug = ?), ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('work_done', 'proj-lc-rc', 'done-pack', 'Done Pack', 'task', 'done', '', '', '', '{}');
+
+    await registry.handleCall(
+      'save_context_pack',
+      {
+        runId: seeded.runId,
+        title: 'Closed pack recap',
+        content: 'Verbose details should stay queryable, but not be pushed into SessionStart by default.',
+        workPackSlug: 'done-pack',
+        kind: 'final_recap',
+      },
+      'sess_warm',
+    );
+
+    const { additionalContext } = await sessionStart(registry, h, 'sess_warm_next');
+    expect(additionalContext).toBeDefined();
+    if (additionalContext === undefined) return;
+    expect(additionalContext).toContain('Warm Context Packs');
+    expect(additionalContext).toContain('**[done-pack]** Closed pack recap');
+    expect(additionalContext).not.toContain('Verbose details should stay queryable');
+  });
+
   it('does not inject the block on non-SessionStart events', async () => {
     const registry = buildRegistry(h);
     await sessionStart(registry, h, 'sess_pre');

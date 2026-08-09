@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
 import type { RecordDecisionInput, RecordDecisionOutput } from './schema.js';
@@ -185,6 +185,24 @@ interface ExistingDecisionRow {
   readonly createdAt: Date;
 }
 
+interface DecisionTargetRow {
+  readonly id: string;
+  readonly projectId: string | null;
+  readonly description: string;
+  readonly rationale: string;
+  readonly context: string | null;
+  readonly impact: string | null;
+}
+
+interface EdgeInsert {
+  readonly projectId: string;
+  readonly fromDecisionId: string;
+  readonly edgeType: 'supersedes' | 'affects';
+  readonly targetType: 'decision' | 'file' | 'work_pack' | 'graph_node';
+  readonly targetId: string;
+  readonly metadataJson: string | null;
+}
+
 async function selectByIdempotencyKey(db: DbHandle, key: string): Promise<ExistingDecisionRow | null> {
   if (db.kind === 'sqlite') {
     const rows = await db.db
@@ -202,6 +220,277 @@ async function selectByIdempotencyKey(db: DbHandle, key: string): Promise<Existi
     .limit(1);
   const row = rows[0];
   return row ? { id: row.id, createdAt: row.createdAt } : null;
+}
+
+async function selectDecisionTargets(db: DbHandle, ids: ReadonlyArray<string>): Promise<Map<string, DecisionTargetRow>> {
+  const uniqueIds = [...new Set(ids)].filter((id) => id.length > 0);
+  const byId = new Map<string, DecisionTargetRow>();
+  if (uniqueIds.length === 0) return byId;
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({
+        id: sqliteSchema.decisions.id,
+        projectId: sqliteSchema.decisions.projectId,
+        description: sqliteSchema.decisions.description,
+        rationale: sqliteSchema.decisions.rationale,
+        context: sqliteSchema.decisions.context,
+        impact: sqliteSchema.decisions.impact,
+      })
+      .from(sqliteSchema.decisions)
+      .where(inArray(sqliteSchema.decisions.id, uniqueIds));
+    for (const row of rows) byId.set(row.id, row);
+    return byId;
+  }
+  const rows = await db.db
+    .select({
+      id: postgresSchema.decisions.id,
+      projectId: postgresSchema.decisions.projectId,
+      description: postgresSchema.decisions.description,
+      rationale: postgresSchema.decisions.rationale,
+      context: postgresSchema.decisions.context,
+      impact: postgresSchema.decisions.impact,
+    })
+    .from(postgresSchema.decisions)
+    .where(inArray(postgresSchema.decisions.id, uniqueIds));
+  for (const row of rows) byId.set(row.id, row);
+  return byId;
+}
+
+async function selectSupersededTargets(db: DbHandle, decisionId: string): Promise<string[]> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ targetId: sqliteSchema.decisionEdges.targetId })
+      .from(sqliteSchema.decisionEdges)
+      .where(
+        and(
+          eq(sqliteSchema.decisionEdges.fromDecisionId, decisionId),
+          eq(sqliteSchema.decisionEdges.edgeType, 'supersedes'),
+          eq(sqliteSchema.decisionEdges.targetType, 'decision'),
+        ),
+      );
+    return rows.map((row) => row.targetId);
+  }
+  const rows = await db.db
+    .select({ targetId: postgresSchema.decisionEdges.targetId })
+    .from(postgresSchema.decisionEdges)
+    .where(
+      and(
+        eq(postgresSchema.decisionEdges.fromDecisionId, decisionId),
+        eq(postgresSchema.decisionEdges.edgeType, 'supersedes'),
+        eq(postgresSchema.decisionEdges.targetType, 'decision'),
+      ),
+    );
+  return rows.map((row) => row.targetId);
+}
+
+async function selectIncomingSupersededTargetIds(db: DbHandle, decisionIds: ReadonlyArray<string>): Promise<Set<string>> {
+  const uniqueIds = [...new Set(decisionIds)];
+  const superseded = new Set<string>();
+  if (uniqueIds.length === 0) return superseded;
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({ targetId: sqliteSchema.decisionEdges.targetId })
+      .from(sqliteSchema.decisionEdges)
+      .where(
+        and(
+          eq(sqliteSchema.decisionEdges.edgeType, 'supersedes'),
+          eq(sqliteSchema.decisionEdges.targetType, 'decision'),
+          inArray(sqliteSchema.decisionEdges.targetId, uniqueIds),
+        ),
+      );
+    for (const row of rows) superseded.add(row.targetId);
+    return superseded;
+  }
+  const rows = await db.db
+    .select({ targetId: postgresSchema.decisionEdges.targetId })
+    .from(postgresSchema.decisionEdges)
+    .where(
+      and(
+        eq(postgresSchema.decisionEdges.edgeType, 'supersedes'),
+        eq(postgresSchema.decisionEdges.targetType, 'decision'),
+        inArray(postgresSchema.decisionEdges.targetId, uniqueIds),
+      ),
+    );
+  for (const row of rows) superseded.add(row.targetId);
+  return superseded;
+}
+
+async function wouldCreateSupersessionCycle(
+  db: DbHandle,
+  fromDecisionId: string,
+  targetDecisionId: string,
+): Promise<boolean> {
+  const seen = new Set<string>();
+  const stack = [targetDecisionId];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (current === undefined || seen.has(current)) continue;
+    if (current === fromDecisionId) return true;
+    seen.add(current);
+    stack.push(...(await selectSupersededTargets(db, current)));
+  }
+  return false;
+}
+
+async function insertDecisionEdges(db: DbHandle, edges: ReadonlyArray<EdgeInsert>): Promise<void> {
+  const unique = new Map<string, EdgeInsert>();
+  for (const edge of edges) {
+    unique.set(`${edge.fromDecisionId}\0${edge.edgeType}\0${edge.targetType}\0${edge.targetId}`, edge);
+  }
+  for (const edge of unique.values()) {
+    if (db.kind === 'sqlite') {
+      await db.db
+        .insert(sqliteSchema.decisionEdges)
+        .values({
+          id: `de_${randomUUID()}`,
+          projectId: edge.projectId,
+          fromDecisionId: edge.fromDecisionId,
+          edgeType: edge.edgeType,
+          targetType: edge.targetType,
+          targetId: edge.targetId,
+          metadataJson: edge.metadataJson,
+        })
+        .onConflictDoNothing({
+          target: [
+            sqliteSchema.decisionEdges.fromDecisionId,
+            sqliteSchema.decisionEdges.edgeType,
+            sqliteSchema.decisionEdges.targetType,
+            sqliteSchema.decisionEdges.targetId,
+          ],
+        });
+      continue;
+    }
+    await db.db
+      .insert(postgresSchema.decisionEdges)
+      .values({
+        id: `de_${randomUUID()}`,
+        projectId: edge.projectId,
+        fromDecisionId: edge.fromDecisionId,
+        edgeType: edge.edgeType,
+        targetType: edge.targetType,
+        targetId: edge.targetId,
+        metadataJson: edge.metadataJson,
+      })
+      .onConflictDoNothing({
+        target: [
+          postgresSchema.decisionEdges.fromDecisionId,
+          postgresSchema.decisionEdges.edgeType,
+          postgresSchema.decisionEdges.targetType,
+          postgresSchema.decisionEdges.targetId,
+        ],
+      });
+  }
+}
+
+function parseImpact(raw: string | null | undefined): string[] {
+  if (raw === null || raw === undefined) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function textTokens(...parts: Array<string | null | undefined>): Set<string> {
+  const tokens = new Set<string>();
+  for (const part of parts) {
+    if (part === null || part === undefined) continue;
+    for (const token of part.toLowerCase().match(/[a-z0-9_/-]{4,}/g) ?? []) {
+      tokens.add(token);
+      if (tokens.size >= 24) return tokens;
+    }
+  }
+  return tokens;
+}
+
+async function selectRecentActiveDecisionCandidates(
+  db: DbHandle,
+  projectId: string,
+  currentDecisionId: string,
+): Promise<DecisionTargetRow[]> {
+  if (db.kind === 'sqlite') {
+    const rows = await db.db
+      .select({
+        id: sqliteSchema.decisions.id,
+        projectId: sqliteSchema.decisions.projectId,
+        description: sqliteSchema.decisions.description,
+        rationale: sqliteSchema.decisions.rationale,
+        context: sqliteSchema.decisions.context,
+        impact: sqliteSchema.decisions.impact,
+      })
+      .from(sqliteSchema.decisions)
+      .where(eq(sqliteSchema.decisions.projectId, projectId))
+      .orderBy(desc(sqliteSchema.decisions.createdAt))
+      .limit(100);
+    const superseded = await selectIncomingSupersededTargetIds(
+      db,
+      rows.map((row) => row.id),
+    );
+    return rows.filter((row) => row.id !== currentDecisionId && !superseded.has(row.id));
+  }
+  const rows = await db.db
+    .select({
+      id: postgresSchema.decisions.id,
+      projectId: postgresSchema.decisions.projectId,
+      description: postgresSchema.decisions.description,
+      rationale: postgresSchema.decisions.rationale,
+      context: postgresSchema.decisions.context,
+      impact: postgresSchema.decisions.impact,
+    })
+    .from(postgresSchema.decisions)
+    .where(eq(postgresSchema.decisions.projectId, projectId))
+    .orderBy(desc(postgresSchema.decisions.createdAt))
+    .limit(100);
+  const superseded = await selectIncomingSupersededTargetIds(
+    db,
+    rows.map((row) => row.id),
+  );
+  return rows.filter((row) => row.id !== currentDecisionId && !superseded.has(row.id));
+}
+
+async function relatedDecisionCandidates(
+  db: DbHandle,
+  args: {
+    readonly projectId: string;
+    readonly decisionId: string;
+    readonly description: string;
+    readonly rationale: string;
+    readonly context: string | null;
+    readonly impact: ReadonlyArray<string>;
+  },
+): Promise<Array<{ readonly decisionId: string; readonly description: string; readonly reason: string }>> {
+  const tokens = textTokens(args.description, args.rationale, args.context, args.impact.join(' '));
+  if (tokens.size === 0) return [];
+  const candidates = await selectRecentActiveDecisionCandidates(db, args.projectId, args.decisionId);
+  const scored: Array<{ row: DecisionTargetRow; score: number; matched: string[] }> = [];
+  for (const row of candidates) {
+    const rowTokens = textTokens(row.description, row.rationale, row.context, parseImpact(row.impact).join(' '));
+    const matched = [...tokens].filter((token) => rowTokens.has(token));
+    if (matched.length > 0) scored.push({ row, score: matched.length, matched: matched.slice(0, 3) });
+  }
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(({ row, matched }) => ({
+      decisionId: row.id,
+      description: row.description,
+      reason: `overlap:${matched.join(',')}`,
+    }));
+}
+
+function impactTarget(raw: string): { targetType: 'file' | 'work_pack' | 'graph_node'; targetId: string } | null {
+  const value = raw.trim();
+  if (value.length === 0) return null;
+  if (value.startsWith('graph_node:')) {
+    const targetId = value.slice('graph_node:'.length).trim();
+    return targetId.length > 0 ? { targetType: 'graph_node', targetId } : null;
+  }
+  if (value.startsWith('work_pack:')) {
+    const targetId = value.slice('work_pack:'.length).trim();
+    return targetId.length > 0 ? { targetType: 'work_pack', targetId } : null;
+  }
+  return { targetType: 'file', targetId: value };
 }
 
 interface InsertResult {
@@ -341,8 +630,38 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
       };
     }
     const actor = auth.actor;
+    const existingDecisionBeforeInsert = await selectByIdempotencyKey(deps.db, idempotencyKey);
+    const candidateDecisionId = existingDecisionBeforeInsert?.id ?? `dec_${randomUUID()}`;
+    if (input.supersedesDecisionIds !== undefined && input.supersedesDecisionIds.length > 0) {
+      const targetRows = await selectDecisionTargets(deps.db, input.supersedesDecisionIds);
+      for (const targetDecisionId of new Set(input.supersedesDecisionIds)) {
+        const target = targetRows.get(targetDecisionId);
+        if (target === undefined || target.projectId !== runAttribution.projectId) {
+          return {
+            ok: false,
+            error: 'supersedes_decision_not_found',
+            decisionId: targetDecisionId,
+            howToFix:
+              'Only pass supersedesDecisionIds that exist in this project. Query decisions first, then retry with the exact decision id.',
+          };
+        }
+        if (
+          targetDecisionId === candidateDecisionId ||
+          (await wouldCreateSupersessionCycle(deps.db, candidateDecisionId, targetDecisionId))
+        ) {
+          return {
+            ok: false,
+            error: 'supersession_cycle',
+            decisionId: targetDecisionId,
+            howToFix:
+              'This supersession edge would create a cycle. Leave the older edge intact or record a new non-cyclic replacement decision.',
+          };
+        }
+      }
+    }
+
     const { inserted, id, createdAt } = await insertIgnoreOnConflict(deps.db, {
-      id: `dec_${randomUUID()}`,
+      id: candidateDecisionId,
       orgId: actor?.orgId ?? runAttribution.orgId,
       projectId: runAttribution.projectId,
       idempotencyKey,
@@ -397,6 +716,59 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
       await touchWorkPacksActivity(deps.db, workPackIdsToLink, ctx.now());
     }
 
+    const edgeInserts: EdgeInsert[] = [];
+    if (input.supersedesDecisionIds !== undefined && input.supersedesDecisionIds.length > 0) {
+      for (const targetDecisionId of new Set(input.supersedesDecisionIds)) {
+        edgeInserts.push({
+          projectId: runAttribution.projectId,
+          fromDecisionId: id,
+          edgeType: 'supersedes',
+          targetType: 'decision',
+          targetId: targetDecisionId,
+          metadataJson: JSON.stringify({ source: 'record_decision.supersedesDecisionIds' }),
+        });
+      }
+    }
+
+    if (input.impact !== undefined) {
+      for (const rawImpact of input.impact) {
+        const target = impactTarget(rawImpact);
+        if (target === null) continue;
+        edgeInserts.push({
+          projectId: runAttribution.projectId,
+          fromDecisionId: id,
+          edgeType: 'affects',
+          targetType: target.targetType,
+          targetId: target.targetId,
+          metadataJson: JSON.stringify({ source: 'record_decision.impact', raw: rawImpact }),
+        });
+      }
+    }
+    for (const workPackId of workPackIdsToLink) {
+      edgeInserts.push({
+        projectId: runAttribution.projectId,
+        fromDecisionId: id,
+        edgeType: 'affects',
+        targetType: 'work_pack',
+        targetId: workPackId,
+        metadataJson: JSON.stringify({ source: 'record_decision.workPackLink' }),
+      });
+    }
+    if (edgeInserts.length > 0) {
+      await insertDecisionEdges(deps.db, edgeInserts);
+    }
+
+    const candidates = inserted
+      ? await relatedDecisionCandidates(deps.db, {
+          projectId: runAttribution.projectId,
+          decisionId: id,
+          description: input.description,
+          rationale: input.rationale,
+          context: input.context ?? null,
+          impact: input.impact ?? [],
+        })
+      : [];
+
     // M04 Phase 4: in team mode, enqueue a sync_to_cloud job so the
     // sync-daemon pushes the decision to cloud Postgres. Without this
     // enqueue the row lives only in local SQLite and teammates never
@@ -426,6 +798,7 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
       decisionId: id,
       createdAt: createdAt.toISOString(),
       created: inserted,
+      relatedDecisionCandidates: candidates,
     };
   };
 }

@@ -198,6 +198,49 @@ describe('query_decisions — DESC order by createdAt', () => {
 });
 
 // ---------------------------------------------------------------------------
+// COOD-58 activeOnly / supersededBy
+// ---------------------------------------------------------------------------
+
+describe('query_decisions — COOD-58 supersession state', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('defaults to active decisions and annotates superseded history when requested', async () => {
+    seedRun(h, 'run_x', h.projectA);
+    seedDecision(h, 'dec_old', 'run_x', 'old storage decision', 'because A', null, 1000);
+    seedDecision(h, 'dec_new', 'run_x', 'new storage decision', 'because B', null, 2000);
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decision_edges (id, project_id, from_decision_id, edge_type, target_type, target_id)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run('de_qd_supersedes', h.projectA, 'dec_new', 'supersedes', 'decision', 'dec_old');
+
+    const registry = buildRegistry(h);
+    const active = unwrap(await registry.handleCall('query_decisions', { projectSlug: 'slug-a' }, 'sess_qd'));
+    expect(active.ok).toBe(true);
+    if (!active.ok) return;
+    expect(active.decisions.map((d) => d.id)).toEqual(['dec_new']);
+    expect(active.decisions[0]?.supersededBy).toBeNull();
+
+    const all = unwrap(
+      await registry.handleCall('query_decisions', { projectSlug: 'slug-a', activeOnly: false }, 'sess_qd'),
+    );
+    expect(all.ok).toBe(true);
+    if (!all.ok) return;
+    expect(all.decisions.map((d) => [d.id, d.supersededBy])).toEqual([
+      ['dec_new', null],
+      ['dec_old', 'dec_new'],
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // query LIKE filter — description
 // ---------------------------------------------------------------------------
 

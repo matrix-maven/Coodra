@@ -100,7 +100,9 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     to link_run_to_issue, binds runs.pr_ref instead of
     //     runs.issue_ref, so a run can be linked to a tracker issue and a
     //     PR/MR at once → 23
-    expect(tools.length).toBe(23);
+    //   COOD-58 (2026-08-09): query_decisions_by_file added for reverse
+    //     lookup over decision_edges target_type=file → 24
+    expect(tools.length).toBe(24);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {

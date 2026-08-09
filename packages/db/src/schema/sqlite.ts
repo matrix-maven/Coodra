@@ -170,6 +170,11 @@ export const contextPacks = sqliteTable(
     // Soft-governed (free text). Recommended values: 'high' | 'medium' |
     // 'low'. NULL when the caller didn't supply one.
     importance: text('importance'),
+    // COOD-59 — non-destructive consolidation pointer. When a future lazy
+    // compaction job summarizes a cold batch into a digest Context Pack,
+    // original rows stay readable and point at that digest instead of being
+    // deleted or rewritten.
+    archivedInPackId: text('archived_in_pack_id'),
   },
   (t) => [
     // Append-only redesign (2026-08-05): was uniqueIndex(run_idx) — a run
@@ -184,6 +189,7 @@ export const contextPacks = sqliteTable(
     index('context_packs_run_idx').on(t.runId),
     index('context_packs_project_created_idx').on(t.projectId, t.createdAt),
     index('context_packs_work_pack_idx').on(t.workPackId, t.createdAt),
+    index('context_packs_archived_in_pack_idx').on(t.archivedInPackId),
   ],
 );
 
@@ -664,6 +670,42 @@ export const decisions = sqliteTable(
 );
 
 /**
+ * COOD-58 — durable typed edges for the decision memory layer.
+ *
+ * Decisions remain append-only and immutable. Relationships that change
+ * their authority or connect them to code artifacts live here instead:
+ *   - `supersedes`: from_decision_id -> target_type='decision'/target_id=dec_*
+ *   - `affects`:    from_decision_id -> file | work_pack | graph_node
+ *
+ * `target_id` is intentionally typed by `target_type` instead of being a
+ * nullable/overloaded FK column. SQLite cannot express the conditional FK
+ * for target_type='decision', so write paths validate decision targets and
+ * reject supersession cycles in application code.
+ */
+export const decisionEdges = sqliteTable(
+  'decision_edges',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    fromDecisionId: text('from_decision_id')
+      .notNull()
+      .references(() => decisions.id, { onDelete: 'cascade' }),
+    edgeType: text('edge_type').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    metadataJson: text('metadata_json'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('decision_edges_unique').on(t.fromDecisionId, t.edgeType, t.targetType, t.targetId),
+    index('decision_edges_project_target_idx').on(t.projectId, t.edgeType, t.targetType, t.targetId),
+    index('decision_edges_from_idx').on(t.fromDecisionId, t.edgeType),
+  ],
+);
+
+/**
  * coodra-work redesign, round 2 — direct many-to-many links from a
  * decision/context pack to the Work Pack(s) it belongs to, written at
  * record time. Mirrors `workPackExternalLinks`'s exact shape (postgres
@@ -901,6 +943,8 @@ export type SyncEvent = typeof syncEvents.$inferSelect;
 export type NewSyncEvent = typeof syncEvents.$inferInsert;
 export type Decision = typeof decisions.$inferSelect;
 export type NewDecision = typeof decisions.$inferInsert;
+export type DecisionEdge = typeof decisionEdges.$inferSelect;
+export type NewDecisionEdge = typeof decisionEdges.$inferInsert;
 export type WorkPackDecisionLink = typeof workPackDecisionLinks.$inferSelect;
 export type NewWorkPackDecisionLink = typeof workPackDecisionLinks.$inferInsert;
 export type WorkPackContextPackLink = typeof workPackContextPackLinks.$inferSelect;

@@ -73,6 +73,8 @@ const packResultSchema = z
     runId: z.string().min(1),
     /** Provenance — 'agent' rows are canonical narratives; 'bridge_auto' rows are structured digests. */
     source: z.enum(['agent', 'bridge_auto']),
+    /** True when this pack's meta.decisionIds includes a decision superseded by a COOD-58 decision edge. */
+    superseded: z.boolean(),
   })
   .strict();
 

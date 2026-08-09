@@ -3,6 +3,12 @@ import { notFound } from 'next/navigation';
 
 import { Topbar } from '@/components/Topbar';
 import { getWorkPackProject } from '@/lib/queries/work-packs';
+import {
+  formatWorkPackProviderSummary,
+  formatWorkPackSyncBadge,
+  isJiraLinkedWorkPack,
+  summarizeWorkPackGroup,
+} from '@/lib/work-pack-display';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +21,7 @@ export default async function WorkPackProjectPage({ params }: PageProps) {
   const group = await getWorkPackProject(projectSlug);
   if (group === null) notFound();
 
-  const linked = group.packs.filter((pack) => pack.externalKey !== null).length;
-  const synced = group.packs.filter((pack) => pack.syncState === 'synced').length;
+  const summary = summarizeWorkPackGroup(group.packs);
 
   return (
     <>
@@ -44,7 +49,7 @@ export default async function WorkPackProjectPage({ params }: PageProps) {
                 {group.packs.length} work pack{group.packs.length === 1 ? '' : 's'}
               </strong>
               <br />
-              {linked} Jira-linked · {synced} synced
+              {formatWorkPackProviderSummary(summary)} · {formatWorkPackSyncBadge(summary)}
               <br />
               .coodra/work-packs/
             </div>
@@ -53,7 +58,8 @@ export default async function WorkPackProjectPage({ params }: PageProps) {
 
         <div className="pack-grid">
           {group.packs.map((pack) => {
-            const syncedPack = pack.syncState === 'synced';
+            const jiraLinked = isJiraLinkedWorkPack(pack);
+            const syncedPack = jiraLinked && pack.syncState === 'synced';
             return (
               <article key={pack.id} className="pack">
                 <Link
@@ -65,15 +71,15 @@ export default async function WorkPackProjectPage({ params }: PageProps) {
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
                   >
                     <span>/ {pack.slug.toUpperCase()}</span>
-                    <span className={`badge ${syncedPack ? 'badge--ok' : 'badge--caution'}`}>
+                    <span className={`badge ${syncedPack || !jiraLinked ? 'badge--ok' : 'badge--caution'}`}>
                       <span className="badge__dot"></span>
-                      {pack.syncState ?? 'LOCAL'}
+                      {jiraLinked ? (pack.syncState ?? 'pending') : 'local'}
                     </span>
                   </div>
                   <h3 className="pack__title">{pack.title}</h3>
                   <p className="pack__excerpt">
                     {pack.packType} · {pack.status}
-                    {pack.externalKey !== null ? ` · ${pack.externalKey}` : ''}
+                    {jiraLinked ? ` · ${pack.externalKey}` : ' · local'}
                     {pack.externalStatus !== null ? ` is ${pack.externalStatus}` : ''}
                   </p>
                 </Link>

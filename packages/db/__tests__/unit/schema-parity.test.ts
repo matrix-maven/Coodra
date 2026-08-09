@@ -55,6 +55,9 @@ const tablePairs = [
   ['work_pack_relationships', sq.workPackRelationships, pg.workPackRelationships],
   ['sync_events', sq.syncEvents, pg.syncEvents],
   ['decisions', sq.decisions, pg.decisions],
+  // COOD-58 — typed decision graph edges for supersession and affected
+  // file/work-pack/graph-node relationships.
+  ['decision_edges', sq.decisionEdges, pg.decisionEdges],
   // coodra-work redesign, round 2 (2026-08-03) — direct many-to-many
   // decision/context-pack <-> Work Pack links, added in the same commit
   // as the schema change so this table never repeats the `decisions`
@@ -114,6 +117,7 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(sq.syncEvents).toBeDefined();
     expect(sq.wikis).toBeDefined();
     expect(sq.wikiPages).toBeDefined();
+    expect(sq.decisionEdges).toBeDefined();
   });
 
   it('Postgres exports all expected tables', () => {
@@ -142,6 +146,7 @@ describe('work-pack-aware schema is present in both dialects', () => {
     expect(pg.syncEvents).toBeDefined();
     expect(pg.wikis).toBeDefined();
     expect(pg.wikiPages).toBeDefined();
+    expect(pg.decisionEdges).toBeDefined();
   });
 });
 

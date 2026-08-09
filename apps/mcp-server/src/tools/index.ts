@@ -13,6 +13,7 @@ import { createListRecipesToolRegistration } from './list-recipes/manifest.js';
 import { pingToolRegistration } from './ping/manifest.js';
 import { createPrepareJiraCommentToolRegistration } from './prepare-jira-comment/manifest.js';
 import { createQueryDecisionsToolRegistration } from './query-decisions/manifest.js';
+import { createQueryDecisionsByFileToolRegistration } from './query-decisions-by-file/manifest.js';
 import { createQueryRunDiffToolRegistration } from './query-run-diff/manifest.js';
 import { createQueryRunHistoryToolRegistration } from './query-run-history/manifest.js';
 import { createReadContextPackToolRegistration } from './read-context-pack/manifest.js';
@@ -71,6 +72,7 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   // the gap that record_decision wrote rows nothing in the 9-tool surface
   // could read back. See manifest.ts docblock.
   registry.register(createQueryDecisionsToolRegistration({ db: deps.db }));
+  registry.register(createQueryDecisionsByFileToolRegistration({ db: deps.db }));
   // Module 05 (2026-05-08 reshape): the two agent-driven retrieval
   // tools that replaced the abandoned embedding pipeline.
   registry.register(createListContextPacksToolRegistration({ db: deps.db }));

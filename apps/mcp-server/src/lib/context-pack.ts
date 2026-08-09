@@ -361,6 +361,7 @@ export interface DiversifiedContextPackRow {
   readonly kind: string | null;
   readonly runId: string;
   readonly createdAt: Date;
+  readonly tier: ContextPackInjectionTier;
 }
 
 export interface DiversifiedOverflowNote {
@@ -391,6 +392,17 @@ function kindRank(kind: string | null): number {
   return KIND_PRIORITY[kind] ?? 6;
 }
 
+export type ContextPackInjectionTier = 'hot' | 'warm';
+
+function tierForWorkPackStatuses(
+  statuses: ReadonlyArray<string>,
+  archivedInPackId: string | null,
+): ContextPackInjectionTier | null {
+  if (archivedInPackId !== null) return null;
+  if (statuses.length === 0) return 'hot';
+  return statuses.every((status) => status === 'done') ? 'warm' : 'hot';
+}
+
 /**
  * Every group here is constructed by pushing at least one row before
  * being stored in the grouping Map (see `selectDiversifiedRecentContextPacks`),
@@ -404,6 +416,8 @@ function firstRow(rows: readonly DiversifiedContextPackRow[]): DiversifiedContex
   return row;
 }
 
+type WorkPackLink = { readonly id: string; readonly slug: string; readonly status: string };
+
 /**
  * Fetches the secondary `work_pack_context_pack_links` rows for a
  * candidate id set, joined to `work_packs` for the slug. The primary
@@ -416,20 +430,20 @@ function firstRow(rows: readonly DiversifiedContextPackRow[]): DiversifiedContex
 async function fetchSecondaryWorkPackLinks(
   db: DbHandle,
   contextPackIds: ReadonlyArray<string>,
-): Promise<Map<string, Array<{ readonly id: string; readonly slug: string }>>> {
-  const byContextPackId = new Map<string, Array<{ readonly id: string; readonly slug: string }>>();
+): Promise<Map<string, WorkPackLink[]>> {
+  const byContextPackId = new Map<string, WorkPackLink[]>();
   if (contextPackIds.length === 0) return byContextPackId;
   if (db.kind === 'sqlite') {
     const links = sqliteSchema.workPackContextPackLinks;
     const wp = sqliteSchema.workPacks;
     const rows = await db.db
-      .select({ contextPackId: links.contextPackId, workPackId: links.workPackId, slug: wp.slug })
+      .select({ contextPackId: links.contextPackId, workPackId: links.workPackId, slug: wp.slug, status: wp.status })
       .from(links)
       .innerJoin(wp, eq(links.workPackId, wp.id))
       .where(inArray(links.contextPackId, contextPackIds));
     for (const r of rows) {
       const list = byContextPackId.get(r.contextPackId) ?? [];
-      list.push({ id: r.workPackId, slug: r.slug });
+      list.push({ id: r.workPackId, slug: r.slug, status: r.status });
       byContextPackId.set(r.contextPackId, list);
     }
     return byContextPackId;
@@ -437,13 +451,13 @@ async function fetchSecondaryWorkPackLinks(
   const links = postgresSchema.workPackContextPackLinks;
   const wp = postgresSchema.workPacks;
   const rows = await db.db
-    .select({ contextPackId: links.contextPackId, workPackId: links.workPackId, slug: wp.slug })
+    .select({ contextPackId: links.contextPackId, workPackId: links.workPackId, slug: wp.slug, status: wp.status })
     .from(links)
     .innerJoin(wp, eq(links.workPackId, wp.id))
     .where(inArray(links.contextPackId, contextPackIds));
   for (const r of rows) {
     const list = byContextPackId.get(r.contextPackId) ?? [];
-    list.push({ id: r.workPackId, slug: r.slug });
+    list.push({ id: r.workPackId, slug: r.slug, status: r.status });
     byContextPackId.set(r.contextPackId, list);
   }
   return byContextPackId;
@@ -460,9 +474,11 @@ async function fetchDiversificationCandidates(
     readonly excerpt: string;
     readonly workPackId: string | null;
     readonly workPackSlug: string | null;
+    readonly workPackStatus: string | null;
     readonly kind: string | null;
     readonly runId: string;
     readonly createdAt: Date;
+    readonly archivedInPackId: string | null;
   };
   let primaryRows: PrimaryRow[];
   if (db.kind === 'sqlite') {
@@ -475,16 +491,23 @@ async function fetchDiversificationCandidates(
         excerpt: cp.contentExcerpt,
         workPackId: cp.workPackId,
         workPackSlug: wp.slug,
+        workPackStatus: wp.status,
         kind: cp.kind,
         runId: cp.runId,
         createdAt: cp.createdAt,
+        archivedInPackId: cp.archivedInPackId,
       })
       .from(cp)
       .leftJoin(wp, eq(cp.workPackId, wp.id))
       .where(eq(cp.projectId, projectId))
       .orderBy(desc(cp.createdAt))
       .limit(limit);
-    primaryRows = rows.map((r) => ({ ...r, workPackSlug: r.workPackSlug ?? null }));
+    primaryRows = rows.map((r) => ({
+      ...r,
+      workPackSlug: r.workPackSlug ?? null,
+      workPackStatus: r.workPackStatus ?? null,
+      archivedInPackId: r.archivedInPackId ?? null,
+    }));
   } else {
     const cp = postgresSchema.contextPacks;
     const wp = postgresSchema.workPacks;
@@ -495,16 +518,23 @@ async function fetchDiversificationCandidates(
         excerpt: cp.contentExcerpt,
         workPackId: cp.workPackId,
         workPackSlug: wp.slug,
+        workPackStatus: wp.status,
         kind: cp.kind,
         runId: cp.runId,
         createdAt: cp.createdAt,
+        archivedInPackId: cp.archivedInPackId,
       })
       .from(cp)
       .leftJoin(wp, eq(cp.workPackId, wp.id))
       .where(eq(cp.projectId, projectId))
       .orderBy(desc(cp.createdAt))
       .limit(limit);
-    primaryRows = rows.map((r) => ({ ...r, workPackSlug: r.workPackSlug ?? null }));
+    primaryRows = rows.map((r) => ({
+      ...r,
+      workPackSlug: r.workPackSlug ?? null,
+      workPackStatus: r.workPackStatus ?? null,
+      archivedInPackId: r.archivedInPackId ?? null,
+    }));
   }
 
   const secondaryLinks = await fetchSecondaryWorkPackLinks(
@@ -512,21 +542,29 @@ async function fetchDiversificationCandidates(
     primaryRows.map((r) => r.id),
   );
 
-  return primaryRows.map((r) => {
-    const links = new Map<string, string>();
-    if (r.workPackId !== null && r.workPackSlug !== null) links.set(r.workPackId, r.workPackSlug);
-    for (const link of secondaryLinks.get(r.id) ?? []) {
-      if (!links.has(link.id)) links.set(link.id, link.slug);
+  return primaryRows.flatMap((r) => {
+    const links = new Map<string, WorkPackLink>();
+    if (r.workPackId !== null && r.workPackSlug !== null && r.workPackStatus !== null) {
+      links.set(r.workPackId, { id: r.workPackId, slug: r.workPackSlug, status: r.workPackStatus });
     }
+    for (const link of secondaryLinks.get(r.id) ?? []) {
+      if (!links.has(link.id)) links.set(link.id, link);
+    }
+    const tier = tierForWorkPackStatuses(
+      [...links.values()].map((link) => link.status),
+      r.archivedInPackId,
+    );
+    if (tier === null) return [];
     return {
       id: r.id,
       title: r.title,
       excerpt: r.excerpt,
       workPackIds: [...links.keys()],
-      workPackSlugs: [...links.values()],
+      workPackSlugs: [...links.values()].map((link) => link.slug),
       kind: r.kind,
       runId: r.runId,
       createdAt: r.createdAt,
+      tier,
     };
   });
 }
