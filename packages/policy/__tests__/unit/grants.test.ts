@@ -10,12 +10,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  handle.close();
+  try {
+    handle.close();
+  } catch {
+    // Some failover tests intentionally close the raw handle first.
+  }
 });
 
 async function seedPolicy(args: {
   decision: 'ask' | 'deny';
   enforcementMode: 'approval' | 'preventive';
+  denyOnPolicyError?: boolean;
 }): Promise<void> {
   await handle.db.insert(sqliteSchema.projects).values({
     id: 'proj_grants',
@@ -28,6 +33,7 @@ async function seedPolicy(args: {
     projectId: 'proj_grants',
     name: 'grants',
     isActive: true,
+    denyOnPolicyError: args.denyOnPolicyError ?? false,
   });
   await handle.db.insert(sqliteSchema.policyRules).values({
     id: 'rule_grants',
@@ -222,6 +228,72 @@ describe('policy grants', () => {
     expect(different).toMatchObject({
       decision: 'ask',
       matchedGrantId: null,
+    });
+  });
+});
+
+describe('denyOnPolicyError', () => {
+  it('fails closed from warm cache for a matching deny rule whose policy opted in', async () => {
+    await seedPolicy({ decision: 'deny', enforcementMode: 'preventive', denyOnPolicyError: true });
+    const client = createPolicyClient({ db: handle, cacheTtlMs: 60_000 });
+
+    const healthy = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'deny-on-error-warm' },
+      input: { command: 'rm -rf prod' },
+      projectId: 'proj_grants',
+    });
+    expect(healthy).toMatchObject({ decision: 'deny', matchedRuleId: 'rule_grants' });
+
+    handle.raw.close();
+    const failed = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'deny-on-error-db-down' },
+      input: { command: 'rm -rf prod' },
+      projectId: 'proj_grants',
+    });
+
+    expect(failed).toMatchObject({
+      decision: 'deny',
+      baseDecision: 'deny',
+      reason: 'policy_check_unavailable',
+      matchedRuleId: 'rule_grants',
+      matchedGrantId: null,
+      matchedExceptionId: null,
+    });
+  });
+
+  it('still fails open on policy errors when the warm cached match did not opt in', async () => {
+    await seedPolicy({ decision: 'deny', enforcementMode: 'preventive', denyOnPolicyError: false });
+    const client = createPolicyClient({ db: handle, cacheTtlMs: 60_000 });
+
+    await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'fail-open-warm' },
+      input: { command: 'rm -rf prod' },
+      projectId: 'proj_grants',
+    });
+
+    handle.raw.close();
+    const failed = await client.evaluate({
+      toolName: 'Bash',
+      phase: 'pre',
+      sessionId: 'sess_grants',
+      idempotencyKey: { kind: 'mutating', key: 'fail-open-db-down' },
+      input: { command: 'rm -rf prod' },
+      projectId: 'proj_grants',
+    });
+
+    expect(failed).toMatchObject({
+      decision: 'allow',
+      reason: 'policy_check_unavailable',
+      matchedRuleId: null,
     });
   });
 });

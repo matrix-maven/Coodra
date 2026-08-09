@@ -128,17 +128,13 @@ describe('lifecycle_event — ConfigChange rewire', () => {
     await h.close();
   });
 
-  it('runs the policy-projection attestation (previously a no-op) and returns a structured hookSpecificOutput', async () => {
+  it('acks ConfigChange without policy projection attestation; DB/cache policy state is source of truth', async () => {
     const registry = buildRegistry(h);
     await sessionStart(registry, h, 'sess_pre');
     const out = await fireHook(registry, h, 'sess_pre', { hook_event_name: 'ConfigChange' });
     expect(out.ok).toBe(true);
     expect(out.hookSpecificOutput?.hookEventName).toBe('ConfigChange');
-    // No .claude/settings.json exists in this scratch cwd — attestation
-    // status is 'missing', which renders a non-null drift block (as
-    // opposed to 'match', which renders null). Confirms the branch
-    // actually executes now, rather than falling to the old no-op default.
-    expect(out.hookSpecificOutput?.additionalContext).toContain('policy projection');
+    expect(out.hookSpecificOutput?.additionalContext).toBeUndefined();
   });
 });
 

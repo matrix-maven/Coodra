@@ -914,10 +914,10 @@ function isCockatielFailOpen(err: unknown): boolean {
 }
 
 /**
- * Real policy evaluator. Wraps a cache-first DB read in a
- * cockatiel timeout + breaker fuse, returns fail-open on every
- * error path. The frozen `PolicyClient` interface is the only
- * surface exposed to callers.
+ * Real policy evaluator. Wraps a cache-first DB read in a cockatiel
+ * timeout + breaker fuse. Cold-cache failures fail open; warm-cache
+ * failures fail closed only for matching rules whose policy opted into
+ * `denyOnPolicyError`.
  */
 export function createPolicyClient(options: CreatePolicyClientOptions): PolicyClient {
   if (!options || typeof options !== 'object') {
@@ -976,6 +976,22 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         state = await getPolicyState(projectId);
       } catch (err) {
         const durationMs = now() - started;
+        const warmFailClosed = failClosedResultFromWarmCache(cache.get(projectId ?? GLOBAL_CACHE_KEY), input);
+        if (warmFailClosed !== null) {
+          policyLogger.warn(
+            {
+              event: 'policy_fail_closed_on_policy_error',
+              tool: input.toolName,
+              phase: input.phase,
+              sessionId: input.sessionId,
+              durationMs,
+              matchedRuleId: warmFailClosed.matchedRuleId,
+              reason: err instanceof Error ? err.message : String(err),
+            },
+            'policy DB read failed; warm cached denyOnPolicyError rule matched, failing closed',
+          );
+          return warmFailClosed;
+        }
         if (isCockatielFailOpen(err)) {
           policyLogger.warn(
             {
@@ -1087,6 +1103,33 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         policyVersionId: matched.policyVersionId ?? null,
       };
     },
+  };
+}
+
+function failClosedResultFromWarmCache(
+  cached: CacheEntry | undefined,
+  input: Parameters<PolicyClient['evaluate']>[0],
+): PolicyResult | null {
+  if (cached === undefined) return null;
+  const matched = evaluateRules(cached.rules, {
+    phase: input.phase,
+    toolName: input.toolName,
+    input: input.input,
+    ...(input.activeCapabilities !== undefined ? { activeCapabilities: input.activeCapabilities } : {}),
+  });
+  if (matched === null || !matched.denyOnPolicyError) return null;
+  if (effectiveDecisionForRule(matched) !== 'deny') return null;
+  return {
+    decision: 'deny',
+    baseDecision: 'deny',
+    governanceVerdict: matched.governanceVerdict,
+    enforcementMode: matched.enforcementMode,
+    reason: 'policy_check_unavailable',
+    matchedRuleId: matched.id,
+    matchedCapability: matched.requiredCapability,
+    matchedExceptionId: null,
+    matchedGrantId: null,
+    policyVersionId: matched.policyVersionId ?? null,
   };
 }
 
