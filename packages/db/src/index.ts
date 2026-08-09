@@ -54,6 +54,16 @@ export {
 export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
 export { lookupRunId } from './lookup-run.js';
 export {
+  getRunActiveCapabilities,
+  getRunActiveCapabilitiesForSession,
+  normalizeRunCapabilities,
+  normalizeRunCapability,
+  parseRunCapabilitiesJson,
+  serializeRunCapabilities,
+  type RunCapabilityMutation,
+  updateRunActiveCapabilities,
+} from './run-capabilities.js';
+export {
   ensurePgVector,
   MIGRATIONS_FOLDER,
   migratePostgres,

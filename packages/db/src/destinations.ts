@@ -51,6 +51,7 @@ export interface InsertRunRow {
   readonly agentType: string;
   readonly mode: string;
   readonly status?: string;
+  readonly activeCapabilitiesJson?: string | null;
   /**
    * Module 04 Phase 4 — Clerk user id of the human owning the session.
    * NULL on solo mode + pre-Phase-4 rows. Stamped by the bridge from
@@ -60,7 +61,11 @@ export interface InsertRunRow {
 }
 
 export async function insertRun(db: DbHandle, row: InsertRunRow): Promise<void> {
-  const values = { ...row, status: row.status ?? 'in_progress' };
+  const values = {
+    ...row,
+    status: row.status ?? 'in_progress',
+    activeCapabilitiesJson: row.activeCapabilitiesJson ?? '[]',
+  };
   if (db.kind === 'sqlite') {
     await db.db
       .insert(sqliteSchema.runs)

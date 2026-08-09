@@ -1,4 +1,11 @@
-import { type DbHandle, GLOBAL_PROJECT_ID, insertAuditEvent, lookupRunId } from '@coodra/db';
+import {
+  type DbHandle,
+  GLOBAL_PROJECT_ID,
+  getRunActiveCapabilitiesForSession,
+  insertAuditEvent,
+  lookupRunId,
+  serializeRunCapabilities,
+} from '@coodra/db';
 import type { PolicyClient, PolicyInput } from '@coodra/policy';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
@@ -193,6 +200,23 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
       key: `${event.sessionId}-${event.turnId ?? 'no-turn'}-pre`,
     };
 
+    let activeCapabilities: readonly string[] = [];
+    try {
+      activeCapabilities = await getRunActiveCapabilitiesForSession(deps.db, {
+        projectId: lookupProjectId,
+        sessionId: event.sessionId,
+      });
+    } catch (err) {
+      preToolLogger.warn(
+        {
+          event: 'pre_tool_use_capabilities_lookup_failed',
+          sessionId: event.sessionId,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'active capability lookup threw; continuing without capability context',
+      );
+    }
+
     const policyInput: PolicyInput = {
       toolName: event.toolName,
       sessionId: event.sessionId,
@@ -200,6 +224,7 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
       input: event.toolInput,
       phase: 'pre',
       ...(projectId !== undefined ? { projectId } : {}),
+      ...(activeCapabilities.length > 0 ? { activeCapabilities } : {}),
     };
 
     let result: Awaited<ReturnType<PolicyClient['evaluate']>>;
@@ -250,6 +275,7 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         matchedRuleId: result.matchedRuleId,
         policyVersionId: result.policyVersionId ?? null,
         matchedExceptionId: result.matchedExceptionId ?? null,
+        activeCapabilities,
         ...(slug !== undefined ? { projectSlug: slug } : {}),
         ...(projectId !== undefined ? { projectId } : {}),
         runId: runId ?? 'unresolved',
@@ -272,6 +298,8 @@ export function createPreToolUseHandler(deps: CreatePreToolUseHandlerDeps): PreT
         matchedExceptionId: result.matchedExceptionId ?? null,
         baseDecision: result.baseDecision ?? result.decision,
         governanceVerdict: result.governanceVerdict ?? null,
+        activeCapabilitiesJson: serializeRunCapabilities(activeCapabilities),
+        matchedCapability: result.matchedRuleId !== null ? result.matchedCapability ?? null : null,
       });
     }
 

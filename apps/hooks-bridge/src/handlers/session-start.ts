@@ -1,4 +1,9 @@
-import { attestPolicyProjection, renderPolicyProjectionDriftContext, type DbHandle } from '@coodra/db';
+import {
+  attestPolicyProjection,
+  renderPolicyProjectionDriftContext,
+  serializeRunCapabilities,
+  type DbHandle,
+} from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import type { HookEvent } from '@coodra/shared/hooks';
 import { readCoodraProjectConfig } from '@coodra/shared/project-config';
@@ -47,6 +52,14 @@ const M05_SESSION_CONTRACT = [
 
 const sessionStartLogger = createLogger('hooks-bridge.session-start');
 
+function parseSessionCapabilitiesFromEnv(value: string | undefined): readonly string[] {
+  if (value === undefined || value.trim().length === 0) return [];
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 export interface CreateSessionStartHandlerDeps {
   readonly runRecorder: RunRecorder;
   readonly projectSlugResolver: ProjectSlugResolver;
@@ -70,7 +83,14 @@ export function createSessionStartHandler(deps: CreateSessionStartHandlerDeps): 
     // cwd. Subsequent PreToolUse / PostToolUse events from the same
     // cwd will then find the row already present (60s cache hit).
     const { slug, projectId } = await deps.projectSlugResolver.resolveAndEnsure(event.cwd, deps.db);
-    deps.runRecorder.recordSessionStart({ event, projectId, mode: deps.mode });
+    const activeCapabilities = parseSessionCapabilitiesFromEnv(process.env.COODRA_ACTIVE_CAPABILITIES);
+    const activeCapabilitiesJson = serializeRunCapabilities(activeCapabilities);
+    deps.runRecorder.recordSessionStart({
+      event,
+      projectId,
+      mode: deps.mode,
+      activeCapabilitiesJson,
+    });
 
     // Slice 8 (2026-05-03 audit §14.3): fire-and-forget orphan cleanup.
     // Mark prior in_progress runs for the same project as 'abandoned'

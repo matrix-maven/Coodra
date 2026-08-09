@@ -54,6 +54,7 @@ export interface PolicyResult {
   readonly enforcementMode?: PolicyEnforcementMode;
   readonly reason: string;
   readonly matchedRuleId: string | null;
+  readonly matchedCapability?: string | null;
   readonly matchedExceptionId?: string | null;
   readonly policyVersionId?: string | null;
 }
@@ -86,6 +87,7 @@ export interface PolicyClient {
     enforcementMode?: PolicyEnforcementMode;
     reason: string;
     matchedRuleId: string | null;
+    matchedCapability?: string | null;
     matchedExceptionId?: string | null;
     policyVersionId?: string | null;
   }>;

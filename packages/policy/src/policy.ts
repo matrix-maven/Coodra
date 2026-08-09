@@ -159,6 +159,7 @@ export function createPolicyClientFromCheck(check: PolicyCheck): PolicyClient {
         decision: out.decision,
         reason: out.reason,
         matchedRuleId: out.matchedRuleId,
+        ...(out.matchedCapability !== undefined ? { matchedCapability: out.matchedCapability } : {}),
         ...(out.baseDecision !== undefined ? { baseDecision: out.baseDecision } : {}),
         ...(out.governanceVerdict !== undefined ? { governanceVerdict: out.governanceVerdict } : {}),
         ...(out.enforcementMode !== undefined ? { enforcementMode: out.enforcementMode } : {}),
@@ -781,10 +782,11 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
           baseDecision,
           governanceVerdict: matched.governanceVerdict,
           enforcementMode: matched.enforcementMode,
-          reason: exception.reason,
-          matchedRuleId: matched.id,
-          matchedExceptionId: exception.id,
-          policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
+            reason: exception.reason,
+            matchedRuleId: matched.id,
+            matchedCapability: matched.requiredCapability,
+            matchedExceptionId: exception.id,
+            policyVersionId: exception.policyVersionId ?? matched.policyVersionId ?? null,
         };
       }
 
@@ -795,6 +797,7 @@ export function createPolicyClient(options: CreatePolicyClientOptions): PolicyCl
         enforcementMode: matched.enforcementMode,
         reason: matched.reason,
         matchedRuleId: matched.id,
+        matchedCapability: matched.requiredCapability,
         matchedExceptionId: null,
         policyVersionId: matched.policyVersionId ?? null,
       };

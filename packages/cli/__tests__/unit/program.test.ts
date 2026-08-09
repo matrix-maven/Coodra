@@ -83,7 +83,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     const runCmd = program.commands.find((c) => c.name() === 'run');
     expect(runCmd).toBeDefined();
     const runSub = runCmd?.commands.map((c) => c.name()).sort() ?? [];
-    expect(runSub).toEqual(['cancel', 'list', 'show']);
+    expect(runSub).toEqual(['cancel', 'capabilities', 'list', 'show']);
 
     const workCmd = program.commands.find((c) => c.name() === 'work');
     expect(workCmd).toBeDefined();

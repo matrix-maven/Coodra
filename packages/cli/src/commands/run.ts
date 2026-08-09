@@ -4,12 +4,15 @@ import {
   type DecisionRow,
   getRunWithEverything,
   type ListRunsFilter,
+  normalizeRunCapabilities,
+  parseRunCapabilitiesJson,
   listRunsForProject,
   lookupProjectBySlug,
   type PolicyDecisionRow,
   type RunEventRow,
   type RunRow,
   type RunWithEverything,
+  updateRunActiveCapabilities,
 } from '@coodra/db';
 import { EXIT_OK, EXIT_USER_ACTION_REQUIRED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
@@ -53,6 +56,14 @@ export interface RunShowOptions {
 }
 
 export interface RunCancelOptions {
+  readonly json?: boolean;
+}
+
+export interface RunCapabilitiesOptions {
+  readonly add?: string[];
+  readonly remove?: string[];
+  readonly set?: string;
+  readonly clear?: boolean;
   readonly json?: boolean;
 }
 
@@ -196,6 +207,49 @@ export async function runRunCancelCommand(runId: string, options: RunCancelOptio
 }
 
 // ============================================================================
+// capabilities
+// ============================================================================
+
+export async function runRunCapabilitiesCommand(
+  runId: string,
+  options: RunCapabilitiesOptions,
+  ioOverride?: RunIO,
+): Promise<void> {
+  const io = ioOverride ?? DEFAULT_RUN_IO;
+  const json = options.json === true;
+  if (runId.trim().length === 0) {
+    return surfaceError(io, json, EXIT_USER_RECOVERABLE, 'run capabilities requires <runId>');
+  }
+  const handle = await openHandle(io);
+  try {
+    const result = await getRunWithEverything(handle, runId.trim());
+    if (result === null) {
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `no run with id "${runId}"`);
+    }
+    const existing = parseRunCapabilitiesJson(result.run.activeCapabilitiesJson);
+    const requested = computeCapabilityMutation(existing, options);
+    const update = await updateRunActiveCapabilities(handle, {
+      runId: runId.trim(),
+      capabilities: requested,
+    });
+    if (update.status === 'not_found') {
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `no run with id "${runId}"`);
+    }
+    if (json) {
+      io.writeStdout(
+        `${JSON.stringify({ ok: true, runId: runId.trim(), activeCapabilities: update.capabilities }, null, 2)}\n`,
+      );
+    } else {
+      const label = update.capabilities.length > 0 ? update.capabilities.join(', ') : '(none)';
+      io.writeStdout(`${okLine(`Updated active capabilities for ${runId.trim()}: ${label}`)}\n`);
+    }
+    io.exit(EXIT_OK);
+  } finally {
+    handle.close();
+  }
+}
+
+// ============================================================================
 // helpers
 // ============================================================================
 
@@ -216,6 +270,7 @@ interface SerializedRun {
   readonly prRef: string | null;
   readonly startedAt: string;
   readonly endedAt: string | null;
+  readonly activeCapabilities: readonly string[];
 }
 
 function serializeRun(r: RunRow): SerializedRun {
@@ -230,6 +285,7 @@ function serializeRun(r: RunRow): SerializedRun {
     prRef: r.prRef,
     startedAt: r.startedAt.toISOString(),
     endedAt: r.endedAt?.toISOString() ?? null,
+    activeCapabilities: parseRunCapabilitiesJson(r.activeCapabilitiesJson),
   };
 }
 
@@ -331,6 +387,10 @@ function printRunWithEverythingHuman(io: RunIO, x: RunWithEverything): void {
         { key: 'project', value: r.projectId },
         { key: 'session', value: r.sessionId },
         { key: 'agent', value: `${r.agentType} (mode: ${r.mode})` },
+        {
+          key: 'capabilities',
+          value: parseRunCapabilitiesJson(r.activeCapabilitiesJson).join(', ') || '(none)',
+        },
         { key: 'started', value: r.startedAt.toISOString() },
         { key: 'ended', value: r.endedAt?.toISOString() ?? '(in progress)' },
         ...(r.issueRef !== null ? [{ key: 'issue', value: r.issueRef } as const] : []),
@@ -400,6 +460,31 @@ function printRunWithEverythingHuman(io: RunIO, x: RunWithEverything): void {
       );
     }
   }
+}
+
+function computeCapabilityMutation(
+  existing: readonly string[],
+  options: RunCapabilitiesOptions,
+): readonly string[] {
+  if (options.clear === true) return [];
+  if (typeof options.set === 'string') {
+    return normalizeRunCapabilities(splitCapabilityList(options.set));
+  }
+  const next = new Set(existing);
+  for (const capability of options.add ?? []) {
+    for (const item of splitCapabilityList(capability)) next.add(item);
+  }
+  for (const capability of options.remove ?? []) {
+    for (const item of splitCapabilityList(capability)) next.delete(item);
+  }
+  return normalizeRunCapabilities([...next]);
+}
+
+function splitCapabilityList(value: string): readonly string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 function surfaceError(io: RunIO, json: boolean, exitCode: number, message: string): void {

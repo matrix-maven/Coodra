@@ -36,6 +36,7 @@ export interface RunRow {
   readonly agentType: string;
   readonly mode: string;
   readonly status: string;
+  readonly activeCapabilitiesJson: string;
   readonly issueRef: string | null;
   readonly prRef: string | null;
   readonly startedAt: Date;
@@ -517,6 +518,7 @@ interface RawRunRow {
   agentType: string;
   mode: string;
   status: string;
+  activeCapabilitiesJson: string;
   issueRef: string | null;
   prRef: string | null;
   startedAt: Date;
@@ -586,6 +588,7 @@ function toRunRow(r: unknown): RunRow {
     agentType: row.agentType,
     mode: row.mode,
     status: row.status,
+    activeCapabilitiesJson: row.activeCapabilitiesJson,
     issueRef: row.issueRef,
     prRef: row.prRef,
     startedAt: row.startedAt,

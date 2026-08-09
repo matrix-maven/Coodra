@@ -89,6 +89,7 @@ export interface SessionOpenPayloadV1 {
   readonly sessionId: string;
   readonly agentType: string;
   readonly mode: string;
+  readonly activeCapabilitiesJson?: string | null;
   /**
    * Module 04 Phase 4 — optional Clerk user id of the session owner.
    * Bridge populates from team config when COODRA_MODE=team. Solo
@@ -344,6 +345,10 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             typeof payload.createdByUserId === 'string' && payload.createdByUserId.length > 0
               ? payload.createdByUserId
               : null;
+          const activeCapabilitiesJson =
+            payload.activeCapabilitiesJson === null || typeof payload.activeCapabilitiesJson === 'string'
+              ? payload.activeCapabilitiesJson
+              : null;
           await insertRun(deps.db, {
             id: rowId,
             projectId,
@@ -351,6 +356,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             agentType,
             mode,
             createdByUserId,
+            activeCapabilitiesJson,
           });
           log.debug(
             { event: 'outbox_dispatch_session_open', jobId: job.id, sessionId, projectId, createdByUserId },

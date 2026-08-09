@@ -155,6 +155,7 @@ export interface RunRecorder {
     readonly event: HookEvent;
     readonly projectId: string | undefined;
     readonly mode: 'solo' | 'team';
+    readonly activeCapabilitiesJson?: string | null;
   }): void;
   /**
    * Enqueue a `runs` close UPDATE when Stop / session_end fires.
@@ -408,7 +409,7 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       });
     },
 
-    recordSessionStart({ event, projectId, mode }) {
+    recordSessionStart({ event, projectId, mode, activeCapabilitiesJson }) {
       // F7 closure (2026-04-27): when no .coodra.json resolved a
       // projectId, fall back to the __global__ sentinel so the runs
       // row still lands. This preserves the audit trail for agents
@@ -427,13 +428,14 @@ export function createRunRecorder(deps: CreateRunRecorderDeps): RunRecorder {
       // affiliation in the id, breaking grep-based audit cross-refs.
       const rowId = generateRunKey({ projectId: effectiveProjectId, sessionId: event.sessionId });
       const actorIdentity = resolveActorIdentity();
-      const payload: SessionOpenPayloadV1 = {
+      const payload: SessionOpenPayloadV1 & { readonly activeCapabilitiesJson?: string | null } = {
         v: 1,
         rowId,
         projectId: effectiveProjectId,
         sessionId: event.sessionId,
         agentType: event.agentType,
         mode,
+        activeCapabilitiesJson: activeCapabilitiesJson ?? null,
         ...(actorIdentity !== null ? { createdByUserId: actorIdentity.userId } : {}),
       };
       void scheduleAuditWriteWithSync(deps.db, {

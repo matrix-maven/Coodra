@@ -91,10 +91,12 @@ import {
 import { type ResumeIO, type ResumeOptions, runResumeCommand } from './commands/resume.js';
 import {
   type RunCancelOptions,
+  type RunCapabilitiesOptions,
   type RunIO,
   type RunListOptions,
   type RunShowOptions,
   runRunCancelCommand,
+  runRunCapabilitiesCommand,
   runRunListCommand,
   runRunShowCommand,
 } from './commands/run.js';
@@ -269,6 +271,11 @@ interface BuildProgramOptions {
   readonly runRunList?: (options: RunListOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunShow?: (runId: string, options: RunShowOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunCancel?: (runId: string, options: RunCancelOptions, io?: RunIO) => Promise<unknown>;
+  readonly runRunCapabilities?: (
+    runId: string,
+    options: RunCapabilitiesOptions,
+    io?: RunIO,
+  ) => Promise<unknown>;
   readonly exportIO?: ExportIO;
   readonly runExport?: (runId: string, options: ExportOptions, io?: ExportIO) => Promise<unknown>;
   readonly templateIO?: TemplateIO;
@@ -1115,6 +1122,18 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--json', 'Emit a structured JSON report.')
     .action(async (runId: string, opts: RunCancelOptions) => {
       await runCancelRunner(runId, opts, options.runIO);
+    });
+  const runCapabilitiesRunner = options.runRunCapabilities ?? runRunCapabilitiesCommand;
+  run
+    .command('capabilities <runId>')
+    .description('Set active capability context for a run (for example deployment or cloud_admin).')
+    .option('--add <capability...>', 'Add one or more capabilities. Comma-separated values are accepted.')
+    .option('--remove <capability...>', 'Remove one or more capabilities. Comma-separated values are accepted.')
+    .option('--set <capabilities>', 'Replace active capabilities with a comma-separated list.')
+    .option('--clear', 'Clear every active capability.')
+    .option('--json', 'Emit a structured JSON report.')
+    .action(async (runId: string, opts: RunCapabilitiesOptions) => {
+      await runCapabilitiesRunner(runId, opts, options.runIO);
     });
 
   // Module 08b S8 — reverse `init` writes.
