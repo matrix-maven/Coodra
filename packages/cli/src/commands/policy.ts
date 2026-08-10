@@ -7,7 +7,7 @@ import {
   listControls,
   listPolicies,
   lookupProjectBySlug,
-  mapVxiCatalogRows,
+  mapControlCatalogRows,
   type PolicyDecisionKind,
   type PolicyRow,
   type PolicyRuleRow,
@@ -347,7 +347,7 @@ export async function runPolicySyncCommand(options: PolicySyncOptions, ioOverrid
 }
 
 // ============================================================================
-// catalog import-vxi
+// catalog import-catalog
 // ============================================================================
 
 export async function runPolicyCatalogImportCommand(
@@ -371,18 +371,18 @@ export async function runPolicyCatalogImportCommand(
       projectSlug = project.slug;
     }
     const rows = readXlsxSheetRows(filePath, sheet);
-    const controls = mapVxiCatalogRows(rows).map((control) => ({ ...control, projectId }));
+    const controls = mapControlCatalogRows(rows).map((control) => ({ ...control, projectId }));
     if (controls.length === 0) {
-      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `no VXI controls found in sheet "${sheet}"`);
+      return surfaceError(io, json, EXIT_USER_RECOVERABLE, `no controls found in sheet "${sheet}"`);
     }
     const result = await upsertControls(handle, controls);
-    const counts = summarizeControls(await listControls(handle, { projectId, source: 'vxi' }));
+    const counts = summarizeControls(await listControls(handle, { projectId, source: 'catalog' }));
     if (json) {
       io.writeStdout(
         `${JSON.stringify(
           {
             ok: true,
-            source: 'vxi',
+            source: 'catalog',
             project: projectSlug,
             sheet,
             inserted: result.inserted,
@@ -396,7 +396,7 @@ export async function runPolicyCatalogImportCommand(
       );
     } else {
       io.writeStdout(
-        `${pc.green('✓')} Imported VXI control catalog${projectSlug !== null ? ` for ${projectSlug}` : ''}.\n`,
+        `${pc.green('✓')} Imported control catalog${projectSlug !== null ? ` for ${projectSlug}` : ''}.\n`,
       );
       io.writeStdout(`  inserted: ${result.inserted}\n`);
       io.writeStdout(`  updated:  ${result.updated}\n`);

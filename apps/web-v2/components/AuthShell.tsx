@@ -47,8 +47,8 @@ const COPY = {
   },
 } as const;
 
-const GITHUB_URL = 'https://github.com/Abishai95141/Coodra';
-const DOCS_URL = 'https://github.com/Abishai95141/Coodra#readme';
+const GITHUB_URL = 'https://github.com/matrix-maven/Coodra';
+const DOCS_URL = 'https://github.com/matrix-maven/Coodra#readme';
 
 export function AuthShell({ mode, children }: { mode: 'signin' | 'signup'; children: ReactNode }) {
   const c = COPY[mode];

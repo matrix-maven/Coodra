@@ -75,7 +75,7 @@ describe('buildProgram — full surface (post-S8)', () => {
     expect(policySub).toEqual(['add', 'catalog', 'disable', 'enable', 'list', 'show', 'sync', 'workflow']);
     const policyCatalog = policy?.commands.find((c) => c.name() === 'catalog');
     expect(policyCatalog?.commands.map((c) => c.name()).sort() ?? []).toEqual([
-      'import-vxi',
+      'import-catalog',
       'install-native-advisory',
     ]);
 

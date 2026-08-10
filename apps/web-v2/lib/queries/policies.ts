@@ -97,7 +97,7 @@ export async function listPolicyExceptions(projectId: string | null = null): Pro
 
 export async function listControlCatalog(projectId: string | null = null): Promise<ReadonlyArray<ControlRow>> {
   const handle = createWebDb();
-  return listControlsDb(handle, { projectId, source: 'vxi' });
+  return listControlsDb(handle, { projectId, source: 'catalog' });
 }
 
 export async function listPolicyGrants(projectId: string | null = null): Promise<ReadonlyArray<PolicyGrantRow>> {

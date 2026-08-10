@@ -202,7 +202,7 @@ Field-report remediation (MatrixOcr runs, Windsurf/Devin + Codex agents). Four d
 
 ### Fixed
 
-- **Web sidebar no longer shows the maintainer's username (`abishaikc`) on every install.** `components/Sidebar.tsx` hardcoded `userName = 'abishaikc'` as a default prop, and `app/layout.tsx` never passed a real value — so every install's solo dashboard rendered the maintainer's name in the footer. The layout now resolves the serving machine's OS user at request time (`force-dynamic`, so it's never baked at build) and passes it through; the default fell back to a neutral `'local'`. A code-comment example that used the same name was genericized. (Build-machine absolute paths still appear in Next.js's internal manifests — not displayed to users; they reflect whoever builds the tarball, so a CI build makes them generic.)
+- **Web sidebar no longer shows a maintainer's username on every install.** `components/Sidebar.tsx` hardcoded a maintainer's username as a default prop, and `app/layout.tsx` never passed a real value — so every install's solo dashboard rendered the maintainer's name in the footer. The layout now resolves the serving machine's OS user at request time (`force-dynamic`, so it's never baked at build) and passes it through; the default fell back to a neutral `'local'`. A code-comment example that used the same name was genericized. (Build-machine absolute paths still appear in Next.js's internal manifests — not displayed to users; they reflect whoever builds the tarball, so a CI build makes them generic.)
 - **`npm publish` runs on Windows** (with one documented caveat). Three Windows-specific breakages fixed: (1) `scripts/build-for-publish.mjs` spawned `pnpm` via `execFileSync('pnpm', …)`, which throws `ENOENT` on Windows (the shim is `pnpm.cmd`; `execFile` does no PATHEXT resolution) — fixed with `shell: true`; (2) the root `prepare` script used the POSIX `... 2>/dev/null || true` idiom that fails under Windows `cmd`, breaking `pnpm install` — replaced with a cross-platform Node one-liner; (3) apps/web-v2's Next.js `standalone` build doesn't complete reliably on Windows, so `build-for-publish.mjs` skips it there and `prepublish-assert.mjs` relaxes the web requirement to match. **Caveat: a tarball built on Windows omits the web dashboard** (`coodra start` runs headless on that install). A loud warning prints at build time. **Publish the official, complete package from macOS / Linux / CI**, where the web is built and the assert enforces it.
 - **`policy_decisions` audit rows no longer collapse** when the caller omits a `toolUseId`: the idempotency key now includes a hash of the tool input, so distinct decisions (`.env` deny vs `src/app.ts` allow in one session) each get their own row. (F7.)
 - **`sync-daemon` idempotently applies local SQLite migrations at boot**, so a daemon-first boot against a fresh `COODRA_HOME` no longer spins `no such table` until another service migrates. (F10.)
@@ -213,7 +213,7 @@ Field-report remediation (MatrixOcr runs, Windsurf/Devin + Codex agents). Four d
 
 ### Changed
 
-- **`apps/web-v2/components/Topbar.tsx`** — the topbar "Docs" link now points at the published Coodra documentation site `https://abishai95141.github.io/Coodra/` instead of the upstream Claude Code repo placeholder (`https://github.com/anthropics/claude-code`) carried over from an earlier scaffolding pass. The link is constant across solo / team / team-hosted modes.
+- **`apps/web-v2/components/Topbar.tsx`** — the topbar "Docs" link now points at the published Coodra documentation site `https://matrix-maven.github.io/Coodra/` instead of the upstream Claude Code repo placeholder (`https://github.com/anthropics/claude-code`) carried over from an earlier scaffolding pass. The link is constant across solo / team / team-hosted modes.
 
 ## [0.2.0-beta.8] — 2026-05-18
 
@@ -284,7 +284,7 @@ Users of beta.7 on `--tunnel` had to manually patch `~/Library/LaunchAgents/com.
 
 ### Known issues (tracked)
 
-- [#1](https://github.com/Abishai95141/Coodra/issues/1) — integration job has 8 latent test failures unrelated to user-facing functionality. CLI works for users; tests need triage.
+- [#1](https://github.com/matrix-maven/Coodra/issues/1) — integration job has 8 latent test failures unrelated to user-facing functionality. CLI works for users; tests need triage.
 
 ## [0.2.0-beta.3] — 2026-05-15
 
@@ -305,5 +305,5 @@ First public-beta tag of `@coodra/cli` on npm.
 - **ADR-013** — Run Diff replaces the planned Python Semantic Diff service; in-process `git diff` runner with structured records.
 - **ADR-014** — Tier 2.5 RBAC (admin / member / viewer Clerk roles); local-only hooks bridge in both modes.
 
-[Unreleased]: https://github.com/Abishai95141/Coodra/compare/HEAD...HEAD
-[0.2.0-beta.3]: https://github.com/Abishai95141/Coodra/releases/tag/v0.2.0-beta.3
+[Unreleased]: https://github.com/matrix-maven/Coodra/compare/HEAD...HEAD
+[0.2.0-beta.3]: https://github.com/matrix-maven/Coodra/releases/tag/v0.2.0-beta.3

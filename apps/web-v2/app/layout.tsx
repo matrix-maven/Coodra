@@ -12,7 +12,7 @@ import './globals.css';
 // The sidebar footer shows the machine's user in solo mode. Resolve it at
 // REQUEST time on the serving machine — never at build time, which would bake
 // the builder's username into the published bundle (E2E finding 2026-07-09:
-// `abishaikc` leaked to every install via a hardcoded Sidebar default).
+// a maintainer's username leaked to every install via a hardcoded Sidebar default).
 // `force-dynamic` below guarantees this layout is not statically prerendered.
 export const dynamic = 'force-dynamic';
 

@@ -1,251 +1,258 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1776851177660,
-			"tag": "0000_free_wind_dancer",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1776873615885,
-			"tag": "0001_clean_rafael_vega",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1777011736778,
-			"tag": "0002_fixed_adam_warlock",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1777042203381,
-			"tag": "0003_slow_meteorite",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1777317746082,
-			"tag": "0004_skinny_onslaught",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1777405200000,
-			"tag": "0005_silent_thanos",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1777805841619,
-			"tag": "0006_lush_switch",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "7",
-			"when": 1777818590586,
-			"tag": "0007_bitter_miek",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "7",
-			"when": 1777881958000,
-			"tag": "0008_run_events_orphan_backfill",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "7",
-			"when": 1778224000000,
-			"tag": "0009_m05_agent_driven",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "7",
-			"when": 1778310400000,
-			"tag": "0010_projects_cwd",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "7",
-			"when": 1778400000000,
-			"tag": "0011_m06_run_diffs",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "7",
-			"when": 1778460000000,
-			"tag": "0012_team_actor_attribution",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "7",
-			"when": 1778500000000,
-			"tag": "0013_team_migration_tables",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "7",
-			"when": 1778443602682,
-			"tag": "0014_team_invites",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "7",
-			"when": 1778688000000,
-			"tag": "0015_features",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "7",
-			"when": 1778688100000,
-			"tag": "0016_feature_packs_cloud_sync",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "7",
-			"when": 1778688200000,
-			"tag": "0017_knowledge_audit",
-			"breakpoints": true
-		},
-		{
-			"idx": 18,
-			"version": "7",
-			"when": 1778688300000,
-			"tag": "0018_feature_packs_org_id",
-			"breakpoints": true
-		},
-		{
-			"idx": 19,
-			"version": "7",
-			"when": 1780756847840,
-			"tag": "0019_wikis",
-			"breakpoints": true
-		},
-		{
-			"idx": 20,
-			"version": "7",
-			"when": 1785487200000,
-			"tag": "0020_work_packs",
-			"breakpoints": true
-		},
-		{
-			"idx": 21,
-			"version": "7",
-			"when": 1785489000000,
-			"tag": "0021_drop_feature_packs",
-			"breakpoints": true
-		},
-		{
-			"idx": 22,
-			"version": "7",
-			"when": 1785490800000,
-			"tag": "0022_work_pack_session_links",
-			"breakpoints": true
-		},
-		{
-			"idx": 23,
-			"version": "7",
-			"when": 1785577200000,
-			"tag": "0023_audit_events_and_tenant_columns",
-			"breakpoints": true
-		},
-		{
-			"idx": 24,
-			"version": "7",
-			"when": 1785663600000,
-			"tag": "0024_policy_governance",
-			"breakpoints": true
-		},
-		{
-			"idx": 25,
-			"version": "7",
-			"when": 1785750000000,
-			"tag": "0025_work_pack_content_links",
-			"breakpoints": true
-		},
-		{
-			"idx": 26,
-			"version": "7",
-			"when": 1785750100000,
-			"tag": "0026_fts_search",
-			"breakpoints": true
-		},
-		{
-			"idx": 27,
-			"version": "7",
-			"when": 1785750200000,
-			"tag": "0027_runs_compaction_nudge",
-			"breakpoints": true
-		},
-		{
-			"idx": 28,
-			"version": "7",
-			"when": 1785750300000,
-			"tag": "0028_context_packs_append_only",
-			"breakpoints": true
-		},
-		{
-			"idx": 29,
-			"version": "7",
-			"when": 1785750400000,
-			"tag": "0029_work_packs_activity_rollup",
-			"breakpoints": true
-		},
-		{
-			"idx": 30,
-			"version": "7",
-			"when": 1786275600000,
-			"tag": "0030_decision_edges",
-			"breakpoints": true
-		},
-		{
-			"idx": 31,
-			"version": "7",
-			"when": 1786275700000,
-			"tag": "0031_context_pack_consolidation",
-			"breakpoints": true
-		},
-		{
-			"idx": 32,
-			"version": "7",
-			"when": 1786275800000,
-			"tag": "0032_policy_decision_model",
-			"breakpoints": true
-		},
-		{
-			"idx": 33,
-			"version": "7",
-			"when": 1786275900000,
-			"tag": "0033_policy_grants",
-			"breakpoints": true
-		},
-		{
-			"idx": 34,
-			"version": "7",
-			"when": 1786276000000,
-			"tag": "0034_control_catalog",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1776851177660,
+      "tag": "0000_free_wind_dancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1776873615885,
+      "tag": "0001_clean_rafael_vega",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777011736778,
+      "tag": "0002_fixed_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777042203381,
+      "tag": "0003_slow_meteorite",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777317746082,
+      "tag": "0004_skinny_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777405200000,
+      "tag": "0005_silent_thanos",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777805841619,
+      "tag": "0006_lush_switch",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1777818590586,
+      "tag": "0007_bitter_miek",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1777881958000,
+      "tag": "0008_run_events_orphan_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1778224000000,
+      "tag": "0009_m05_agent_driven",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778310400000,
+      "tag": "0010_projects_cwd",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1778400000000,
+      "tag": "0011_m06_run_diffs",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1778460000000,
+      "tag": "0012_team_actor_attribution",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1778500000000,
+      "tag": "0013_team_migration_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1778443602682,
+      "tag": "0014_team_invites",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1778688000000,
+      "tag": "0015_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1778688100000,
+      "tag": "0016_feature_packs_cloud_sync",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1778688200000,
+      "tag": "0017_knowledge_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1778688300000,
+      "tag": "0018_feature_packs_org_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780756847840,
+      "tag": "0019_wikis",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1785487200000,
+      "tag": "0020_work_packs",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1785489000000,
+      "tag": "0021_drop_feature_packs",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1785490800000,
+      "tag": "0022_work_pack_session_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1785577200000,
+      "tag": "0023_audit_events_and_tenant_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1785663600000,
+      "tag": "0024_policy_governance",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1785750000000,
+      "tag": "0025_work_pack_content_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1785750100000,
+      "tag": "0026_fts_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1785750200000,
+      "tag": "0027_runs_compaction_nudge",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1785750300000,
+      "tag": "0028_context_packs_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1785750400000,
+      "tag": "0029_work_packs_activity_rollup",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1786275600000,
+      "tag": "0030_decision_edges",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786275700000,
+      "tag": "0031_context_pack_consolidation",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786275800000,
+      "tag": "0032_policy_decision_model",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786275900000,
+      "tag": "0033_policy_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786276000000,
+      "tag": "0034_control_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1786400000000,
+      "tag": "0035_control_source_default",
+      "breakpoints": true
+    }
+  ]
 }

@@ -31,18 +31,18 @@ export interface EnsureNativeAdvisoryRulesResult {
 
 export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate[] = [
   {
-    controlKey: 'VXI-GOV-005',
+    controlKey: 'COODRA-GOV-005',
     priority: 1000,
     matchEventType: 'PostToolUse',
     matchToolName: '*',
     governanceVerdict: 'record',
     severity: 'low',
     ruleType: 'tool_call',
-    reason: 'record agent-visible governance activity for VXI-GOV-005',
+    reason: 'record agent-visible governance activity for COODRA-GOV-005',
     details: 'Detective advisory record for tool activity that may support governance traceability.',
   },
   {
-    controlKey: 'VXI-GOV-008',
+    controlKey: 'COODRA-GOV-008',
     priority: 1001,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -50,11 +50,11 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     governanceVerdict: 'record',
     severity: 'medium',
     ruleType: 'bash_command',
-    reason: 'record commit creation for VXI-GOV-008 change traceability',
+    reason: 'record commit creation for COODRA-GOV-008 change traceability',
     details: 'Captures commit-producing shell activity for advisory governance evidence.',
   },
   {
-    controlKey: 'VXI-CLD-001',
+    controlKey: 'COODRA-CLD-001',
     priority: 1002,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -66,7 +66,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for infrastructure-as-code commands; does not grant or deny permission.',
   },
   {
-    controlKey: 'VXI-CLD-002',
+    controlKey: 'COODRA-CLD-002',
     priority: 1003,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -78,7 +78,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for Kubernetes operations from agent-visible command text.',
   },
   {
-    controlKey: 'VXI-CLD-006',
+    controlKey: 'COODRA-CLD-006',
     priority: 1004,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -90,7 +90,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for cloud-provider command usage.',
   },
   {
-    controlKey: 'VXI-CLD-007',
+    controlKey: 'COODRA-CLD-007',
     priority: 1005,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -102,7 +102,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for cloud-provider command usage.',
   },
   {
-    controlKey: 'VXI-CLD-008',
+    controlKey: 'COODRA-CLD-008',
     priority: 1006,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -114,7 +114,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for cloud-provider command usage.',
   },
   {
-    controlKey: 'VXI-CLD-010',
+    controlKey: 'COODRA-CLD-010',
     priority: 1007,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -126,7 +126,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory record for image publication commands.',
   },
   {
-    controlKey: 'VXI-ARC-008',
+    controlKey: 'COODRA-ARC-008',
     priority: 1008,
     matchEventType: 'PreToolUse',
     matchToolName: '*Edit',
@@ -138,7 +138,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal when an agent edits architecture-related files.',
   },
   {
-    controlKey: 'VXI-SEC-001',
+    controlKey: 'COODRA-SEC-001',
     priority: 1009,
     matchEventType: 'PreToolUse',
     matchToolName: '*Edit',
@@ -150,7 +150,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory companion to hard secret-protection rules; lower priority than preventive defaults.',
   },
   {
-    controlKey: 'VXI-SEC-002',
+    controlKey: 'COODRA-SEC-002',
     priority: 1010,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -162,7 +162,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory evidence for crypto/secrets-adjacent shell activity.',
   },
   {
-    controlKey: 'VXI-SEC-003',
+    controlKey: 'COODRA-SEC-003',
     priority: 1011,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -174,7 +174,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for unsafe permission patterns.',
   },
   {
-    controlKey: 'VXI-SEC-008',
+    controlKey: 'COODRA-SEC-008',
     priority: 1012,
     matchEventType: 'PreToolUse',
     matchToolName: '*Edit',
@@ -186,7 +186,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for dependency changes that may require security review.',
   },
   {
-    controlKey: 'VXI-SEC-009',
+    controlKey: 'COODRA-SEC-009',
     priority: 1013,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -198,7 +198,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory evidence for vulnerability scanning activity.',
   },
   {
-    controlKey: 'VXI-CMDB-003',
+    controlKey: 'COODRA-CMDB-003',
     priority: 1014,
     matchEventType: 'PreToolUse',
     matchToolName: '*Edit',
@@ -210,7 +210,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory record for package manifest edits.',
   },
   {
-    controlKey: 'VXI-CMDB-004',
+    controlKey: 'COODRA-CMDB-004',
     priority: 1015,
     matchEventType: 'PreToolUse',
     matchToolName: '*Edit',
@@ -222,7 +222,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory record for Dockerfile edits.',
   },
   {
-    controlKey: 'VXI-REL-001',
+    controlKey: 'COODRA-REL-001',
     priority: 1016,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -234,7 +234,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory evidence for test activity.',
   },
   {
-    controlKey: 'VXI-REL-002',
+    controlKey: 'COODRA-REL-002',
     priority: 1017,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -246,7 +246,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory evidence for static checks.',
   },
   {
-    controlKey: 'VXI-REL-006',
+    controlKey: 'COODRA-REL-006',
     priority: 1018,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -258,7 +258,7 @@ export const NATIVE_ADVISORY_RULE_TEMPLATES: readonly NativeAdvisoryRuleTemplate
     details: 'Advisory signal for deployment-like shell activity.',
   },
   {
-    controlKey: 'VXI-REL-007',
+    controlKey: 'COODRA-REL-007',
     priority: 1019,
     matchEventType: 'PreToolUse',
     matchToolName: 'Bash',
@@ -289,7 +289,7 @@ export async function ensureNativeAdvisoryRules(
         id: policyId,
         projectId,
         name: policyName,
-        description: 'Native advisory controls seeded from the COOD-34 VXI Track A control classification.',
+        description: 'Native advisory controls seeded from the COOD-34 Track A control classification.',
         groupKey: 'governance_advisory',
         profile: 'native_advisory',
         enforcementMode: 'advisory',
@@ -332,7 +332,7 @@ export async function ensureNativeAdvisoryRules(
       id: policyId,
       projectId,
       name: policyName,
-      description: 'Native advisory controls seeded from the COOD-34 VXI Track A control classification.',
+      description: 'Native advisory controls seeded from the COOD-34 Track A control classification.',
       groupKey: 'governance_advisory',
       profile: 'native_advisory',
       enforcementMode: 'advisory',

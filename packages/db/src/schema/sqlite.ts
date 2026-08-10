@@ -393,7 +393,7 @@ export const controls = sqliteTable(
     orgId: text('org_id'),
     projectId: text('project_id').references(() => projects.id),
     controlKey: text('control_key').notNull(),
-    source: text('source').notNull().default('vxi'),
+    source: text('source').notNull().default('catalog'),
     domain: text('domain'),
     subdomain: text('subdomain'),
     title: text('title').notNull(),

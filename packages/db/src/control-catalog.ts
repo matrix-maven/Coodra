@@ -93,48 +93,48 @@ export interface CreateControlAttestationInput {
   readonly expiresAt?: Date | null;
 }
 
-export interface VxiCatalogInputRow {
+export interface ControlCatalogInputRow {
   readonly [key: string]: unknown;
 }
 
-export const VXI_NATIVE_ADVISORY_CONTROLS = new Set([
-  'VXI-GOV-005',
-  'VXI-GOV-008',
-  'VXI-CLD-001',
-  'VXI-CLD-002',
-  'VXI-CLD-006',
-  'VXI-CLD-007',
-  'VXI-CLD-008',
-  'VXI-CLD-010',
-  'VXI-ARC-008',
-  'VXI-SEC-001',
-  'VXI-SEC-002',
-  'VXI-SEC-003',
-  'VXI-SEC-008',
-  'VXI-SEC-009',
-  'VXI-CMDB-003',
-  'VXI-CMDB-004',
-  'VXI-REL-001',
-  'VXI-REL-002',
-  'VXI-REL-006',
-  'VXI-REL-007',
+export const NATIVE_ADVISORY_CONTROLS = new Set([
+  'COODRA-GOV-005',
+  'COODRA-GOV-008',
+  'COODRA-CLD-001',
+  'COODRA-CLD-002',
+  'COODRA-CLD-006',
+  'COODRA-CLD-007',
+  'COODRA-CLD-008',
+  'COODRA-CLD-010',
+  'COODRA-ARC-008',
+  'COODRA-SEC-001',
+  'COODRA-SEC-002',
+  'COODRA-SEC-003',
+  'COODRA-SEC-008',
+  'COODRA-SEC-009',
+  'COODRA-CMDB-003',
+  'COODRA-CMDB-004',
+  'COODRA-REL-001',
+  'COODRA-REL-002',
+  'COODRA-REL-006',
+  'COODRA-REL-007',
 ] as const);
 
-export const VXI_EXTERNAL_OWNER_CONTROLS = new Set([
-  'VXI-IAM-001',
-  'VXI-IAM-002',
-  'VXI-IAM-003',
-  'VXI-IAM-006',
-  'VXI-IAM-007',
-  'VXI-IAM-008',
-  'VXI-OPS-002',
-  'VXI-OPS-006',
+export const EXTERNAL_OWNER_CONTROLS = new Set([
+  'COODRA-IAM-001',
+  'COODRA-IAM-002',
+  'COODRA-IAM-003',
+  'COODRA-IAM-006',
+  'COODRA-IAM-007',
+  'COODRA-IAM-008',
+  'COODRA-OPS-002',
+  'COODRA-OPS-006',
 ] as const);
 
-export function classifyVxiControl(controlKey: string): ControlRelevanceTrack {
-  const normalized = normalizeVxiControlKey(controlKey);
-  if (VXI_NATIVE_ADVISORY_CONTROLS.has(normalized as never)) return 'native_advisory';
-  if (VXI_EXTERNAL_OWNER_CONTROLS.has(normalized as never)) return 'external_owner';
+export function classifyControl(controlKey: string): ControlRelevanceTrack {
+  const normalized = normalizeControlKey(controlKey);
+  if (NATIVE_ADVISORY_CONTROLS.has(normalized as never)) return 'native_advisory';
+  if (EXTERNAL_OWNER_CONTROLS.has(normalized as never)) return 'external_owner';
   return 'evidence_attestation';
 }
 
@@ -144,19 +144,21 @@ export function implementationModeForTrack(track: ControlRelevanceTrack): Contro
   return 'attestation';
 }
 
-export function normalizeVxiControlKey(value: string): string {
+export function normalizeControlKey(value: string): string {
   return value.trim().toUpperCase().replace(/\s+/g, '-');
 }
 
-export function mapVxiCatalogRows(rows: ReadonlyArray<VxiCatalogInputRow>): ReadonlyArray<UpsertControlInput> {
+export function mapControlCatalogRows(rows: ReadonlyArray<ControlCatalogInputRow>): ReadonlyArray<UpsertControlInput> {
   const controls: UpsertControlInput[] = [];
   for (const row of rows) {
-      const controlKey = normalizeVxiControlKey(readCell(row, 'Control ID'));
-      if (!/^VXI-[A-Z]+-\d{3}$/.test(controlKey)) continue;
-      const track = classifyVxiControl(controlKey);
+      const controlKey = normalizeControlKey(readCell(row, 'Control ID'));
+      // Accept any `<PREFIX>-<DOMAIN>-<NNN>` control id so an org can
+      // import its own catalog; the built-in templates use `COODRA-*`.
+      if (!/^[A-Z][A-Z0-9]*-[A-Z]+-\d{3}$/.test(controlKey)) continue;
+      const track = classifyControl(controlKey);
       controls.push({
         controlKey,
-        source: 'vxi',
+        source: 'catalog',
         domain: emptyToNull(readCell(row, 'Domain')),
         subdomain: emptyToNull(readCell(row, 'Subdomain')),
         title: readCell(row, 'Control Name') || controlKey,
@@ -165,7 +167,7 @@ export function mapVxiCatalogRows(rows: ReadonlyArray<VxiCatalogInputRow>): Read
         relevanceTrack: track,
         implementationMode: implementationModeForTrack(track),
         status: emptyToNull(readCell(row, 'Status')) ?? 'active',
-        guidance: buildVxiGuidance(track, row),
+        guidance: buildControlGuidance(track, row),
         sourceMetadata: row,
       });
   }
@@ -180,7 +182,7 @@ export async function upsertControls(
   let updated = 0;
   const controls: ControlRow[] = [];
   for (const input of inputs) {
-    const existing = await findControl(handle, input.projectId ?? null, input.source ?? 'vxi', input.controlKey);
+    const existing = await findControl(handle, input.projectId ?? null, input.source ?? 'catalog', input.controlKey);
     const row = existing === null ? await insertControl(handle, input) : await updateControl(handle, existing.id, input);
     controls.push(row);
     if (existing === null) inserted += 1;
@@ -262,7 +264,7 @@ async function findControl(
 }
 
 async function insertControl(handle: DbHandle, input: UpsertControlInput): Promise<ControlRow> {
-  const source = input.source ?? 'vxi';
+  const source = input.source ?? 'catalog';
   const row = {
     id: stableControlId(input.projectId ?? null, source, input.controlKey),
     orgId: input.orgId ?? null,
@@ -377,7 +379,7 @@ function stableControlId(projectId: string | null, source: string, controlKey: s
   return `ctrl_${hash}`;
 }
 
-function readCell(row: VxiCatalogInputRow, header: string): string {
+function readCell(row: ControlCatalogInputRow, header: string): string {
   const exact = row[header];
   if (exact !== undefined && exact !== null) return String(exact).trim();
   const normalizedHeader = normalizeHeader(header);
@@ -396,7 +398,7 @@ function emptyToNull(value: string): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-function buildVxiGuidance(track: ControlRelevanceTrack, row: VxiCatalogInputRow): string {
+function buildControlGuidance(track: ControlRelevanceTrack, row: ControlCatalogInputRow): string {
   const minimumEvidence = emptyToNull(readCell(row, 'Minimum Evidence'));
   const notes = emptyToNull(readCell(row, 'Implementation Notes'));
   const trackText =

@@ -2,11 +2,11 @@
 
 Status: draft design, 2026-08-09
 
-Scope: redesign Coodra policy and permissioning so COOD-34 can operationalize the agent-observable subset of the VXI Cloud IAM control catalog as non-blocking AI governance, while keeping existing hard safety controls for secrets and agent self-protection.
+Scope: redesign Coodra policy and permissioning so COOD-34 can operationalize the agent-observable subset of an imported control catalog as non-blocking AI governance, while keeping existing hard safety controls for secrets and agent self-protection.
 
 ## Source Inputs
 
-- COOD-34: "Operationalize VXI Cloud IAM Control Catalog as non-blocking policy guidance."
+- COOD-34: "Operationalize Control Catalog as non-blocking policy guidance."
 - Microsoft Agent Governance Toolkit, especially Agent Control Specification: lifecycle intervention points, deterministic policy runtime, evidence-bearing verdicts, tool catalog labels, annotators, approval configuration, and audit.
 - Current Coodra implementation:
   - `packages/policy/src/types.ts`: runtime decision type is `allow | deny | ask`.
@@ -58,7 +58,7 @@ flowchart LR
 
 ### 1. Control Catalog
 
-Add a first-class control catalog instead of representing every governance item as a tool-call rule. For COOD-34 v1, build only the native advisory track. The broader VXI catalog can remain imported reference data for future evidence workflows, but it should not drive implementation scope.
+Add a first-class control catalog instead of representing every governance item as a tool-call rule. For COOD-34 v1, build only the native advisory track. The broader the seed catalog catalog can remain imported reference data for future evidence workflows, but it should not drive implementation scope.
 
 Suggested tables:
 
@@ -76,9 +76,9 @@ This preserves the full catalog model, while keeping COOD-34 v1 intentionally na
 - Track B, process controls: controls that need human or pipeline attestation, e.g. kickoff review, support model, access certification.
 - Track C, external-owner controls: controls that belong to IAM, SIEM, ITSM, CMDB, billing, or cloud-provider inventory systems. Coodra stores evidence links and reminders only.
 
-#### VXI catalog relevance for Coodra
+#### Catalog relevance for Coodra
 
-The VXI control catalog was written for human and enterprise process enforcement. Coodra should import all 66 controls as governance metadata, but it should not treat all 66 as native agent policies.
+The seed control catalog this was modelled on was written for human and enterprise process enforcement. Coodra should import all catalog controls as governance metadata, but it should not treat all 66 as native agent policies.
 
 Use three relevance levels:
 
@@ -90,72 +90,72 @@ Initial classification:
 
 | Control | Coodra fit | Treatment |
 | --- | --- | --- |
-| VXI-GOV-001 | Evidence/attestation | Track kickoff participants and evidence; do not infer attendance from code work. |
-| VXI-GOV-002 | Evidence/attestation | Store owner/cost/repo metadata as project attributes; require human or source-system attestation. |
-| VXI-GOV-003 | Evidence/attestation | Represent readiness approvals as milestone evidence, not tool-call gates. |
-| VXI-GOV-004 | Evidence/attestation | Link the environment standard and record deviations. |
-| VXI-GOV-005 | Native advisory | Map to Coodra exceptions/grants: scoped, time-bound, risk-accepted, reviewed. |
-| VXI-GOV-006 | Evidence/attestation | Track separation-of-duties approvals; Coodra cannot verify enterprise approver independence alone. |
-| VXI-GOV-007 | Evidence/attestation | Link risks to controls/work packs; risk register remains external unless integrated. |
-| VXI-GOV-008 | Native advisory | Use Coodra audit events, decisions, context packs, and control attestations as evidence inventory. |
-| VXI-IAM-001 | External-owner | Environment role separation belongs to IdP/cloud IAM; Coodra stores evidence only. |
-| VXI-IAM-002 | External-owner | Standing admin detection requires IAM inventory; Coodra can advise if agent asks for broad credentials. |
-| VXI-IAM-003 | External-owner | Default developer access posture is an IAM policy matter, not an agent hook decision. |
-| VXI-IAM-004 | Evidence/attestation | JIT access can be represented as a capability/grant when Coodra mediates the action; final approval source is external. |
-| VXI-IAM-005 | Evidence/attestation | Use grant expiry/max duration in Coodra, but enterprise IAM session duration remains external. |
-| VXI-IAM-006 | External-owner | Privileged action monitoring is SIEM/cloud audit owned; Coodra can emit supplemental agent audit. |
-| VXI-IAM-007 | External-owner | Break-glass governance is external; Coodra only records evidence and links. |
-| VXI-IAM-008 | External-owner | Access certification depends on IAM rosters and manager review. |
-| VXI-IAM-009 | Evidence/attestation | Coodra can flag committed static credentials and service-account-like secrets, but workload identity proof is external. |
-| VXI-IAM-010 | Evidence/attestation | Coodra can protect `.env` and secret reads/writes; vault/IAM authorization is external evidence. |
-| VXI-CLD-001 | Native advisory | Flag cloud resource creation outside IaC paths or without planned IaC artifacts. |
-| VXI-CLD-002 | Native advisory | Warn on IaC changes lacking review evidence, branch hygiene, or linked work pack. |
-| VXI-CLD-003 | Evidence/attestation | Track dev environment request package as checklist/evidence. |
-| VXI-CLD-004 | Evidence/attestation | Track expiration metadata; actual teardown requires cloud integration. |
-| VXI-CLD-005 | Evidence/attestation | Advise against unapproved services if catalog metadata exists; authoritative catalog is external. |
-| VXI-CLD-006 | Native advisory | Ask/advise on API key creation commands and secret material handling. |
-| VXI-CLD-007 | Native advisory | Warn on public exposure patterns in IaC, config, firewall, ingress, or deployment commands. |
-| VXI-CLD-008 | Native advisory | Check required tag patterns in IaC/config where visible. |
-| VXI-CLD-009 | Evidence/attestation | Track budget evidence; anomaly detection is billing/cloud-platform owned. |
-| VXI-CLD-010 | Native advisory | Use repo/IaC drift signals when available; provider drift requires connector or pipeline evidence. |
-| VXI-ARC-001 | Evidence/attestation | Store architecture review evidence before production promotion. |
-| VXI-ARC-002 | Evidence/attestation | Store security architecture review signoff/evidence. |
-| VXI-ARC-003 | Evidence/attestation | Track threat model artifact and expiry; Coodra may help generate/review it. |
-| VXI-ARC-004 | Evidence/attestation | Record data classification claims; do not infer full handling compliance from code alone. |
-| VXI-ARC-005 | Evidence/attestation | Network approval belongs to architecture/cloud governance. |
-| VXI-ARC-006 | Evidence/attestation | Resiliency design can be documented in Coodra; runtime validation is external. |
-| VXI-ARC-007 | Evidence/attestation | Coodra/Graphify can assist dependency maps, but business/system dependency truth may need owner attestation. |
-| VXI-ARC-008 | Native advisory | Use Coodra decisions/ADRs/context packs for architecture decision capture. |
-| VXI-SEC-001 | Native advisory | Check work packs/backlog for security requirements on security-sensitive changes. |
-| VXI-SEC-002 | Native advisory | Record SAST evidence from local or CI runs when available; otherwise create an evidence gap. |
-| VXI-SEC-003 | Native advisory | Record SCA/license evidence from package scans and dependency diffs. |
-| VXI-SEC-004 | Evidence/attestation | Container/image scan proof usually comes from CI/registry scanners. |
-| VXI-SEC-005 | Evidence/attestation | DAST/API testing proof belongs to pipeline/security tooling; Coodra tracks evidence. |
-| VXI-SEC-006 | Evidence/attestation | Pen-test scope and results are human/security-team owned artifacts. |
-| VXI-SEC-007 | Evidence/attestation | Coodra can track findings against SLAs, but scanner/source-of-truth status is external. |
-| VXI-SEC-008 | Native advisory | Secret detection and `.env` protection are direct Coodra policy controls. |
-| VXI-SEC-009 | Native advisory | Run or record IaC/cloud-policy checks where tooling exists; otherwise surface missing evidence. |
-| VXI-SEC-010 | Evidence/attestation | Security signoff is an approval artifact, not an automatic agent decision. |
-| VXI-OPS-001 | Evidence/attestation | Monitoring requirements are checklist/evidence items before go-live. |
-| VXI-OPS-002 | External-owner | Centralized logging is platform/SIEM owned; Coodra only links evidence. |
-| VXI-OPS-003 | Evidence/attestation | Alert ownership can be tracked as metadata/evidence. |
-| VXI-OPS-004 | Evidence/attestation | Coodra can generate/check runbooks, but operational acceptance is attested. |
-| VXI-OPS-005 | Evidence/attestation | Support model is process ownership metadata. |
-| VXI-OPS-006 | External-owner | Incident/problem linkage is ITSM owned; Coodra can reference tickets. |
-| VXI-OPS-007 | Evidence/attestation | Capacity monitoring evidence comes from runtime/platform telemetry. |
-| VXI-OPS-008 | Evidence/attestation | Backup/restore test evidence is external; Coodra tracks proof and expiry. |
-| VXI-CMDB-001 | Evidence/attestation | CMDB onboarding is external-system owned, represented as evidence status. |
-| VXI-CMDB-002 | Evidence/attestation | Resource reconciliation needs cloud/CMDB connectors or uploaded evidence. |
-| VXI-CMDB-003 | Native advisory | Repo-to-app mapping can be stored and used by Coodra project/work-pack context. |
-| VXI-CMDB-004 | Native advisory | Coodra can derive dependency inventory from repository manifests and Graphify, with owner review. |
-| VXI-CMDB-005 | Evidence/attestation | Lifecycle/decommissioning requires owner and inventory-system confirmation. |
-| VXI-REL-001 | Native advisory | Detect deployment pipeline/config changes and direct deploy intent; advise or require linked evidence. |
-| VXI-REL-002 | Native advisory | Check branch/worktree state and warn on unstable dev branch patterns. |
-| VXI-REL-003 | Evidence/attestation | Change request approval is external, though Coodra can require a linked record for release work. |
-| VXI-REL-004 | Evidence/attestation | Go/no-go checkpoint is a human approval artifact. |
-| VXI-REL-005 | Evidence/attestation | Environment separation is cloud/platform owned; Coodra can warn on prod-like targets in dev tasks. |
-| VXI-REL-006 | Native advisory | Require or advise rollback plan evidence for release/deployment capability. |
-| VXI-REL-007 | Native advisory | Generate/check release notes and operational handoff artifacts. |
+| COODRA-GOV-001 | Evidence/attestation | Track kickoff participants and evidence; do not infer attendance from code work. |
+| COODRA-GOV-002 | Evidence/attestation | Store owner/cost/repo metadata as project attributes; require human or source-system attestation. |
+| COODRA-GOV-003 | Evidence/attestation | Represent readiness approvals as milestone evidence, not tool-call gates. |
+| COODRA-GOV-004 | Evidence/attestation | Link the environment standard and record deviations. |
+| COODRA-GOV-005 | Native advisory | Map to Coodra exceptions/grants: scoped, time-bound, risk-accepted, reviewed. |
+| COODRA-GOV-006 | Evidence/attestation | Track separation-of-duties approvals; Coodra cannot verify enterprise approver independence alone. |
+| COODRA-GOV-007 | Evidence/attestation | Link risks to controls/work packs; risk register remains external unless integrated. |
+| COODRA-GOV-008 | Native advisory | Use Coodra audit events, decisions, context packs, and control attestations as evidence inventory. |
+| COODRA-IAM-001 | External-owner | Environment role separation belongs to IdP/cloud IAM; Coodra stores evidence only. |
+| COODRA-IAM-002 | External-owner | Standing admin detection requires IAM inventory; Coodra can advise if agent asks for broad credentials. |
+| COODRA-IAM-003 | External-owner | Default developer access posture is an IAM policy matter, not an agent hook decision. |
+| COODRA-IAM-004 | Evidence/attestation | JIT access can be represented as a capability/grant when Coodra mediates the action; final approval source is external. |
+| COODRA-IAM-005 | Evidence/attestation | Use grant expiry/max duration in Coodra, but enterprise IAM session duration remains external. |
+| COODRA-IAM-006 | External-owner | Privileged action monitoring is SIEM/cloud audit owned; Coodra can emit supplemental agent audit. |
+| COODRA-IAM-007 | External-owner | Break-glass governance is external; Coodra only records evidence and links. |
+| COODRA-IAM-008 | External-owner | Access certification depends on IAM rosters and manager review. |
+| COODRA-IAM-009 | Evidence/attestation | Coodra can flag committed static credentials and service-account-like secrets, but workload identity proof is external. |
+| COODRA-IAM-010 | Evidence/attestation | Coodra can protect `.env` and secret reads/writes; vault/IAM authorization is external evidence. |
+| COODRA-CLD-001 | Native advisory | Flag cloud resource creation outside IaC paths or without planned IaC artifacts. |
+| COODRA-CLD-002 | Native advisory | Warn on IaC changes lacking review evidence, branch hygiene, or linked work pack. |
+| COODRA-CLD-003 | Evidence/attestation | Track dev environment request package as checklist/evidence. |
+| COODRA-CLD-004 | Evidence/attestation | Track expiration metadata; actual teardown requires cloud integration. |
+| COODRA-CLD-005 | Evidence/attestation | Advise against unapproved services if catalog metadata exists; authoritative catalog is external. |
+| COODRA-CLD-006 | Native advisory | Ask/advise on API key creation commands and secret material handling. |
+| COODRA-CLD-007 | Native advisory | Warn on public exposure patterns in IaC, config, firewall, ingress, or deployment commands. |
+| COODRA-CLD-008 | Native advisory | Check required tag patterns in IaC/config where visible. |
+| COODRA-CLD-009 | Evidence/attestation | Track budget evidence; anomaly detection is billing/cloud-platform owned. |
+| COODRA-CLD-010 | Native advisory | Use repo/IaC drift signals when available; provider drift requires connector or pipeline evidence. |
+| COODRA-ARC-001 | Evidence/attestation | Store architecture review evidence before production promotion. |
+| COODRA-ARC-002 | Evidence/attestation | Store security architecture review signoff/evidence. |
+| COODRA-ARC-003 | Evidence/attestation | Track threat model artifact and expiry; Coodra may help generate/review it. |
+| COODRA-ARC-004 | Evidence/attestation | Record data classification claims; do not infer full handling compliance from code alone. |
+| COODRA-ARC-005 | Evidence/attestation | Network approval belongs to architecture/cloud governance. |
+| COODRA-ARC-006 | Evidence/attestation | Resiliency design can be documented in Coodra; runtime validation is external. |
+| COODRA-ARC-007 | Evidence/attestation | Coodra/Graphify can assist dependency maps, but business/system dependency truth may need owner attestation. |
+| COODRA-ARC-008 | Native advisory | Use Coodra decisions/ADRs/context packs for architecture decision capture. |
+| COODRA-SEC-001 | Native advisory | Check work packs/backlog for security requirements on security-sensitive changes. |
+| COODRA-SEC-002 | Native advisory | Record SAST evidence from local or CI runs when available; otherwise create an evidence gap. |
+| COODRA-SEC-003 | Native advisory | Record SCA/license evidence from package scans and dependency diffs. |
+| COODRA-SEC-004 | Evidence/attestation | Container/image scan proof usually comes from CI/registry scanners. |
+| COODRA-SEC-005 | Evidence/attestation | DAST/API testing proof belongs to pipeline/security tooling; Coodra tracks evidence. |
+| COODRA-SEC-006 | Evidence/attestation | Pen-test scope and results are human/security-team owned artifacts. |
+| COODRA-SEC-007 | Evidence/attestation | Coodra can track findings against SLAs, but scanner/source-of-truth status is external. |
+| COODRA-SEC-008 | Native advisory | Secret detection and `.env` protection are direct Coodra policy controls. |
+| COODRA-SEC-009 | Native advisory | Run or record IaC/cloud-policy checks where tooling exists; otherwise surface missing evidence. |
+| COODRA-SEC-010 | Evidence/attestation | Security signoff is an approval artifact, not an automatic agent decision. |
+| COODRA-OPS-001 | Evidence/attestation | Monitoring requirements are checklist/evidence items before go-live. |
+| COODRA-OPS-002 | External-owner | Centralized logging is platform/SIEM owned; Coodra only links evidence. |
+| COODRA-OPS-003 | Evidence/attestation | Alert ownership can be tracked as metadata/evidence. |
+| COODRA-OPS-004 | Evidence/attestation | Coodra can generate/check runbooks, but operational acceptance is attested. |
+| COODRA-OPS-005 | Evidence/attestation | Support model is process ownership metadata. |
+| COODRA-OPS-006 | External-owner | Incident/problem linkage is ITSM owned; Coodra can reference tickets. |
+| COODRA-OPS-007 | Evidence/attestation | Capacity monitoring evidence comes from runtime/platform telemetry. |
+| COODRA-OPS-008 | Evidence/attestation | Backup/restore test evidence is external; Coodra tracks proof and expiry. |
+| COODRA-CMDB-001 | Evidence/attestation | CMDB onboarding is external-system owned, represented as evidence status. |
+| COODRA-CMDB-002 | Evidence/attestation | Resource reconciliation needs cloud/CMDB connectors or uploaded evidence. |
+| COODRA-CMDB-003 | Native advisory | Repo-to-app mapping can be stored and used by Coodra project/work-pack context. |
+| COODRA-CMDB-004 | Native advisory | Coodra can derive dependency inventory from repository manifests and Graphify, with owner review. |
+| COODRA-CMDB-005 | Evidence/attestation | Lifecycle/decommissioning requires owner and inventory-system confirmation. |
+| COODRA-REL-001 | Native advisory | Detect deployment pipeline/config changes and direct deploy intent; advise or require linked evidence. |
+| COODRA-REL-002 | Native advisory | Check branch/worktree state and warn on unstable dev branch patterns. |
+| COODRA-REL-003 | Evidence/attestation | Change request approval is external, though Coodra can require a linked record for release work. |
+| COODRA-REL-004 | Evidence/attestation | Go/no-go checkpoint is a human approval artifact. |
+| COODRA-REL-005 | Evidence/attestation | Environment separation is cloud/platform owned; Coodra can warn on prod-like targets in dev tasks. |
+| COODRA-REL-006 | Native advisory | Require or advise rollback plan evidence for release/deployment capability. |
+| COODRA-REL-007 | Native advisory | Generate/check release notes and operational handoff artifacts. |
 
 This yields an initial posture of 20 native advisory controls, 38 evidence/attestation controls, and 8 external-owner controls.
 
@@ -193,7 +193,7 @@ Governance verdict:
 - `escalate`: allow or ask depending on configured approval mode, creates approval/evidence task.
 - `block`: maps to enforcement `deny` only when `enforcement_mode = preventive`.
 
-COOD-34 should use `advise`, `record`, and `warn` only. It must not emit blocking enforcement from VXI controls.
+COOD-34 should use `advise`, `record`, and `warn` only. It must not emit blocking enforcement from imported catalog controls.
 
 ### 4. Enforcement Modes
 
@@ -209,9 +209,9 @@ Add an explicit policy-error contract:
 
 - `deny_on_policy_error`: boolean, default `false` for existing policies to preserve today's fail-open behavior during migration.
 - Safety-critical preventive policies such as `.env`, agent control files, policy projection files, and Coodra self-protection should set `deny_on_policy_error = true` after the evaluator has a local compiled-policy fallback.
-- VXI native advisory controls should keep `deny_on_policy_error = false`; if policy evaluation fails, they may miss guidance but must not block the agent.
+- the seed catalog native advisory controls should keep `deny_on_policy_error = false`; if policy evaluation fails, they may miss guidance but must not block the agent.
 
-For compatibility, current `policies.enforcement_mode = detective` should finally become meaningful in the evaluator. Existing safety rules can be migrated as `preventive`; VXI controls as `advisory`. Until `deny_on_policy_error` is enabled for a policy, `preventive` means "deny when the engine is healthy," not "deny under every infrastructure failure."
+For compatibility, current `policies.enforcement_mode = detective` should finally become meaningful in the evaluator. Existing safety rules can be migrated as `preventive`; imported catalog controls as `advisory`. Until `deny_on_policy_error` is enabled for a policy, `preventive` means "deny when the engine is healthy," not "deny under every infrastructure failure."
 
 ### 5. Capability Context
 
@@ -227,7 +227,7 @@ Suggested fields:
 
 This is separate from governance controls:
 
-- A VXI control can be advisory and apply only in `cloud_admin`.
+- A the seed catalog control can be advisory and apply only in `cloud_admin`.
 - A deploy rule can be preventive and apply only in `deployment`.
 - A routine development rule can ask/confirm in `dev` but block in `release`.
 
@@ -399,11 +399,11 @@ The add-rule form should prevent invalid combinations instead of storing them lo
 4. In parallel, add scoped grant creation, matching, expiry, and revocation using the existing `policy_exceptions`/`ask_outcome` path as the migration bridge.
 5. Update hook shapers to enforce only `enforcement_decision`.
 6. Extend native projection attestation for mirrored grants/capabilities.
-7. Add Control Catalog tables and import VXI spreadsheet rows.
-8. Import the VXI controls using the initial Track A/B/C classification above.
+7. Add Control Catalog tables and import catalog spreadsheet rows.
+8. Import the catalog controls using the initial Track A/B/C classification above.
 9. Add advisory guidance injection for Track A.
 10. Add Track B/C attestation CLI/web action and dashboard rollup.
-11. Only after data proves low false-positive rates, allow selected non-VXI controls to opt into approval or preventive mode.
+11. Only after data proves low false-positive rates, allow selected non-catalog controls to opt into approval or preventive mode.
 
 ## Default Posture
 
@@ -413,7 +413,7 @@ Recommended baseline:
 - agent/Coodra control files: `preventive + deny`
 - `.git/**` and `node_modules/**`: `approval + ask`
 - targeted risky Bash: `approval + ask`
-- VXI controls: `advisory + advise/warn/record`
+- imported catalog controls: `advisory + advise/warn/record`
 - process controls: `detective + record`, with attestation cadence
 - deployment/cloud-admin behavior: gated by explicit active capabilities, not by broad project defaults
 
@@ -431,7 +431,7 @@ Suggested slices, with dependency notes:
 | `COOD-34D` | Reusable grants for once / similar task / session / project approvals. | 34A; can build in parallel with 34C but merges after capability/grant table shape is stable | M |
 | `COOD-34E` | Hook shapers enforce only enforcement outcome; advisory guidance is context-only. | 34B | S |
 | `COOD-34F` | Native projection drift detection for mirrored grants/capabilities. | 34C, 34D | M |
-| `COOD-34G` | Control Catalog schema and VXI import with Track A/B/C classification. | 34A | M |
+| `COOD-34G` | Control Catalog schema and catalog import with Track A/B/C classification. | 34A | M |
 | `COOD-34H` | Implement the 20 Track A native advisory rules and audit evidence. | 34B, 34E, 34G; may start rule catalog drafting earlier | L |
 | `COOD-34I` | Track B/C attestations and rollups. | 34G; intentionally post-v1 unless pulled forward | L |
 | `COOD-34J` | UI redesign for Controls / Rules / Decisions / Grants / Capabilities. | 34A, 34C, 34D, 34G; can ship incrementally by lane | L |
@@ -440,7 +440,7 @@ Minimum v1 ship path: `34A -> 34B -> 34E -> 34G -> 34H`. Capability/grant work (
 
 ## Non-Goals
 
-- Do not compile VXI controls into AWS/GCP/Azure IAM.
+- Do not compile imported catalog controls into AWS/GCP/Azure IAM.
 - Do not block releases from COOD-34 controls.
 - Do not claim process controls are satisfied from tool-call observations alone.
 - Do not depend on prompt instructions as a control surface.

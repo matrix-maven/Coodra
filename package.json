@@ -4,7 +4,7 @@
   "private": true,
   "description": "Coodra — MCP server platform providing Feature Packs, Context Packs, and policy enforcement for AI coding agents.",
   "license": "MIT",
-  "author": "Abishai <abishai95141@gmail.com>",
+  "author": "Matrix Maven <info@matrixmaven.co>",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/matrix-maven/Coodra.git"
@@ -61,5 +61,8 @@
       "better-sqlite3",
       "@clerk/shared"
     ]
-  }
+  },
+  "contributors": [
+    "Abishai <abishai95141@gmail.com>"
+  ]
 }

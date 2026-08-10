@@ -23,7 +23,7 @@ Behaviors that are not welcome:
 
 Project maintainers will remove comments, commits, code, issues, and other contributions that violate this code, and may temporarily or permanently ban contributors for behavior they deem inappropriate, threatening, offensive, or harmful.
 
-If you experience or witness conduct that violates this code, please report it to **abishai95141@gmail.com**. All reports are confidential. We aim to respond within 72 hours.
+If you experience or witness conduct that violates this code, please report it to **info@matrixmaven.co**. All reports are confidential. We aim to respond within 72 hours.
 
 ## Scope
 

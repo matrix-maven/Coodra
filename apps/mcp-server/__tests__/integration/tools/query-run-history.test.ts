@@ -346,7 +346,7 @@ describe('query_run_history — metadata passthrough', () => {
     seedRun(h, 'run_meta', h.projectA, 1000, 'completed', {
       endedAtSec: 1500,
       issueRef: 'PROJ-123',
-      prRef: 'Abishai95141/Coodra#45',
+      prRef: 'matrix-maven/Coodra#45',
     });
 
     const registry = buildRegistry(h);
@@ -358,7 +358,7 @@ describe('query_run_history — metadata passthrough', () => {
     if (!entry) return;
     expect(entry.runId).toBe('run_meta');
     expect(entry.issueRef).toBe('PROJ-123');
-    expect(entry.prRef).toBe('Abishai95141/Coodra#45');
+    expect(entry.prRef).toBe('matrix-maven/Coodra#45');
     expect(entry.status).toBe('completed');
     expect(entry.startedAt).toBe(new Date(1000 * 1000).toISOString());
     expect(entry.endedAt).toBe(new Date(1500 * 1000).toISOString());

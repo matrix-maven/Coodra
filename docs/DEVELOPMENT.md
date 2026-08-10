@@ -21,7 +21,7 @@ canonical standing-context docs at the repo root (`system-architecture.md`,
 ## First-time setup
 
 ```bash
-git clone git@github.com:Abishai95141/Coodra.git
+git clone git@github.com:matrix-maven/Coodra.git
 cd Coodra
 nvm use                 # picks the version from .nvmrc
 corepack enable

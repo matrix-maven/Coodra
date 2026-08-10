@@ -4,7 +4,7 @@
 
 If you believe you have found a security issue in Coodra — credential leakage, a way to bypass the policy engine, a sandbox escape from the hook adapter, an auth-chain weakness, anything that could compromise a user's machine or their team's data — please report it **privately**.
 
-Email: **abishai95141@gmail.com**
+Email: **info@matrixmaven.co**
 
 Please include:
 

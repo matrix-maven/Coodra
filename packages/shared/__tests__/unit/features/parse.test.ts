@@ -260,7 +260,7 @@ describe('renderFeatureMd — inverse of parseFeatureMd', () => {
         description: 'Use this when working on Stripe `charge` / `refund` flows.',
         whenNotToUse: 'Skip for PayPal — see `paypal-flow`.',
         maturity: 'stable',
-        owners: ['abishaikc', 'team-payments'],
+        owners: ['platform-team', 'team-payments'],
         tags: ['payments', 'stripe'],
       },
       body: '# Payments\n\nbody\n',
@@ -268,7 +268,7 @@ describe('renderFeatureMd — inverse of parseFeatureMd', () => {
     const parsed = parseFeatureMd(rendered);
     expect(parsed.errors).toEqual([]);
     expect(parsed.frontmatter?.maturity).toBe('stable');
-    expect(parsed.frontmatter?.owners).toEqual(['abishaikc', 'team-payments']);
+    expect(parsed.frontmatter?.owners).toEqual(['platform-team', 'team-payments']);
     expect(parsed.frontmatter?.tags).toEqual(['payments', 'stripe']);
   });
 });

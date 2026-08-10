@@ -902,8 +902,8 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   const policyCatalog = policy.command('catalog').description('Manage imported governance control catalogs.');
   const policyCatalogImportRunner = options.runPolicyCatalogImport ?? runPolicyCatalogImportCommand;
   policyCatalog
-    .command('import-vxi <file>')
-    .description('Import the VXI control catalog workbook and classify controls into Coodra relevance tracks.')
+    .command('import-catalog <file>')
+    .description('Import a control catalog workbook and classify controls into Coodra relevance tracks.')
     .option('--project <slug>', 'Project slug. Omit for a global/reference catalog.')
     .option('--sheet <name>', 'Workbook sheet name (default: Control Catalog).')
     .option('--json', 'Emit a structured JSON report.')
@@ -914,7 +914,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     options.runPolicyCatalogInstallNativeAdvisory ?? runPolicyCatalogInstallNativeAdvisoryCommand;
   policyCatalog
     .command('install-native-advisory')
-    .description('Install Coodra-native advisory policy templates for VXI Track A controls.')
+    .description('Install Coodra-native advisory policy templates for Track A controls.')
     .requiredOption('--project <slug>', 'Project slug.')
     .option('--policy-name <name>', 'Policy name (default: __native_advisory__).')
     .option('--json', 'Emit a structured JSON report.')

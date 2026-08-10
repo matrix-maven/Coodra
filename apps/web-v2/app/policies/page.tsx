@@ -200,7 +200,7 @@ export default async function PoliciesPage({
             <span className="card__role">{controls.length} imported controls</span>
           </div>
           {controls.length === 0 ? (
-            <div style={{ color: 'var(--ink-dim)' }}>No VXI controls imported for this scope.</div>
+            <div style={{ color: 'var(--ink-dim)' }}>No controls imported for this scope.</div>
           ) : (
             controls.slice(0, 12).map((control) => (
               <div key={control.id} className="policy-row">

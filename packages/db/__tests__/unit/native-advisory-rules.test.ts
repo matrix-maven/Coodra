@@ -8,7 +8,7 @@ import {
   NATIVE_ADVISORY_POLICY_NAME,
   NATIVE_ADVISORY_RULE_TEMPLATES,
   sqliteSchema,
-  VXI_NATIVE_ADVISORY_CONTROLS,
+  NATIVE_ADVISORY_CONTROLS,
   type DbHandle,
 } from '../../src/index.js';
 
@@ -29,10 +29,10 @@ describe('native advisory rule templates', () => {
     if (handle.kind === 'sqlite') handle.close();
   });
 
-  it('ships one advisory template for every VXI Track A native control', () => {
-    expect(NATIVE_ADVISORY_RULE_TEMPLATES).toHaveLength(VXI_NATIVE_ADVISORY_CONTROLS.size);
+  it('ships one advisory template for every Track A native control', () => {
+    expect(NATIVE_ADVISORY_RULE_TEMPLATES).toHaveLength(NATIVE_ADVISORY_CONTROLS.size);
     expect(new Set(NATIVE_ADVISORY_RULE_TEMPLATES.map((template) => template.controlKey))).toEqual(
-      VXI_NATIVE_ADVISORY_CONTROLS,
+      NATIVE_ADVISORY_CONTROLS,
     );
     expect(NATIVE_ADVISORY_RULE_TEMPLATES.every((template) => template.priority >= 1000)).toBe(true);
   });
@@ -78,7 +78,7 @@ describe('native advisory rule templates', () => {
     expect(rules.every((rule) => rule.enforcementDecision === 'allow')).toBe(true);
     expect(rules.every((rule) => rule.enforcementMode === 'advisory')).toBe(true);
     expect(rules.every((rule) => rule.governanceVerdict !== 'pass')).toBe(true);
-    expect(new Set(rules.map((rule) => rule.controlKey))).toEqual(VXI_NATIVE_ADVISORY_CONTROLS);
+    expect(new Set(rules.map((rule) => rule.controlKey))).toEqual(NATIVE_ADVISORY_CONTROLS);
   });
 
 });

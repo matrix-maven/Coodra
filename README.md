@@ -295,7 +295,7 @@ Coverage: ~180 unit-test files across 9 workspaces, plus an e2e suite that boots
 ## Get help
 
 - **Bug?** [Open an issue](https://github.com/matrix-maven/Coodra/issues) — include `coodra doctor --json` plus your OS / Node version.
-- **Security concern?** Email [abishai95141@gmail.com](mailto:abishai95141@gmail.com). Please do not file a public issue.
+- **Security concern?** Email [info@matrixmaven.co](mailto:info@matrixmaven.co). Please do not file a public issue.
 - **Architecture question?** Start at [`system-architecture.md`](system-architecture.md). It is long but indexed.
 
 ---

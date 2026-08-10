@@ -97,8 +97,18 @@ The `manifest.ts` description follows a five-part recipe (trigger phrase → ret
 ## Reporting bugs / asking questions
 
 - **Bugs**: open a GitHub Issue. Include `coodra doctor --json` output and your OS / Node version.
-- **Security issues**: please *don't* file a public issue — email `abishai95141@gmail.com` directly.
+- **Security issues**: please *don't* file a public issue — email `info@matrixmaven.co` directly.
 - **Architecture questions**: open a Discussion, or skim `system-architecture.md` first (it's long but indexed).
+
+---
+
+## Maintainers and contributors
+
+Coodra is maintained by **Matrix Maven** — reach us at `info@matrixmaven.co`.
+
+Contributors:
+
+- Abishai (<abishai95141@gmail.com>)
 
 ---
 
