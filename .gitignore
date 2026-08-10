@@ -122,3 +122,6 @@ supabase/.temp/
 /docs/team-hosted-web-and-cli-install-plan.md
 /docs/DEMO-full-coordination.md
 /docs/context-packs/
+
+# Office lock/temp files (Excel writes these next to open workbooks)
+~$*
