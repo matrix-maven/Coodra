@@ -2,7 +2,7 @@ import { type DbHandle, sqliteSchema } from '@coodra/db';
 import { createLogger, parseRunDiffFilesChanged } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
-const logger = createLogger('hooks-bridge.work-pack-session-update');
+const logger = createLogger('lifecycle.work-pack-session-update');
 
 const SECTION_START = '<!-- coodra:work-pack-session-overview:start -->';
 const SECTION_END = '<!-- coodra:work-pack-session-overview:end -->';

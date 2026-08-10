@@ -2,7 +2,7 @@
   "name": "@coodra/lifecycle",
   "version": "0.0.0",
   "private": true,
-  "description": "Agent-transport-agnostic lifecycle services — run completion, run diff capture, auto Context Pack save, and linked Work Pack update on SessionEnd. Extracted from apps/hooks-bridge (2026-08-08, Phase 1) so both the HTTP Hooks Bridge and the native-plugin `lifecycle_event` MCP tool get the same SessionEnd behavior instead of only the bridge implementing it.",
+  "description": "Agent-transport-agnostic lifecycle services consumed by the native `lifecycle_event` MCP tool: SessionStart base-SHA capture, stale-run cleanup, kill-switch evaluation, Agent Recipes index injection, and SessionEnd finalization (run completion, run-diff capture, auto Context Pack save, linked Work Pack update).",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

@@ -13,9 +13,10 @@ import {
 import { asc, eq } from 'drizzle-orm';
 
 /**
- * `apps/hooks-bridge/src/lib/run-diff-runner.ts` — Module 06 (Run Diff,
- * 2026-05-09). Generates a `git diff <runs.base_sha>` scoped to files the
- * agent touched in `run_events`, captures the unified output + per-file
+ * `packages/lifecycle/src/run-diff-runner.ts` — Module 06 (Run Diff,
+ * 2026-05-09; extracted from `apps/hooks-bridge`, which COOD-67
+ * deleted). Generates a `git diff <runs.base_sha>` scoped to files
+ * the agent touched in `run_events`, captures the unified output + per-file
  * metadata, truncates to MAX_UNIFIED_DIFF_BYTES, and persists to
  * `run_diffs` via DELETE-then-INSERT (idempotent on re-fired SessionEnd).
  *
@@ -48,7 +49,7 @@ import { asc, eq } from 'drizzle-orm';
  * so the pack's "Diff" section is populated.
  */
 
-const runnerLogger = createLogger('hooks-bridge.run-diff-runner');
+const runnerLogger = createLogger('lifecycle.run-diff-runner');
 
 const execFileAsync = promisify(execFile);
 
