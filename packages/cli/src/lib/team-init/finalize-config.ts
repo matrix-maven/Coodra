@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 
 import { resolveCoodraConfigJson, resolveCoodraHome } from '../coodra-home.js';
 import { upgradeToTeamConfig, writeTeamHomeEnv } from '../team-config.js';
@@ -172,6 +172,13 @@ export function removeEnvKey(envPath: string, key: string): void {
   renameSync(tmpPath, envPath);
 }
 
+function parentDirForEnvFile(envPath: string): string {
+  if (/^[A-Za-z]:[\\/]/.test(envPath) || envPath.includes('\\')) {
+    return win32.dirname(envPath);
+  }
+  return dirname(envPath);
+}
+
 export function upsertEnvKey(envPath: string, key: string, value: string): void {
   let existing = '';
   if (existsSync(envPath)) {
@@ -205,7 +212,7 @@ export function upsertEnvKey(envPath: string, key: string, value: string): void 
   }
   // Strip trailing blanks, ensure trailing newline.
   while (out.length > 0 && out[out.length - 1] === '') out.pop();
-  mkdirSync(envPath.substring(0, envPath.lastIndexOf('/')), { recursive: true });
+  mkdirSync(parentDirForEnvFile(envPath), { recursive: true });
   const tmpPath = `${envPath}.tmp`;
   writeFileSync(tmpPath, `${out.join('\n')}\n`, 'utf8');
   renameSync(tmpPath, envPath);

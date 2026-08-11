@@ -87,7 +87,7 @@ export async function installAntigravityPlugin(ctx: AgentContext): Promise<{
   const coodraHome = ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra');
   const paths = antigravityPluginPaths(ctx.userHome);
   const mcpEntry = buildAntigravityPluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome, ctx.platform);
   const sourceFiles = new Map<string, string>([
     [paths.manifestPath, pluginManifest()],
     [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],

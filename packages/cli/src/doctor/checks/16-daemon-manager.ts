@@ -13,11 +13,7 @@ export const daemonManagerCheck: Check = {
       return probe('systemctl', ['--user', '--version'], 'systemctl --user', ctx.timeoutMs);
     }
     if (ctx.platform === 'win32') {
-      return {
-        status: 'yellow',
-        detail: 'Windows uses the fallback (detached child) daemon strategy in 08a',
-        remediation: 'Task Scheduler integration is deferred to a follow-up slice.',
-      };
+      return probe('schtasks.exe', ['/Query', '/?'], 'Windows Task Scheduler', ctx.timeoutMs);
     }
     return { status: 'yellow', detail: `unknown platform ${ctx.platform} — fallback strategy applies` };
   },

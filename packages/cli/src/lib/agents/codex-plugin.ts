@@ -4,6 +4,7 @@ import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
+import { findExecutableOnPath } from '../executable-discovery.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
@@ -91,13 +92,9 @@ async function detectCodexCli(
   userHome: string,
   timeoutMs: number,
 ): Promise<{ readonly path: string; readonly viaPath: boolean } | null> {
-  try {
-    const { stdout } = await execFile('which', ['codex'], { timeout: timeoutMs });
-    const path = stdout.trim();
-    if (path.length > 0) return { path, viaPath: true };
-  } catch {
-    // not on PATH — fall through to known bundle locations
-  }
+  void timeoutMs;
+  const pathMatch = await findExecutableOnPath('codex');
+  if (pathMatch !== null) return { path: pathMatch, viaPath: true };
   for (const candidate of knownCodexBundlePaths(userHome)) {
     if (await isExecutableFile(candidate)) return { path: candidate, viaPath: false };
   }
@@ -230,7 +227,7 @@ export async function installCodexPlugin(
   const coodraHome = ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra');
   const paths = codexPluginPaths(ctx.userHome, coodraHome);
   const mcpEntry = buildCodexPluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome, ctx.platform);
   const sourceFiles = new Map<string, string>([
     [paths.marketplacePath, marketplaceManifest()],
     [paths.manifestPath, pluginManifest()],

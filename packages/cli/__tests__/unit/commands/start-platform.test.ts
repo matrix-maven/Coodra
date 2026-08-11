@@ -4,11 +4,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Windows-readiness (2026-06-16, Core scope): `coodra start` on win32 must
- * bring up the Claude Code essentials (mcp-server + sync-daemon) and SKIP
- * the `web` dashboard cleanly — the bundled Next.js standalone is traced on
- * the maintainer's machine and won't boot under win32, and the Claude Code
- * integration needs no web. On darwin/linux web is still attempted.
+ * Windows-readiness: `coodra start` on win32 must bring up every service
+ * returned by the resolver, including the web dashboard when a Windows-built
+ * standalone is available. The resolver itself keeps web optional when the
+ * bundle is absent.
  *
  * These mocks make the test deterministic on any runner: the platform is
  * driven by `options.platform`, never `process.platform`.
@@ -98,7 +97,7 @@ async function runAndCaptureExit(options: Parameters<typeof runStartCommand>[0],
   }
 }
 
-describe('coodra start — web is platform-gated', () => {
+describe('coodra start — web is not platform-gated', () => {
   let home: string;
 
   beforeEach(() => {
@@ -111,16 +110,14 @@ describe('coodra start — web is platform-gated', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('skips web on win32 but starts mcp-server + sync-daemon (exit 0)', async () => {
-    const { io, out } = makeIO();
+  it('starts web on win32 when the resolver returns a web service', async () => {
+    const { io } = makeIO();
     const code = await runAndCaptureExit({ platform: 'win32', home, env: {} }, io);
 
     expect(code).toBe(EXIT_OK);
     expect(installed).toContain('mcp-server');
     expect(installed).toContain('sync-daemon');
-    expect(installed).not.toContain('web');
-    expect(out()).toContain('Skipping');
-    expect(out()).toMatch(/not yet supported on Windows/i);
+    expect(installed).toContain('web');
   });
 
   it('starts web on darwin (no platform skip)', async () => {

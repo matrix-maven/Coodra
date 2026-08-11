@@ -23,6 +23,12 @@ describe('managed Graphify MCP runtime', () => {
     );
   });
 
+  it('resolves the managed runtime Python path with Windows venv layout', () => {
+    expect(managedGraphifyPythonPath('C:\\Users\\alice\\.coodra', 'win32')).toBe(
+      'C:\\Users\\alice\\.coodra\\graphify-mcp\\.venv\\Scripts\\python.exe',
+    );
+  });
+
   it('uses uv when available to install graphifyy[mcp] into the machine runtime venv', async () => {
     const calls: Array<[string, readonly string[]]> = [];
     const runner: InstallCommandRunner = vi.fn(async (cmd, args) => {

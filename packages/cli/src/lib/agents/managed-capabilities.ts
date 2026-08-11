@@ -11,9 +11,12 @@ import type { ExternalMcpEntry } from '../init/external-mcp-merge.js';
  * path, so an agent with the plugin installed has the structural-query surface
  * as soon as `.coodra/graphify/out/graph.json` exists.
  */
-export function buildManagedGraphifyMcpEntry(coodraHome: string): ExternalMcpEntry {
+export function buildManagedGraphifyMcpEntry(
+  coodraHome: string,
+  platform: NodeJS.Platform = process.platform,
+): ExternalMcpEntry {
   return {
-    command: managedGraphifyPythonPath(coodraHome),
+    command: managedGraphifyPythonPath(coodraHome, platform),
     args: ['-m', 'graphify.serve', MANAGED_PATHS.graphJson],
   };
 }

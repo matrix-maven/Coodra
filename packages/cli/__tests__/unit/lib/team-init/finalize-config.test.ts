@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { readTeamConfig, readTeamHomeEnv } from '../../../../src/lib/team-config.js';
-import { finalizeConfig } from '../../../../src/lib/team-init/finalize-config.js';
+import { finalizeConfig, upsertEnvKey } from '../../../../src/lib/team-init/finalize-config.js';
 
 /**
  * Phase B (clarity-pass-plan, 2026-05-11) — finalizeConfig writes the
@@ -95,5 +95,14 @@ describe('finalizeConfig', () => {
     const raw = readFileSync(join(homeDir, 'config.json'), 'utf8');
     const parsed = JSON.parse(raw) as { team?: { clerkOrgSlug?: unknown } };
     expect(parsed.team?.clerkOrgSlug).toBeUndefined();
+  });
+
+  it('upserts env keys into backslash-separated Windows paths', () => {
+    const envPath = `${homeDir}\\machine\\.coodra\\.env`;
+
+    expect(() => upsertEnvKey(envPath, 'LOCAL_HOOK_SECRET', 'f'.repeat(64))).not.toThrow();
+
+    const raw = readFileSync(envPath, 'utf8');
+    expect(raw).toContain(`LOCAL_HOOK_SECRET=${'f'.repeat(64)}`);
   });
 });

@@ -112,23 +112,14 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
     );
   }
 
-  // Windows (Core scope, 2026-06-16): the bundled `web` dashboard is the
-  // Next.js standalone tree traced on the maintainer's machine and is not
-  // yet supported on Windows (a darwin/linux-traced standalone won't boot
-  // under win32). The Claude Code integration — the MCP server — is fully
-  // functional without it, so default-skip web on win32 rather than
-  // attempting a boot that would hang the health probe and flip the whole
-  // `coodra start` to a failure. mcp-server stays essential. Revisit when
-  // a Windows-native web build ships.
   const platform = options.platform ?? process.platform;
-  const webUnsupportedOnPlatform = platform === 'win32';
 
   const skip = (name: string): boolean =>
     (name === 'mcp-server' && options.mcp === false) ||
     (name === 'sync-daemon' && (options.sync === false || teamSetupIncomplete)) ||
-    (name === 'web' && (options.web === false || webUnsupportedOnPlatform));
+    (name === 'web' && options.web === false);
 
-  const manager = await selectDaemonManager({ coodraHome });
+  const manager = await selectDaemonManager({ coodraHome, platform, env });
   io.writeStdout(`${pc.gray(`Using ${manager.kind} daemon manager.`)}\n`);
 
   let anyFailure = false;
@@ -138,9 +129,7 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
       const reason =
         service.descriptor.name === 'sync-daemon' && teamSetupIncomplete && options.sync !== false
           ? 'team setup incomplete — see warning above'
-          : service.descriptor.name === 'web' && webUnsupportedOnPlatform && options.web !== false
-            ? 'not yet supported on Windows — Claude Code (MCP + hooks) works without it'
-            : `--no-${service.descriptor.name}`;
+          : `--no-${service.descriptor.name}`;
       io.writeStdout(`${pc.gray('·')} Skipping ${service.descriptor.displayName} (${reason}).\n`);
       continue;
     }

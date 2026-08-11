@@ -3,6 +3,7 @@ import { access, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/p
 import { basename, dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
+import { findExecutableOnPath } from '../executable-discovery.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
 import { buildManagedGraphifyMcpEntry } from './managed-capabilities.js';
@@ -59,13 +60,8 @@ export interface ClaudeCliRunner {
 const CLI_TIMEOUT_MS = 15_000;
 
 async function detectClaudeCli(timeoutMs: number): Promise<string | null> {
-  try {
-    const { stdout } = await execFile('which', ['claude'], { timeout: timeoutMs });
-    const path = stdout.trim();
-    return path.length > 0 ? path : null;
-  } catch {
-    return null;
-  }
+  void timeoutMs;
+  return findExecutableOnPath('claude');
 }
 
 /**
@@ -233,7 +229,10 @@ export async function installClaudePlugin(
 }> {
   const paths = claudePluginPaths(ctx.userHome, ctx.mcpEntryOptions.coodraHome, ctx.settingsPath);
   const mcpEntry = buildClaudePluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra'));
+  const graphifyEntry = buildManagedGraphifyMcpEntry(
+    ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra'),
+    ctx.platform,
+  );
   const sourceFiles = new Map<string, string>([
     [paths.marketplacePath, marketplaceManifest()],
     [paths.manifestPath, pluginManifest()],

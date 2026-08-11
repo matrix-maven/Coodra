@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { closeSync, existsSync, openSync, readSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
 import { promisify } from 'node:util';
 
 const pexec = promisify(execFile);
@@ -43,7 +43,7 @@ export const GRAPHIFY_IMPORT_PROBE = 'import graphify.serve, mcp';
 
 /** Platform-aware path of the python binary inside a venv dir. */
 export function venvPythonPath(venvDir: string, platform: NodeJS.Platform = process.platform): string {
-  return platform === 'win32' ? join(venvDir, 'Scripts', 'python.exe') : join(venvDir, 'bin', 'python');
+  return platform === 'win32' ? win32.join(venvDir, 'Scripts', 'python.exe') : join(venvDir, 'bin', 'python');
 }
 
 export type VerifyResult =

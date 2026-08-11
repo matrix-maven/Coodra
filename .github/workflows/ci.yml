@@ -272,6 +272,71 @@ jobs:
         # the SQLite DB migrated and the HTTP server bound on Windows.
         run: pnpm --filter @coodra/cli smoke:core
 
+  windows-native-full-smoke:
+    name: windows native full smoke (PowerShell + web)
+    # Native Windows proof beyond the Git Bash core lane: PowerShell command
+    # execution, cross-platform CLI discovery tests, Task Scheduler rendering,
+    # managed Graphify Windows path assertions, a Windows-built web standalone,
+    # and a live /api/healthz probe through `coodra start`.
+    runs-on: windows-latest
+    needs: verify
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      COODRA_MODE: solo
+      CLERK_SECRET_KEY: sk_test_replace_me
+      LOG_LEVEL: error
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Print toolchain versions
+        run: |
+          node --version
+          pnpm --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Approve build scripts
+        run: pnpm rebuild
+
+      - name: Windows-focused unit tests
+        run: |
+          pnpm --filter @coodra/cli exec vitest run __tests__/unit/executable-discovery.test.ts
+          pnpm --filter @coodra/cli exec vitest run __tests__/unit/daemon/task-scheduler.test.ts
+          pnpm --filter @coodra/cli exec vitest run __tests__/unit/agents/managed-capabilities.test.ts
+          pnpm --filter @coodra/cli exec vitest run __tests__/unit/graphify/managed-runtime.test.ts
+          pnpm --filter @coodra/cli exec vitest run __tests__/unit/commands/start-platform.test.ts
+
+      - name: Build full Windows runtime including web
+        run: |
+          pnpm --filter @coodra/shared build
+          pnpm --filter @coodra/db build
+          pnpm --filter @coodra/policy build
+          pnpm --filter @coodra/cli build:tsc-only
+          pnpm --filter @coodra/web-v2 build
+          pnpm --filter @coodra/cli build
+
+      - name: Assert publish artifacts include web
+        run: node packages/cli/scripts/prepublish-assert.mjs
+
+      - name: Web install smoke (init → start → MCP + web healthz → stop)
+        env:
+          COODRA_SMOKE_NATIVE_DAEMON: '1'
+        run: pnpm --filter @coodra/cli smoke:web
+
   e2e:
     name: end-to-end (manifest + transport + idempotency + full session)
     runs-on: ubuntu-latest

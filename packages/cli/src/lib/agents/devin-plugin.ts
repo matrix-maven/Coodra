@@ -4,6 +4,7 @@ import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { VERSION } from '../../version.js';
+import { findExecutableOnPath } from '../executable-discovery.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
 import type { WriteOutcome } from '../init/types.js';
 import { terminalReadPrompt } from '../terminal-prompt.js';
@@ -116,13 +117,9 @@ async function detectDevinCli(
   userHome: string,
   timeoutMs: number,
 ): Promise<{ readonly path: string; readonly viaPath: boolean } | null> {
-  try {
-    const { stdout } = await execFile('which', ['devin'], { timeout: timeoutMs });
-    const path = stdout.trim();
-    if (path.length > 0) return { path, viaPath: true };
-  } catch {
-    // not on PATH — fall through to known bundle locations
-  }
+  void timeoutMs;
+  const pathMatch = await findExecutableOnPath('devin');
+  if (pathMatch !== null) return { path: pathMatch, viaPath: true };
   for (const candidate of knownDevinBundlePaths(userHome)) {
     if (await isExecutableFile(candidate)) return { path: candidate, viaPath: false };
   }
@@ -275,7 +272,7 @@ export async function installDevinPlugin(
   const coodraHome = ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra');
   const paths = devinPluginPaths(ctx.userHome, coodraHome);
   const mcpEntry = buildDevinPluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome, ctx.platform);
   const sourceFiles = new Map<string, string>([
     [paths.manifestPath, pluginManifest()],
     [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],

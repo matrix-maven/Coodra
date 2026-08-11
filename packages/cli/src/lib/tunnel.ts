@@ -19,14 +19,12 @@
  */
 
 import type { ChildProcess } from 'node:child_process';
-import { execFile as execFileCallback, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { promisify } from 'node:util';
 
-const execFile = promisify(execFileCallback);
-
+import { findExecutableOnPath } from './executable-discovery.js';
 import { removeEnvKey, upsertEnvKey } from './team-init/finalize-config.js';
 
 export interface CloudflaredLookup {
@@ -40,14 +38,9 @@ export interface CloudflaredLookup {
  * public URL).
  */
 export async function detectCloudflared(): Promise<CloudflaredLookup | null> {
-  try {
-    const { stdout } = await execFile('which', ['cloudflared']);
-    const path = stdout.trim();
-    if (path.length === 0 || !existsSync(path)) return null;
-    return { path };
-  } catch {
-    return null;
-  }
+  const path = await findExecutableOnPath('cloudflared');
+  if (path === null || !existsSync(path)) return null;
+  return { path };
 }
 
 export interface StartQuickTunnelOptions {

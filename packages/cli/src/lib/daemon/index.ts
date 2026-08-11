@@ -1,11 +1,13 @@
 import { FallbackDaemonManager } from './fallback.js';
 import { LaunchdDaemonManager } from './launchd.js';
 import { SystemdDaemonManager } from './systemd.js';
+import { TaskSchedulerDaemonManager } from './task-scheduler.js';
 import type { DaemonManager } from './types.js';
 
 export { FallbackDaemonManager } from './fallback.js';
 export { LaunchdDaemonManager } from './launchd.js';
 export { SystemdDaemonManager } from './systemd.js';
+export { TaskSchedulerDaemonManager } from './task-scheduler.js';
 export type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
 export interface SelectDaemonManagerOptions {
@@ -29,8 +31,8 @@ export interface SelectDaemonManagerOptions {
  * start/stop would otherwise boot out the user's real daemons —
  * observed 2026-07-02 when `pnpm smoke:core` stopped a dev's live stack.
  *
- * Note: Windows always uses fallback in 08a (Task Scheduler integration is
- * deferred per spec §3 non-goals).
+ * Windows uses Task Scheduler when available; fallback remains the forced
+ * scratch/CI path via `COODRA_DAEMON_MANAGER=fallback`.
  */
 export async function selectDaemonManager(options: SelectDaemonManagerOptions): Promise<DaemonManager> {
   const platform = options.platform ?? process.platform;
@@ -46,6 +48,9 @@ export async function selectDaemonManager(options: SelectDaemonManagerOptions): 
   } else if (platform === 'linux') {
     const systemd = new SystemdDaemonManager();
     if (await systemd.isAvailable()) return systemd;
+  } else if (platform === 'win32') {
+    const taskScheduler = new TaskSchedulerDaemonManager({ coodraHome: options.coodraHome });
+    if (await taskScheduler.isAvailable()) return taskScheduler;
   }
 
   return new FallbackDaemonManager({ coodraHome: options.coodraHome });

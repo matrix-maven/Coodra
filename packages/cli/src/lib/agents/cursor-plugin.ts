@@ -76,7 +76,7 @@ export async function installCursorPlugin(ctx: AgentContext): Promise<{
   const coodraHome = ctx.mcpEntryOptions.coodraHome ?? join(ctx.userHome, '.coodra');
   const paths = cursorPluginPaths(ctx.userHome);
   const mcpEntry = buildCursorPluginMcpEntry(ctx);
-  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome);
+  const graphifyEntry = buildManagedGraphifyMcpEntry(coodraHome, ctx.platform);
   const sourceFiles = new Map<string, string>([
     [paths.manifestPath, pluginManifest()],
     [paths.mcpPath, `${JSON.stringify({ mcpServers: { coodra: mcpEntry, graphify: graphifyEntry } }, null, 2)}\n`],

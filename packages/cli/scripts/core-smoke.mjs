@@ -17,14 +17,14 @@
 //   4. /healthz probe on the mcp-server port returns 200.
 //   5. `coodra status` reports it running; `coodra stop` tears down.
 //
-// The `web` dashboard is intentionally out of scope; it's skipped via --no-web
-// here and auto-skipped on win32 by `coodra start`.
+// The `web` dashboard is intentionally out of scope; it's skipped via
+// --no-web here. The dedicated web smoke proves the dashboard path.
 //
 // Exit 0 = all assertions held. Non-zero = a step failed; daemon logs are
 // dumped before exit and the temp dirs are always cleaned up.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';

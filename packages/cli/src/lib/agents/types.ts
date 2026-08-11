@@ -65,6 +65,8 @@ export interface AgentPathContext {
   readonly cwd: string;
   /** $HOME — anchors global native agent files. */
   readonly userHome: string;
+  /** Override for tests; defaults to the host platform for generated platform-specific paths. */
+  readonly platform?: NodeJS.Platform;
   /** Override for ~/.claude/settings.json (tests). */
   readonly settingsPath?: string;
   /**
