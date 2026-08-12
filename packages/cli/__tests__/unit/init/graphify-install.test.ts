@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type InstallCommandRunner,
@@ -59,7 +59,7 @@ describe('planGraphifyInstall', () => {
 
   it('uses the Scripts\\python.exe layout on win32', () => {
     const plan = planGraphifyInstall({ cwd, hasUv: true, platform: 'win32' });
-    expect(plan.venvPython).toBe(join(cwd, '.venv', 'Scripts', 'python.exe'));
+    expect(plan.venvPython).toBe(win32.join(cwd, '.venv', 'Scripts', 'python.exe'));
   });
 });
 

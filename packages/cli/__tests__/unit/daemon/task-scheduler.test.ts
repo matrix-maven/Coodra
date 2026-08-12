@@ -34,7 +34,7 @@ describe('TaskSchedulerDaemonManager', () => {
     };
   }
 
-  it('creates an ONLOGON scheduled task backed by a Coodra launcher cmd', async () => {
+  it('creates an ONLOGON scheduled task backed by a Coodra PowerShell launcher', async () => {
     const manager = new TaskSchedulerDaemonManager({ coodraHome, execa: fakeRun() });
 
     await manager.install(unit());
@@ -49,18 +49,18 @@ describe('TaskSchedulerDaemonManager', () => {
           '/SC',
           'ONLOGON',
           '/TR',
-          `"${join(coodraHome, 'tasks', 'web.cmd')}"`,
+          `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${join(coodraHome, 'tasks', 'web.ps1')}"`,
           '/F',
         ],
       },
     ]);
-    const launcher = await readFile(join(coodraHome, 'tasks', 'web.cmd'), 'utf8');
-    expect(launcher).toContain('set "COODRA_HOME=C:\\Users\\alice\\.coodra"');
-    expect(launcher).toContain('set "DATABASE_URL=postgres://x:y@h/db%%40safe"');
-    expect(launcher).toContain('"C:\\Program Files\\nodejs\\node.exe"');
+    const launcher = await readFile(join(coodraHome, 'tasks', 'web.ps1'), 'utf8');
+    expect(launcher).toContain("$env:COODRA_HOME = 'C:\\Users\\alice\\.coodra'");
+    expect(launcher).toContain("$env:DATABASE_URL = 'postgres://x:y@h/db%40safe'");
+    expect(launcher).toContain("& 'C:\\Program Files\\nodejs\\node.exe'");
   });
 
-  it('escapes quotes in env values and preserves non-path args verbatim', async () => {
+  it('quotes env values and preserves non-path args verbatim', async () => {
     const manager = new TaskSchedulerDaemonManager({ coodraHome, execa: fakeRun() });
 
     await manager.install(
@@ -69,15 +69,15 @@ describe('TaskSchedulerDaemonManager', () => {
         env: {
           COODRA_HOME: 'C:\\Users\\alice\\.coodra',
           DATABASE_URL: 'postgres://user:p"ss@host/db%40safe',
-          CARET_VALUE: 'a^b',
+          QUOTED_VALUE: "a'b",
         },
       }),
     );
 
-    const launcher = await readFile(join(coodraHome, 'tasks', 'web.cmd'), 'utf8');
-    expect(launcher).toContain('set "DATABASE_URL=postgres://user:p^"ss@host/db%%40safe"');
-    expect(launcher).toContain('set "CARET_VALUE=a^^b"');
-    expect(launcher).toContain('"--origin=https://example.com/api/v1"');
+    const launcher = await readFile(join(coodraHome, 'tasks', 'web.ps1'), 'utf8');
+    expect(launcher).toContain("$env:DATABASE_URL = 'postgres://user:p\"ss@host/db%40safe'");
+    expect(launcher).toContain("$env:QUOTED_VALUE = 'a''b'");
+    expect(launcher).toContain("'--origin=https://example.com/api/v1'");
     expect(launcher).not.toContain('https:\\\\example.com\\\\api\\\\v1');
   });
 

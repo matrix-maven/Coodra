@@ -15,7 +15,7 @@ export interface TaskSchedulerManagerOptions {
 export type { ExecaLike };
 
 /**
- * Windows Task Scheduler manager. It writes one launcher `.cmd` per Coodra
+ * Windows Task Scheduler manager. It writes one launcher `.ps1` per Coodra
  * service under `~/.coodra/tasks/`, then registers `\Coodra\<name>` to run
  * at user logon and uses `schtasks /Run|/End|/Query` for lifecycle.
  */
@@ -44,7 +44,7 @@ export class TaskSchedulerDaemonManager implements DaemonManager {
     await writeFile(launcherPath, renderLauncher(unit), 'utf8');
     await this.run(
       'schtasks.exe',
-      ['/Create', '/TN', this.taskName(unit.name), '/SC', 'ONLOGON', '/TR', quoteTaskRun(launcherPath), '/F'],
+      ['/Create', '/TN', this.taskName(unit.name), '/SC', 'ONLOGON', '/TR', taskRunCommand(launcherPath), '/F'],
       { reject: false, timeout: 5000 },
     );
   }
@@ -91,7 +91,7 @@ export class TaskSchedulerDaemonManager implements DaemonManager {
     } catch {
       return [];
     }
-    const names = entries.filter((e) => e.endsWith('.cmd')).map((e) => e.replace(/\.cmd$/, ''));
+    const names = entries.filter((e) => e.endsWith('.ps1')).map((e) => e.replace(/\.ps1$/, ''));
     return Promise.all(names.map((name) => this.status(name)));
   }
 
@@ -100,33 +100,28 @@ export class TaskSchedulerDaemonManager implements DaemonManager {
   }
 
   private launcherPath(unitName: string): string {
-    return join(this.tasksDir, `${unitName}.cmd`);
+    return join(this.tasksDir, `${unitName}.ps1`);
   }
 }
 
 function renderLauncher(unit: DaemonUnit): string {
-  const lines = ['@echo off', 'setlocal'];
+  const lines = ["$ErrorActionPreference = 'Stop'"];
   for (const [key, value] of Object.entries(unit.env)) {
-    lines.push(`set "${key}=${escapeBatchValue(value)}"`);
+    lines.push(`$env:${key} = ${quotePowerShellLiteral(value)}`);
   }
-  if (unit.workingDir !== undefined) lines.push(`cd /d ${quoteCmdArg(unit.workingDir)}`);
+  if (unit.workingDir !== undefined) lines.push(`Set-Location -LiteralPath ${quotePowerShellLiteral(unit.workingDir)}`);
 
-  const command = [quoteCmdArg(unit.command), ...unit.args.map(quoteCmdArg)].join(' ');
-  const stdout = unit.stdoutPath !== undefined ? `>> ${quoteCmdArg(unit.stdoutPath)}` : '> NUL';
-  const stderr = unit.stderrPath !== undefined ? `2>> ${quoteCmdArg(unit.stderrPath)}` : '2> NUL';
+  const command = ['&', quotePowerShellLiteral(unit.command), ...unit.args.map(quotePowerShellLiteral)].join(' ');
+  const stdout = unit.stdoutPath !== undefined ? `>> ${quotePowerShellLiteral(unit.stdoutPath)}` : '> $null';
+  const stderr = unit.stderrPath !== undefined ? `2>> ${quotePowerShellLiteral(unit.stderrPath)}` : '2> $null';
   lines.push(`${command} ${stdout} ${stderr}`);
-  lines.push('endlocal');
   return `${lines.join('\r\n')}\r\n`;
 }
 
-function quoteCmdArg(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
+function quotePowerShellLiteral(value: string): string {
+  return `'${value.replace(/\r?\n/g, ' ').replace(/'/g, "''")}'`;
 }
 
-function escapeBatchValue(value: string): string {
-  return value.replace(/\^/g, '^^').replace(/"/g, '^"').replace(/%/g, '%%').replace(/\r?\n/g, ' ');
-}
-
-function quoteTaskRun(path: string): string {
-  return `"${path.replace(/"/g, '""')}"`;
+function taskRunCommand(path: string): string {
+  return `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${path.replace(/"/g, '""')}"`;
 }
