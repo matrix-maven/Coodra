@@ -55,11 +55,11 @@ function expandWindowsCandidates(candidates: readonly string[], pathExt: string 
 
   const out: string[] = [];
   for (const candidate of candidates) {
-    out.push(candidate);
     if (win32.extname(candidate).length === 0) {
       for (const ext of extensions) out.push(`${candidate}${ext.toLowerCase()}`);
       for (const ext of extensions) out.push(`${candidate}${ext.toUpperCase()}`);
     }
+    out.push(candidate);
   }
   return out;
 }

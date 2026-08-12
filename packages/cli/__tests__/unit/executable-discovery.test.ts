@@ -30,4 +30,18 @@ describe('findExecutableOnPath', () => {
       }),
     ).resolves.toBe(bin);
   });
+
+  it('prefers the invocable Windows shim when npm also creates a bare shebang file', async () => {
+    const bare = join(binDir, 'codex');
+    const shim = join(binDir, 'codex.cmd');
+    await writeFile(bare, '#!/bin/sh\n', 'utf8');
+    await writeFile(shim, '@echo off\r\n', 'utf8');
+
+    await expect(
+      findExecutableOnPath('codex', {
+        env: { PATH: binDir, PATHEXT: '.COM;.EXE;.CMD;.PS1' },
+        platform: 'win32',
+      }),
+    ).resolves.toBe(shim);
+  });
 });

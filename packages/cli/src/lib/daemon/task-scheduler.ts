@@ -1,5 +1,5 @@
 import { mkdir, readdir, unlink, writeFile } from 'node:fs/promises';
-import { join, win32 } from 'node:path';
+import { join } from 'node:path';
 import { type Options as ExecaOptions, execa, type ResultPromise } from 'execa';
 import type { DaemonManager, DaemonStatus, DaemonUnit } from './types.js';
 
@@ -120,12 +120,11 @@ function renderLauncher(unit: DaemonUnit): string {
 }
 
 function quoteCmdArg(value: string): string {
-  const normalized = value.includes('\\') ? value : win32.normalize(value);
-  return `"${normalized.replace(/"/g, '""')}"`;
+  return `"${value.replace(/"/g, '""')}"`;
 }
 
 function escapeBatchValue(value: string): string {
-  return value.replace(/%/g, '%%').replace(/\r?\n/g, ' ');
+  return value.replace(/\^/g, '^^').replace(/"/g, '^"').replace(/%/g, '%%').replace(/\r?\n/g, ' ');
 }
 
 function quoteTaskRun(path: string): string {

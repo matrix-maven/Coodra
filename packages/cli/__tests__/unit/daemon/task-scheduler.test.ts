@@ -60,6 +60,27 @@ describe('TaskSchedulerDaemonManager', () => {
     expect(launcher).toContain('"C:\\Program Files\\nodejs\\node.exe"');
   });
 
+  it('escapes quotes in env values and preserves non-path args verbatim', async () => {
+    const manager = new TaskSchedulerDaemonManager({ coodraHome, execa: fakeRun() });
+
+    await manager.install(
+      unit({
+        args: ['C:\\Users\\alice\\.coodra\\runtime\\web\\server.js', '--origin=https://example.com/api/v1'],
+        env: {
+          COODRA_HOME: 'C:\\Users\\alice\\.coodra',
+          DATABASE_URL: 'postgres://user:p"ss@host/db%40safe',
+          CARET_VALUE: 'a^b',
+        },
+      }),
+    );
+
+    const launcher = await readFile(join(coodraHome, 'tasks', 'web.cmd'), 'utf8');
+    expect(launcher).toContain('set "DATABASE_URL=postgres://user:p^"ss@host/db%%40safe"');
+    expect(launcher).toContain('set "CARET_VALUE=a^^b"');
+    expect(launcher).toContain('"--origin=https://example.com/api/v1"');
+    expect(launcher).not.toContain('https:\\\\example.com\\\\api\\\\v1');
+  });
+
   it('maps running and ready task states to daemon status', async () => {
     const running = new TaskSchedulerDaemonManager({ coodraHome, execa: fakeRun('Status: Running\r\n') });
     await expect(running.status('web')).resolves.toEqual({ name: 'web', state: 'running' });
