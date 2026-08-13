@@ -54,27 +54,57 @@ export const getRunIdInputSchema = z
           'unrecognized client name, or stdio without a COODRA_AGENT_TYPE config stamp). ' +
           'A known transport-resolved identity wins over this param.',
       ),
+    cwd: z
+      .string()
+      .min(1)
+      .max(4096)
+      .optional()
+      .describe(
+        'Absolute path of the project root you are working in. Strongly recommended in solo mode: without it, ' +
+          'an unregistered project cannot be verified against a local .coodra/config.json and this call returns ' +
+          'project_not_registered instead of silently creating one.',
+      ),
+    confirmRegister: z
+      .boolean()
+      .optional()
+      .describe(
+        'Pass true only after the user has explicitly agreed to register this project with Coodra, in response ' +
+          'to a prior project_not_registered result. Must be paired with cwd — without it the registration cannot ' +
+          "persist and you'll be asked again next session. Do not set this speculatively — ask the user first.",
+      ),
   })
   .strict()
   .describe('Input for coodra__get_run_id.');
 
 /**
- * Output schema — discriminated union on `ok`.
+ * Output schema.
  *
  * The success branch returns the runId + ISO-8601 startedAt per
- * §24.4. The soft-failure branch carries a structured
- * `project_not_found` code + `howToFix` string so the calling agent
- * can surface actionable guidance to the user instead of a generic
- * tool-failure message. Per user directive Q1 (2026-04-24 14:00):
- * solo mode auto-creates the `projects` row (so this branch only
- * fires in team mode); team mode returns this branch so the user can
- * register the project via the Web App or `coodra init` CLI.
+ * §24.4. Two soft-failure branches carry a structured error code +
+ * `howToFix` string so the calling agent can surface actionable
+ * guidance to the user instead of a generic tool-failure message:
  *
- * Why discriminated union rather than throwing: the registry's
- * generic `handler_threw` envelope is reserved for programming bugs
- * (database outage, unexpected null). "Project not registered" is a
- * user-recoverable state; modeling it as data keeps the agent-
- * reading contract clean.
+ *   - `project_not_found` — team mode only. An unknown slug is
+ *     always a hard refusal in team mode; there is no auto-create
+ *     path to gate here. Register via the Web App or `coodra init`.
+ *   - `project_not_registered` — solo mode only. Registration guard
+ *     (COOD-63): an unknown slug, or a previously auto-created row
+ *     with no verified `cwd`, no longer silently mints/reuses a
+ *     project. The caller must supply `cwd` matching a real
+ *     `.coodra/config.json`, or `confirmRegister: true` after the
+ *     user has explicitly agreed — see `handler.ts`'s
+ *     `resolveOrRegisterProject`.
+ *
+ * Why modeled as data rather than throwing: the registry's generic
+ * `handler_threw` envelope is reserved for programming bugs (database
+ * outage, unexpected null). Both of these are user-recoverable
+ * states; modeling them as data keeps the agent-reading contract
+ * clean.
+ *
+ * `z.union`, not `discriminatedUnion` — two branches share the
+ * `ok: false` literal, so `ok` alone can't discriminate between them
+ * (see get-recipe/schema.ts and wiki-ask/schema.ts for the same
+ * convention).
  */
 const getRunIdSuccess = z
   .object({
@@ -95,7 +125,21 @@ const getRunIdProjectNotFound = z
   })
   .strict();
 
-export const getRunIdOutputSchema = z.discriminatedUnion('ok', [getRunIdSuccess, getRunIdProjectNotFound]);
+const getRunIdProjectNotRegistered = z
+  .object({
+    ok: z.literal(false),
+    error: z.literal('project_not_registered'),
+    howToFix: z
+      .string()
+      .min(1)
+      .describe(
+        'Agent-surfaceable remediation string — ask the user to confirm registration, then either run ' +
+          '`coodra init` or retry with confirmRegister: true.',
+      ),
+  })
+  .strict();
+
+export const getRunIdOutputSchema = z.union([getRunIdSuccess, getRunIdProjectNotFound, getRunIdProjectNotRegistered]);
 
 export type GetRunIdInput = z.infer<typeof getRunIdInputSchema>;
 export type GetRunIdOutput = z.infer<typeof getRunIdOutputSchema>;

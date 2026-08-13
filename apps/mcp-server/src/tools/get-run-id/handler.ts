@@ -1,7 +1,5 @@
-import { randomUUID } from 'node:crypto';
-
-import { type DbHandle, ensureDefaultPolicy, postgresSchema, sqliteSchema } from '@coodra/db';
-import { createLogger, generateRunKey } from '@coodra/shared';
+import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/db';
+import { createLogger, generateRunKey, readCoodraProjectConfig } from '@coodra/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { SOLO_IDENTITY } from '../../lib/auth.js';
@@ -18,16 +16,28 @@ import type { GetRunIdInput, GetRunIdOutput } from './schema.js';
  * place either value is read — handler invocation itself is purely
  * input-driven.
  *
- * Behaviour (§24.4 + user ruling 2026-04-24):
+ * Behaviour (§24.4 + user ruling 2026-04-24; registration guard COOD-63):
  *
- *   1. Resolve `projectSlug` → `projects.id`. Missing row:
- *      - Solo mode: auto-create with `{ id: uuid, slug, orgId:
- *        SOLO_IDENTITY.orgId, name: slug }`. Zero-config ergonomics
- *        for the local-dev case where no Web App onboarding ran.
+ *   1. Resolve `projectSlug` → `projects.id`. Missing row, or a
+ *      found row with no verified `cwd`:
+ *      - Solo mode: `resolveOrRegisterProject` gates creation —
+ *        proceeds only when `input.cwd` matches a real
+ *        `.coodra/config.json`, or the caller passes
+ *        `confirmRegister: true` after the user has explicitly
+ *        agreed. Otherwise returns `{ ok: false, error:
+ *        'project_not_registered', howToFix }`. Zero-config
+ *        ergonomics are preserved for the legitimate case (a real
+ *        project whose SessionStart hook just hasn't fired yet this
+ *        turn); what's gone is silently minting a DB row for any
+ *        string an agent invents when a directory was never
+ *        `coodra init`'d (field report 2026-08-13 — a Devin session
+ *        recorded durable decisions against a project that existed
+ *        nowhere the user could see it).
  *      - Team mode: return `{ ok: false, error: 'project_not_found',
- *        howToFix: ... }` soft-failure. Throwing would surface as a
- *        generic "tool failed"; the soft-failure carries
- *        user-actionable guidance.
+ *        howToFix: ... }` soft-failure — unchanged, already the
+ *        stricter behavior. Throwing would surface as a generic
+ *        "tool failed"; the soft-failure carries user-actionable
+ *        guidance.
  *
  *   2. SELECT most recent `runs` row for (projectId, sessionId).
  *      - If found and `status === 'in_progress'` → return { ok: true,
@@ -84,93 +94,117 @@ interface RunRow {
   readonly startedAt: Date;
 }
 
+interface ResolvedProject {
+  readonly kind: 'found';
+  readonly projectId: string;
+  readonly orgId: string;
+  readonly cwd: string | null;
+}
+
 async function resolveProjectId(
   deps: GetRunIdHandlerDeps,
   projectSlug: string,
-): Promise<
-  { readonly kind: 'found'; readonly projectId: string; readonly orgId: string } | { readonly kind: 'missing' }
-> {
+): Promise<ResolvedProject | { readonly kind: 'missing' }> {
   if (deps.db.kind === 'sqlite') {
     const rows = await deps.db.db
-      .select({ id: sqliteSchema.projects.id, orgId: sqliteSchema.projects.orgId })
+      .select({ id: sqliteSchema.projects.id, orgId: sqliteSchema.projects.orgId, cwd: sqliteSchema.projects.cwd })
       .from(sqliteSchema.projects)
       .where(eq(sqliteSchema.projects.slug, projectSlug))
       .limit(1);
     const found = rows[0];
-    return found ? { kind: 'found', projectId: found.id, orgId: found.orgId } : { kind: 'missing' };
+    return found ? { kind: 'found', projectId: found.id, orgId: found.orgId, cwd: found.cwd } : { kind: 'missing' };
   }
   const rows = await deps.db.db
-    .select({ id: postgresSchema.projects.id, orgId: postgresSchema.projects.orgId })
+    .select({ id: postgresSchema.projects.id, orgId: postgresSchema.projects.orgId, cwd: postgresSchema.projects.cwd })
     .from(postgresSchema.projects)
     .where(eq(postgresSchema.projects.slug, projectSlug))
     .limit(1);
   const found = rows[0];
-  return found ? { kind: 'found', projectId: found.id, orgId: found.orgId } : { kind: 'missing' };
+  return found ? { kind: 'found', projectId: found.id, orgId: found.orgId, cwd: found.cwd } : { kind: 'missing' };
 }
 
-async function autoCreateProject(deps: GetRunIdHandlerDeps, projectSlug: string): Promise<string> {
-  const projectId = `proj_${randomUUID()}`;
-  const row = {
-    id: projectId,
-    slug: projectSlug,
-    orgId: SOLO_IDENTITY.orgId ?? 'org_dev_local',
-    name: projectSlug,
-  };
-  if (deps.db.kind === 'sqlite') {
-    await deps.db.db.insert(sqliteSchema.projects).values(row).onConflictDoNothing({
-      target: sqliteSchema.projects.slug,
-    });
-  } else {
-    await deps.db.db.insert(postgresSchema.projects).values(row).onConflictDoNothing({
-      target: postgresSchema.projects.slug,
-    });
+type ProjectResolution =
+  | { readonly kind: 'ok'; readonly projectId: string; readonly orgId: string }
+  | { readonly kind: 'not_registered' };
+
+/**
+ * Solo-mode registration guard (COOD-63). Replaces the old
+ * `autoCreateProject`, which minted a `projects` row for ANY string
+ * an agent supplied as `projectSlug` — no filesystem check, `cwd`
+ * left null forever. That let an agent record durable decisions
+ * against a project the user never registered and could not see
+ * anywhere (field report 2026-08-13, Devin + an uninitialized repo).
+ *
+ * A row is trusted automatically only when it already has a verified
+ * `cwd` (set by `coodra init` or a prior confirmed call here) — that
+ * covers the legitimate zero-config case this tool was built for: a
+ * real project whose SessionStart hook simply hasn't fired yet this
+ * turn. Anything else — an unknown slug, or an old row with `cwd`
+ * still null — requires one of:
+ *   - `input.cwd` resolves via `readCoodraProjectConfig` to a
+ *     `.coodra/config.json` whose `projectSlug` matches, i.e. the
+ *     directory really was `coodra init`'d; or
+ *   - `input.confirmRegister === true`, i.e. the agent asked the
+ *     user and got an explicit yes.
+ * Either way, creation/backfill goes through the SAME `ensureProject`
+ * `coodra init` itself calls — one canonical project-creation path,
+ * not two divergent ones — so `cwd` gets set and this directory never
+ * needs to re-confirm again.
+ */
+async function resolveOrRegisterProject(deps: GetRunIdHandlerDeps, input: GetRunIdInput): Promise<ProjectResolution> {
+  const resolved = await resolveProjectId(deps, input.projectSlug);
+  if (resolved.kind === 'found' && resolved.cwd !== null) {
+    return { kind: 'ok', projectId: resolved.projectId, orgId: resolved.orgId };
   }
-  // onConflict may race: re-resolve to get the winning id.
-  const resolved = await resolveProjectId(deps, projectSlug);
-  if (resolved.kind === 'missing') {
-    // Should never happen: we just inserted + onConflictDoNothing
-    // should leave a row present either way. If we genuinely see
-    // this, the caller will get an internal error on the next step;
-    // that's the correct signal.
-    handlerLogger.error(
-      { event: 'get_run_id_auto_create_vanished', projectSlug, projectId },
-      'auto-create followed by re-select found no row; concurrent delete?',
-    );
-    return projectId;
+
+  let verifiedCwd: string | undefined;
+  if (input.confirmRegister !== true && input.cwd !== undefined) {
+    const projectConfig = await readCoodraProjectConfig(input.cwd);
+    if (projectConfig !== null && projectConfig.projectSlug === input.projectSlug) {
+      verifiedCwd = input.cwd;
+    }
   }
-  if (resolved.projectId !== projectId) {
+  // `confirmRegister` alone is not enough: without a `cwd` to persist,
+  // the created row's `cwd` would stay null and every later call would
+  // re-hit this same gate forever — exactly the "nag every session"
+  // failure mode this guard exists to prevent. Require both together
+  // so a confirmed project is trusted from then on, agent-agnostically.
+  const allowRegister = (input.confirmRegister === true && input.cwd !== undefined) || verifiedCwd !== undefined;
+
+  if (!allowRegister) {
     handlerLogger.info(
-      { event: 'get_run_id_auto_create_raced', projectSlug, mineId: projectId, winnerId: resolved.projectId },
-      'auto-create raced with a concurrent insert; using the winner',
-    );
-  } else {
-    handlerLogger.info(
-      { event: 'get_run_id_project_auto_created', projectSlug, projectId, orgId: row.orgId },
-      'solo-mode auto-created projects row for unknown slug',
-    );
-  }
-  // A fresh project row with no policy is fail-open: `check_policy`
-  // waves through every tool because no rule matches. Seed the
-  // `__default__` policy so a solo session-start (this path) governs
-  // agent actions from the first Write. This bypasses `ensureProject`
-  // (which seeds it too) because get_run_id owns its own project insert
-  // above; `ensureDefaultPolicy` is idempotent, so re-seeding the raced
-  // winner is a no-op. Best-effort — a seed failure must not break
-  // session start; `coodra doctor --fix` backfills a missed seed.
-  try {
-    await ensureDefaultPolicy(deps.db, resolved.projectId);
-  } catch (err) {
-    handlerLogger.warn(
       {
-        event: 'get_run_id_default_policy_seed_failed',
-        projectSlug,
-        projectId: resolved.projectId,
-        err: err instanceof Error ? err.message : String(err),
+        event: 'get_run_id_project_not_registered',
+        projectSlug: input.projectSlug,
+        hadExistingUnverifiedRow: resolved.kind === 'found',
+        confirmRegisterWithoutCwd: input.confirmRegister === true && input.cwd === undefined,
       },
-      'auto-created project but default policy seed failed — project is fail-open until repaired (run `coodra doctor --fix`)',
+      'solo-mode: project not verified via .coodra/config.json, or confirmRegister was set without cwd — returning soft-failure',
     );
+    return { kind: 'not_registered' };
   }
-  return resolved.projectId;
+
+  const persistedCwd = verifiedCwd ?? input.cwd;
+  const result = await ensureProject(deps.db, {
+    slug: input.projectSlug,
+    orgId: SOLO_IDENTITY.orgId ?? 'org_dev_local',
+    ...(persistedCwd !== undefined ? { cwd: persistedCwd } : {}),
+  });
+  handlerLogger.info(
+    {
+      event: result.created ? 'get_run_id_project_registered' : 'get_run_id_project_cwd_backfilled',
+      projectSlug: input.projectSlug,
+      projectId: result.id,
+      via: input.confirmRegister === true ? 'confirmRegister' : 'cwd_config_match',
+    },
+    result.created
+      ? 'solo-mode registered a new project after verification/confirmation'
+      : 'solo-mode backfilled cwd onto a previously-unverified project row',
+  );
+
+  const settled = await resolveProjectId(deps, input.projectSlug);
+  const orgId = settled.kind === 'found' ? settled.orgId : (SOLO_IDENTITY.orgId ?? 'org_dev_local');
+  return { kind: 'ok', projectId: result.id, orgId };
 }
 
 // NOTE: The bridge's RunRecorder uses the leaner `lookupRunId` helper
@@ -309,32 +343,46 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
     // 'unknown' (e.g. manually wired configs without the env stamp).
     const effectiveAgentType = ctx.agentType !== 'unknown' ? ctx.agentType : (input.agentType ?? ctx.agentType);
 
-    const resolved = await resolveProjectId(deps, input.projectSlug);
-
     let projectId: string;
     let orgId: string;
-    if (resolved.kind === 'found') {
+    if (deps.mode === 'solo') {
+      const resolution = await resolveOrRegisterProject(deps, input);
+      if (resolution.kind === 'not_registered') {
+        return {
+          ok: false,
+          error: 'project_not_registered',
+          howToFix:
+            "This directory isn't a verified Coodra project (no matching .coodra/config.json for " +
+            `projectSlug "${input.projectSlug}"). Ask the user: "This repository isn't registered with Coodra ` +
+            'yet — register it so I can save decisions and context for this session?" If yes: run `coodra init` ' +
+            'in the project root (preferred — also writes local config), then call get_run_id again; or call ' +
+            'get_run_id again immediately with BOTH cwd and confirmRegister: true (cwd is required so this ' +
+            "directory won't need to be confirmed again). If no: continue the coding task normally, but do not " +
+            'call get_run_id, record_decision, save_context_pack, or any other Coodra write tool again this session.',
+        };
+      }
+      projectId = resolution.projectId;
+      orgId = resolution.orgId;
+    } else {
+      const resolved = await resolveProjectId(deps, input.projectSlug);
+      if (resolved.kind !== 'found') {
+        handlerLogger.info(
+          {
+            event: 'get_run_id_project_not_found_team',
+            projectSlug: input.projectSlug,
+            sessionId: effectiveSessionId,
+            agentType: effectiveAgentType,
+          },
+          'team-mode: project slug not registered — returning soft-failure',
+        );
+        return {
+          ok: false,
+          error: 'project_not_found',
+          howToFix: 'Register this project via the Web App or run `coodra init` in the project root before retrying.',
+        };
+      }
       projectId = resolved.projectId;
       orgId = resolved.orgId;
-    } else if (deps.mode === 'solo') {
-      projectId = await autoCreateProject(deps, input.projectSlug);
-      const createdProject = await resolveProjectId(deps, input.projectSlug);
-      orgId = createdProject.kind === 'found' ? createdProject.orgId : (SOLO_IDENTITY.orgId ?? 'org_dev_local');
-    } else {
-      handlerLogger.info(
-        {
-          event: 'get_run_id_project_not_found_team',
-          projectSlug: input.projectSlug,
-          sessionId: effectiveSessionId,
-          agentType: effectiveAgentType,
-        },
-        'team-mode: project slug not registered — returning soft-failure',
-      );
-      return {
-        ok: false,
-        error: 'project_not_found',
-        howToFix: 'Register this project via the Web App or run `coodra init` in the project root before retrying.',
-      };
     }
 
     // Existing-run path.

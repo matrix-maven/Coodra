@@ -635,7 +635,19 @@ async function resolveRunId(args: {
   if (args.projectSlug === null) return null;
   const getRunId = createGetRunIdHandler(args.deps);
   const result = await getRunId(
-    { projectSlug: args.projectSlug, agentSessionId: args.event.sessionId, agentType: args.event.agentType },
+    {
+      projectSlug: args.projectSlug,
+      agentSessionId: args.event.sessionId,
+      agentType: args.event.agentType,
+      // COOD-63 registration guard: args.projectSlug only exists here
+      // because the caller already resolved it FROM a real
+      // .coodra/config.json at args.event.cwd (see the call site above
+      // this function). Passing cwd through lets get_run_id's own
+      // solo-mode guard re-verify that same file and register/trust the
+      // project with zero friction — without it, every hook-driven
+      // SessionStart would incorrectly hit project_not_registered.
+      ...(args.event.cwd !== undefined ? { cwd: args.event.cwd } : {}),
+    },
     args.ctx,
   );
   return result.ok ? result.runId : null;

@@ -61,7 +61,12 @@ function unwrap<T>(result: { readonly content: ReadonlyArray<{ type: string; tex
 }
 
 async function mintRun(registry: ToolRegistry, projectSlug: string, sessionId: string): Promise<string> {
-  const result = await registry.handleCall('get_run_id', { projectSlug }, sessionId, { agentType: 'claude_code' });
+  const result = await registry.handleCall(
+    'get_run_id',
+    { projectSlug, cwd: `/tmp/coodra-test/${projectSlug}`, confirmRegister: true },
+    sessionId,
+    { agentType: 'claude_code' },
+  );
   const out = unwrap<GetRunIdOutput>(result);
   if (!out.ok) throw new Error(`get_run_id failed: ${JSON.stringify(out)}`);
   return out.runId;

@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq, inArray } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -9,22 +13,27 @@ import type { GetRunIdOutput } from '../../../src/tools/get-run-id/schema.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 
 /**
- * Integration test for `coodra__get_run_id` (S8).
+ * Integration test for `coodra__get_run_id` (S8; registration guard COOD-63).
  *
  * Exercises the real handler end-to-end via the `ToolRegistry` — the
  * same dispatch path the stdio transport uses — against an in-memory
- * SQLite handle with migrations 0000 + 0001 + 0002 applied.
+ * SQLite handle with migrations applied.
  *
- * Covers (per user directive Q9 2026-04-24):
- *   - Solo mode: auto-create projects row when slug unknown.
- *   - Team mode: structured `project_not_found` soft-failure when
- *     slug unknown (NO projects row inserted).
+ * Covers:
+ *   - Solo mode: an unverified/unknown slug is gated — `project_not_registered`
+ *     unless the caller proves legitimacy via `cwd` matching a real
+ *     `.coodra/config.json`, or explicit `cwd` + `confirmRegister: true`
+ *     (field report 2026-08-13 — the old unconditional auto-create let an
+ *     agent record durable decisions against a directory nobody ever
+ *     registered). Once verified, `projects.cwd` is set and the same
+ *     slug never re-prompts.
+ *   - Team mode: unchanged — structured `project_not_found` soft-failure
+ *     when slug unknown (no projects row inserted, no guard needed here
+ *     since there is no auto-create path to gate).
  *   - Existing in-progress run: returns the cached runId.
  *   - Existing terminal run (completed/cancelled/...): returns the same
  *     runId AND resumes it — flips `status` back to `in_progress` and
- *     clears `ended_at` (2026-08-08 — a session reused after being marked
- *     done should read as active again, not stay stuck "done" while still
- *     recording activity; see get-run-id/handler.ts's `resumeRun`).
+ *     clears `ended_at`.
  *   - Concurrent inserts: Promise.all of two calls with the same
  *     (projectSlug, sessionId) returns the same runId on both
  *     (ON CONFLICT race resolution).
@@ -74,11 +83,170 @@ function unwrap(result: { readonly content: ReadonlyArray<{ type: string; text: 
   return parsed.data;
 }
 
+/** A fake absolute path — fine for `confirmRegister` calls, which never touch disk. */
+function fakeCwd(label: string): string {
+  return `/tmp/coodra-get-run-id-test/${label}`;
+}
+
+async function writeRealProjectConfig(projectSlug: string): Promise<string> {
+  const cwd = await mkdtemp(join(tmpdir(), 'coodra-get-run-id-'));
+  await mkdir(join(cwd, '.coodra'), { recursive: true });
+  await writeFile(join(cwd, '.coodra', 'config.json'), JSON.stringify({ projectSlug }), 'utf8');
+  return cwd;
+}
+
 // ---------------------------------------------------------------------------
-// Solo mode — auto-create projects on unknown slug
+// Solo mode — the registration guard itself (COOD-63)
 // ---------------------------------------------------------------------------
 
-describe('get_run_id — solo mode auto-creates the projects row', () => {
+describe('get_run_id — solo mode registration guard', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('returns project_not_registered for an unknown slug with no cwd and no confirmRegister', async () => {
+    const registry = buildRegistry(h.handle, 'solo');
+    const out = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'never-initialized' }, 'sess_gate'));
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.error).toBe('project_not_registered');
+    expect(out.howToFix.length).toBeGreaterThan(0);
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'never-initialized'));
+    expect(projects).toHaveLength(0);
+  });
+
+  it('returns project_not_registered when confirmRegister is true but cwd is missing (no silent permanent-nag row)', async () => {
+    const registry = buildRegistry(h.handle, 'solo');
+    const out = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'confirm-without-cwd', confirmRegister: true },
+        'sess_gate2',
+      ),
+    );
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.error).toBe('project_not_registered');
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'confirm-without-cwd'));
+    expect(projects).toHaveLength(0);
+  });
+
+  it('registers automatically when cwd resolves a real .coodra/config.json matching projectSlug — no confirmRegister needed', async () => {
+    const cwd = await writeRealProjectConfig('real-init-project');
+    const registry = buildRegistry(h.handle, 'solo');
+    const out = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'real-init-project', cwd }, 'sess_real'));
+    expect(out.ok).toBe(true);
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'real-init-project'));
+    expect(projects).toHaveLength(1);
+    expect(projects[0]?.cwd).toBe(cwd);
+  });
+
+  it('does not register when cwd points at a .coodra/config.json for a DIFFERENT slug', async () => {
+    const cwd = await writeRealProjectConfig('actual-slug');
+    const registry = buildRegistry(h.handle, 'solo');
+    const out = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'guessed-slug', cwd }, 'sess_mismatch'));
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.error).toBe('project_not_registered');
+  });
+
+  it('registers with cwd + confirmRegister: true when no .coodra/config.json exists (the user-consented path)', async () => {
+    const cwd = fakeCwd('consented-project');
+    const registry = buildRegistry(h.handle, 'solo');
+    const out = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'consented-project', cwd, confirmRegister: true },
+        'sess_consent',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'consented-project'));
+    expect(projects).toHaveLength(1);
+    expect(projects[0]?.cwd).toBe(cwd);
+  });
+
+  it('never re-prompts once a project is registered — a later call with no cwd/confirmRegister succeeds', async () => {
+    const cwd = fakeCwd('no-nag-project');
+    const registry = buildRegistry(h.handle, 'solo');
+    const first = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'no-nag-project', cwd, confirmRegister: true },
+        'sess_first',
+      ),
+    );
+    expect(first.ok).toBe(true);
+
+    // A different session, same slug, no cwd/confirmRegister this time.
+    const second = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'no-nag-project' }, 'sess_second'));
+    expect(second.ok).toBe(true);
+  });
+
+  it('gates a pre-existing row with cwd still null (a phantom from before this guard existed) until verified/confirmed, then backfills cwd', async () => {
+    // Simulate a row created by the old unconditional auto-create: present
+    // in the DB, cwd never set.
+    await h.handle.db.insert(sqliteSchema.projects).values({
+      id: 'proj_phantom_legacy',
+      slug: 'phantom-legacy-project',
+      orgId: 'org_dev_local',
+      name: 'phantom-legacy-project',
+    });
+
+    const registry = buildRegistry(h.handle, 'solo');
+    const blocked = unwrap(
+      await registry.handleCall('get_run_id', { projectSlug: 'phantom-legacy-project' }, 'sess_phantom_1'),
+    );
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.error).toBe('project_not_registered');
+
+    const cwd = fakeCwd('phantom-legacy-project');
+    const confirmed = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'phantom-legacy-project', cwd, confirmRegister: true },
+        'sess_phantom_2',
+      ),
+    );
+    expect(confirmed.ok).toBe(true);
+
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'phantom-legacy-project'));
+    expect(projects).toHaveLength(1);
+    expect(projects[0]?.id).toBe('proj_phantom_legacy'); // same row, backfilled — not a duplicate
+    expect(projects[0]?.cwd).toBe(cwd);
+
+    // And now it never re-prompts either.
+    const third = unwrap(
+      await registry.handleCall('get_run_id', { projectSlug: 'phantom-legacy-project' }, 'sess_phantom_3'),
+    );
+    expect(third.ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Solo mode — successful creation via confirmRegister (project + runs + policy)
+// ---------------------------------------------------------------------------
+
+describe('get_run_id — solo mode registers via confirmRegister + creates the runs row', () => {
   let h: Harness;
   beforeEach(async () => {
     h = await openHarness();
@@ -89,13 +257,19 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
 
   it('creates a projects row + a runs row on first call for an unknown slug', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const result = await registry.handleCall('get_run_id', { projectSlug: 'my-fresh-project' }, 'sess_1', {
-      agentType: 'claude_code',
-    });
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'my-fresh-project', cwd: fakeCwd('my-fresh-project'), confirmRegister: true },
+      'sess_1',
+      { agentType: 'claude_code' },
+    );
     const out = unwrap(result);
     expect(out.ok).toBe(true);
     if (out.ok) {
-      expect(out.runId).toMatch(/^run:proj_[0-9a-f-]+:sess_1:[0-9a-f-]+$/);
+      // projectId no longer carries a `proj_` prefix: ensureProject (shared
+      // with `coodra init`) mints a bare UUID, unlike the old
+      // autoCreateProject this guard replaced.
+      expect(out.runId).toMatch(/^run:[0-9a-f-]+:sess_1:[0-9a-f-]+$/);
       expect(typeof out.startedAt).toBe('string');
     }
     // Verify the projects row materialised.
@@ -115,7 +289,11 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
 
   it('stamps agentType=unknown when the transport did not supply one', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const result = await registry.handleCall('get_run_id', { projectSlug: 'x' }, 'sess_x');
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'x', cwd: fakeCwd('x'), confirmRegister: true },
+      'sess_x',
+    );
     const out = unwrap(result);
     expect(out.ok).toBe(true);
     const runs = await h.handle.db.select().from(sqliteSchema.runs).where(eq(sqliteSchema.runs.sessionId, 'sess_x'));
@@ -124,7 +302,11 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
 
   it('reuses the projects row on a second call with the same slug', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    await registry.handleCall('get_run_id', { projectSlug: 'same-slug' }, 'sess_a');
+    await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'same-slug', cwd: fakeCwd('same-slug'), confirmRegister: true },
+      'sess_a',
+    );
     await registry.handleCall('get_run_id', { projectSlug: 'same-slug' }, 'sess_b');
     const projects = await h.handle.db
       .select()
@@ -133,15 +315,19 @@ describe('get_run_id — solo mode auto-creates the projects row', () => {
     expect(projects).toHaveLength(1);
   });
 
-  it('seeds the __default__ policy + baseline rules on auto-create (closes the fail-open gap)', async () => {
-    // Regression for the 2026-07-18 fail-open defect: a solo auto-create
-    // used to mint a projects row with NO policy, so the MCP evaluator
-    // waved through every tool (doctor check 29 red). get_run_id now
-    // seeds `__default__` so enforcement is live from the first Write.
+  it('seeds the __default__ policy + baseline rules on registration (closes the fail-open gap)', async () => {
+    // Regression for the 2026-07-18 fail-open defect: an auto-create used
+    // to mint a projects row with NO policy, so the MCP evaluator waved
+    // through every tool (doctor check 29 red). get_run_id (via
+    // ensureProject) still seeds `__default__` so enforcement is live
+    // from the first Write.
     const registry = buildRegistry(h.handle, 'solo');
-    await registry.handleCall('get_run_id', { projectSlug: 'guarded-project' }, 'sess_p', {
-      agentType: 'claude_code',
-    });
+    await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'guarded-project', cwd: fakeCwd('guarded-project'), confirmRegister: true },
+      'sess_p',
+      { agentType: 'claude_code' },
+    );
     const projects = await h.handle.db
       .select()
       .from(sqliteSchema.projects)
@@ -187,7 +373,7 @@ describe('get_run_id — agentType precedence (known transport identity beats th
     const registry = buildRegistry(h.handle, 'solo');
     const result = await registry.handleCall(
       'get_run_id',
-      { projectSlug: 'claude-proj', agentType: 'codex' },
+      { projectSlug: 'claude-proj', agentType: 'codex', cwd: fakeCwd('claude-proj'), confirmRegister: true },
       'sess_field',
       { agentType: 'claude_code' },
     );
@@ -206,7 +392,7 @@ describe('get_run_id — agentType precedence (known transport identity beats th
     // No 4th-arg agentType — the registry defaults ctx.agentType to 'unknown'.
     const result = await registry.handleCall(
       'get_run_id',
-      { projectSlug: 'codex-proj', agentType: 'codex' },
+      { projectSlug: 'codex-proj', agentType: 'codex', cwd: fakeCwd('codex-proj'), confirmRegister: true },
       'sess_param',
     );
     const out = unwrap(result);
@@ -221,7 +407,11 @@ describe('get_run_id — agentType precedence (known transport identity beats th
 
   it('stamps unknown when the transport resolved unknown and no input param was supplied', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const result = await registry.handleCall('get_run_id', { projectSlug: 'anon-proj' }, 'sess_anon');
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'anon-proj', cwd: fakeCwd('anon-proj'), confirmRegister: true },
+      'sess_anon',
+    );
     const out = unwrap(result);
     expect(out.ok).toBe(true);
     const runs = await h.handle.db.select().from(sqliteSchema.runs).where(eq(sqliteSchema.runs.sessionId, 'sess_anon'));
@@ -231,7 +421,8 @@ describe('get_run_id — agentType precedence (known transport identity beats th
 });
 
 // ---------------------------------------------------------------------------
-// Team mode — structured soft-failure on unknown slug
+// Team mode — structured soft-failure on unknown slug (unchanged by COOD-63;
+// team mode already had no auto-create path to gate)
 // ---------------------------------------------------------------------------
 
 describe('get_run_id — team mode returns project_not_found on unknown slug', () => {
@@ -259,6 +450,23 @@ describe('get_run_id — team mode returns project_not_found on unknown slug', (
       .where(eq(sqliteSchema.projects.slug, 'not-registered'));
     expect(projects).toHaveLength(0);
   });
+
+  it('ignores cwd/confirmRegister — still returns project_not_found, no projects row', async () => {
+    const registry = buildRegistry(h.handle, 'team');
+    const result = await registry.handleCall(
+      'get_run_id',
+      { projectSlug: 'still-not-registered', cwd: fakeCwd('still-not-registered'), confirmRegister: true },
+      'sess_team2',
+    );
+    const out = unwrap(result);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.error).toBe('project_not_found');
+    const projects = await h.handle.db
+      .select()
+      .from(sqliteSchema.projects)
+      .where(eq(sqliteSchema.projects.slug, 'still-not-registered'));
+    expect(projects).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -276,7 +484,13 @@ describe('get_run_id — returns the existing run for (projectId, sessionId)', (
 
   it('returns the same runId on a second call for the same (slug, sessionId)', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const first = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'idem-slug' }, 'sess_idem'));
+    const first = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'idem-slug', cwd: fakeCwd('idem-slug'), confirmRegister: true },
+        'sess_idem',
+      ),
+    );
     const second = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'idem-slug' }, 'sess_idem'));
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
@@ -288,7 +502,13 @@ describe('get_run_id — returns the existing run for (projectId, sessionId)', (
 
   it('resumes a terminal run back to in_progress (same runId, status flipped, ended_at cleared)', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const first = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'completed-slug' }, 'sess_done'));
+    const first = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'completed-slug', cwd: fakeCwd('completed-slug'), confirmRegister: true },
+        'sess_done',
+      ),
+    );
     if (!first.ok) throw new Error('expected first call to succeed');
     // Mark the run as completed with an ended_at — simulates a real
     // SessionEnd firing mid-session before the same session_id resumes.
@@ -326,9 +546,10 @@ describe('get_run_id — concurrent calls with the same (slug, sessionId) conver
 
   it('Promise.all of two parallel calls returns the same runId in both responses', async () => {
     const registry = buildRegistry(h.handle, 'solo');
+    const cwd = fakeCwd('race-slug');
     const [a, b] = await Promise.all([
-      registry.handleCall('get_run_id', { projectSlug: 'race-slug' }, 'sess_race'),
-      registry.handleCall('get_run_id', { projectSlug: 'race-slug' }, 'sess_race'),
+      registry.handleCall('get_run_id', { projectSlug: 'race-slug', cwd, confirmRegister: true }, 'sess_race'),
+      registry.handleCall('get_run_id', { projectSlug: 'race-slug', cwd, confirmRegister: true }, 'sess_race'),
     ]);
     const outA = unwrap(a);
     const outB = unwrap(b);
@@ -358,7 +579,13 @@ describe('get_run_id — different sessionIds under the same project get differe
 
   it('two calls with different sessionIds produce two distinct runs rows', async () => {
     const registry = buildRegistry(h.handle, 'solo');
-    const a = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'multi-session' }, 'sess_1'));
+    const a = unwrap(
+      await registry.handleCall(
+        'get_run_id',
+        { projectSlug: 'multi-session', cwd: fakeCwd('multi-session'), confirmRegister: true },
+        'sess_1',
+      ),
+    );
     const b = unwrap(await registry.handleCall('get_run_id', { projectSlug: 'multi-session' }, 'sess_2'));
     expect(a.ok).toBe(true);
     expect(b.ok).toBe(true);

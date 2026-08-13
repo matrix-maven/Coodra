@@ -54,10 +54,11 @@ export function createGetRunIdToolRegistration(
     description:
       'Call this at the START of any session that will write code, if the current runId is not already in context ' +
       "from a session-start hook. Returns the current in-progress session's runId (UUID) which binds all subsequent " +
-      'tool calls, decisions, and context packs to a single durable record. Most other tools accept this runId as an ' +
-      'argument. Call once per session and reuse the value. Pass agentSessionId (your hook session_id) + agentType ' +
-      'so the bridge SessionStart row and this call resolve to ONE runs row. Unknown projectSlug: solo mode auto- ' +
-      'creates; team mode returns { ok: false, error: "project_not_found", howToFix }.',
+      'tool calls, decisions, and context packs to a single durable record. Call once per session and reuse the ' +
+      'value. Pass agentSessionId + agentType so the bridge SessionStart row resolves to ONE runs row. Pass cwd so ' +
+      'an unregistered project can be verified against .coodra/config.json instead of silently created. Unverified ' +
+      'slug in solo mode returns { ok: false, error: "project_not_registered", howToFix } — ask the user before ' +
+      'retrying with cwd + confirmRegister: true. Team mode returns { ok: false, error: "project_not_found" }.',
     inputSchema: getRunIdInputSchema,
     outputSchema: getRunIdOutputSchema,
     idempotencyKey: getRunIdIdempotencyKey,
