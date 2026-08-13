@@ -18,10 +18,13 @@ export const DEVIN_PLUGIN_NAME = 'coodra' as const;
 
 /**
  * Devin's plugin model is a hybrid of Codex's and Cursor's: install is a
- * real CLI call like Codex (`devin plugins install <path> -y` — no
- * Cursor-style auto-discovered directory), but hook content is pure
+ * real CLI call like Codex (`devin plugins install --local <path> -y` —
+ * no Cursor-style auto-discovered directory), but hook content is pure
  * command scripts like Cursor's (no Claude-style built-in `mcp_tool`
- * hook type), so a dedicated `hook-runner.mjs` is still needed.
+ * hook type), so a dedicated `hook-runner.mjs` is still needed. The
+ * `--local` flag is required: the CLI rejects a bare path source with
+ * "local path sources can't sync to Devin Cloud" (confirmed live
+ * 2026-08-11).
  *
  * Login: `devin plugins install` on the bundled CLI this was written
  * against (`devin 3000.3.27`, confirmed live 2026-08-05) hard-fails with
@@ -143,7 +146,13 @@ export function createDevinCliRunner(timeoutMs: number = CLI_TIMEOUT_MS): DevinC
     },
     async installPlugin(devinBin, pluginRoot) {
       try {
-        await execFile(devinBin, ['plugins', 'install', pluginRoot, '-y'], { timeout: timeoutMs });
+        // `--local` is required for local path sources — the Devin CLI
+        // rejects a bare `devin plugins install <path>` with "local path
+        // sources can't sync to Devin Cloud; run `devin plugins install
+        // --local <path>` to install on this machine only." (confirmed
+        // live 2026-08-11 against the bundled CLI). Coodra's plugin is
+        // always a local directory source, so --local is unconditional.
+        await execFile(devinBin, ['plugins', 'install', '--local', pluginRoot, '-y'], { timeout: timeoutMs });
         return { ok: true };
       } catch (err) {
         return { ok: false, reason: err instanceof Error ? err.message : String(err) };

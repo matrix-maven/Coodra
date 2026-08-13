@@ -4,6 +4,12 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.10] - 2026-08-13
+
+### Fixed
+
+- **Devin plugin install failed against newer Devin CLI builds: "local path sources can't sync to Devin Cloud."** `installPlugin` called `devin plugins install <path> -y` with no `--local` flag, matching the CLI version (`devin 3000.3.27`) this integration was originally written and live-verified against. A newer Devin CLI now rejects a bare path source for local-only installs and requires `devin plugins install --local <path> -y` — confirmed live 2026-08-11. Coodra's plugin is always a local directory source, so `--local` is now passed unconditionally in `devin-plugin.ts`'s `createDevinCliRunner`. No other behavior changed; `devin plugins remove` is unaffected (it takes a plugin name, not a path).
+
 ## [0.5.9] - 2026-08-13
 
 ### Added
