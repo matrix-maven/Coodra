@@ -4,6 +4,20 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-08-13
+
+### Added
+
+- **`wiki_ask` MCP tool (COOD-30).** The CLI's `coodra wiki ask` only ever read the calling machine's own local Markdown mirror or local SQLite fallback, so a team-mode teammate who never ran `coodra wiki build` locally got a false "no wiki found" even when the project's wiki existed in the shared Postgres store — the CLI process never holds direct Postgres credentials for ad hoc querying. The new `wiki_ask` MCP tool (`apps/mcp-server/src/tools/wiki-ask/`) reads through whichever `DbHandle` the server is already connected to — local SQLite in solo mode, shared Postgres in team mode — the same mode-abstraction `search_packs_nl`/`query_decisions` already have, and reuses the existing `scoreWikiCorpus` ranking as-is. Each result includes the page's full `contentMarkdown`, not just an excerpt, since a remote/team-mode caller has no local file to open the way the CLI's human-facing output assumes. The CLI command itself is unchanged. Tool count 25 → 26.
+
+### Fixed
+
+- **`get_run_id` no longer silently auto-creates a project for an unregistered directory (COOD-63, bug report COOD-76).** Field report: an agent working in a directory that was never `coodra init`'d could still call `get_run_id` directly with a self-invented `projectSlug` — its manifest explicitly invites this when a session-start hook didn't already supply a `runId` — and solo mode's old `autoCreateProject` minted a `projects` row unconditionally, no filesystem check, `cwd` left `null` forever. `record_decision` then trusted the resulting `runId` completely, so a durable decision got recorded against a project the user never registered and couldn't see anywhere. Confirmed agent-agnostic (identical on Claude Code, Codex, Cursor, Devin, and Antigravity) and solo-mode-only (team mode already hard-refused unknown slugs).
+
+  `get_run_id` now trusts a found project automatically only once it has a verified `cwd` (reusing the existing `projects.cwd` column `coodra init` already populates). An unknown slug, or a row with `cwd` still `null`, requires either `cwd` resolving via `readCoodraProjectConfig` to a real `.coodra/config.json` matching the slug (the legitimate "hook hasn't fired yet this turn" case, zero friction), or the caller passing both `cwd` **and** `confirmRegister: true` after the user has explicitly agreed (`cwd` is required alongside `confirmRegister` — without persisting it the row would stay unverified forever and the same directory would re-prompt every session). Otherwise returns `{ ok: false, error: "project_not_registered", howToFix }` instructing the agent to ask the user and either run `coodra init` or retry with `cwd` + `confirmRegister: true`; a "no" from the user naturally blocks every downstream write tool with no extra guardrail code, since none of them mint a `runId` independently. Creation/backfill goes through the same `ensureProject` (`packages/db/src/ensure-project.ts`) `coodra init` itself calls, so a project registered via either route ends up in an identical, trusted state and any other agent hitting the same directory afterward gets zero-friction access via the shared `.coodra/config.json`. `lifecycle_event`'s internal call into `get_run_id` now threads `cwd` through so hook-driven `SessionStart` keeps working with zero added friction.
+
+  Migration note: existing solo-mode projects auto-created before this fix (`cwd` still `null`) will surface a one-time `project_not_registered` prompt the next time they're used, then never again once confirmed — this is intentional and doubles as the cleanup signal for exactly this class of phantom project.
+
 ## [0.5.2] - 2026-08-06
 
 ### Added
