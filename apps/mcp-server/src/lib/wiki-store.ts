@@ -261,6 +261,41 @@ export async function selectWikiPageStates(db: DbHandle, wikiId: string): Promis
     .where(eq(postgresSchema.wikiPages.wikiId, wikiId));
 }
 
+export interface WikiPageContentRow {
+  readonly pageId: string;
+  readonly contentMarkdown: string;
+  readonly state: string;
+}
+
+/**
+ * All `(pageId, contentMarkdown, state)` rows for a wiki — full page
+ * bodies, unlike `selectWikiPageStates` (state only). Backs `wiki_ask`:
+ * the team-mode DB-side counterpart to the CLI's local-file/local-SQLite
+ * `wiki ask`, reading whichever backend this handle is connected to
+ * (local SQLite in solo mode, shared Postgres in team mode) rather than
+ * always the local machine's own store — see COOD-30.
+ */
+export async function selectWikiPageContents(db: DbHandle, wikiId: string): Promise<ReadonlyArray<WikiPageContentRow>> {
+  if (db.kind === 'sqlite') {
+    return db.db
+      .select({
+        pageId: sqliteSchema.wikiPages.pageId,
+        contentMarkdown: sqliteSchema.wikiPages.contentMarkdown,
+        state: sqliteSchema.wikiPages.state,
+      })
+      .from(sqliteSchema.wikiPages)
+      .where(eq(sqliteSchema.wikiPages.wikiId, wikiId));
+  }
+  return db.db
+    .select({
+      pageId: postgresSchema.wikiPages.pageId,
+      contentMarkdown: postgresSchema.wikiPages.contentMarkdown,
+      state: postgresSchema.wikiPages.state,
+    })
+    .from(postgresSchema.wikiPages)
+    .where(eq(postgresSchema.wikiPages.wikiId, wikiId));
+}
+
 export interface AuthorWikiPageArgs {
   readonly wikiId: string;
   readonly pageId: string;

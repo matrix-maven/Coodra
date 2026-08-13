@@ -2,6 +2,7 @@ import type { DbHandle } from '@coodra/db';
 import { assertManifestDescriptionValid } from '@coodra/shared/test-utils';
 import { describe, expect, it } from 'vitest';
 
+import { createWikiAskToolRegistration } from '../../../src/tools/wiki-ask/manifest.js';
 import { createWikiSavePageToolRegistration } from '../../../src/tools/wiki-save-page/manifest.js';
 import { wikiSavePageInputSchema, wikiSavePageOutputSchema } from '../../../src/tools/wiki-save-page/schema.js';
 import { createWikiSaveStructureToolRegistration } from '../../../src/tools/wiki-save-structure/manifest.js';
@@ -13,10 +14,12 @@ import { createWikiStatusToolRegistration } from '../../../src/tools/wiki-status
 import { wikiStatusInputSchema, wikiStatusOutputSchema } from '../../../src/tools/wiki-status/schema.js';
 
 /**
- * Unit tests for the three Module 10 Deep Wiki tools — manifest contract
+ * Unit tests for the Module 10 Deep Wiki tools — manifest contract
  * (§24.3) + schema boundaries. The DB-backed handler behaviour (the full
  * structure → page → status flow + soft-failures) is covered in
- * `__tests__/integration/tools/wiki-flow.test.ts`.
+ * `__tests__/integration/tools/wiki-flow.test.ts`; `wiki_ask`'s DB-backed
+ * ranking behaviour is covered in
+ * `__tests__/integration/tools/wiki-ask.test.ts` (COOD-30).
  */
 
 const fakeDb = { kind: 'sqlite', db: {}, raw: {}, close: () => {} } as unknown as DbHandle;
@@ -60,6 +63,12 @@ describe('wiki tools — manifest contracts (§24.3)', () => {
     const reg = createWikiStatusToolRegistration({ db: fakeDb });
     expect(() => assertManifestDescriptionValid(reg, { folderName: 'wiki-status' })).not.toThrow();
     expect(reg.name).toBe('wiki_status');
+  });
+
+  it('wiki_ask satisfies every rule', () => {
+    const reg = createWikiAskToolRegistration({ db: fakeDb });
+    expect(() => assertManifestDescriptionValid(reg, { folderName: 'wiki-ask' })).not.toThrow();
+    expect(reg.name).toBe('wiki_ask');
   });
 
   it('wiki_save_structure + wiki_save_page are mutating; wiki_status is readonly', () => {

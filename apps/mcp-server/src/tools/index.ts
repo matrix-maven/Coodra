@@ -20,6 +20,7 @@ import { createReadContextPackToolRegistration } from './read-context-pack/manif
 import { createRecordDecisionToolRegistration } from './record-decision/manifest.js';
 import { createSaveContextPackToolRegistration } from './save-context-pack/manifest.js';
 import { createSearchPacksNlToolRegistration } from './search-packs-nl/manifest.js';
+import { createWikiAskToolRegistration } from './wiki-ask/manifest.js';
 import { createWikiSavePageToolRegistration } from './wiki-save-page/manifest.js';
 import { createWikiSaveStructureToolRegistration } from './wiki-save-structure/manifest.js';
 import { createWikiStatusToolRegistration } from './wiki-status/manifest.js';
@@ -124,6 +125,11 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
   registry.register(createWikiSaveStructureToolRegistration({ db: deps.db }));
   registry.register(createWikiSavePageToolRegistration({ db: deps.db }));
   registry.register(createWikiStatusToolRegistration({ db: deps.db }));
+  // COOD-30 (2026-08-13): wiki_ask is the cloud-facing counterpart to the
+  // CLI's local-only `coodra wiki ask` — reads through this server's own
+  // DbHandle (local SQLite solo, shared Postgres team), so a teammate who
+  // never ran `wiki build` locally can still query a wiki that exists.
+  registry.register(createWikiAskToolRegistration({ db: deps.db }));
   // COOD-12 (2026-07-31): Work Packs are Coodra's local issue-bound
   // implementation artifact. The agent reads/writes Jira through Atlassian
   // Rovo MCP, then persists local state with these tools.
