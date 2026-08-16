@@ -2,6 +2,7 @@ export { computeBackoff, MAX_ATTEMPTS_DEFAULT, RETRY_DELAYS_MS, shouldGiveUp } f
 export {
   type CreateOutboxDispatchHandlerDeps,
   createOutboxDispatchHandler,
+  type MemoryAccessPayloadV1,
   type PolicyDecisionPayloadV1,
   type RunEventPayloadV1,
   type RunIdResolution,

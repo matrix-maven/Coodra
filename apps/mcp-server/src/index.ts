@@ -27,6 +27,7 @@ import { createAuthClient } from './lib/auth.js';
 import { createContextPackStore } from './lib/context-pack.js';
 import { createDbClient } from './lib/db.js';
 import { createMcpLogger } from './lib/logger.js';
+import { createMemoryAccessRecorder } from './lib/memory-access-recorder.js';
 import { createMcpDispatchHandler } from './lib/outbox-dispatch.js';
 import { createPolicyClient } from './lib/policy.js';
 import { createRunRecorder } from './lib/run-recorder.js';
@@ -138,6 +139,9 @@ async function main(): Promise<void> {
     queueFilter: AUDIT_QUEUE_KINDS,
   });
   const runRecorder = createRunRecorder({ db: dbHandle, kick: () => outboxWorker.kick() });
+  // COOD-80: pull-side memory utilization. Shares the outbox kick so a
+  // recorded pull drains promptly instead of waiting a worker tick.
+  const memoryAccess = createMemoryAccessRecorder({ db: dbHandle, kick: () => outboxWorker.kick() });
   outboxWorker.start();
   bootLogger.info({ event: 'outbox_worker_started' }, 'OutboxWorker started; pending_jobs draining');
   const deps: ContextDeps = Object.freeze({
@@ -147,6 +151,7 @@ async function main(): Promise<void> {
     policy,
     contextPack,
     runRecorder,
+    memoryAccess,
   });
 
   const registry = new ToolRegistry({ deps });
