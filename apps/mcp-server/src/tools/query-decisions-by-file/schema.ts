@@ -13,10 +13,7 @@ export const queryDecisionsByFileInputSchema = z
       .describe(
         'File path or module string to resolve through Graphify blast radius when graph artifacts are available; otherwise exact file target lookup.',
       ),
-    activeOnly: z
-      .boolean()
-      .default(true)
-      .describe('When true, exclude decisions superseded by a newer decision edge.'),
+    activeOnly: z.boolean().default(true).describe('When true, exclude decisions superseded by a newer decision edge.'),
     limit: z.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
   })
   .strict()
@@ -35,11 +32,29 @@ const decisionForFileSchema = z
 
 const blastRadiusSchema = z
   .object({
+    /**
+     * COOD-81: "present AND fresh enough to trust". A graph past the
+     * drift budget reports false and returns only the exact-file
+     * target — correct-but-narrow beats confidently wrong.
+     */
     graphAvailable: z.boolean(),
     depth: z.number().int().min(1).max(1),
     rootNodeIds: z.array(z.string()),
     graphNodeTargets: z.array(z.string()),
     fileTargets: z.array(z.string()),
+    /** Commit the graph was built at, from `graph.json`. */
+    builtAtCommit: z.string().nullable(),
+    /** Commits from that build to HEAD; null when not computable. */
+    commitsBehind: z.number().int().nonnegative().nullable(),
+    /** Files changed over that range; null when not computable. */
+    filesChanged: z.number().int().nonnegative().nullable(),
+    /**
+     * `fresh` — measured, within budget. `stale` — measured, over
+     * budget, topology withheld. `unknown` — drift not measurable (no
+     * recorded commit, non-git checkout, or commit lost to a rebase);
+     * the graph is still served, flagged rather than relabelled.
+     */
+    staleness: z.enum(['fresh', 'stale', 'unknown']),
   })
   .strict();
 

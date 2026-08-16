@@ -5,6 +5,7 @@ import { type DbHandle, lookupProjectBySlug, postgresSchema, sqliteSchema } from
 import { createLogger } from '@coodra/shared';
 import { and, desc, eq, inArray, or, type SQL, sql } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
+import { computeGraphFreshness, type GraphStaleness } from '../../lib/graph-freshness.js';
 import type { QueryDecisionsByFileInput, QueryDecisionsByFileOutput } from './schema.js';
 
 const handlerLogger = createLogger('mcp-server.tool.query_decisions_by_file');
@@ -41,20 +42,34 @@ interface GraphifyGraph {
   readonly nodes?: unknown;
   readonly links?: unknown;
   readonly edges?: unknown;
+  /** COOD-81: written by Graphify, previously parsed and discarded. */
+  readonly built_at_commit?: unknown;
 }
 
 interface BlastRadiusLookup {
+  /**
+   * COOD-81: now means "present AND fresh enough to trust", not merely
+   * "a file exists on disk". A graph past the drift budget reports
+   * false and returns the exact-file fallback, because correct-but-
+   * narrow beats confidently wrong.
+   */
   readonly graphAvailable: boolean;
   readonly depth: number;
   readonly rootNodeIds: string[];
   readonly graphNodeTargets: string[];
   readonly fileTargets: string[];
+  /** Provenance + drift, so a caller can weigh an ageing graph itself. */
+  readonly builtAtCommit: string | null;
+  readonly commitsBehind: number | null;
+  readonly filesChanged: number | null;
+  readonly staleness: GraphStaleness;
 }
 
 interface GraphifyIndex {
   readonly nodes: GraphifyNode[];
   readonly byId: Map<string, GraphifyNode>;
   readonly adjacency: Map<string, Set<string>>;
+  readonly builtAtCommit: string | null;
 }
 
 interface GraphifyCacheEntry {
@@ -145,7 +160,11 @@ function boundedValues(values: Iterable<string>): string[] {
 
 function buildGraphifyIndex(graph: GraphifyGraph): GraphifyIndex {
   const nodes = Array.isArray(graph.nodes) ? (graph.nodes as GraphifyNode[]) : [];
-  const links = Array.isArray(graph.links) ? (graph.links as GraphifyLink[]) : Array.isArray(graph.edges) ? (graph.edges as GraphifyLink[]) : [];
+  const links = Array.isArray(graph.links)
+    ? (graph.links as GraphifyLink[])
+    : Array.isArray(graph.edges)
+      ? (graph.edges as GraphifyLink[])
+      : [];
   const byId = new Map<string, GraphifyNode>();
   for (const node of nodes) {
     const id = stringValue(node.id);
@@ -162,7 +181,9 @@ function buildGraphifyIndex(graph: GraphifyGraph): GraphifyIndex {
     adjacency.get(source)?.add(target);
     adjacency.get(target)?.add(source);
   }
-  return { nodes, byId, adjacency };
+  const builtAtCommit =
+    typeof graph.built_at_commit === 'string' && graph.built_at_commit.length > 0 ? graph.built_at_commit : null;
+  return { nodes, byId, adjacency, builtAtCommit };
 }
 
 async function loadGraphifyIndex(graphPath: string, nowMs: number): Promise<GraphifyIndex> {
@@ -188,7 +209,10 @@ async function loadGraphifyIndex(graphPath: string, nowMs: number): Promise<Grap
   return index;
 }
 
-function buildBlastRadius(index: GraphifyIndex, lookupPath: string): Omit<BlastRadiusLookup, 'graphAvailable' | 'depth'> {
+/** Topology only; provenance/drift are layered on by the caller. */
+type BlastRadiusTopology = Pick<BlastRadiusLookup, 'rootNodeIds' | 'graphNodeTargets' | 'fileTargets'>;
+
+function buildBlastRadius(index: GraphifyIndex, lookupPath: string): BlastRadiusTopology {
   const { adjacency, byId, nodes } = index;
   const rootNodeIds = nodes.flatMap((node) => {
     const id = stringValue(node.id);
@@ -214,7 +238,11 @@ function buildBlastRadius(index: GraphifyIndex, lookupPath: string): Omit<BlastR
   };
 }
 
-async function loadGraphifyBlastRadius(projectCwd: string | null, filePath: string, now: Date): Promise<BlastRadiusLookup> {
+async function loadGraphifyBlastRadius(
+  projectCwd: string | null,
+  filePath: string,
+  now: Date,
+): Promise<BlastRadiusLookup> {
   const lookupPath = normalizeLookupPath(projectCwd, filePath);
   if (projectCwd === null) {
     return {
@@ -223,16 +251,46 @@ async function loadGraphifyBlastRadius(projectCwd: string | null, filePath: stri
       rootNodeIds: [],
       graphNodeTargets: [],
       fileTargets: [lookupPath],
+      builtAtCommit: null,
+      commitsBehind: null,
+      filesChanged: null,
+      staleness: 'unknown' as const,
     };
   }
 
   try {
     const graphPath = join(projectCwd, '.coodra', 'graphify', 'out', 'graph.json');
     const index = await loadGraphifyIndex(graphPath, now.getTime());
+    const freshness = await computeGraphFreshness(projectCwd, index.builtAtCommit);
+    if (freshness.staleness === 'stale') {
+      // Present but past the drift budget. Withholding the topology and
+      // falling back to the exact-file lookup is the honest answer:
+      // node ids are path-derived, so a heavily-drifted graph returns
+      // neighbours for files that may no longer exist.
+      handlerLogger.debug(
+        {
+          event: 'query_decisions_by_file_graph_stale',
+          projectCwd,
+          builtAtCommit: freshness.builtAtCommit,
+          commitsBehind: freshness.commitsBehind,
+          filesChanged: freshness.filesChanged,
+        },
+        'graph drift exceeds budget; withholding blast radius rather than serving stale topology',
+      );
+      return {
+        graphAvailable: false,
+        depth: GRAPHIFY_BLAST_RADIUS_DEPTH,
+        rootNodeIds: [],
+        graphNodeTargets: [],
+        fileTargets: [lookupPath],
+        ...freshness,
+      };
+    }
     return {
       graphAvailable: true,
       depth: GRAPHIFY_BLAST_RADIUS_DEPTH,
       ...buildBlastRadius(index, lookupPath),
+      ...freshness,
     };
   } catch (error) {
     handlerLogger.debug(
@@ -245,6 +303,10 @@ async function loadGraphifyBlastRadius(projectCwd: string | null, filePath: stri
       rootNodeIds: [],
       graphNodeTargets: [],
       fileTargets: [lookupPath],
+      builtAtCommit: null,
+      commitsBehind: null,
+      filesChanged: null,
+      staleness: 'unknown' as const,
     };
   }
 }
@@ -258,7 +320,9 @@ async function selectSupersededBy(db: DbHandle, decisionIds: ReadonlyArray<strin
     const rows = await db.db
       .select({ targetId: edges.targetId, fromDecisionId: edges.fromDecisionId })
       .from(edges)
-      .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+      .where(
+        and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)),
+      );
     for (const row of rows) if (!byTarget.has(row.targetId)) byTarget.set(row.targetId, row.fromDecisionId);
     return byTarget;
   }
@@ -328,11 +392,11 @@ async function selectRows(
   const decisions = postgresSchema.decisions;
   const runs = postgresSchema.runs;
   const conditions: SQL[] = [
-      eq(edges.projectId, args.projectId),
-      eq(runs.projectId, args.projectId),
-      eq(edges.edgeType, 'affects'),
-      targetConditions(edges, args.blastRadius),
-    ];
+    eq(edges.projectId, args.projectId),
+    eq(runs.projectId, args.projectId),
+    eq(edges.edgeType, 'affects'),
+    targetConditions(edges, args.blastRadius),
+  ];
   if (args.activeOnly) {
     conditions.push(sql`
       NOT EXISTS (
@@ -372,7 +436,11 @@ export function createQueryDecisionsByFileHandler(deps: QueryDecisionsByFileHand
     const project = await lookupProjectBySlug(deps.db, input.projectSlug);
     if (project === null) {
       handlerLogger.info(
-        { event: 'query_decisions_by_file_project_not_found', projectSlug: input.projectSlug, sessionId: ctx.sessionId },
+        {
+          event: 'query_decisions_by_file_project_not_found',
+          projectSlug: input.projectSlug,
+          sessionId: ctx.sessionId,
+        },
         'query_decisions_by_file: projectSlug does not match a projects row',
       );
       return {

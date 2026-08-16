@@ -28,9 +28,12 @@ interface Harness {
 }
 
 let h: Harness;
+// Hoisted: the COOD-76 registration guard needs a real directory to
+// register the project against, so the tests below reference it too.
+let dataDir: string;
 
 beforeAll(async () => {
-  const dataDir = mkdtempSync(join(tmpdir(), 'boot-test-'));
+  dataDir = mkdtempSync(join(tmpdir(), 'boot-test-'));
   const sqlitePath = join(dataDir, 'fresh-data.db');
 
   const transport = new StdioClientTransport({
@@ -104,11 +107,25 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     //     lookup over decision_edges target_type=file → 24
     //   Work Pack local revision flow (2026-08-09): work_pack_update added
     //     for partial local edits + local_ahead sync-state tracking → 25
-    expect(tools.length).toBe(25);
+    //   COOD-30 (2026-08-13): wiki_ask added for team-mode Deep Wiki
+    //     retrieval — the read side of the wiki tools → 26
+    //
+    //   NOTE: this assertion only exercises the BUILT binary, so a drift
+    //   here stays invisible until `dist/` is rebuilt. wiki_ask landed
+    //   without the count being updated and went unnoticed for exactly
+    //   that reason (found while building COOD-81).
+    expect(tools.length).toBe(26);
   });
 
   it('get_run_id succeeds against the freshly-migrated DB (proves projects table exists)', async () => {
-    const result = await h.client.callTool({ name: 'get_run_id', arguments: { projectSlug: 'boot-test' } });
+    // COOD-76 added a registration guard: get_run_id no longer
+    // auto-creates a project for an unregistered directory. The
+    // documented way in is cwd + confirmRegister, which is what a real
+    // agent does after asking the user.
+    const result = await h.client.callTool({
+      name: 'get_run_id',
+      arguments: { projectSlug: 'boot-test', cwd: dataDir, confirmRegister: true },
+    });
     const text = (result.content as Array<{ text?: string }>)[0]?.text ?? '{}';
     const env = JSON.parse(text) as { ok: boolean; data?: { ok: boolean; runId: string } };
     expect(env.ok).toBe(true);
@@ -121,8 +138,9 @@ describe('boot auto-migrate (verification finding §8.1)', () => {
     // (per get_run_id's runs-table semantics) without re-running migrations.
     // This indirectly proves migrate is idempotent — if it ran destructively,
     // the projects row would have been wiped.
-    const r1 = await h.client.callTool({ name: 'get_run_id', arguments: { projectSlug: 'boot-test' } });
-    const r2 = await h.client.callTool({ name: 'get_run_id', arguments: { projectSlug: 'boot-test' } });
+    const args = { projectSlug: 'boot-test', cwd: dataDir, confirmRegister: true };
+    const r1 = await h.client.callTool({ name: 'get_run_id', arguments: args });
+    const r2 = await h.client.callTool({ name: 'get_run_id', arguments: args });
     const e1 = JSON.parse((r1.content as Array<{ text?: string }>)[0]?.text ?? '{}') as { ok: boolean };
     const e2 = JSON.parse((r2.content as Array<{ text?: string }>)[0]?.text ?? '{}') as { ok: boolean };
     expect(e1.ok).toBe(true);
