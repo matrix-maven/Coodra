@@ -691,13 +691,88 @@ const MAX_RECENT_DECISIONS_SHOWN = 5;
  * reasoning. Cursor-safe like its predecessor, since SessionStart
  * already carries context for every agent.
  */
+interface SurfacedPack {
+  readonly id: string;
+  readonly title: string;
+  readonly excerpt: string;
+  readonly workPackSlugs: ReadonlyArray<string>;
+  readonly tier: 'hot' | 'warm';
+}
+
+/**
+ * COOD-83 — manifest mode.
+ *
+ * Renders the same selection as `renderRecentContext` but as an INDEX:
+ * ids and titles, no excerpt bodies, plus explicit instruction on which
+ * tool fetches a body.
+ *
+ * Two reasons this exists, only one of which is token cost:
+ *
+ *   1. **Push carries no usage signal.** Bytes were shoved at a model;
+ *      whether they mattered is invisible. A manifest line followed by
+ *      a `read_context_pack` call is an *observable act of selection* —
+ *      the first time stage-3 utilization ("was it used?") is
+ *      measurable at all, via COOD-79's `memory_cohorts`.
+ *   2. **Pushed excerpts are frozen.** Once in the transcript they
+ *      cannot be retracted when superseded (COOD-77's problem 2). A
+ *      manifest line going stale is cheap and self-correcting, because
+ *      the pull returns current data at the moment of need.
+ *
+ * The known risk, recorded rather than glossed: agents do not reliably
+ * call tools nobody told them to call — the same finding that made
+ * COOD-63 inject a recipes index rather than rely on `list_recipes`.
+ * Mitigations are push-the-index-never-pull-only, explicit tool
+ * guidance inline, and shipping behind a flag until eval Layer 1
+ * (COOD-70/71) can measure whether recall actually holds.
+ */
+function renderRecentContextManifest(
+  packs: ReadonlyArray<SurfacedPack>,
+  overflow: ReadonlyArray<{ readonly workPackSlug: string; readonly hiddenCount: number }>,
+  decisions: ReadonlyArray<{ readonly id: string; readonly description: string }>,
+): string | null {
+  if (packs.length === 0 && decisions.length === 0) return null;
+  const lines = ['## Recent context (index)'];
+  if (packs.length > 0) {
+    lines.push(
+      '',
+      'Context Packs available for this project. Titles only — read the body of any that',
+      'looks relevant with `coodra__read_context_pack { packId }` BEFORE making a design or',
+      'implementation decision it might already have settled.',
+      '',
+    );
+    for (const pack of packs) {
+      const tag = pack.workPackSlugs.length > 0 ? `[${pack.workPackSlugs.join(', ')}]` : '[no work pack]';
+      lines.push(`- \`${pack.id}\` **${tag}** ${pack.title}${pack.tier === 'warm' ? ' _(closed)_' : ''}`);
+    }
+    for (const note of overflow) {
+      lines.push(
+        `  (${note.workPackSlug} has ${note.hiddenCount} more earlier pack${note.hiddenCount === 1 ? '' : 's'} — ` +
+          '`coodra__list_context_packs { workPackSlug }`)',
+      );
+    }
+  }
+  if (decisions.length > 0) {
+    lines.push('', 'Active decisions (ids only — `coodra__query_decisions` for rationale):');
+    for (const decision of decisions.slice(0, MAX_RECENT_DECISIONS_SHOWN)) {
+      lines.push(`- \`${decision.id}\` ${decision.description}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * COOD-83 flag. Excerpt mode stays the default until eval Layer 1
+ * (COOD-70/71) shows the manifest lowers injected bytes WITHOUT costing
+ * recall — the two failure modes are opposite (bloat vs under-retrieval)
+ * and shipping unmeasured would be guessing.
+ */
+function manifestModeEnabled(): boolean {
+  const raw = process.env.COODRA_SESSION_MANIFEST;
+  return raw === '1' || raw === 'true';
+}
+
 function renderRecentContext(
-  packs: ReadonlyArray<{
-    readonly title: string;
-    readonly excerpt: string;
-    readonly workPackSlugs: ReadonlyArray<string>;
-    readonly tier: 'hot' | 'warm';
-  }>,
+  packs: ReadonlyArray<SurfacedPack>,
   overflow: ReadonlyArray<{ readonly workPackSlug: string; readonly hiddenCount: number }>,
   decisions: ReadonlyArray<{ readonly description: string; readonly rationale: string }>,
 ): string | null {
@@ -1111,11 +1186,49 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
             ctx,
           ),
         ]);
-        recentContext = renderRecentContext(
-          diversified.packs,
-          diversified.overflow,
-          decisionsResult.ok ? decisionsResult.decisions : [],
-        );
+        const surfacedDecisions = decisionsResult.ok ? decisionsResult.decisions : [];
+        recentContext = manifestModeEnabled()
+          ? renderRecentContextManifest(diversified.packs, diversified.overflow, surfacedDecisions)
+          : renderRecentContext(diversified.packs, diversified.overflow, surfacedDecisions);
+
+        // COOD-83/COOD-78: record what SessionStart actually surfaced.
+        // Without these push rows the cohort table has no "surfaced"
+        // side, so pull-through rate has no denominator — this is what
+        // makes a later `read_context_pack` legible as a click-through
+        // rather than an unattached tool call.
+        if (ctx.memoryAccess !== undefined && recentContext !== null) {
+          void ctx.memoryAccess
+            .recordPush({
+              site: 'session_start_manifest',
+              triggerType: 'session_start',
+              sessionId: event.sessionId,
+              runId,
+              projectId: recentContextProject?.id ?? null,
+              orgId: recentContextProject?.orgId ?? null,
+              agentType: input.agentType,
+              idempotencyKey: `sess_start_${event.sessionId}`,
+              items: [
+                ...diversified.packs.map((pack, i) => ({
+                  memoryType: 'context_pack' as const,
+                  memoryId: pack.id,
+                  position: i,
+                  // In manifest mode the cost is the index line; in
+                  // excerpt mode it is the body actually injected.
+                  bytes: manifestModeEnabled() ? pack.title.length : pack.excerpt.length,
+                })),
+                ...surfacedDecisions.map((decision, i) => ({
+                  memoryType: 'decision' as const,
+                  memoryId: decision.id,
+                  position: diversified.packs.length + i,
+                  bytes: decision.description.length,
+                })),
+              ],
+            })
+            .catch(() => {
+              // Recorder logs its own failures; telemetry must never
+              // affect the SessionStart response.
+            });
+        }
       } catch (err) {
         logger.warn(
           {

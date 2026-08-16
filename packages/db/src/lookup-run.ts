@@ -51,3 +51,54 @@ export async function lookupRunId(db: DbHandle, projectId: string, sessionId: st
     return null;
   }
 }
+
+/**
+ * COOD-83 — resolve a run from `sessionId` ALONE.
+ *
+ * `lookupRunId` needs a `projectId` because the unique index is
+ * `(projectId, sessionId)`. That works for tools whose input carries a
+ * `projectSlug` scope argument — which is all of them except
+ * `read_context_pack`, whose schema is `.strict()` with exactly one of
+ * `packId` / `runId` and no project scope at all.
+ *
+ * Without this fallback, `read_context_pack` — the single most
+ * important pull for measuring manifest pull-through (COOD-83) —
+ * would write an unattributed row on every call, and the cohort rollup
+ * (which requires `run_id`) would silently never pair a surfaced pack
+ * with its own retrieval.
+ *
+ * A session belongs to one run, so `sessionId` is sufficient identity;
+ * the project falls out of the row rather than being an input.
+ * `desc(startedAt)` is defensive against a resumed session id.
+ */
+export async function lookupRunBySessionId(
+  db: DbHandle,
+  sessionId: string,
+): Promise<{ readonly runId: string; readonly projectId: string | null; readonly orgId: string | null } | null> {
+  try {
+    if (db.kind === 'sqlite') {
+      const rows = await db.db
+        .select({ id: sqliteSchema.runs.id, projectId: sqliteSchema.runs.projectId, orgId: sqliteSchema.runs.orgId })
+        .from(sqliteSchema.runs)
+        .where(eq(sqliteSchema.runs.sessionId, sessionId))
+        .orderBy(desc(sqliteSchema.runs.startedAt))
+        .limit(1);
+      const row = rows[0];
+      return row === undefined ? null : { runId: row.id, projectId: row.projectId, orgId: row.orgId };
+    }
+    const rows = await db.db
+      .select({
+        id: postgresSchema.runs.id,
+        projectId: postgresSchema.runs.projectId,
+        orgId: postgresSchema.runs.orgId,
+      })
+      .from(postgresSchema.runs)
+      .where(eq(postgresSchema.runs.sessionId, sessionId))
+      .orderBy(desc(postgresSchema.runs.startedAt))
+      .limit(1);
+    const row = rows[0];
+    return row === undefined ? null : { runId: row.id, projectId: row.projectId, orgId: row.orgId };
+  } catch {
+    return null;
+  }
+}

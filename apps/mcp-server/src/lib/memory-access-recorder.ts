@@ -1,5 +1,11 @@
 import type { MemoryAccessPayloadV1 } from '@coodra/cli/lib/outbox';
-import { type DbHandle, lookupProjectBySlug, lookupRunId, scheduleDurableWrite } from '@coodra/db';
+import {
+  type DbHandle,
+  lookupProjectBySlug,
+  lookupRunBySessionId,
+  lookupRunId,
+  scheduleDurableWrite,
+} from '@coodra/db';
 import type { Logger } from '@coodra/shared';
 
 import { createMcpLogger } from './logger.js';
@@ -149,8 +155,36 @@ export interface RecordPullArgs {
   readonly latencyMs: number;
 }
 
+/**
+ * COOD-83 — the push side.
+ *
+ * Simpler than a pull: the caller (the lifecycle handler) already knows
+ * the run and project, so there is no attribution chain to walk and no
+ * miss to count. What it does carry is the SURFACED side of a cohort —
+ * without these rows, `memory_cohorts.surfaced_count` is always zero
+ * and pull-through rate has no denominator.
+ */
+export interface RecordPushArgs {
+  readonly site: string;
+  readonly triggerType: string;
+  readonly sessionId: string;
+  readonly runId: string | null;
+  readonly projectId: string | null;
+  readonly orgId: string | null;
+  readonly agentType?: string | null;
+  readonly idempotencyKey: string;
+  readonly baselineGeneration?: number;
+  readonly items: ReadonlyArray<{
+    readonly memoryType: string;
+    readonly memoryId: string;
+    readonly position: number;
+    readonly bytes: number;
+  }>;
+}
+
 export interface MemoryAccessRecorder {
   recordPull(args: RecordPullArgs): Promise<void>;
+  recordPush(args: RecordPushArgs): Promise<void>;
   /** Attribution misses since boot — surfaced so silent loss is visible. */
   attributionMisses(): number;
 }
@@ -173,6 +207,44 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
   return {
     attributionMisses: () => misses,
 
+    async recordPush(args: RecordPushArgs): Promise<void> {
+      for (const [i, item] of args.items.entries()) {
+        const payload: MemoryAccessPayloadV1 = {
+          v: 1,
+          rowId: `mae_${args.idempotencyKey}_${item.memoryType}_${i}`,
+          resolution: { kind: 'pre_resolved', runId: args.runId },
+          channel: 'push',
+          site: args.site,
+          memoryType: item.memoryType,
+          triggerType: args.triggerType,
+          orgId: args.orgId,
+          projectId: args.projectId,
+          sessionId: args.sessionId,
+          agentType: args.agentType ?? null,
+          memoryId: item.memoryId,
+          position: item.position,
+          bytes: item.bytes,
+          resultCount: args.items.length,
+          ...(args.baselineGeneration !== undefined ? { baselineGeneration: args.baselineGeneration } : {}),
+        };
+        try {
+          await scheduleDurableWrite(deps.db, { queue: 'memory_access', payload });
+        } catch (err) {
+          log.warn(
+            {
+              event: 'memory_access_push_enqueue_failed',
+              site: args.site,
+              sessionId: args.sessionId,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            'memory_access push enqueue failed; surfaced row lost',
+          );
+          return;
+        }
+      }
+      kick?.();
+    },
+
     async recordPull(args: RecordPullArgs): Promise<void> {
       const adapter = PULL_ADAPTERS[args.toolName];
       if (adapter === undefined) return;
@@ -189,6 +261,19 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           projectId = project.id;
           orgId = project.orgId ?? null;
           runId = await lookupRunId(deps.db, project.id, args.sessionId);
+        }
+      } else {
+        // `read_context_pack` has no `projectSlug` — its schema is
+        // strict with exactly one of packId/runId. Resolving from the
+        // session alone keeps the most important pull for manifest
+        // pull-through (COOD-83) attributable; without it the cohort
+        // rollup, which requires run_id, would never pair a surfaced
+        // pack with its own retrieval.
+        const bySession = await lookupRunBySessionId(deps.db, args.sessionId);
+        if (bySession !== null) {
+          runId = bySession.runId;
+          projectId = bySession.projectId;
+          orgId = bySession.orgId;
         }
       }
       if (runId === null) {

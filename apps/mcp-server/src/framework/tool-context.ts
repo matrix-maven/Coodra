@@ -199,6 +199,23 @@ export interface MemoryAccessRecorder {
     readonly output: unknown;
     readonly latencyMs: number;
   }): Promise<void>;
+  recordPush(args: {
+    readonly site: string;
+    readonly triggerType: string;
+    readonly sessionId: string;
+    readonly runId: string | null;
+    readonly projectId: string | null;
+    readonly orgId: string | null;
+    readonly agentType?: string | null;
+    readonly idempotencyKey: string;
+    readonly baselineGeneration?: number;
+    readonly items: ReadonlyArray<{
+      readonly memoryType: string;
+      readonly memoryId: string;
+      readonly position: number;
+      readonly bytes: number;
+    }>;
+  }): Promise<void>;
   attributionMisses(): number;
 }
 
