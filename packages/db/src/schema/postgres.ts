@@ -1120,3 +1120,48 @@ export const knowledgeAudit = pgTable(
 
 export type KnowledgeAudit = typeof knowledgeAudit.$inferSelect;
 export type NewKnowledgeAudit = typeof knowledgeAudit.$inferInsert;
+
+/**
+ * COOD-78 — memory access log. Postgres mirror of
+ * `sqliteSchema.memoryAccessEvents`; see that table's docblock for the
+ * design rationale (push vs pull, the naming decision, why policy
+ * outcomes stay in `policy_decisions`, and the privacy posture).
+ *
+ * Column set and notNull flags must stay identical across dialects —
+ * `packages/db/__tests__/unit/schema-parity.test.ts` enforces it.
+ */
+export const memoryAccessEvents = pgTable(
+  'memory_access_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    sessionId: text('session_id'),
+    actorUserId: text('actor_user_id'),
+    agentType: text('agent_type'),
+    runEventId: text('run_event_id').references(() => runEvents.id, { onDelete: 'set null' }),
+    channel: text('channel').notNull(),
+    site: text('site').notNull(),
+    memoryType: text('memory_type').notNull(),
+    memoryId: text('memory_id'),
+    position: integer('position'),
+    bytes: integer('bytes'),
+    latencyMs: integer('latency_ms'),
+    triggerType: text('trigger_type').notNull(),
+    queryHash: text('query_hash'),
+    triggerTextHash: text('trigger_text_hash'),
+    resultCount: integer('result_count'),
+    freshnessStatusAtAccess: text('freshness_status_at_access'),
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('memory_access_events_project_created_idx').on(t.projectId, t.createdAt),
+    index('memory_access_events_cohort_idx').on(t.runId, t.baselineGeneration, t.memoryType, t.memoryId),
+    index('memory_access_events_memory_idx').on(t.memoryType, t.memoryId, t.createdAt),
+  ],
+);
+
+export type MemoryAccessEvent = typeof memoryAccessEvents.$inferSelect;
+export type NewMemoryAccessEvent = typeof memoryAccessEvents.$inferInsert;

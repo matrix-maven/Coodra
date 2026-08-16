@@ -82,6 +82,9 @@ const tablePairs = [
   // cloud Postgres so the web /wiki render works cross-machine.
   ['wikis', sq.wikis, pg.wikis],
   ['wiki_pages', sq.wikiPages, pg.wikiPages],
+  // COOD-78 — append-only, so it belongs in tablePairs but deliberately
+  // NOT in `mutableTables` below (no updated_at / updated_by_user_id).
+  ['memory_access_events', sq.memoryAccessEvents, pg.memoryAccessEvents],
 ] as const;
 
 /** Columns whose dialect-specific type difference is architecturally intentional. */

@@ -75,18 +75,29 @@ export type OutboxDispatchHandler = (job: OutboxJob) => Promise<OutboxDispatchOu
  * to `'sync_to_cloud'`. Cross-pollination is prevented by `queueFilter`
  * on each worker plus a runtime assertion in `OutboxWorker.#runOne`.
  */
-export type OutboxQueueKind = 'run_event' | 'session_open' | 'session_close' | 'policy_decision' | 'sync_to_cloud';
+export type OutboxQueueKind =
+  | 'run_event'
+  | 'session_open'
+  | 'session_close'
+  | 'policy_decision'
+  | 'memory_access'
+  | 'sync_to_cloud';
 
 /**
- * The four audit-write queue kinds. Bridge + mcp-server `OutboxWorker`
+ * The audit-write queue kinds. Bridge + mcp-server `OutboxWorker`
  * instances pass this constant as their `queueFilter` so a stray
  * `sync_to_cloud` row is never claimed by them.
+ *
+ * COOD-78 added `'memory_access'` — memory-surfacing telemetry rides
+ * the same durable path as the other audit writes so a SIGTERM
+ * mid-hook cannot lose the row and hook latency is unaffected.
  */
 export const AUDIT_QUEUE_KINDS = [
   'run_event',
   'session_open',
   'session_close',
   'policy_decision',
+  'memory_access',
 ] as const satisfies ReadonlyArray<OutboxQueueKind>;
 
 /**

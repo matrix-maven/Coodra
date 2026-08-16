@@ -1250,8 +1250,119 @@ export const wikiPages = sqliteTable(
   ],
 );
 
+/**
+ * COOD-78 — memory access log (`docs/PRD-memory-utilization.md` §W1).
+ *
+ * One row per Coodra memory item surfaced to an agent, on either
+ * channel:
+ *   - `push` — Coodra injected it (SessionStart manifest, prompt
+ *     context, post-compact re-emission, policy reason text).
+ *   - `pull` — the agent explicitly asked for it (`read_context_pack`,
+ *     `search_packs_nl`, `query_decisions`, `wiki_ask`, `get_recipe`, …).
+ *
+ * Why the distinction is the whole point: push only proves Coodra
+ * spent tokens. Pull proves the agent wanted the item enough to ask
+ * for it — the first real utilization signal Coodra has ever had.
+ * Pull-through rate (surfaced → pulled) and stale share (was it still
+ * true when shown?) are the two north-star metrics built on this.
+ *
+ * Naming. Called `memory_*` and not `context_*` because `context_packs`
+ * already exists and would make this read pack-scoped, which is the
+ * opposite of the generalization it exists for; and not `artifact_*`
+ * because `artifact` already means Graphify build output in this repo
+ * (`packages/cli/src/commands/graphify-artifacts.ts`).
+ *
+ * Deliberately NOT here: policy outcomes. `policy_decisions` already
+ * carries `ask_outcome`, `matched_rule_id`, `governance_verdict`,
+ * `base_decision` and `effective_decision` with more fidelity, and two
+ * sources of truth for policy metrics is a bug waiting to happen. The
+ * single exception is `site: 'policy_reason'` (COOD-88), which records
+ * that a decision was *taught* through deny/ask reason text — something
+ * `policy_decisions` cannot observe.
+ *
+ * Privacy: ids, counts, hashes, byte costs and metadata only. Never
+ * raw prompt text or memory content by default; `query_hash` /
+ * `trigger_text_hash` carry hashes so repeats can be counted without
+ * storing a transcript mirror.
+ *
+ * Writes go through the durable outbox (`scheduleDurableWrite`, queue
+ * `memory_access`) so hook latency is unaffected and a SIGTERM mid-hook
+ * cannot lose the row.
+ */
+export const memoryAccessEvents = sqliteTable(
+  'memory_access_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    // Nullable for the same reason run_events.run_id is: a surfacing can
+    // happen before a `runs` row exists, and COOD-80's attribution chain
+    // deliberately writes NULL (plus a counter) rather than guessing when
+    // projectSlug → projectId → lookupRunId misses.
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    sessionId: text('session_id'),
+    // Who/what caused the access — per-seat and per-agent utilization in
+    // team mode. Both nullable: solo mode has no Clerk user.
+    actorUserId: text('actor_user_id'),
+    agentType: text('agent_type'),
+    runEventId: text('run_event_id').references(() => runEvents.id, { onDelete: 'set null' }),
+    /** `push` | `pull` */
+    channel: text('channel').notNull(),
+    /**
+     * Which door the item came through — `session_start_manifest`,
+     * `prompt_context`, `post_compact`, `search_packs_nl`,
+     * `read_context_pack`, `query_decisions`, `query_decisions_by_file`,
+     * `wiki_ask`, `get_recipe`, `policy_reason`.
+     *
+     * Deliberately distinct from `memory_type`: `site` answers "through
+     * which door", `memory_type` answers "what came through it".
+     * Pull-through rate is naturally a per-site metric.
+     */
+    site: text('site').notNull(),
+    /** `context_pack` | `decision` | `wiki_page` | `recipe` | `work_pack` | `manifest` */
+    memoryType: text('memory_type').notNull(),
+    /** Nullable — a search that returned nothing still logs a row. */
+    memoryId: text('memory_id'),
+    /** Rank within the injection or result set. */
+    position: integer('position'),
+    bytes: integer('bytes'),
+    latencyMs: integer('latency_ms'),
+    /** `session_start` | `user_prompt` | `post_compact` | `tool_call` */
+    triggerType: text('trigger_type').notNull(),
+    queryHash: text('query_hash'),
+    triggerTextHash: text('trigger_text_hash'),
+    /** For search-type sites: how many results came back. */
+    resultCount: integer('result_count'),
+    /**
+     * Point-in-time snapshot of the item's freshness (COOD-85). A pack
+     * that goes stale *later* must not rewrite history, so this is
+     * copied at access time rather than joined at read time.
+     */
+    freshnessStatusAtAccess: text('freshness_status_at_access'),
+    /**
+     * Increments on each compaction within a run (COOD-84). Deltas and
+     * invalidations are defined relative to a generation, so a delta is
+     * never emitted against a baseline no longer in the context window;
+     * `memory_cohorts` keys on it so post-compaction pulls join the new
+     * cohort rather than inflating the original manifest's pull-through.
+     */
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    // Daily rollup scan (COOD-79): project + day, grouped by channel/site/type.
+    index('memory_access_events_project_created_idx').on(t.projectId, t.createdAt),
+    // Cohort rollup (COOD-79) and "was this manifest entry pulled?" lookups.
+    index('memory_access_events_cohort_idx').on(t.runId, t.baselineGeneration, t.memoryType, t.memoryId),
+    // "Never surfaced" dead-memory LEFT JOIN from the artifact tables.
+    index('memory_access_events_memory_idx').on(t.memoryType, t.memoryId, t.createdAt),
+  ],
+);
+
 export type Wiki = typeof wikis.$inferSelect;
 export type NewWiki = typeof wikis.$inferInsert;
+export type MemoryAccessEvent = typeof memoryAccessEvents.$inferSelect;
+export type NewMemoryAccessEvent = typeof memoryAccessEvents.$inferInsert;
 export type WikiPageRow = typeof wikiPages.$inferSelect;
 export type NewWikiPageRow = typeof wikiPages.$inferInsert;
 export type Control = typeof controls.$inferSelect;
