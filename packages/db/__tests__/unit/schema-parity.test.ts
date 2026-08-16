@@ -85,6 +85,11 @@ const tablePairs = [
   // COOD-78 — append-only, so it belongs in tablePairs but deliberately
   // NOT in `mutableTables` below (no updated_at / updated_by_user_id).
   ['memory_access_events', sq.memoryAccessEvents, pg.memoryAccessEvents],
+  // COOD-79 rollups. Also append-only in effect (recomputed per day),
+  // but they DO carry updated_at, so they are exempt from the
+  // append-only convention check rather than the parity matrix.
+  ['memory_access_daily', sq.memoryAccessDaily, pg.memoryAccessDaily],
+  ['memory_cohorts', sq.memoryCohorts, pg.memoryCohorts],
 ] as const;
 
 /** Columns whose dialect-specific type difference is architecturally intentional. */

@@ -198,7 +198,9 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         // COOD-78 (2026-08-16) — memory access log. One append-only row
         // per memory item surfaced to an agent, on the `push` (Coodra
         // injected it) or `pull` (the agent asked for it) channel.
+        'memory_access_daily',
         'memory_access_events',
+        'memory_cohorts',
         'pending_jobs',
         'policies',
         'policy_decisions',
@@ -256,8 +258,9 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         )
         .get() as { n: number };
       // 32 prior tables + COOD-34 controls/control_attestations = 34,
-      // + COOD-78 memory_access_events = 35.
-      expect(rows.n).toBe(35);
+      // + COOD-78 memory_access_events = 35,
+      // + COOD-79 memory_access_daily/memory_cohorts = 37.
+      expect(rows.n).toBe(37);
     } finally {
       first.close();
     }

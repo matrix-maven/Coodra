@@ -1165,3 +1165,70 @@ export const memoryAccessEvents = pgTable(
 
 export type MemoryAccessEvent = typeof memoryAccessEvents.$inferSelect;
 export type NewMemoryAccessEvent = typeof memoryAccessEvents.$inferInsert;
+
+/**
+ * COOD-79 — daily volume/cost rollup. Postgres mirror of
+ * `sqliteSchema.memoryAccessDaily`; see that table's docblock for why
+ * there are no percentile columns.
+ */
+export const memoryAccessDaily = pgTable(
+  'memory_access_daily',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    day: text('day').notNull(),
+    channel: text('channel').notNull(),
+    site: text('site').notNull(),
+    memoryType: text('memory_type').notNull(),
+    accessCount: integer('access_count').notNull().default(0),
+    distinctItems: integer('distinct_items').notNull().default(0),
+    distinctRuns: integer('distinct_runs').notNull().default(0),
+    totalBytes: integer('total_bytes').notNull().default(0),
+    totalLatencyMs: integer('total_latency_ms').notNull().default(0),
+    maxLatencyMs: integer('max_latency_ms').notNull().default(0),
+    staleAtAccessCount: integer('stale_at_access_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('memory_access_daily_grain_uk').on(t.projectId, t.day, t.channel, t.site, t.memoryType),
+    index('memory_access_daily_day_idx').on(t.day),
+  ],
+);
+
+/**
+ * COOD-79 — per-item cohort rollup. Postgres mirror of
+ * `sqliteSchema.memoryCohorts`; see that table's docblock for why the
+ * grain includes `baseline_generation` and why it outlives raw events.
+ */
+export const memoryCohorts = pgTable(
+  'memory_cohorts',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
+    memoryType: text('memory_type').notNull(),
+    memoryId: text('memory_id').notNull(),
+    surfacedCount: integer('surfaced_count').notNull().default(0),
+    pulledCount: integer('pulled_count').notNull().default(0),
+    firstSurfacedAt: timestamp('first_surfaced_at', { withTimezone: true, mode: 'date' }),
+    firstPulledAt: timestamp('first_pulled_at', { withTimezone: true, mode: 'date' }),
+    timeToFirstPullMs: integer('time_to_first_pull_ms'),
+    staleAtAccess: boolean('stale_at_access').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('memory_cohorts_grain_uk').on(t.runId, t.baselineGeneration, t.memoryType, t.memoryId),
+    index('memory_cohorts_item_idx').on(t.memoryType, t.memoryId),
+    index('memory_cohorts_project_idx').on(t.projectId, t.createdAt),
+  ],
+);
+
+export type MemoryAccessDailyRow = typeof memoryAccessDaily.$inferSelect;
+export type NewMemoryAccessDailyRow = typeof memoryAccessDaily.$inferInsert;
+export type MemoryCohortRow = typeof memoryCohorts.$inferSelect;
+export type NewMemoryCohortRow = typeof memoryCohorts.$inferInsert;

@@ -12,7 +12,12 @@ import { randomUUID } from 'node:crypto';
 
 import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
 import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
-import { type StaleRunsSweeperHandle, startStaleRunsSweeper } from '@coodra/lifecycle';
+import {
+  type MemoryRollupWorkerHandle,
+  type StaleRunsSweeperHandle,
+  startMemoryRollupWorker,
+  startStaleRunsSweeper,
+} from '@coodra/lifecycle';
 import { createLogger } from '@coodra/shared';
 
 import { env } from './config/env.js';
@@ -201,6 +206,16 @@ async function main(): Promise<void> {
     staleRunsSweeper = startStaleRunsSweeper({ db: dbHandle });
   }
 
+  // COOD-79: memory-utilization rollups + retention prune. Gated on
+  // `startHttp` for exactly the reasons above — and with an extra one:
+  // the pass rewrites whole rollup slices, so running it concurrently
+  // from a swarm of short-lived stdio subprocesses would have them
+  // fighting over the same rows on every hook call.
+  let memoryRollupWorker: MemoryRollupWorkerHandle | null = null;
+  if (startHttp) {
+    memoryRollupWorker = startMemoryRollupWorker({ db: dbHandle });
+  }
+
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     bootLogger.info({ event: 'shutdown_signal', signal }, 'shutting down');
 
@@ -227,8 +242,30 @@ async function main(): Promise<void> {
         bootLogger.info({ event: 'stale_runs_sweeper_stopped' }, 'stale-runs sweeper stopped');
       } catch (err) {
         bootLogger.error(
-          { event: 'shutdown_error', subsystem: 'stale_runs_sweeper', err: err instanceof Error ? err.message : String(err) },
+          {
+            event: 'shutdown_error',
+            subsystem: 'stale_runs_sweeper',
+            err: err instanceof Error ? err.message : String(err),
+          },
           'stale-runs sweeper stop threw',
+        );
+      }
+    }
+
+    // Same ordering rationale as the sweeper: stop before the DB
+    // closes so an in-flight recompute cannot race the teardown.
+    if (memoryRollupWorker) {
+      try {
+        await memoryRollupWorker.stop();
+        bootLogger.info({ event: 'memory_rollup_worker_stopped' }, 'memory rollup worker stopped');
+      } catch (err) {
+        bootLogger.error(
+          {
+            event: 'shutdown_error',
+            subsystem: 'memory_rollup_worker',
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'memory rollup worker stop threw',
         );
       }
     }
