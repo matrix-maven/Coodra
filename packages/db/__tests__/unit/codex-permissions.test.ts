@@ -14,8 +14,13 @@ import type { PolicyRuleRow, PolicyWithRules } from '../../src/policies.js';
 
 const NOW = new Date('2026-08-02T00:00:00.000Z');
 
-function rule(overrides: Partial<PolicyRuleRow>): PolicyRuleRow {
-  return {
+// Spreading a `Partial<PolicyRuleRow>` directly into an object
+// literal makes every overridable property optional in the
+// inferred type, so the literal stops satisfying PolicyRuleRow.
+// Building a fully-typed base first and spreading the partial
+// over it keeps the result exact.
+function rule(overrides: Partial<PolicyRuleRow> = {}): PolicyRuleRow {
+  const base: PolicyRuleRow = {
     id: 'rule-1',
     policyId: 'policy-1',
     priority: 10,
@@ -28,11 +33,23 @@ function rule(overrides: Partial<PolicyRuleRow>): PolicyRuleRow {
     reason: 'test',
     controlKey: null,
     ruleType: 'baseline',
+    // COOD-34 governance split: enforcement decision is the
+    // allow/ask/deny axis, distinct from the governance verdict.
+    // NULL means "inherit `decision`" for a pre-split rule.
+    enforcementDecision: null,
+    // The remaining COOD-34 axes. All NULL here: these fixtures
+    // exercise the native-permission projection, which reads the
+    // enforcement triad only and is deliberately blind to the
+    // governance verdict and capability axes.
+    governanceVerdict: null,
+    enforcementMode: null,
+    requiredCapability: null,
+    excludedCapability: null,
     severity: 'medium',
     details: null,
     createdAt: NOW,
-    ...overrides,
   };
+  return { ...base, ...overrides };
 }
 
 function policy(rules: readonly PolicyRuleRow[]): PolicyWithRules {
@@ -41,6 +58,9 @@ function policy(rules: readonly PolicyRuleRow[]): PolicyWithRules {
     orgId: null,
     projectId: 'project-1',
     name: '__default__',
+    // COOD-34: opt-in fail-closed. Default false preserves the
+    // documented fail-open contract when the engine is unavailable.
+    denyOnPolicyError: false,
     description: null,
     groupKey: 'default',
     profile: 'default',
