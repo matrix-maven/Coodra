@@ -13,8 +13,10 @@ import { randomUUID } from 'node:crypto';
 import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
 import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
 import {
+  type GraphRefreshWorkerHandle,
   type MemoryRollupWorkerHandle,
   type StaleRunsSweeperHandle,
+  startGraphRefreshWorker,
   startMemoryRollupWorker,
   startStaleRunsSweeper,
 } from '@coodra/lifecycle';
@@ -154,24 +156,37 @@ async function main(): Promise<void> {
     memoryAccess,
   });
 
-  const registry = new ToolRegistry({ deps });
-  registerAllTools(registry, {
-    db: dbHandle,
-    mode: env.COODRA_MODE,
-    ...(env.COODRA_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.COODRA_CONTEXT_PACKS_ROOT } : {}),
-  });
-
-  // ---------------------------------------------------------------------
   // Transport selection (S16). `--transport` CLI flag overrides the env
   // setting `MCP_SERVER_TRANSPORT`; default `both`. The flag is parsed
   // here rather than in `config/env.ts` because env-only parsing would
   // make CLI-driven overrides require a wrapper script.
-  // ---------------------------------------------------------------------
+  //
+  // Resolved BEFORE tool registration (COOD-82) because the
+  // graph-refresh worker is daemon-only and has to be handed to the
+  // lifecycle_event registration at construction time. Pure function of
+  // argv + env, so hoisting it has no side effects.
   const cliTransport = parseTransportFlag(process.argv.slice(2));
   const transportMode = cliTransport ?? env.MCP_SERVER_TRANSPORT;
   const startStdio = transportMode === 'stdio' || transportMode === 'both';
   const startHttp = transportMode === 'http' || transportMode === 'both';
 
+  // COOD-82: graph refresh. Daemon-only for the same reason as the
+  // sweeper, plus one specific to rebuilds — a `graphify` spawned from
+  // a short-lived stdio subprocess would be killed mid-write, which is
+  // exactly how a half-written graph.json happens. Built here (before
+  // tool registration) but only STARTED when the HTTP transport is on;
+  // see the `startHttp` gate below for the handle's lifecycle.
+  const graphRefresh: GraphRefreshWorkerHandle | null = startHttp ? startGraphRefreshWorker({}) : null;
+
+  const registry = new ToolRegistry({ deps });
+  registerAllTools(registry, {
+    db: dbHandle,
+    mode: env.COODRA_MODE,
+    ...(graphRefresh !== null ? { graphRefresh } : {}),
+    ...(env.COODRA_CONTEXT_PACKS_ROOT ? { contextPacksRoot: env.COODRA_CONTEXT_PACKS_ROOT } : {}),
+  });
+
+  // ---------------------------------------------------------------------
   bootLogger.info(
     { event: 'transport_selection', transportMode, startStdio, startHttp },
     'transport selection resolved',
@@ -253,6 +268,24 @@ async function main(): Promise<void> {
             err: err instanceof Error ? err.message : String(err),
           },
           'stale-runs sweeper stop threw',
+        );
+      }
+    }
+
+    // A rebuild in flight writes graph.json; stop() awaits it so the
+    // process does not exit mid-write.
+    if (graphRefresh) {
+      try {
+        await graphRefresh.stop();
+        bootLogger.info({ event: 'graph_refresh_worker_stopped' }, 'graph refresh worker stopped');
+      } catch (err) {
+        bootLogger.error(
+          {
+            event: 'shutdown_error',
+            subsystem: 'graph_refresh_worker',
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'graph refresh worker stop threw',
         );
       }
     }

@@ -22,6 +22,14 @@ export {
   finalizeRunOnSessionEnd,
 } from './finalize-run-on-session-end.js';
 export {
+  type GraphRefreshResult,
+  type GraphRefreshTrigger,
+  type GraphRefreshWorkerHandle,
+  type GraphRefreshWorkerOptions,
+  STRUCTURAL_REBUILD_ARGS,
+  startGraphRefreshWorker,
+} from './graph-refresh-worker.js';
+export {
   type CreateKillSwitchEvaluatorDeps,
   createKillSwitchEvaluator,
   type KillSwitchEvaluationInput,

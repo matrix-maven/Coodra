@@ -1,5 +1,7 @@
 import type { DbHandle } from '@coodra/db';
 
+import type { GraphRefreshWorkerHandle } from '@coodra/lifecycle';
+
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { createCheckPolicyToolRegistration } from './check-policy/manifest.js';
 import { createGetRecipeToolRegistration } from './get-recipe/manifest.js';
@@ -53,6 +55,11 @@ export interface RegisterAllToolsDeps {
   readonly mode: 'solo' | 'team';
   /** Threaded to lifecycle_event's SessionEnd finalizer — see LifecycleEventHandlerDeps. */
   readonly contextPacksRoot?: string;
+  /**
+   * COOD-82 graph refresh worker. Daemon-only (HTTP transport); on
+   * stdio this is omitted and SessionEnd triggers no rebuild.
+   */
+  readonly graphRefresh?: GraphRefreshWorkerHandle;
 }
 
 export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsDeps): void {
@@ -63,6 +70,8 @@ export function registerAllTools(registry: ToolRegistry, deps: RegisterAllToolsD
       db: deps.db,
       mode: deps.mode,
       ...(deps.contextPacksRoot !== undefined ? { contextPacksRoot: deps.contextPacksRoot } : {}),
+      // COOD-82: present only when the daemon wired one (HTTP transport).
+      ...(deps.graphRefresh !== undefined ? { graphRefresh: deps.graphRefresh } : {}),
     }),
   );
   registry.register(createSaveContextPackToolRegistration({ db: deps.db }));

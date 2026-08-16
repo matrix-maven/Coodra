@@ -16,6 +16,7 @@ import {
   captureBaseSha,
   createKillSwitchEvaluator,
   finalizeRunOnSessionEnd,
+  type GraphRefreshWorkerHandle,
   type KillSwitchEvaluator,
   loadFeaturesIndexForSession,
 } from '@coodra/lifecycle';
@@ -76,6 +77,14 @@ export interface LifecycleEventHandlerDeps {
    * clock so pause/resume is observable without waiting out the 5s TTL.
    */
   readonly killSwitchEvaluator?: KillSwitchEvaluator;
+  /**
+   * COOD-82. Present ONLY on the HTTP transport: the daemon owns the
+   * long-lived process a rebuild needs. On stdio this is undefined and
+   * SessionEnd simply does not trigger one — a rebuild spawned from a
+   * per-hook subprocess would be killed mid-write, which is exactly how
+   * a half-written graph.json happens.
+   */
+  readonly graphRefresh?: GraphRefreshWorkerHandle;
 }
 
 function shapeHookOutput(
@@ -951,8 +960,7 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         // and `kill_switch_paused` ARE opinions and are always asserted
         // (this keeps explicit allow rules working as a fast-path that
         // suppresses the native prompt, which is their whole purpose).
-        deferToNativePermissions =
-          policy.reason === 'no_rule_matched' || policy.reason === 'policy_engine_unavailable';
+        deferToNativePermissions = policy.reason === 'no_rule_matched' || policy.reason === 'policy_engine_unavailable';
       } else {
         reason = policy.error;
       }
@@ -1010,6 +1018,21 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         ...(deps.contextPacksRoot !== undefined ? { contextPacksRoot: deps.contextPacksRoot } : {}),
       });
     }
+    // COOD-82: the agent has just finished writing code, so this is the
+    // moment the graph went stale — and nothing is waiting on the
+    // result. Fire-and-forget: the daemon outlives this response, and
+    // the worker itself decides whether drift actually warrants the
+    // ~9s structural rebuild.
+    if (hookEventName === 'SessionEnd' && deps.graphRefresh !== undefined) {
+      const refreshCwd = typeof event.cwd === 'string' && event.cwd.length > 0 ? event.cwd : null;
+      if (refreshCwd !== null) {
+        void deps.graphRefresh.requestRefresh(refreshCwd, 'session_end').catch(() => {
+          // Worker logs its own failures; a refresh must never affect
+          // the SessionEnd response.
+        });
+      }
+    }
+
     if (hookEventName === 'StopFailure' && runId !== null) {
       await markRunFailed(deps.db, runId, ctx.now());
     }
