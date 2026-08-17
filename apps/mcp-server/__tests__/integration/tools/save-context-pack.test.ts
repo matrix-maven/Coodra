@@ -680,3 +680,102 @@ describe('save_context_pack — FS failure degrades cleanly (DB-first; filesyste
     expect(rows[0]?.content).toBe('body here');
   });
 });
+
+// ---------------------------------------------------------------------------
+// COOD-91 — meta.decisionIds must resolve, or say so
+// ---------------------------------------------------------------------------
+
+/**
+ * The pack still saves in every case here. Rejecting it would lose a
+ * whole recap because one id was mistyped, which is a worse outcome than
+ * a pack with one bad link — but the caller has to be TOLD, which is
+ * what was missing.
+ */
+describe('save_context_pack — COOD-91 decisionIds resolution', () => {
+  let h: Harness;
+  const FULL = 'dec_367d21cf-df81-4ee7-b482-ab2e2666b4fa';
+
+  beforeEach(async () => {
+    h = await openHarness();
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(FULL, h.projectId, 'idem_scp_dec', h.runId, 'seeded', 'seeded', 1000);
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  async function save(decisionIds: string[]) {
+    return unwrap(
+      await buildRegistry(h).handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'Pack', content: '# Pack\n', meta: { decisionIds } },
+        'sess_scp',
+      ),
+    );
+  }
+
+  function storedIds(): string[] {
+    const row = h.handle.raw.prepare(`SELECT meta FROM context_packs LIMIT 1`).get() as
+      | { meta: string | null }
+      | undefined;
+    const meta = JSON.parse(row?.meta ?? '{}') as { decisionIds?: string[] };
+    return meta.decisionIds ?? [];
+  }
+
+  it('stores a full id unchanged and warns about nothing', async () => {
+    const out = await save([FULL]);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.warnings).toBeUndefined();
+    expect(storedIds()).toEqual([FULL]);
+  });
+
+  it('expands a truncated prefix — the exact COOD-77 failure', async () => {
+    // Three packs stored `dec_367d21cf` and every link was silently dead.
+    const out = await save(['dec_367d21cf']);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(storedIds(), 'the stored meta must carry the FULL id').toEqual([FULL]);
+    expect(out.warnings).toBeUndefined();
+  });
+
+  it('saves the pack but warns when an id resolves to nothing', async () => {
+    const out = await save(['dec_deadbeef']);
+    expect(out.ok, 'the pack must still save').toBe(true);
+    if (!out.ok) return;
+    expect(out.contextPackId).toMatch(/^cp_/);
+    expect(out.warnings?.join(' ')).toContain('dec_deadbeef');
+  });
+
+  it('keeps an unresolvable id rather than dropping it', async () => {
+    // Deleting the evidence would make the warning unactionable — the
+    // agent meant something by that id.
+    await save(['dec_deadbeef']);
+    expect(storedIds()).toEqual(['dec_deadbeef']);
+  });
+
+  it('resolves what it can and warns about the rest in one save', async () => {
+    const out = await save(['dec_367d21cf', 'dec_deadbeef']);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(storedIds()).toEqual([FULL, 'dec_deadbeef']);
+    expect(out.warnings).toHaveLength(1);
+  });
+
+  it('adds no warnings field when meta carries no decisionIds', async () => {
+    const out = unwrap(
+      await buildRegistry(h).handleCall(
+        'save_context_pack',
+        { runId: h.runId, title: 'Pack', content: '# Pack\n', meta: { testStatus: 'pass' } },
+        'sess_scp',
+      ),
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.warnings).toBeUndefined();
+  });
+});
