@@ -46,6 +46,7 @@ import type { IdempotencyKey } from '../../framework/idempotency.js';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { getActorIdentity } from '../../lib/actor-identity.js';
 import { selectDiversifiedRecentContextPacks } from '../../lib/context-pack.js';
+import { composeTeachingReason, findMotivatingDecisions, pathFromToolInput } from '../../lib/policy-teaching.js';
 import { selectPromptRelevantContext } from '../../lib/prompt-context.js';
 import { createCheckPolicyHandler } from '../check-policy/handler.js';
 import { createGetRunIdHandler } from '../get-run-id/handler.js';
@@ -1070,6 +1071,53 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
         // (this keeps explicit allow rules working as a fast-path that
         // suppresses the native prompt, which is their whole purpose).
         deferToNativePermissions = policy.reason === 'no_rule_matched' || policy.reason === 'policy_engine_unavailable';
+
+        // COOD-88: just-in-time teaching. A denial that only says
+        // `rule_matched` refuses without explaining; attaching the
+        // decision that motivated the restriction turns the refusal
+        // into the one piece of context that is never stale, because it
+        // arrives at the moment of the violation.
+        //
+        // Only on a real opinion (deny/ask). An allow needs no lesson,
+        // and a deferred default-allow must stay byte-identical or
+        // COOD-62's "don't interfere" contract breaks.
+        if (!deferToNativePermissions && (permissionDecision === 'deny' || permissionDecision === 'ask')) {
+          const teachPath = pathFromToolInput(event.toolInput);
+          const teachProject = teachPath !== null ? await lookupProjectBySlug(deps.db, projectSlug) : null;
+          if (teachPath !== null && teachProject !== null) {
+            const motivating = await findMotivatingDecisions(deps.db, teachProject.id, teachPath);
+            const taught = composeTeachingReason(reason, motivating);
+            reason = taught.reason;
+
+            // The one policy-adjacent thing memory_access_events records
+            // (COOD-78): `policy_decisions` can see that a rule fired,
+            // but not whether a decision was TAUGHT through the reason
+            // text. Without this row the channel is unmeasurable.
+            if (taught.taughtDecisionIds.length > 0 && ctx.memoryAccess !== undefined) {
+              void ctx.memoryAccess
+                .recordPush({
+                  site: 'policy_reason',
+                  triggerType: 'tool_call',
+                  sessionId: event.sessionId,
+                  runId,
+                  projectId: teachProject.id,
+                  orgId: teachProject.orgId ?? null,
+                  agentType: input.agentType,
+                  idempotencyKey: `teach_${event.sessionId}_${event.toolName}_${teachPath}`,
+                  baselineGeneration,
+                  items: taught.taughtDecisionIds.map((id, i) => ({
+                    memoryType: 'decision' as const,
+                    memoryId: id,
+                    position: i,
+                    bytes: taught.reason.length,
+                  })),
+                })
+                .catch(() => {
+                  // Telemetry must never affect a permission decision.
+                });
+            }
+          }
+        }
       } else {
         reason = policy.error;
       }
