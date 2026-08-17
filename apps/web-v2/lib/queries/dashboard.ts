@@ -39,6 +39,7 @@ export interface DashboardSnapshot {
   readonly narrativeCoverage7d: NarrativeCoverage;
   /** Decision-capture coverage over the last 30d (longer window — decisions are rarer than packs). */
   readonly decisionCapture30d: DecisionCapture;
+  readonly quickCoverage: DashboardQuickCoverage;
 }
 
 export interface NarrativeCoverage {
@@ -66,6 +67,19 @@ export interface DecisionCapture {
   /** How many of those have ≥1 decision recorded. */
   readonly runsWithDecision: number;
   /** runsWithDecision / totalCompletedRuns; null when no completed runs. */
+  readonly ratio: number | null;
+}
+
+export interface DashboardQuickCoverage {
+  readonly workPacksActive30d: RatioMetric;
+  readonly contextPacksFresh: RatioMetric;
+  readonly decisionsFresh: RatioMetric;
+  readonly memoryPullThrough: RatioMetric;
+}
+
+export interface RatioMetric {
+  readonly numerator: number;
+  readonly denominator: number;
   readonly ratio: number | null;
 }
 
@@ -112,6 +126,7 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
     latestRuns,
     narrativeCoverage7d,
     decisionCapture30d,
+    quickCoverage,
   ] = await Promise.all([
     countRuns(handle, 'in_progress'),
     countRuns(handle),
@@ -122,6 +137,7 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
     fetchLatestRuns(handle),
     fetchNarrativeCoverage(handle, since7d),
     fetchDecisionCapture(handle, since30d),
+    fetchQuickCoverage(handle, since30d),
   ]);
 
   return {
@@ -137,6 +153,80 @@ export async function fetchDashboardSnapshot(): Promise<DashboardSnapshot> {
     cliVersion: process.env.COODRA_CLI_VERSION ?? null,
     narrativeCoverage7d,
     decisionCapture30d,
+    quickCoverage,
+  };
+}
+
+function makeRatio(numerator: number, denominator: number): RatioMetric {
+  return {
+    numerator,
+    denominator,
+    ratio: denominator === 0 ? null : numerator / denominator,
+  };
+}
+
+async function fetchQuickCoverage(
+  handle: ReturnType<typeof createWebDb>,
+  since30d: Date,
+): Promise<DashboardQuickCoverage> {
+  if (handle.kind === 'sqlite') {
+    const wp = sqliteSchema.workPacks;
+    const cp = sqliteSchema.contextPacks;
+    const d = sqliteSchema.decisions;
+    const cohorts = sqliteSchema.memoryCohorts;
+
+    const [workPackTotalRows, workPackActiveRows, packTotalRows, packFreshRows, decisionTotalRows, decisionFreshRows] =
+      await Promise.all([
+        handle.db.select({ n: count() }).from(wp),
+        handle.db.select({ n: count() }).from(wp).where(gt(wp.lastActivityAt, since30d)),
+        handle.db.select({ n: count() }).from(cp),
+        handle.db.select({ n: count() }).from(cp).where(eq(cp.freshnessStatus, 'fresh')),
+        handle.db.select({ n: count() }).from(d),
+        handle.db.select({ n: count() }).from(d).where(eq(d.freshnessStatus, 'fresh')),
+      ]);
+
+    const cohortRows = await handle.db
+      .select({
+        surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
+        pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
+      })
+      .from(cohorts);
+
+    return {
+      workPacksActive30d: makeRatio(Number(workPackActiveRows[0]?.n ?? 0), Number(workPackTotalRows[0]?.n ?? 0)),
+      contextPacksFresh: makeRatio(Number(packFreshRows[0]?.n ?? 0), Number(packTotalRows[0]?.n ?? 0)),
+      decisionsFresh: makeRatio(Number(decisionFreshRows[0]?.n ?? 0), Number(decisionTotalRows[0]?.n ?? 0)),
+      memoryPullThrough: makeRatio(Number(cohortRows[0]?.pulled ?? 0), Number(cohortRows[0]?.surfaced ?? 0)),
+    };
+  }
+
+  const wp = postgresSchema.workPacks;
+  const cp = postgresSchema.contextPacks;
+  const d = postgresSchema.decisions;
+  const cohorts = postgresSchema.memoryCohorts;
+
+  const [workPackTotalRows, workPackActiveRows, packTotalRows, packFreshRows, decisionTotalRows, decisionFreshRows] =
+    await Promise.all([
+      handle.db.select({ n: count() }).from(wp),
+      handle.db.select({ n: count() }).from(wp).where(gt(wp.lastActivityAt, since30d)),
+      handle.db.select({ n: count() }).from(cp),
+      handle.db.select({ n: count() }).from(cp).where(eq(cp.freshnessStatus, 'fresh')),
+      handle.db.select({ n: count() }).from(d),
+      handle.db.select({ n: count() }).from(d).where(eq(d.freshnessStatus, 'fresh')),
+    ]);
+
+  const cohortRows = await handle.db
+    .select({
+      surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
+      pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
+    })
+    .from(cohorts);
+
+  return {
+    workPacksActive30d: makeRatio(Number(workPackActiveRows[0]?.n ?? 0), Number(workPackTotalRows[0]?.n ?? 0)),
+    contextPacksFresh: makeRatio(Number(packFreshRows[0]?.n ?? 0), Number(packTotalRows[0]?.n ?? 0)),
+    decisionsFresh: makeRatio(Number(decisionFreshRows[0]?.n ?? 0), Number(decisionTotalRows[0]?.n ?? 0)),
+    memoryPullThrough: makeRatio(Number(cohortRows[0]?.pulled ?? 0), Number(cohortRows[0]?.surfaced ?? 0)),
   };
 }
 

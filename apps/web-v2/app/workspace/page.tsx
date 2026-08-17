@@ -150,7 +150,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
         <div style={{ marginBottom: 8 }}>
           {services.map((svc) => {
             const tone = svc.status === 'reachable' ? 'badge--ok' : svc.status === 'idle' ? '' : 'badge--warn';
-            const canControl = isSolo && svc.key !== 'sync-daemon';
+            const canControl = isSolo && svc.key === 'mcp-server';
             return (
               <div key={svc.name} className="svc-row" style={svcRow}>
                 <div>

@@ -6,7 +6,13 @@ import { agentTypeLabel } from '@/lib/agent-label';
 import { tryGetActor } from '@/lib/auth';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import { fmtClock, fmtClockSec } from '@/lib/format';
-import { type DecisionCapture, fetchDashboardSnapshot, type NarrativeCoverage } from '@/lib/queries/dashboard';
+import {
+  type DashboardQuickCoverage,
+  type DecisionCapture,
+  fetchDashboardSnapshot,
+  type NarrativeCoverage,
+  type RatioMetric,
+} from '@/lib/queries/dashboard';
 import { listProjects } from '@/lib/queries/projects';
 import { readTeamConfig } from '@/lib/team-config';
 
@@ -116,9 +122,11 @@ export default async function DashboardPage({
                   </button>
                 </form>
               ) : null}
-              <Link className="btn btn--ghost" href="/sync">
-                Audit queue
-              </Link>
+              {dm === 'local-team' ? (
+                <Link className="btn btn--ghost" href="/sync">
+                  Sync queue
+                </Link>
+              ) : null}
               {dm === 'team-hosted' ? (
                 // /init writes to the local repo — meaningless on a hosted
                 // server. Direct admins to the project list instead so they
@@ -193,6 +201,7 @@ export default async function DashboardPage({
             narrative) vs. decision recording (mid-session structured
             intent). Either dropping is a signal to investigate. */}
         <CoverageStrips narrative={snap.narrativeCoverage7d} decisions={snap.decisionCapture30d} />
+        <QuickCoverageCards coverage={snap.quickCoverage} />
 
         <div className="dash-grid">
           <div>
@@ -330,6 +339,100 @@ function Italic({ n }: { n: number }) {
   // Numbers <100 render with serif italic accent for editorial feel.
   if (n < 100) return <em>{n}</em>;
   return <>{n.toLocaleString()}</>;
+}
+
+function QuickCoverageCards({ coverage }: { coverage: DashboardQuickCoverage }) {
+  return (
+    <div className="pack-grid" style={{ marginBottom: 32 }}>
+      <QuickCoverageCard
+        href="/work-packs"
+        title="Work Packs active · 30d"
+        metric={coverage.workPacksActive30d}
+        denominatorLabel="Work Packs"
+        emptyHint="No Work Packs yet"
+        body="with recent context or decision activity. Quiet packs usually mean work is not being tied back to durable scope."
+      />
+      <QuickCoverageCard
+        href="/context-packs"
+        title="Context Packs fresh"
+        metric={coverage.contextPacksFresh}
+        denominatorLabel="Context Packs"
+        emptyHint="No Context Packs yet"
+        body="verified fresh. Unverified is useful history, but it should not be treated as current project truth."
+      />
+      <QuickCoverageCard
+        href="/decisions"
+        title="Decisions fresh"
+        metric={coverage.decisionsFresh}
+        denominatorLabel="decisions"
+        emptyHint="No decisions yet"
+        body="verified fresh. Supersession stays in decision edges; this card is only about whether the claim still matches code."
+      />
+      <QuickCoverageCard
+        href="/memory"
+        title="Memory pull-through"
+        metric={coverage.memoryPullThrough}
+        denominatorLabel="surfaced items"
+        emptyHint="No surfaced memory yet"
+        body="later pulled by id. This is the quick signal that pushed context became something the agent actually asked to use."
+      />
+    </div>
+  );
+}
+
+function QuickCoverageCard({
+  href,
+  title,
+  metric,
+  denominatorLabel,
+  emptyHint,
+  body,
+}: {
+  href: string;
+  title: string;
+  metric: RatioMetric;
+  denominatorLabel: string;
+  emptyHint: string;
+  body: string;
+}) {
+  const pct = metric.ratio === null ? null : Math.round(metric.ratio * 100);
+  const tone =
+    pct === null
+      ? { cls: '', label: 'NO DATA' }
+      : pct >= 80
+        ? { cls: 'badge--ok', label: 'HEALTHY' }
+        : pct >= 50
+          ? { cls: 'badge--caution', label: 'WATCH' }
+          : { cls: 'badge--warn', label: 'LOW' };
+
+  return (
+    <Link href={href} className="pack" style={{ minHeight: 210 }}>
+      <div className="pack__num">{title}</div>
+      <div className="project-card__head">
+        <div className="project-card__metric-value" style={{ fontSize: 42 }}>
+          {pct === null ? '—' : <em>{pct}%</em>}
+        </div>
+        <span className={`badge ${tone.cls}`}>
+          <span className="badge__dot" />
+          {tone.label}
+        </span>
+      </div>
+      <p className="pack__excerpt">
+        {metric.ratio === null ? (
+          emptyHint
+        ) : (
+          <>
+            <strong style={{ color: 'var(--ink)' }}>{metric.numerator}</strong> of{' '}
+            <strong style={{ color: 'var(--ink)' }}>{metric.denominator}</strong> {denominatorLabel} {body}
+          </>
+        )}
+      </p>
+      <div className="pack__meta">
+        <span>{href.replace('/', '')}</span>
+        <span>open</span>
+      </div>
+    </Link>
+  );
 }
 
 /**

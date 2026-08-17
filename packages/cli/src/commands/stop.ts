@@ -1,4 +1,4 @@
-import { EXIT_OK } from '../exit-codes.js';
+import { EXIT_OK, EXIT_SERVICE_STARTUP_FAILED } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { selectDaemonManager } from '../lib/daemon/index.js';
 import { SERVICES, type ServiceName } from '../lib/services.js';
@@ -47,6 +47,7 @@ export async function runStopCommand(options: StopOptions = {}, io: StopIO = DEF
     return io.exit(EXIT_OK); // stop is idempotent — unknown service is a no-op
   }
 
+  let anyFailure = false;
   for (const name of candidates as ServiceName[]) {
     try {
       await manager.stop(name);
@@ -56,6 +57,7 @@ export async function runStopCommand(options: StopOptions = {}, io: StopIO = DEF
       io.writeStdout(`${pc.green('✓')} Stopped ${name}\n`);
     } catch (err) {
       io.writeStderr(`${pc.yellow('⚠')} ${name} stop reported: ${(err as Error).message}\n`);
+      anyFailure = true;
     }
   }
 
@@ -83,5 +85,5 @@ export async function runStopCommand(options: StopOptions = {}, io: StopIO = DEF
     clearTunnelUrlFromHomeEnv(coodraHome);
   }
 
-  return io.exit(EXIT_OK);
+  return io.exit(anyFailure ? EXIT_SERVICE_STARTUP_FAILED : EXIT_OK);
 }

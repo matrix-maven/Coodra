@@ -87,6 +87,17 @@ export interface ActorUtilization {
   readonly totalBytes: number;
 }
 
+export interface SurfacedDecision {
+  readonly id: string;
+  readonly description: string;
+  readonly freshnessStatus: string;
+  readonly surfacedSite: string;
+  readonly surfaced: number;
+  readonly pulled: number;
+  readonly pullThroughRate: number | null;
+  readonly staleAtAccess: boolean;
+}
+
 export interface MemoryUtilizationSnapshot {
   readonly bySurface: ReadonlyArray<SurfaceUtilization>;
   /**
@@ -94,6 +105,12 @@ export interface MemoryUtilizationSnapshot {
    * why the page hides the section there — one row is not a breakdown.
    */
   readonly byActor: ReadonlyArray<ActorUtilization>;
+  /**
+   * Item-level answer to "which decision surfaced?" from the cohort
+   * rollup. This deliberately reads `memory_cohorts`, not raw events,
+   * so the dashboard keeps working after raw-event retention pruning.
+   */
+  readonly surfacedDecisions: ReadonlyArray<SurfacedDecision>;
   readonly deadMemory: DeadMemory;
   readonly packFreshness: FreshnessBreakdown;
   readonly decisionFreshness: FreshnessBreakdown;
@@ -135,6 +152,15 @@ interface RawUtilization {
     readonly actorUserId: string;
     readonly accesses: number | null;
     readonly bytes: number | null;
+  }>;
+  readonly surfacedDecisions: ReadonlyArray<{
+    readonly id: string;
+    readonly description: string;
+    readonly freshnessStatus: string;
+    readonly surfacedSite: string | null;
+    readonly surfaced: number | null;
+    readonly pulled: number | null;
+    readonly staleAtAccess: number | boolean | null;
   }>;
   readonly packsTotal: number;
   readonly decisionsTotal: number;
@@ -185,6 +211,22 @@ async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
     .from(cohorts)
     .groupBy(cohorts.surfacedSite);
 
+  const surfacedDecisions = await db
+    .select({
+      id: decisions.id,
+      description: decisions.description,
+      freshnessStatus: decisions.freshnessStatus,
+      surfacedSite: cohorts.surfacedSite,
+      surfaced: sql<number>`SUM(${cohorts.surfacedCount})`,
+      pulled: sql<number>`SUM(${cohorts.pulledCount})`,
+      staleAtAccess: sql<number>`MAX(CASE WHEN ${cohorts.staleAtAccess} THEN 1 ELSE 0 END)`,
+    })
+    .from(cohorts)
+    .innerJoin(decisions, eq(cohorts.memoryId, decisions.id))
+    .where(eq(cohorts.memoryType, 'decision'))
+    .groupBy(cohorts.memoryId, decisions.id, decisions.description, decisions.freshnessStatus, cohorts.surfacedSite)
+    .limit(20);
+
   const [packTotal] = await db.select({ n: count() }).from(packs);
   const [decisionTotal] = await db.select({ n: count() }).from(decisions);
   const [packsSurfaced] = await db
@@ -208,6 +250,7 @@ async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
     dailyRows,
     cohortRows,
     byActor,
+    surfacedDecisions,
     packsTotal: Number(packTotal?.n ?? 0),
     decisionsTotal: Number(decisionTotal?.n ?? 0),
     packsSurfaced: Number(packsSurfaced?.n ?? 0),
@@ -251,6 +294,22 @@ async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
     .from(cohorts)
     .groupBy(cohorts.surfacedSite);
 
+  const surfacedDecisions = await db
+    .select({
+      id: decisions.id,
+      description: decisions.description,
+      freshnessStatus: decisions.freshnessStatus,
+      surfacedSite: cohorts.surfacedSite,
+      surfaced: sql<number>`SUM(${cohorts.surfacedCount})`,
+      pulled: sql<number>`SUM(${cohorts.pulledCount})`,
+      staleAtAccess: sql<number>`MAX(CASE WHEN ${cohorts.staleAtAccess} THEN 1 ELSE 0 END)`,
+    })
+    .from(cohorts)
+    .innerJoin(decisions, eq(cohorts.memoryId, decisions.id))
+    .where(eq(cohorts.memoryType, 'decision'))
+    .groupBy(cohorts.memoryId, decisions.id, decisions.description, decisions.freshnessStatus, cohorts.surfacedSite)
+    .limit(20);
+
   const [packTotal] = await db.select({ n: count() }).from(packs);
   const [decisionTotal] = await db.select({ n: count() }).from(decisions);
   const [packsSurfaced] = await db
@@ -274,6 +333,7 @@ async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
     dailyRows,
     cohortRows,
     byActor,
+    surfacedDecisions,
     packsTotal: Number(packTotal?.n ?? 0),
     decisionsTotal: Number(decisionTotal?.n ?? 0),
     packsSurfaced: Number(packsSurfaced?.n ?? 0),
@@ -332,9 +392,28 @@ export async function fetchMemoryUtilization(): Promise<MemoryUtilizationSnapsho
     }))
     .sort((a, b) => b.accesses - a.accesses);
 
+  const surfacedDecisions: SurfacedDecision[] = raw.surfacedDecisions
+    .map((row) => {
+      const surfaced = Number(row.surfaced ?? 0);
+      const pulled = Number(row.pulled ?? 0);
+      return {
+        id: row.id,
+        description: row.description,
+        freshnessStatus: row.freshnessStatus,
+        surfacedSite: row.surfacedSite ?? 'unknown',
+        surfaced,
+        pulled,
+        pullThroughRate: ratio(pulled, surfaced),
+        staleAtAccess: row.staleAtAccess === true || Number(row.staleAtAccess ?? 0) > 0,
+      };
+    })
+    .sort((a, b) => b.surfaced - a.surfaced || b.pulled - a.pulled || a.description.localeCompare(b.description))
+    .slice(0, 10);
+
   return {
     bySurface,
     byActor,
+    surfacedDecisions,
     deadMemory: {
       contextPacksNeverSurfaced: Math.max(0, raw.packsTotal - raw.packsSurfaced),
       contextPacksTotal: raw.packsTotal,

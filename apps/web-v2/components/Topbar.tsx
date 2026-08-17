@@ -1,14 +1,12 @@
 import Link from 'next/link';
 
-import { startServicesAction } from '@/lib/actions/services';
-
 interface TopbarProps {
   readonly crumbPrefix?: string;
   readonly crumb: string;
-  /** When set, the trailing accent button uses this label and target href. Default: "coodra start" → POSTs startServicesAction. */
+  /** When set, the trailing accent button uses this label and target href. Default: "Health" → /workspace. */
   readonly primaryAction?: { readonly label: string; readonly href: string };
   /**
-   * Render the laptop-local "coodra start" button? When omitted, the
+   * Render the laptop-local health button? When omitted, the
    * component infers from `process.env.COODRA_DEPLOYMENT` (Next
    * inlines this at build time for both server and client bundles).
    * Server-component callers can pass the explicit value resolved via
@@ -32,16 +30,13 @@ interface TopbarProps {
  * contexts. Trailing buttons branch on `showLocalStartButton`:
  *
  *   - true (local-solo / local-team):
- *       "coodra start" (accent) → POSTs `startServicesAction` to
- *       spawn MCP + Hooks Bridge + (team-only) Sync Daemon on the
- *       local laptop.
+ *       "Health" (accent) → links to `/workspace`, where local
+ *       services can be inspected and repaired.
  *
  *   - false (team-hosted):
  *       The deployment server has no local daemons to spawn, so the
- *       "coodra start" affordance is hidden — clicking it would
- *       redirect to /forbidden?reason=local_only via the action guard,
- *       which is bad UX. Falls back to the Docs link only unless the
- *       page passes its own primaryAction.
+ *       local health affordance is hidden. Falls back to the Docs link
+ *       only unless the page passes its own primaryAction.
  *
  * The Docs link is constant across modes.
  */
@@ -87,11 +82,9 @@ export function Topbar({ crumbPrefix = 'coodra', crumb, primaryAction, showLocal
           {primaryAction.label}
         </Link>
       ) : inferredShowStart ? (
-        <form action={startServicesAction} style={{ display: 'inline' }}>
-          <button className="topbar__btn topbar__btn--accent" type="submit">
-            coodra start
-          </button>
-        </form>
+        <Link href="/workspace" className="topbar__btn topbar__btn--accent">
+          Health
+        </Link>
       ) : null}
     </div>
   );

@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { Topbar } from '@/components/Topbar';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import {
@@ -5,6 +7,7 @@ import {
   type FreshnessBreakdown,
   fetchMemoryUtilization,
   type MemoryUtilizationSnapshot,
+  type SurfacedDecision,
   type SurfaceUtilization,
 } from '@/lib/queries/memory-utilization';
 
@@ -38,21 +41,33 @@ export default async function MemoryPage() {
     <>
       <Topbar crumb="Memory" crumbPrefix={dm === 'team-hosted' ? 'coodra · team' : 'coodra · solo'} />
       <section className="screen">
-        <header className="head">
-          <h1>
-            Memory <em>utilization</em>
-          </h1>
-          <p className="lede">
-            Not how much Coodra stored — how much of it was <strong>wanted</strong>, and how much was still{' '}
-            <strong>true</strong> when it was shown.
-          </p>
-        </header>
+        <div className="head">
+          <div>
+            <div className="head__num">/05 · MEMORY · UTILIZATION</div>
+            <h1 className="head__title">
+              Memory <em>utilization</em>.
+            </h1>
+            <p className="head__lede">
+              Not how much Coodra stored — how much of it was wanted, which surfaces earned a pull, and which decisions
+              actually reached an agent.
+            </p>
+          </div>
+          <div>
+            <div className="head__meta">
+              <strong>{snap.bySurface.length} surfaces</strong>
+              <br />
+              {snap.surfacedDecisions.length} surfaced decisions
+              <br />
+              {dm === 'team-hosted' ? 'team hosted' : 'local rollups'}
+            </div>
+          </div>
+        </div>
 
-        {dm === 'team-hosted' ? <NotSyncedNotice /> : null}
         {snap.noDataYet ? <PendingState teamHosted={dm === 'team-hosted'} /> : null}
 
         <DeadMemorySection snap={snap} />
         <FreshnessSection snap={snap} />
+        <SurfacedDecisionsTable rows={snap.surfacedDecisions} />
         <SurfaceTable rows={snap.bySurface} />
         <ActorTable rows={snap.byActor} />
 
@@ -70,58 +85,20 @@ export default async function MemoryPage() {
 }
 
 /**
- * COOD-98 — memory access rows do not sync to cloud.
- *
- * `recordPush` / `recordPull` enqueue on the `memory_access` queue,
- * which is the LOCAL durable-write path. The team path is the paired
- * `scheduleAuditWriteWithSync`, and its `SyncTableName` union covers
- * runs, run_events, policy_decisions, decisions, context_packs, wikis
- * and kill_switches — none of the memory tables.
- *
- * On a team-hosted deployment this page reads cloud Postgres, where
- * those tables are migrated but never written. Every number is zero and
- * always will be, so the page has to say so. The alternative — showing
- * an honest-looking dashboard of zeros — reads as "nobody uses their
- * memory", which is the single most wrong conclusion this page could
- * lead someone to.
- */
-function NotSyncedNotice() {
-  return (
-    <div className="empty">
-      <strong>
-        Not <em>synced</em> to this deployment.
-      </strong>
-      <p>
-        Memory access events are recorded on each developer&apos;s own machine and are <strong>not</strong> pushed to
-        cloud — the sync path covers runs, decisions, Context Packs and wikis, but not the memory tables. This page is
-        reading cloud Postgres, so the figures below are structurally empty rather than a real measurement.
-      </p>
-      <p className="muted">
-        For per-machine utilization, open <code>/memory</code> on a developer&apos;s local Coodra.
-      </p>
-    </div>
-  );
-}
-
-/**
  * A fresh install has no rollups yet. Saying so explicitly matters:
  * every ratio below would otherwise render as "—" and read as broken
  * rather than pending.
  */
 function PendingState({ teamHosted }: { teamHosted: boolean }) {
-  // On team-hosted the "wait for the worker" advice is false: no worker
-  // writes to THIS database. NotSyncedNotice above already explains why,
-  // so say nothing further rather than repeat a promise that cannot be
-  // kept.
-  if (teamHosted) return null;
   return (
     <div className="empty">
       <strong>
         No rollups <em>yet</em>.
       </strong>
       <p>
-        The rollup worker runs hourly in the <code>coodra start</code> daemon and only covers completed days, so the
-        first numbers appear after a day of use. Counts below are still accurate.
+        {teamHosted
+          ? 'Team-hosted memory charts read synced daily and cohort rollups from each developer machine. The first numbers appear after local daemons roll up completed days and sync them.'
+          : 'The rollup worker runs hourly in the coodra start daemon and only covers completed days, so the first numbers appear after a day of use.'}
       </p>
     </div>
   );
@@ -137,11 +114,12 @@ function DeadMemorySection({ snap }: { snap: MemoryUtilizationSnapshot }) {
   const { deadMemory: dm } = snap;
   return (
     <section>
-      <h2>Created → surfaced</h2>
-      <p className="lede">
-        Memory that exists but has never been put in front of an agent. If this is most of what you have, retrieval
-        tuning is premature — the problem is upstream.
-      </p>
+      <div className="card__head">
+        <h2 className="card__title">
+          Created <em>to surfaced</em>
+        </h2>
+        <span className="card__role">Inventory gap</span>
+      </div>
       <div className="stats">
         <Card
           label="Context packs never surfaced"
@@ -163,11 +141,12 @@ function DeadMemorySection({ snap }: { snap: MemoryUtilizationSnapshot }) {
 function FreshnessSection({ snap }: { snap: MemoryUtilizationSnapshot }) {
   return (
     <section>
-      <h2>Still true?</h2>
-      <p className="lede">
-        Gardening verifies memory against the working tree. <strong>Unverified is not fresh</strong> — it means nobody
-        has checked, which is a different claim from &ldquo;this still holds&rdquo;.
-      </p>
+      <div className="card__head">
+        <h2 className="card__title">
+          Still <em>true</em>?
+        </h2>
+        <span className="card__role">Freshness</span>
+      </div>
       <div className="stats">
         <FreshnessCard label="Context packs" breakdown={snap.packFreshness} />
         <FreshnessCard label="Decisions" breakdown={snap.decisionFreshness} />
@@ -189,52 +168,131 @@ function FreshnessCard({ label, breakdown }: { label: string; breakdown: Freshne
   );
 }
 
+function SurfacedDecisionsTable({ rows }: { rows: ReadonlyArray<SurfacedDecision> }) {
+  if (rows.length === 0) {
+    return (
+      <section>
+        <div className="card__head">
+          <h2 className="card__title">
+            Surfaced <em>decisions</em>
+          </h2>
+          <span className="card__role">Cohort rollup</span>
+        </div>
+        <div className="empty">
+          <strong>
+            No surfaced <em>decisions</em>.
+          </strong>
+          <p>
+            Decision-level cohort rows will appear after a manifest or prompt context puts decisions in front of an
+            agent.
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <div className="card__head">
+        <h2 className="card__title">
+          Surfaced <em>decisions</em>
+        </h2>
+        <span className="card__role">Which ones reached the agent</span>
+      </div>
+      <div className="card" style={{ padding: 0, marginBottom: 56 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Decision</th>
+              <th>Surface</th>
+              <th>Status</th>
+              <th className="num">Surfaced</th>
+              <th className="num">Pulled</th>
+              <th className="num">Pull-through</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={`${row.id}:${row.surfacedSite}`}>
+                <td style={{ maxWidth: 620 }}>
+                  <div className="tbl__title">
+                    <Link href={`/decisions/${encodeURIComponent(row.id)}`}>{row.description}</Link>
+                  </div>
+                  <div className="tbl__mono">{row.id}</div>
+                </td>
+                <td>
+                  <code>{row.surfacedSite}</code>
+                </td>
+                <td>
+                  <span className={row.staleAtAccess ? 'badge badge--warn' : 'badge'}>
+                    <span className="badge__dot" />
+                    {row.staleAtAccess ? 'stale when shown' : row.freshnessStatus}
+                  </span>
+                </td>
+                <td className="num">{row.surfaced}</td>
+                <td className="num">{row.pulled}</td>
+                <td className="num">{pct(row.pullThroughRate)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 function SurfaceTable({ rows }: { rows: ReadonlyArray<SurfaceUtilization> }) {
   if (rows.length === 0) {
     return (
       <section>
-        <h2>By surface</h2>
-        <p className="lede">Nothing surfaced yet — no injections or retrievals have been rolled up.</p>
+        <div className="card__head">
+          <h2 className="card__title">
+            By <em>surface</em>
+          </h2>
+          <span className="card__role">Access doors</span>
+        </div>
+        <p className="head__lede">Nothing surfaced yet — no injections or retrievals have been rolled up.</p>
       </section>
     );
   }
   return (
     <section>
-      <h2>By surface</h2>
-      <p className="lede">
-        Each door memory travels through. <strong>Pull-through</strong> is the share of items{' '}
-        <em>surfaced at this door</em> that the agent then asked for by id — the closest thing to proof that context was
-        used rather than merely sent. A door that only serves retrievals surfaces nothing, so it shows &ldquo;—&rdquo;
-        rather than borrowing another surface&apos;s number (COOD-101).
-      </p>
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>Surface</th>
-            <th className="num">Accesses</th>
-            <th className="num">Surfaced</th>
-            <th className="num">Pulled</th>
-            <th className="num">Pull-through</th>
-            <th className="num">Stale share</th>
-            <th className="num">Bytes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.surface}>
-              <td>
-                <code>{row.surface}</code>
-              </td>
-              <td className="num">{row.totalAccesses}</td>
-              <td className="num">{row.surfaced}</td>
-              <td className="num">{row.pulled}</td>
-              <td className="num">{pct(row.pullThroughRate)}</td>
-              <td className="num">{pct(row.staleShare)}</td>
-              <td className="num">{row.totalBytes.toLocaleString()}</td>
+      <div className="card__head">
+        <h2 className="card__title">
+          By <em>surface</em>
+        </h2>
+        <span className="card__role">Access doors</span>
+      </div>
+      <div className="card" style={{ padding: 0, marginBottom: 56 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Surface</th>
+              <th className="num">Accesses</th>
+              <th className="num">Surfaced</th>
+              <th className="num">Pulled</th>
+              <th className="num">Pull-through</th>
+              <th className="num">Stale share</th>
+              <th className="num">Bytes</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.surface}>
+                <td>
+                  <code>{row.surface}</code>
+                </td>
+                <td className="num">{row.totalAccesses}</td>
+                <td className="num">{row.surfaced}</td>
+                <td className="num">{row.pulled}</td>
+                <td className="num">{pct(row.pullThroughRate)}</td>
+                <td className="num">{pct(row.staleShare)}</td>
+                <td className="num">{row.totalBytes.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
@@ -252,33 +310,36 @@ function ActorTable({ rows }: { rows: ReadonlyArray<ActorUtilization> }) {
   const total = rows.reduce((sum, row) => sum + row.accesses, 0);
   return (
     <section>
-      <h2>By person</h2>
-      <p className="lede">
-        Volume per seat. Useful for spotting whether memory is a shared habit or one person&apos;s — a project where a
-        single developer accounts for nearly all retrieval has a rollout problem, not a retrieval problem.
-      </p>
-      <table className="tbl">
-        <thead>
-          <tr>
-            <th>Actor</th>
-            <th className="num">Accesses</th>
-            <th className="num">Share</th>
-            <th className="num">Bytes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.actorUserId}>
-              <td>
-                <code>{row.actorUserId === 'local' ? 'local user' : row.actorUserId}</code>
-              </td>
-              <td className="num">{row.accesses}</td>
-              <td className="num">{pct(ratioOf(row.accesses, total))}</td>
-              <td className="num">{row.totalBytes.toLocaleString()}</td>
+      <div className="card__head">
+        <h2 className="card__title">
+          By <em>person</em>
+        </h2>
+        <span className="card__role">Seat utilization</span>
+      </div>
+      <div className="card" style={{ padding: 0, marginBottom: 56 }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Actor</th>
+              <th className="num">Accesses</th>
+              <th className="num">Share</th>
+              <th className="num">Bytes</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.actorUserId}>
+                <td>
+                  <code>{row.actorUserId === 'local' ? 'local user' : row.actorUserId}</code>
+                </td>
+                <td className="num">{row.accesses}</td>
+                <td className="num">{pct(ratioOf(row.accesses, total))}</td>
+                <td className="num">{row.totalBytes.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }
