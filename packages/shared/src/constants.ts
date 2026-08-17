@@ -62,6 +62,16 @@ export const COODRA_MCP_TOOL_NAMES = [
   'wiki_save_structure',
   'wiki_save_page',
   'wiki_status',
+  // COOD-30 shipped `wiki_ask` without adding it here, and the omission
+  // survived because the tests that would have caught it exercise the
+  // BUILT binary — so they only fail once `dist/` is rebuilt.
+  //
+  // Not merely a test lock. This list is the Cursor arm of
+  // `isCoodraOwnMcpTool` (lifecycle-event/handler.ts): Cursor reports
+  // `MCP:<tool_name>` with no server prefix, so a missing name means
+  // Coodra runs its own policy engine against its own tool call — the
+  // exact failure that function's docblock warns about.
+  'wiki_ask',
 ] as const;
 
 /**

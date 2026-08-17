@@ -1,4 +1,5 @@
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { sqliteSchema } from '@coodra/db';
@@ -31,6 +32,13 @@ interface Harness {
   readonly boot: BootHandle;
   readonly closeDb: () => Promise<void>;
   readonly client: Client;
+  /**
+   * COOD-76 added a registration guard: `get_run_id` no longer
+   * auto-creates a project for an unregistered directory. A real agent
+   * asks the user and retries with `cwd` + `confirmRegister`, so the
+   * e2e walk does the same against a real temp dir.
+   */
+  readonly projectCwd: string;
 }
 
 let h: Harness;
@@ -45,7 +53,8 @@ beforeAll(async () => {
   const client = new Client({ name: 'full-session-e2e', version: '0.0.0-e2e' }, { capabilities: {} });
   await client.connect(transport);
 
-  h = { boot, closeDb, client };
+  const projectCwd = mkdtempSync(join(tmpdir(), 'fullsession-e2e-'));
+  h = { boot, closeDb, client, projectCwd };
 }, 60_000);
 
 afterAll(async () => {
@@ -78,7 +87,7 @@ describe('full-session — get_run_id → record_decision×2 → save_context_pa
     // 1. get_run_id
     const runResult = await h.client.callTool({
       name: 'get_run_id',
-      arguments: { projectSlug },
+      arguments: { projectSlug, cwd: h.projectCwd, confirmRegister: true },
     });
     const run = unwrapData<{ ok: boolean; runId: string; startedAt: string }>(
       runResult as { content: Array<{ text?: string }> },
