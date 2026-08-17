@@ -197,6 +197,8 @@ export interface MemoryAccessRecorder {
     readonly agentType?: string | null;
     readonly idempotencyKey: string;
     readonly output: unknown;
+    /** COOD-102 — hashed into `query_hash`, never stored. */
+    readonly input?: unknown;
     readonly latencyMs: number;
   }): Promise<void>;
   recordPush(args: {

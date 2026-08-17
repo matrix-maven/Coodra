@@ -74,6 +74,7 @@ export {
   writePolicyProjectionFiles,
 } from './policy-projection-files.js';
 export { type CoodraProjectConfig, readCoodraProjectConfig } from './project-config.js';
+export { hashQueryText, queryHashForTool } from './query-hash.js';
 export {
   MAX_FILES_PER_DIFF,
   MAX_UNIFIED_DIFF_BYTES,

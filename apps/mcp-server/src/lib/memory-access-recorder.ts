@@ -9,7 +9,7 @@ import {
   lookupRunId,
   scheduleDurableWrite,
 } from '@coodra/db';
-import type { Logger } from '@coodra/shared';
+import { type Logger, queryHashForTool } from '@coodra/shared';
 
 import { createMcpLogger } from './logger.js';
 
@@ -155,6 +155,13 @@ export interface RecordPullArgs {
   /** Stable per-call key, used to make row ids idempotent under retry. */
   readonly idempotencyKey: string;
   readonly output: unknown;
+  /**
+   * COOD-102 — the validated tool INPUT, used only to derive
+   * `query_hash`. Never stored: the recorder hashes the question field
+   * and drops the rest, so a pull row can group repeated questions
+   * without the log holding anyone's prose.
+   */
+  readonly input?: unknown;
   readonly latencyMs: number;
 }
 
@@ -370,6 +377,11 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           // in the daily rollup, so only the first row carries it.
           latencyMs: i === 0 ? args.latencyMs : null,
           resultCount: extracted.resultCount,
+          // COOD-102 — lets "40 empty wiki answers" be read as one
+          // repeated question rather than 40 distinct gaps. Only the
+          // hash lands; see @coodra/shared/query-hash for what that does
+          // and does not protect.
+          queryHash: queryHashForTool(args.toolName, args.input),
           // Absent from the map means never verified — reported as
           // `unverified`, never silently upgraded to `fresh`.
           freshnessStatusAtAccess: row.memoryId === null ? null : (freshness.get(row.memoryId) ?? 'unverified'),
