@@ -142,17 +142,7 @@ afterEach(async () => {
 });
 
 describe('COOD-83 — manifest mode', () => {
-  it('defaults to excerpt mode, which injects pack bodies', async () => {
-    const registry = buildRegistry(h);
-    await seedPack(h, registry, 'sess-a');
-    const context = await sessionStart(registry, h, 'sess-b');
-
-    expect(context).toContain('Hot Context Packs');
-    expect(context, 'excerpt mode injects the body').toContain('sqlite for the local store');
-  });
-
-  it('renders an index with ids and no bodies when the flag is on', async () => {
-    process.env.COODRA_SESSION_MANIFEST = '1';
+  it('defaults to an index with ids and no bodies (COOD-94)', async () => {
     const registry = buildRegistry(h);
     await seedPack(h, registry, 'sess-a');
     const context = await sessionStart(registry, h, 'sess-b');
@@ -165,12 +155,26 @@ describe('COOD-83 — manifest mode', () => {
     expect(context, 'but it must carry the id needed to pull it').toMatch(/`cp_[0-9a-f-]+`/);
   });
 
-  it('injects fewer bytes than excerpt mode for the same selection', async () => {
+  it('restores excerpt mode, bodies and all, when explicitly disabled', async () => {
+    // The escape hatch is load-bearing: bloat and under-retrieval are
+    // opposite failures, and a project whose agents ignore the index
+    // needs a way back that does not require a release.
+    process.env.COODRA_SESSION_MANIFEST = '0';
+    const registry = buildRegistry(h);
+    await seedPack(h, registry, 'sess-a');
+    const context = await sessionStart(registry, h, 'sess-b');
+
+    expect(context).toContain('Hot Context Packs');
+    expect(context, 'excerpt mode injects the body').toContain('sqlite for the local store');
+  });
+
+  it('injects fewer bytes by default than the opt-out excerpt mode', async () => {
+    process.env.COODRA_SESSION_MANIFEST = '0';
     const registry = buildRegistry(h);
     await seedPack(h, registry, 'sess-a');
     const excerptContext = await sessionStart(registry, h, 'sess-b');
 
-    process.env.COODRA_SESSION_MANIFEST = '1';
+    delete process.env.COODRA_SESSION_MANIFEST;
     const manifestContext = await sessionStart(registry, h, 'sess-c');
 
     expect(manifestContext.length).toBeLessThan(excerptContext.length);
@@ -179,6 +183,7 @@ describe('COOD-83 — manifest mode', () => {
 
 describe('COOD-83 — surfaced rows are recorded in BOTH modes', () => {
   it('records a push row per surfaced pack in excerpt mode', async () => {
+    process.env.COODRA_SESSION_MANIFEST = '0';
     const registry = buildRegistry(h);
     await seedPack(h, registry, 'sess-a');
     await sessionStart(registry, h, 'sess-b');
