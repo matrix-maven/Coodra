@@ -161,6 +161,11 @@ export {
   resetProject,
 } from './projects.js';
 export {
+  type DecisionIdResolution,
+  decisionIdWarnings,
+  resolveDecisionIds,
+} from './resolve-decision-ids.js';
+export {
   getRunActiveCapabilities,
   getRunActiveCapabilitiesForSession,
   normalizeRunCapabilities,

@@ -25,6 +25,11 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
   ]);
   const claimedIds = linkedDecisionIds(pack);
   const linkedDecisions = run?.decisions.filter((d) => claimedIds.has(d.id)) ?? [];
+  // COOD-91 — "nothing claimed" and "claimed something that resolves to
+  // nothing" are different states, and only the second is a bug. The old
+  // copy hedged across both because the page could not tell them apart,
+  // which is how three packs full of truncated ids went unnoticed.
+  const unresolvedIds = [...claimedIds].filter((claimed) => !linkedDecisions.some((d) => d.id === claimed));
 
   return (
     <>
@@ -113,13 +118,31 @@ export default async function ContextPackDetailPage({ params }: { params: Promis
                 <h3 className="aside-card__title">Decisions</h3>
                 <span className="card__role">{linkedDecisions.length} claimed</span>
               </div>
-              {linkedDecisions.length === 0 ? (
+              {claimedIds.size === 0 ? (
                 <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6 }}>
-                  No decisions link to this pack (legacy row, or the agent didn&apos;t set{' '}
-                  <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>meta.decisionIds</code> on save).
+                  This pack sets no{' '}
+                  <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>meta.decisionIds</code> — either a
+                  legacy row, or the agent recorded no decisions alongside it.
                 </div>
               ) : (
-                linkedDecisions.map((dec) => <DecisionItem key={dec.id} decision={dec} />)
+                <>
+                  {linkedDecisions.map((dec) => (
+                    <DecisionItem key={dec.id} decision={dec} />
+                  ))}
+                  {unresolvedIds.length > 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--ink-dim)', lineHeight: 1.6, marginTop: 8 }}>
+                      {unresolvedIds.length} claimed id
+                      {unresolvedIds.length === 1 ? '' : 's'} did not resolve to a decision on this run:{' '}
+                      {unresolvedIds.map((claimed, i) => (
+                        <span key={claimed}>
+                          {i > 0 ? ', ' : ''}
+                          <code style={{ fontFamily: 'var(--mono)', color: 'var(--accent)' }}>{claimed}</code>
+                        </span>
+                      ))}
+                      . Usually a truncated id, or a decision recorded on a different run.
+                    </div>
+                  ) : null}
+                </>
               )}
             </div>
           </div>

@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
-import { type DbHandle, markRunCompleted, postgresSchema, sqliteSchema } from '@coodra/db';
+import {
+  type DbHandle,
+  decisionIdWarnings,
+  markRunCompleted,
+  postgresSchema,
+  resolveDecisionIds,
+  sqliteSchema,
+} from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import { and, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -187,6 +194,42 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
         'save_context_pack: workPackSlug not found yet; saving unlinked context pack',
       );
     }
+    // COOD-91 — resolve `meta.decisionIds` before the write, so the
+    // stored meta carries full ids rather than whatever abbreviation the
+    // agent had to hand. Prefix expansion is the common repair: three
+    // packs in COOD-77 stored 8-hex-char prefixes and every link was
+    // silently dead.
+    //
+    // Unresolvable ids are kept as given rather than dropped — the agent
+    // meant something by them, and deleting the evidence would make the
+    // warning unactionable.
+    const decisionIdResolution =
+      input.meta?.decisionIds !== undefined && input.meta.decisionIds.length > 0
+        ? await resolveDecisionIds(deps.db, projectId, input.meta.decisionIds)
+        : null;
+    const warnings = decisionIdResolution === null ? [] : decisionIdWarnings(decisionIdResolution);
+    if (warnings.length > 0) {
+      handlerLogger.info(
+        {
+          event: 'save_context_pack_decision_ids_unresolved',
+          runId: input.runId,
+          sessionId: ctx.sessionId,
+          unresolved: decisionIdResolution?.unresolved,
+          ambiguous: decisionIdResolution?.ambiguous,
+        },
+        'save_context_pack: meta.decisionIds contained ids that resolve to no decision; saving anyway',
+      );
+    }
+    const resolvedMeta =
+      input.meta === undefined
+        ? undefined
+        : decisionIdResolution === null
+          ? input.meta
+          : {
+              ...input.meta,
+              decisionIds: (input.meta.decisionIds ?? []).map((id) => decisionIdResolution.resolved.get(id) ?? id),
+            };
+
     const written = (await ctx.contextPack.write(
       {
         runId: input.runId,
@@ -196,7 +239,7 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       },
       {
         source: 'agent',
-        ...(input.meta !== undefined ? { meta: input.meta } : {}),
+        ...(resolvedMeta !== undefined ? { meta: resolvedMeta } : {}),
         ...(actor !== null ? { createdByUserId: actor.userId, orgId: actor.orgId } : {}),
         ...(workPackId !== null ? { workPackId } : {}),
         ...(input.kind !== undefined ? { kind: input.kind } : {}),
@@ -262,6 +305,7 @@ export function createSaveContextPackHandler(deps: SaveContextPackHandlerDeps) {
       contentExcerpt: written.contentExcerpt,
       source: written.source,
       status: written.status,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   };
 }

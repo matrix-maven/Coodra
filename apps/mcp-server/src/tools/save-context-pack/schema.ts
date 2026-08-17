@@ -114,6 +114,17 @@ const successBranch = z
     contentExcerpt: z.string(),
     source: z.enum(['agent', 'bridge_auto']),
     status: z.enum(['created', 'idempotent_hit', 'upgraded_from_bridge_auto']),
+    /**
+     * COOD-91 — non-fatal problems with a pack that still saved.
+     *
+     * Omitted when there are none, so its presence is the signal. The
+     * pack is never rejected for these: losing a whole recap because one
+     * id was malformed is a worse outcome than a pack with a bad link.
+     */
+    warnings: z
+      .array(z.string().min(1))
+      .optional()
+      .describe('Non-fatal issues, e.g. meta.decisionIds that resolve to no decision. The pack still saved.'),
   })
   .strict();
 
