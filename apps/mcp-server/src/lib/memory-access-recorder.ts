@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type { MemoryAccessPayloadV1 } from '@coodra/cli/lib/outbox';
 import {
   type DbHandle,
@@ -329,7 +331,25 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
       for (const [i, row] of rows.entries()) {
         const payload: MemoryAccessPayloadV1 = {
           v: 1,
-          rowId: `mae_${args.idempotencyKey}_${i}`,
+          // COOD-97 — a UUID per row, minted HERE at enqueue time.
+          //
+          // This used to be `mae_${args.idempotencyKey}_${i}`, but the
+          // registry's `readonly` idempotency key is derived purely from
+          // tool INPUT — `search_packs_nl`'s is project slug plus a
+          // 60-char query prefix, and its own comment says collisions
+          // are "fine for log-correlation (not dedup-critical)". It was
+          // never an event identity. With `insertMemoryAccessEvent`'s
+          // ON CONFLICT DO NOTHING, the second access with the same
+          // inputs was silently dropped: two sessions running one query
+          // wrote one row, and `read_context_pack` — keyed on pack id
+          // alone — collapsed EVERY read of a pack, across all sessions,
+          // forever. That is the numerator of pull-through.
+          //
+          // Retry safety is unaffected. The id lives inside the payload
+          // that `scheduleDurableWrite` persists to `pending_jobs`, so a
+          // redelivered job replays the same id and ON CONFLICT still
+          // does its real job: collapsing retries, not distinct events.
+          rowId: `mae_${randomUUID()}`,
           // pre_resolved: attribution was settled above from session
           // context. Deferring to dispatch would re-introduce exactly
           // the ambiguity this design removes.
