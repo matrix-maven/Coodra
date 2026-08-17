@@ -7,6 +7,12 @@ export {
 } from './constants.js';
 export { contextPackFilename, defaultContextPacksRoot } from './context-pack-paths.js';
 export {
+  classifyImpactTarget,
+  type DecisionTargetType,
+  isElidedPath,
+  looksLikeFilePath,
+} from './decision-targets.js';
+export {
   AppError,
   type AppErrorOptions,
   ConflictError,

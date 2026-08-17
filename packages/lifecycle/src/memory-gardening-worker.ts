@@ -8,7 +8,7 @@ import {
   markDecisionFreshness,
   sqliteSchema,
 } from '@coodra/db';
-import { createLogger } from '@coodra/shared';
+import { createLogger, isElidedPath, looksLikeFilePath } from '@coodra/shared';
 import { eq } from 'drizzle-orm';
 
 /**
@@ -92,36 +92,26 @@ const DEFAULT_BATCH = 200;
  */
 const PATH_PATTERN = /\b((?:apps|packages|docs)\/[A-Za-z0-9._\-/]+\.(?:ts|tsx|js|mjs|json|sql|md|py))\b/g;
 
-/** Elisions like `apps/.../handler.ts` are prose, not a resolvable path. */
-function isElided(path: string): boolean {
-  return path.includes('...') || path.includes('\u2026');
-}
-
 /**
- * Is a `decision_edges` file target actually a path?
+ * COOD-90 moved the real fix upstream: `record_decision` now classifies
+ * each `impact` entry, so prose lands as `target_type = 'concept'` and
+ * never reaches the `'file'` query below. The shared `looksLikeFilePath`
+ * is the same predicate the writer uses.
  *
- * `record_decision`'s `impactTarget()` classifies ANY bare string
- * without a `graph_node:` / `work_pack:` prefix as a file target, so
- * real rows contain prose: "identity", "licensing", "Navbar.tsx and
- * the mobile drawer". Those "files" never existed, so a naive
- * existence check reports every one of them deleted — on this repo
- * that was 5 of 8 stale decisions, all spurious.
- *
- * Gardening therefore verifies only targets that look like paths and
- * leaves the rest alone. The underlying looseness in `impact` is a
- * separate data-quality problem: widening that contract would break
- * existing callers, so it wants its own ticket rather than a silent
- * fix from a background sweep.
+ * It is still applied here, as defence in depth rather than as the
+ * primary filter. Rows predating the backfill, or written by a teammate
+ * running an older client against a shared Postgres, can still carry
+ * prose under `'file'` — and the cost of being wrong is asymmetric: a
+ * skipped check loses one freshness verdict, while a bogus one reports
+ * code deleted that never existed. On this repo that mistake accounted
+ * for 5 of 8 stale decisions, all spurious.
  */
-function looksLikePath(target: string): boolean {
-  return target.includes('/') && /\.[A-Za-z0-9]{1,6}$/.test(target) && !isElided(target);
-}
 
 export function extractReferencedPaths(text: string, limit = 20): readonly string[] {
   const found = new Set<string>();
   for (const match of text.matchAll(PATH_PATTERN)) {
     const path = match[1];
-    if (path !== undefined && !isElided(path)) found.add(path);
+    if (path !== undefined && !isElidedPath(path)) found.add(path);
     if (found.size >= limit) break;
   }
   return [...found];
@@ -235,7 +225,7 @@ export async function runMemoryGardeningOnce(opts: MemoryGardeningOptions): Prom
     }
 
     for (const [decisionId, rawTargets] of filesByDecision) {
-      const files = rawTargets.filter(looksLikePath);
+      const files = rawTargets.filter(looksLikeFilePath);
       if (files.length === 0) {
         // Prose targets, nothing verifiable. Retract any verdict a
         // previous, looser pass left behind — same rule as packs. The

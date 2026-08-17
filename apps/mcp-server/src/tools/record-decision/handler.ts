@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { type DbHandle, postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
-import { createLogger } from '@coodra/shared';
+import { classifyImpactTarget, createLogger, type DecisionTargetType } from '@coodra/shared';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
 import { requireActorIdentityForTeamMode } from '../../lib/actor-identity.js';
@@ -198,7 +198,7 @@ interface EdgeInsert {
   readonly projectId: string;
   readonly fromDecisionId: string;
   readonly edgeType: 'supersedes' | 'affects';
-  readonly targetType: 'decision' | 'file' | 'work_pack' | 'graph_node';
+  readonly targetType: 'decision' | DecisionTargetType;
   readonly targetId: string;
   readonly metadataJson: string | null;
 }
@@ -485,19 +485,18 @@ async function relatedDecisionCandidates(
     }));
 }
 
-function impactTarget(raw: string): { targetType: 'file' | 'work_pack' | 'graph_node'; targetId: string } | null {
-  const value = raw.trim();
-  if (value.length === 0) return null;
-  if (value.startsWith('graph_node:')) {
-    const targetId = value.slice('graph_node:'.length).trim();
-    return targetId.length > 0 ? { targetType: 'graph_node', targetId } : null;
-  }
-  if (value.startsWith('work_pack:')) {
-    const targetId = value.slice('work_pack:'.length).trim();
-    return targetId.length > 0 ? { targetType: 'work_pack', targetId } : null;
-  }
-  return { targetType: 'file', targetId: value };
-}
+/**
+ * COOD-90 — classify, don't blanket-label as `file`.
+ *
+ * This used to return `targetType: 'file'` for every entry without a
+ * `graph_node:` / `work_pack:` prefix, so prose an agent supplied in
+ * good faith (`identity`, `licensing`) was stored as if it named a
+ * path. Readers then had to defend themselves against their own writer.
+ *
+ * The shared classifier is the single definition of path-shape, used
+ * here and by the gardening worker that consumes the rows.
+ */
+const impactTarget = classifyImpactTarget;
 
 interface InsertResult {
   readonly inserted: boolean;
