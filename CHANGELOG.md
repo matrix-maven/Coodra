@@ -4,6 +4,14 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.11] - 2026-08-18
+
+### Changed
+
+- Refresh public documentation for the plugin-first Coodra architecture, with `docs/index.html` as the single source of truth and the repository root `index.html` reduced to a redirect shim.
+- Document Work Packs as a first-class concept, including provider-neutral sync through Jira, Linear-style, GitHub/GitLab, or manual workflows via native provider MCPs.
+- Correct current documentation for lifecycle events, memory access telemetry, Graphify/wiki, CLI commands, data model counts, CI jobs, functional test counts, and environment variables.
+
 ## [0.5.10] - 2026-08-13
 
 ### Fixed

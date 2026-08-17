@@ -514,6 +514,38 @@
   .code .ci { color: #ddd; }
   .code .cn { color: var(--ink); font-weight: 500; }
 
+  /* ============== DIAGRAMS ============== */
+  .diagram {
+    margin: 26px 0 32px;
+    border: 1px solid var(--rule);
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .diagram__head {
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .diagram .mermaid {
+    display: flex;
+    justify-content: center;
+    min-height: 260px;
+    padding: 24px;
+    background: #0d130d;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .diagram .mermaid svg {
+    max-width: 100%;
+    height: auto;
+  }
+
   /* ============== TABLE ============== */
   .table-wrap {
     margin: 0 0 28px 0;
@@ -933,12 +965,12 @@
         <circle cx="7" cy="7" r="5"/>
         <line x1="11" y1="11" x2="14" y2="14"/>
       </svg>
-      <input id="docs-search" type="text" placeholder="Search the docs — runs, hooks, policy, init…" autocomplete="off">
+      <input id="docs-search" type="text" placeholder="Search the docs — plugins, lifecycle, graphify, wiki…" autocomplete="off">
       <span class="topbar__search__kbd">⌘ K</span>
     </label>
   </div>
   <div class="topbar__right">
-    <span class="topbar__version">v 0.2.0-beta.3</span>
+    <span class="topbar__version">v 0.5.11</span>
     <a href="#contributing">Contribute</a>
     <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
   </div>
@@ -964,7 +996,9 @@
       <div class="sidebar__group-title"><span class="sidebar__group-num">02</span>Core concepts</div>
       <a class="sidebar__link" href="#concepts"><span class="sidebar__link__dot"></span>The vocabulary</a>
       <a class="sidebar__link" href="#runs-sessions"><span class="sidebar__link__dot"></span>Runs &amp; sessions</a>
-      <a class="sidebar__link" href="#packs"><span class="sidebar__link__dot"></span>Feature &amp; Context Packs</a>
+      <a class="sidebar__link" href="#memory-model"><span class="sidebar__link__dot"></span>Memory model</a>
+      <a class="sidebar__link" href="#work-packs"><span class="sidebar__link__dot"></span>Work Packs</a>
+      <a class="sidebar__link" href="#packs"><span class="sidebar__link__dot"></span>Recipes &amp; Context Packs</a>
       <a class="sidebar__link" href="#decisions"><span class="sidebar__link__dot"></span>Decisions</a>
       <a class="sidebar__link" href="#policy"><span class="sidebar__link__dot"></span>Policy &amp; kill switches</a>
     </div>
@@ -972,7 +1006,7 @@
     <div class="sidebar__group">
       <div class="sidebar__group-title"><span class="sidebar__group-num">03</span>Architecture</div>
       <a class="sidebar__link" href="#topology"><span class="sidebar__link__dot"></span>Process topology</a>
-      <a class="sidebar__link" href="#lifecycle"><span class="sidebar__link__dot"></span>Hook lifecycle</a>
+      <a class="sidebar__link" href="#lifecycle"><span class="sidebar__link__dot"></span>MCP lifecycle</a>
       <a class="sidebar__link" href="#data-model"><span class="sidebar__link__dot"></span>Data model</a>
       <a class="sidebar__link" href="#storage"><span class="sidebar__link__dot"></span>Storage &amp; state</a>
       <a class="sidebar__link" href="#sync"><span class="sidebar__link__dot"></span>Sync &amp; multi-tenancy</a>
@@ -981,8 +1015,8 @@
     <div class="sidebar__group">
       <div class="sidebar__group-title"><span class="sidebar__group-num">04</span>Reference</div>
       <a class="sidebar__link" href="#cli"><span class="sidebar__link__dot"></span>CLI commands</a>
-      <a class="sidebar__link" href="#mcp-tools"><span class="sidebar__link__dot"></span>MCP tools (20)</a>
-      <a class="sidebar__link" href="#hook-events"><span class="sidebar__link__dot"></span>Hook events</a>
+      <a class="sidebar__link" href="#mcp-tools"><span class="sidebar__link__dot"></span>MCP tools (26)</a>
+      <a class="sidebar__link" href="#hook-events"><span class="sidebar__link__dot"></span>Lifecycle events</a>
       <a class="sidebar__link" href="#config"><span class="sidebar__link__dot"></span>Configuration</a>
     </div>
 
@@ -1013,10 +1047,10 @@
 
     <!-- ============ HERO ============ -->
     <section class="hero" id="welcome" data-screen-label="00 Hero">
-      <div class="hero__eyebrow">Coodra · Documentation · v 0.2.0-beta.3 · 2026</div>
-      <h1 class="hero__title">Master the <em>context</em>.</h1>
+      <div class="hero__eyebrow">Coodra · Documentation · v 0.5.11 · 2026</div>
+      <h1 class="hero__title">Supercharge your <em>coding agent</em>.</h1>
       <p class="hero__lede">
-        Coodra is a local-first MCP server platform that gives AI coding agents <em style="color:var(--accent);font-style:italic">project context, memory across sessions, and policy enforcement</em> — so they stop coding blind. This is the complete reference, from your first <code class="code--inline">coodra init</code> to merging your first PR.
+        Coodra is a local-first plugin architecture for AI coding agents: native agent plugins install Coodra MCP, the <code>lifecycle_event</code> hook tool, managed Graphify, recipes, Deep Wiki, durable memory, and policy governance so sessions start with context and end with evidence.
       </p>
       <div class="hero__meta">
         <div class="hero__meta__cell">
@@ -1043,26 +1077,26 @@
         </div>
         <div class="section__head__aside">Read first<br>~3 min</div>
       </div>
-      <p class="section__lede">A coordination layer between human architects and AI coding agents — Claude Code, Codex. It runs as a local-first <span style="color:var(--accent)">MCP (Model Context Protocol)</span> server and feeds every agent session three things, automatically.</p>
+      <p class="section__lede">A coordination layer between human architects and AI coding agents — Claude Code, Codex, Cursor, Devin, Antigravity, and MCP-speaking clients. It runs locally, installs through native plugins, and routes lifecycle events through Coodra's <span style="color:var(--accent)">MCP (Model Context Protocol)</span> server.</p>
 
       <div class="grid-3">
         <div class="card">
-          <div class="card__eyebrow">/ pack</div>
-          <h3 class="card__title">Feature <em>Packs</em></h3>
-          <p class="card__body">The architectural blueprint for the module the agent is touching. Injected at session start so the agent reads spec → tech-stack → implementation order <em>before</em> writing code.</p>
-          <div class="card__foot">Injected via <strong>SessionStart</strong> hook</div>
+          <div class="card__eyebrow">/ plugin</div>
+          <h3 class="card__title">Native <em>agent plugins</em></h3>
+          <p class="card__body">Generated plugin bundles install the Coodra MCP server, the <code>lifecycle_event</code> hook tool, managed Graphify MCP entry, and task skills for context, recipes, wiki, Work Packs, and graph-aware development.</p>
+          <div class="card__foot">Claude · Codex · Cursor · Devin · Antigravity</div>
         </div>
         <div class="card">
           <div class="card__eyebrow">/ memory</div>
           <h3 class="card__title">Context <em>Packs</em></h3>
-          <p class="card__body">The durable record of every decision, file change, and policy event from past sessions. One pack per run, queryable in natural language. Cross-session memory the agent can pull on.</p>
-          <div class="card__foot">14 SQLite tables · sqlite-vec</div>
+          <p class="card__body">Context Packs, decisions, Work Packs, wiki pages, recipes, and run history live in SQLite/Postgres. Agents see a manifest at boot, then pull the specific memory they need through MCP tools.</p>
+          <div class="card__foot">Measurable pull-through, not prompt stuffing</div>
         </div>
         <div class="card">
           <div class="card__eyebrow">/ guardrail</div>
           <h3 class="card__title">Policy <em>enforcement</em></h3>
-          <p class="card__body">Pre-tool-use checks recorded in an append-only audit trail. <code style="font-family:var(--mono);font-size:0.85em;color:var(--accent)">deny writes to&nbsp;.env.production</code>, ask before merging, fail-open on engine fault.</p>
-          <div class="card__foot">Cockatiel breaker · 100ms timeout</div>
+          <p class="card__body">Pre-tool-use checks, kill switches, native advisory rules, and audit rows keep humans in charge. Coodra returns a verdict only when it has a rule; otherwise the agent's native permission system remains authority.</p>
+          <div class="card__foot">Fail-open engine · append-only audit</div>
         </div>
       </div>
 
@@ -1073,7 +1107,7 @@
         <div class="kv">
           <div class="kv__row">
             <div class="kv__k">Local-first</div>
-            <div class="kv__v">Everything runs on your laptop with zero network. SQLite is the primary store in <em>both</em> solo and team mode. <small>apps/mcp-server/src/lib/db.ts — only call site uses <code style="color:var(--accent)">createDb({ kind: 'local' })</code></small></div>
+            <div class="kv__v">Everything useful runs on your laptop first. SQLite is the hot-path store in solo mode and remains the local write path in team mode; sync is asynchronous.</div>
           </div>
           <div class="kv__row">
             <div class="kv__k">Fail-open</div>
@@ -1085,7 +1119,7 @@
           </div>
           <div class="kv__row">
             <div class="kv__k">Production-grade</div>
-            <div class="kv__v">Every module ships complete or it doesn't merge. No placeholder surfaces. No mocked endpoints to make the UI render. Linear build, start to finish. <small>CLAUDE.md:8-10</small></div>
+            <div class="kv__v">Plugin files, MCP registrations, wiki pages, Graphify artifacts, and package contents are treated as real product surfaces. If a user can depend on it, tests and docs should name it.</div>
           </div>
           <div class="kv__row">
             <div class="kv__k">Bind to 127.0.0.1</div>
@@ -1104,7 +1138,7 @@
         </div>
         <div class="section__head__aside">Solo mode<br>Zero network</div>
       </div>
-      <p class="section__lede">If you have Node 22, pnpm, and a Claude Code / Codex install — you're three commands away. Solo mode is the default after <code>coodra init</code>.</p>
+      <p class="section__lede">If you have Node 22, pnpm, and a supported agent installed locally, you are a few commands away. Solo mode is the default after <code>coodra init</code>; native plugins carry the MCP and lifecycle wiring.</p>
 
       <div class="steps">
         <div class="step">
@@ -1137,7 +1171,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="step__num">/02</div>
           <div class="step__body">
             <h4>Initialise the <em>project</em>.</h4>
-            <p>From your repo root, run <code>coodra init</code>. It registers the project under <code>.coodra/</code>, seeds the default policy, and leaves repo-root <code>.mcp.json</code> to the user. Native Coodra plugins carry the MCP server and hook wiring.</p>
+            <p>From your repo root, run <code>coodra init</code>. It registers the project under <code>.coodra/</code>, seeds the default policy, creates recipe/wiki/graphify/Work Pack directories, and leaves repo-root MCP config user-owned.</p>
             <div class="code__head"><span>repo root</span><button class="code__head__copy" data-copy-target="code-init">copy</button></div>
 <pre class="code" id="code-init"><span class="ck">coodra</span> init
 <span class="cm"># picks the slug from git remote, asks which IDE,
@@ -1146,6 +1180,9 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
 <span class="cm"># What it creates:</span>
 .coodra/config.json   <span class="cp">{"projectSlug":"my-app"}</span>
 .coodra/manifest.json <span class="cp">project registration ledger</span>
+.coodra/recipes/      <span class="cp">agent recipe workspace</span>
+.coodra/graphify/     <span class="cp">managed structural graph output</span>
+.coodra/wiki/         <span class="cp">Deep Wiki grounding + mirrors</span>
 ~/.coodra/data.db     <span class="cp">SQLite primary store</span>
 ~/.coodra/.env        <span class="cp">solo-mode env, ready to grow into team</span></pre>
           </div>
@@ -1155,16 +1192,15 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="step__num">/03</div>
           <div class="step__body">
             <h4>Start the <em>daemons</em>.</h4>
-            <p>One command brings up the MCP server (3100), hooks bridge (3101), and the web UI on 3001. Sync-daemon stays asleep in solo mode. Add <code>--no-web</code> to skip the dashboard, <code>--foreground</code> to tail logs.</p>
+            <p>One command brings up the local MCP server and web UI. Native plugins report SessionStart, prompt, tool, compaction, and SessionEnd events through the Coodra MCP hook tool, <code>lifecycle_event</code>. Sync-daemon stays asleep in solo mode.</p>
             <div class="code__head"><span>terminal · launch</span><button class="code__head__copy" data-copy-target="code-start">copy</button></div>
 <pre class="code" id="code-start"><span class="ck">coodra</span> start
 <span class="cm"># → mcp-server   listening on 127.0.0.1:3100</span>
-<span class="cm"># → hooks-bridge listening on 127.0.0.1:3101</span>
 <span class="cm"># → web-v2       http://localhost:3001</span>
 
 <span class="cm"># Confirm everything's alive</span>
 <span class="ck">coodra</span> status
-<span class="ck">coodra</span> doctor          <span class="cm"># 11 essential checks (38 with --full)</span></pre>
+<span class="ck">coodra</span> doctor          <span class="cm"># 12 essential checks (36 with --full)</span></pre>
           </div>
         </div>
 
@@ -1172,7 +1208,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="step__num">/04</div>
           <div class="step__body">
             <h4>Open the agent &amp; <em>watch</em>.</h4>
-            <p>Launch Claude Code in your repo. The <code>SessionStart</code> hook fires <code>POST /v1/hooks/claude-code</code>, opens a <code>runs</code> row, captures <code>base_sha</code>, and returns a Feature Pack body in the <code>additionalContext</code> field. Every tool use after that is gated by policy and logged in <code>run_events</code>.</p>
+            <p>Run <code>coodra agent add &lt;agent&gt;</code> or <code>coodra agent repair &lt;agent&gt;</code>, then launch your agent in the repo. <code>SessionStart</code> reaches Coodra through the plugin, opens a <code>runs</code> row, captures <code>base_sha</code>, and returns a compact manifest of recipes, decisions, context, and project state. The agent pulls bodies through MCP when needed.</p>
             <p>Visit <code>http://localhost:3001/runs</code> to watch the trace populate live.</p>
           </div>
         </div>
@@ -1225,7 +1261,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
             </tr></thead>
             <tbody>
               <tr><td>Local SQLite primary store</td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
-              <tr><td>MCP server + hooks bridge (loopback)</td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
+              <tr><td>Native plugin + Coodra MCP lifecycle</td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
               <tr><td>Web UI on <code>:3001</code></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
               <tr><td>Sync-daemon boots</td><td><span class="badge">NO</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>YES</span></td></tr>
               <tr><td>Clerk auth · JWT verification</td><td><span class="badge">BYPASS</span></td><td><span class="badge badge--ok"><span class="badge__dot"></span>REQUIRED</span></td></tr>
@@ -1249,7 +1285,30 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
         </div>
         <div class="section__head__aside">Read this once.<br>It pays back.</div>
       </div>
-      <p class="section__lede">Six nouns carry the whole system. Internalise these and the rest of the docs read themselves.</p>
+      <p class="section__lede">These nouns carry the whole system. Internalise them and the rest of the docs read like an implementation map: agent events enter through MCP, memory lives in the database, Work Packs bind issue work to evidence, Graphify supplies the code graph, and the Deep Wiki turns that structure into navigable documentation.</p>
+
+      <div class="diagram">
+        <div class="diagram__head">developer vocabulary map</div>
+<pre class="mermaid">flowchart TD
+  Agent["Coding agent"] --> Plugin["Native Coodra plugin"]
+  Plugin --> Event["Lifecycle event"]
+  Event --> Tool["lifecycle_event MCP tool"]
+  Tool --> Run["Run"]
+  Run --> Events[("run_events")]
+  Tool --> Policy["Policy engine"]
+  Policy --> PolicyRows[("policy_decisions")]
+  Run --> Memory["Coodra memory"]
+  Memory --> Packs["Context Packs"]
+  Memory --> Decisions["Decisions"]
+  Memory --> Work["Work Packs"]
+  Work --> External["External issue or PR"]
+  Graph["Graphify code graph"] --> Wiki["Deep Wiki"]
+  Graph --> Decisions
+  Wiki --> Memory
+  Packs --> Future["Future agent session"]
+  Decisions --> Future
+  Work --> Future</pre>
+      </div>
 
       <div class="kv">
         <div class="kv__row">
@@ -1261,16 +1320,44 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="kv__v">A row in the <code>runs</code> table — agent type, mode, status, base_sha, created_by_user_id, project_id. Bound to a session by <code>get_run_id</code>; reused across <code>get_run_id</code> calls within the same session. <small>One run per session per project</small></div>
         </div>
         <div class="kv__row">
-          <div class="kv__k">context pack</div>
-          <div class="kv__v">A markdown summary of one run, written at session end. Stored in <code>context_packs</code> (one row per run, UNIQUE constraint), mirrored to <code>~/.coodra/packs/&lt;date&gt;-&lt;runId&gt;.md</code> for grep. <small>source: <code>'agent'</code> | <code>'bridge_auto'</code></small></div>
+          <div class="kv__k">lifecycle event</div>
+          <div class="kv__v">A normalized event from a native agent plugin: <code>SessionStart</code>, <code>UserPromptSubmit</code>, <code>PreToolUse</code>, <code>PostToolUse</code>, <code>PostCompact</code>, <code>Stop</code>, or <code>SessionEnd</code>. Events resolve runs, refresh context, check policy, record activity, and finalize evidence.</div>
         </div>
         <div class="kv__row">
-          <div class="kv__k">feature pack</div>
+          <div class="kv__k">hook MCP tool</div>
+          <div class="kv__v"><code>lifecycle_event</code>. The Coodra MCP tool native plugins call for lifecycle events. It is the developer entrypoint for run creation, prompt-time memory refresh, tool policy checks, event recording, compaction bookkeeping, and SessionEnd finalization.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">memory</div>
+          <div class="kv__v">DB-backed, MCP-mediated project knowledge: Context Packs, Decisions, Work Pack links, wiki pages, recipes, manifests, policy teaching, and access telemetry. Coodra records explicit SessionStart manifest and policy-reason push rows, plus pull rows when the agent retrieves memory through instrumented MCP tools.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">context pack</div>
+          <div class="kv__v">A durable markdown summary of one run: what changed, what was tested, what remains open, and what a future agent should know. Stored in <code>context_packs</code>, linked to runs and optionally Work Packs, searchable by MCP, and created by the agent or by SessionEnd lifecycle fallback.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">work pack</div>
+          <div class="kv__v">An issue-bound implementation record under <code>.coodra/work-packs/&lt;slug&gt;/</code> and the <code>work_packs</code> tables. Work Packs connect external work items from Jira, Linear-style planning tools, GitHub/GitLab, or manual sources to local plan/status, runs, decisions, and Context Packs.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">agent recipe</div>
           <div class="kv__v">Reusable task guidance, authored by humans or agents in <code>.coodra/recipes/&lt;slug&gt;/</code>. Pulled on demand via <code>list_recipes</code> / <code>get_recipe</code> when a task matches a recipe's trigger — not auto-injected.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">decision</div>
-          <div class="kv__v">A structured architectural choice — description, rationale, alternatives, reversibility — recorded by the agent mid-run. Idempotent on <code>sha256(description)[:32]</code>. <small>Surfaced to the next session via <code>recent-decisions</code> on UserPromptSubmit</small></div>
+          <div class="kv__v">A structured architectural choice — description, rationale, alternatives, reversibility — recorded by the agent mid-run. Idempotent on <code>sha256(description)[:32]</code>. <small>Surfaced to later sessions through lifecycle relevance refresh</small></div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">code graph</div>
+          <div class="kv__v">The Graphify structural graph managed under <code>.coodra/graphify/out/</code>: <code>graph.json</code>, <code>GRAPH_REPORT.md</code>, and <code>graph.html</code>. It is queried through a separate Graphify MCP server and used for file-neighborhood context, wiki planning, and graph-backed decision lookup.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">deep wiki</div>
+          <div class="kv__v">A two-pass architecture wiki. <code>coodra wiki build</code> creates grounding from source, Graphify, and prior Coodra memory; an agent saves structure and pages through <code>wiki_save_structure</code> / <code>wiki_save_page</code>; <code>wiki_ask</code> retrieves authored pages for future work.</div>
+        </div>
+        <div class="kv__row">
+          <div class="kv__k">policy</div>
+          <div class="kv__v">The pre-tool governance layer: kill switches, rules, grants, native advisory projections, path matching, just-in-time decision teaching, and fail-open behavior. If Coodra has no matching rule, it records audit context and leaves authority with the agent's native permission system.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">policy decision</div>
@@ -1297,38 +1384,221 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
         <p class="p">Every <code>run_events</code> row, every <code>policy_decisions</code> row, and the eventual <code>context_packs</code> row hang off this <code>runId</code>. <code>run_events.run_id</code> uses <code>ON DELETE SET NULL</code> so PreToolUse events that fire before the run exists still land — they just attach later when the row appears.</p>
       </div>
 
+      <!-- lifecycle vocabulary -->
+      <div class="sub" id="concept-lifecycle">
+        <h3 class="sub__title"><span class="sub__title__index">/04.2</span>Lifecycle <em>events</em></h3>
+        <p class="sub__lede">Lifecycle events are not user-facing commands. They are the machine-readable contract between a native agent plugin and Coodra's MCP server.</p>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Event</th>
+              <th>Primary Coodra behavior</th>
+              <th>Developer mental model</th>
+            </tr></thead>
+            <tbody>
+              <tr><td><code>SessionStart</code></td><td>Open or resume a run, capture <code>base_sha</code>, return session contract and memory manifest.</td><td>Boot context.</td></tr>
+              <tr><td><code>UserPromptSubmit</code></td><td>Perform bounded relevance refresh using prompt, file, Work Pack, FTS/BM25, and Graphify signals.</td><td>Just-in-time context.</td></tr>
+              <tr><td><code>PreToolUse</code></td><td>Evaluate kill switches and policy rules, then write <code>policy_decisions</code>.</td><td>Govern before action.</td></tr>
+              <tr><td><code>PostToolUse</code></td><td>Record the event, external MCP activity, latency/error metadata, and pull-side memory access where applicable.</td><td>Evidence after action.</td></tr>
+              <tr><td><code>PostCompact</code></td><td>Advance baseline generation; later prompt-time context belongs to the new generation.</td><td>Keep post-compaction pull-through attribution honest.</td></tr>
+              <tr><td><code>Stop</code> · <code>SessionEnd</code></td><td>Finalize the run, capture diff, write fallback Context Pack, update Work Packs, and trigger safe graph refreshes when available.</td><td>Close the evidence loop.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="p">The implementation center is <code>apps/mcp-server/src/tools/lifecycle-event/handler.ts</code>, with reusable finalization and memory workers in <code>packages/lifecycle/</code>. The important boundary is that the plugin reports events; Coodra normalizes, records, and answers through MCP.</p>
+      </div>
+
+      <!-- memory -->
+      <div class="sub" id="memory-model">
+        <h3 class="sub__title"><span class="sub__title__index">/04.3</span><em>Memory</em> model</h3>
+        <p class="sub__lede">Coodra memory exists to make future agent sessions start with project history, architectural intent, and task evidence without stuffing the whole past into every prompt.</p>
+
+        <div class="diagram">
+          <div class="diagram__head">memory save and retrieval loop</div>
+<pre class="mermaid">flowchart TD
+  Session["Agent session"] --> Save["Save memory"]
+  Save --> CP["save_context_pack"]
+  Save --> DEC["record_decision"]
+  Save --> WP["work_pack_upsert / update"]
+  Save --> WIKI["wiki_save_page"]
+  CP --> Store[("SQLite / Postgres")]
+  DEC --> Store
+  WP --> Store
+  WIKI --> Store
+  Store --> StartSurface["SessionStart manifest surfaces ids and titles"]
+  Store --> PromptSurface["UserPromptSubmit relevance refresh surfaces context"]
+  Store --> PolicyTeach["Policy reason teaches motivating decisions"]
+  StartSurface --> PushRows["push rows: session_start_manifest"]
+  PolicyTeach --> PushRows2["push rows: policy_reason"]
+  PushRows --> Access[("memory_access_events")]
+  PushRows2 --> Access
+  StartSurface --> AgentPull["Agent pulls bodies through MCP tools"]
+  PromptSurface --> AgentPull
+  AgentPull --> Tools["read_context_pack / search / query / wiki_ask / get_recipe"]
+  Tools --> Access[("memory_access_events")]
+  Access --> Rollups["memory_access_daily / memory_cohorts"]
+  Store --> Freshness["memory gardening marks freshness"]
+  Freshness --> AgentPull</pre>
+        </div>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card__eyebrow">Purpose</div>
+            <h4 class="card__title">Continuity, not <em>prompt stuffing</em></h4>
+            <p class="card__body">Memory gives the next agent the project state it cannot infer from the current prompt: what happened, why decisions exist, which issue is active, what files are implicated, and where the deeper explanation lives.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">Storage</div>
+            <h4 class="card__title">DB-backed and <em>MCP-mediated</em></h4>
+            <p class="card__body">Solo mode writes to <code>~/.coodra/data.db</code>. Team mode keeps the same local hot path and syncs to operator-owned Postgres. Agents read and write through MCP tools, not by mutating markdown mirrors directly.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">Measure</div>
+            <h4 class="card__title">Usefulness is <em>observable</em></h4>
+            <p class="card__body">Coodra records two push channels today — <code>session_start_manifest</code> and <code>policy_reason</code> — plus pull rows from instrumented retrieval tools. Pull-through, stale-at-access share, bytes, latency, and actor breakdowns show whether memory helped or merely existed.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Memory surface</th>
+              <th>How it is saved</th>
+              <th>How it is retrieved</th>
+              <th>What it is for</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Context Packs</td><td><code>save_context_pack</code> or SessionEnd fallback.</td><td><code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>.</td><td>Resume what changed, what was tested, and what remains open.</td></tr>
+              <tr><td>Decisions</td><td><code>record_decision</code> with rationale, alternatives, reversibility, and impact.</td><td><code>query_decisions</code>, <code>query_decisions_by_file</code>, prompt-time recent decisions.</td><td>Preserve why an architecture choice exists.</td></tr>
+              <tr><td>Work Packs</td><td>Agent fetches provider state through that provider's native MCP, then persists a local map with <code>work_pack_upsert</code> / <code>work_pack_update</code>.</td><td><code>work_pack_status</code>; Work Pack filters on packs and decisions.</td><td>Resume Jira, Linear-style, PR, or manual implementation work with linked evidence.</td></tr>
+              <tr><td>Deep Wiki</td><td><code>wiki_save_structure</code> and <code>wiki_save_page</code> after grounded authoring.</td><td><code>wiki_ask</code> and local <code>coodra wiki ask</code>.</td><td>Explain subsystems and architecture from source, Graphify, and prior memory.</td></tr>
+              <tr><td>Recipes</td><td><code>.coodra/recipes/&lt;slug&gt;/</code> plus recipe index metadata.</td><td><code>list_recipes</code>, <code>get_recipe</code>, <code>get_recipe_file</code>.</td><td>Reusable task guidance before work starts.</td></tr>
+              <tr><td>Policy teaching</td><td>Active decisions linked to affected paths and policy audit context.</td><td>Pre-tool policy responses and decision lookup.</td><td>Teach the agent why a permission prompt or denial matters.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p class="p">At session start, Coodra can surface a compact manifest and bounded recent context, and that manifest is recorded as <code>session_start_manifest</code> push rows. On prompt submit, it performs a narrower relevance refresh using exact issue/file signals, Work Pack hints, FTS/BM25, and Graphify-backed file-decision lookup; that context is surfaced to the agent, but it does not currently create push rows. The agent then pulls full bodies only when useful, and pull access is recorded from instrumented tool outputs rather than guessed from the prompt.</p>
+        <p class="p p--dim">Freshness is layered on top of memory instead of rewriting it. Gardening can mark a pack or decision stale, unverified, or fresh and can propose repairs, but it does not invisibly edit the historical record. That keeps Coodra useful as both memory and audit trail.</p>
+      </div>
+
+      <!-- work packs -->
+      <div class="sub" id="work-packs">
+        <h3 class="sub__title"><span class="sub__title__index">/04.4</span><em>Work</em> Packs</h3>
+        <p class="sub__lede">A Work Pack is Coodra's local, evidence-backed representation of a unit of implementation work. It can mirror Jira, Linear-style planning tools, GitHub/GitLab PRs, or a manual task, but provider reads and writes stay in the provider's own native MCP.</p>
+
+        <div class="grid-3">
+          <div class="card">
+            <div class="card__eyebrow">Scope</div>
+            <h4 class="card__title">Issue-bound <em>work state</em></h4>
+            <p class="card__body">Lives in <code>.coodra/work-packs/&lt;slug&gt;/</code> and <code>work_packs</code>. It carries normalized Coodra type/status, provider-native issue type/status, local spec, implementation notes, sync notes, relationships, and metadata.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">Provider</div>
+            <h4 class="card__title">Native MCP <em>handoff</em></h4>
+            <p class="card__body">The agent fetches fresh Jira or Linear-style planning data through that provider's MCP, then calls <code>work_pack_upsert</code> to persist the local map. Coodra stores provider keys and evidence; it does not own provider credentials.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">Resume</div>
+            <h4 class="card__title">Context with <em>evidence</em></h4>
+            <p class="card__body"><code>work_pack_status</code> returns local Work Pack state for the agent, while Context Packs and Decisions linked to the same pack show what changed, why, and what remains open.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr>
+              <th>Moment</th>
+              <th>Agent action</th>
+              <th>Coodra record</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>Import</td><td>Read Jira, Linear-style, GitHub/GitLab, or manual task details through the relevant MCP or local source.</td><td><code>external_work_items</code>, <code>work_packs</code>, <code>work_pack_external_links</code>.</td></tr>
+              <tr><td>Plan</td><td>Write implementation notes, relationships, and normalized type/status through <code>work_pack_upsert</code>.</td><td><code>spec_markdown</code>, <code>implementation_markdown</code>, <code>sync_markdown</code>, relationship rows.</td></tr>
+              <tr><td>Work</td><td>Save Context Packs and Decisions with Work Pack slugs attached.</td><td><code>work_pack_context_pack_links</code>, <code>work_pack_decision_links</code>, latest activity rollup.</td></tr>
+              <tr><td>Refresh</td><td>Fetch fresh provider state through the provider MCP, then persist updated local state.</td><td><code>sync_events</code>, provider status fields, <code>local_ahead</code> / <code>local_only</code> sync state.</td></tr>
+              <tr><td>Resume</td><td>Call <code>work_pack_status</code>, then pull linked packs/decisions/context bodies only when needed.</td><td>Local resume surface plus memory pull-through telemetry where instrumented memory tools are used.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <div class="callout__icon">Rule</div>
+          <div class="callout__body">
+            <p>Provider MCPs are the authority for external systems. Coodra is the local execution memory: it remembers what the agent understood, what it changed, which evidence is linked, and what should be resumed next.</p>
+          </div>
+        </div>
+      </div>
+
       <!-- packs -->
       <div class="sub" id="packs">
-        <h3 class="sub__title"><span class="sub__title__index">/04.2</span>Feature Packs &amp; <em>Context Packs</em></h3>
-        <p class="sub__lede">The two are easy to confuse. They sit on opposite ends of the run.</p>
+        <h3 class="sub__title"><span class="sub__title__index">/04.5</span>Recipes &amp; <em>Context Packs</em></h3>
+        <p class="sub__lede">These three are easy to confuse because all three help an agent continue work. They differ by ownership and time: recipes guide before work, Work Packs scope issue-bound work, and Context Packs preserve after-work evidence.</p>
 
-        <div class="grid-2">
+        <div class="grid-3">
           <div class="card">
             <div class="card__eyebrow">→ before</div>
-            <h4 class="card__title">Feature Pack</h4>
+            <h4 class="card__title">Agent Recipe</h4>
             <p class="card__body">Human- or agent-authored. Lives in <code>.coodra/recipes/&lt;slug&gt;/</code>. Reusable guidance the agent pulls on demand via <code>list_recipes</code> / <code>get_recipe</code> when a task matches its trigger.</p>
             <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> human → agent.</p>
           </div>
           <div class="card">
+            <div class="card__eyebrow">↔ during</div>
+            <h4 class="card__title">Work Pack</h4>
+            <p class="card__body">Issue-bound implementation state. Lives in <code>.coodra/work-packs/&lt;slug&gt;/</code> and <code>work_packs</code>, with links to runs, decisions, Context Packs, relationships, and external work items fetched through Jira, Linear-style, GitHub/GitLab, or manual workflows.</p>
+            <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> issue ↔ agent ↔ evidence.</p>
+          </div>
+          <div class="card">
             <div class="card__eyebrow">← after</div>
             <h4 class="card__title">Context Pack</h4>
-            <p class="card__body">Agent-authored (or bridge-auto on session end). One row per run in <code>context_packs</code> with title, content, content_excerpt, meta. Queryable cross-session via <code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>.</p>
+            <p class="card__body">Agent-authored (or lifecycle fallback on session end). One row per run in <code>context_packs</code> with title, content, content_excerpt, meta. Queryable cross-session via <code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>.</p>
             <p class="card__body" style="margin-top:10px"><strong style="color:var(--accent)">Direction:</strong> agent → future agents.</p>
           </div>
         </div>
 
         <div class="callout">
-          <div class="callout__icon">Pattern</div>
+          <div class="callout__icon">Memory</div>
           <div class="callout__body">
-            <p>If a saved pack has <code>source: 'agent'</code> and a new <code>save_context_pack</code> call arrives with the same <code>runId</code>, the response is <code>status: 'idempotent_hit'</code>. If the existing pack was bridge-auto, it gets <code>'upgraded_from_bridge_auto'</code> in place.</p>
+            <p>Coodra memory is not a prompt dump. SessionStart can surface a compact manifest; the agent then pulls bodies through instrumented tools such as <code>read_context_pack</code>, <code>search_packs_nl</code>, <code>list_context_packs</code>, <code>query_decisions</code>, <code>query_decisions_by_file</code>, <code>wiki_ask</code>, <code>list_recipes</code>, and <code>get_recipe</code>. Work Pack state is retrieved through <code>work_pack_status</code>, but that tool is a resume surface rather than a pull-through telemetry source today.</p>
+            <p>If a saved pack has <code>source: 'agent'</code> and a new <code>save_context_pack</code> call arrives with the same <code>runId</code>, the response is <code>status: 'idempotent_hit'</code>. Automatically generated packs can be upgraded in place when the agent later provides richer context for the same run.</p>
+          </div>
+        </div>
+
+        <div class="callout">
+          <div class="callout__icon">Sync</div>
+          <div class="callout__body">
+            <p>Work Packs are provider-neutral on purpose. Coodra does not own Jira or Linear credentials and does not call those APIs directly; the coding agent uses the relevant native MCP to fetch or update the planning tool, then calls Coodra's Work Pack tools to persist the local implementation map and evidence links.</p>
           </div>
         </div>
       </div>
 
+      <!-- graph and wiki -->
+      <div class="sub" id="graph-wiki">
+        <h3 class="sub__title"><span class="sub__title__index">/04.6</span>Code graph &amp; <em>Deep Wiki</em></h3>
+        <p class="sub__lede">Graphify and Deep Wiki are connected, but they are not the same artifact. Graphify maps structure; the wiki explains it.</p>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card__eyebrow">Graphify</div>
+            <h4 class="card__title">Structural <em>code graph</em></h4>
+            <p class="card__body">Coodra manages Graphify output at <code>.coodra/graphify/out/</code>. The current graph provides <code>graph.json</code>, <code>GRAPH_REPORT.md</code>, and <code>graph.html</code>; native plugins wire a separate Graphify MCP server beside Coodra MCP.</p>
+          </div>
+          <div class="card">
+            <div class="card__eyebrow">Deep Wiki</div>
+            <h4 class="card__title">Grounded <em>architecture docs</em></h4>
+            <p class="card__body"><code>coodra wiki build</code> creates <code>grounding.md</code> and <code>job.md</code> from source, Graphify communities, god nodes, and prior recorded work. Pages are saved through MCP and mirrored under <code>.coodra/wiki/&lt;slug&gt;/md/</code>.</p>
+          </div>
+        </div>
+
+        <p class="p">For developers, the practical rule is simple: use Graphify when you need structural neighborhoods or dependency paths; use Deep Wiki when you need a human-readable explanation of the subsystem. <code>wiki_ask</code> retrieves authored wiki pages, while Graphify MCP answers graph questions directly.</p>
+      </div>
+
       <!-- decisions -->
       <div class="sub" id="decisions">
-        <h3 class="sub__title"><span class="sub__title__index">/04.3</span><em>Decisions</em></h3>
-        <p class="p p--dim">An ADR-grade record the agent emits when it makes a non-trivial choice: pick an ORM, change a public API shape, defer a refactor. They survive across sessions and surface to the next agent via the <code>UserPromptSubmit</code> hook.</p>
+        <h3 class="sub__title"><span class="sub__title__index">/04.7</span><em>Decisions</em></h3>
+        <p class="p p--dim">An ADR-grade record the agent emits when it makes a non-trivial choice: pick an ORM, change a public API shape, defer a refactor. They survive across sessions and surface to the next agent via the <code>UserPromptSubmit</code> event.</p>
 
         <div class="code__head"><span>MCP tool · record_decision</span></div>
 <pre class="code"><span class="ck">await</span> mcp.call(<span class="cw">"record_decision"</span>, {
@@ -1340,12 +1610,12 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
   reversible:    <span class="ck">false</span>,
 });
 <span class="cm">// Idempotent on  dec:{runId}:{sha256(description)[:32]}
-// Resurfaces on next  UserPromptSubmit  via  recent-decisions.ts</span></pre>
+// Resurfaces on next  UserPromptSubmit  through lifecycle_event relevance refresh</span></pre>
       </div>
 
       <!-- policy -->
       <div class="sub" id="policy">
-        <h3 class="sub__title"><span class="sub__title__index">/04.4</span>Policy &amp; <em>kill switches</em></h3>
+        <h3 class="sub__title"><span class="sub__title__index">/04.8</span>Policy &amp; <em>kill switches</em></h3>
         <p class="sub__lede">Two layers of guardrail. Kill switches sit <em>above</em> policy — they're operator-level pauses, evaluated first.</p>
 
         <div class="lifecycle">
@@ -1392,31 +1662,32 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="section__num">/05 — Architecture</div>
           <h2 class="section__title">Process <em>topology</em>.</h2>
         </div>
-        <div class="section__head__aside">5 layers<br>3 daemons</div>
+        <div class="section__head__aside">5 layers<br>plugin-first</div>
       </div>
-      <p class="section__lede">Four long-running processes plus a one-shot CLI. The agent enters at the top; the cloud (when in team mode) sits at the bottom.</p>
+      <p class="section__lede">The primary runtime is plugin-first: agents call Coodra's MCP server, lifecycle events enter through <code>lifecycle_event</code>, and Graphify runs as a separate managed MCP server beside Coodra.</p>
 
       <div class="topo">
         <div class="topo__title">Layer model</div>
         <div class="topo__layer">
           <div class="topo__layer__name">L0 · Agent</div>
           <div class="topo__nodes">
-            <div class="topo__node"><span class="topo__node__dot"></span>Claude Code <small>stdio + hooks</small></div>
-            <div class="topo__node"><span class="topo__node__dot"></span>Codex <small>stdio + hooks</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Claude Code <small>mcp_tool hooks</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Codex <small>command hook-runner</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Cursor · Devin · Antigravity <small>native plugins</small></div>
           </div>
         </div>
         <div class="topo__layer">
           <div class="topo__layer__name">L1 · Protocol</div>
           <div class="topo__nodes">
-            <div class="topo__node"><span class="topo__node__dot"></span>MCP Server <small>:3100 · 20 tools · stdio + HTTP</small></div>
-            <div class="topo__node"><span class="topo__node__dot"></span>Hooks Bridge <small>:3101 · Hono · 3 routes</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Coodra MCP <small>:3100 · 26 tools · stdio + HTTP</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Graphify MCP <small>managed graph.json · structural queries</small></div>
           </div>
         </div>
         <div class="topo__layer">
           <div class="topo__layer__name">L2 · Core</div>
           <div class="topo__nodes">
             <div class="topo__node"><span class="topo__node__dot"></span>Policy engine <small>cockatiel · 100ms timeout</small></div>
-            <div class="topo__node"><span class="topo__node__dot"></span>Pack service <small>read · write · search</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>Memory service <small>context · decisions · wiki · recipes</small></div>
             <div class="topo__node"><span class="topo__node__dot"></span>Run recorder <small>events + diff</small></div>
             <div class="topo__node"><span class="topo__node__dot"></span>OutboxWorker <small>SQLite-backed queue</small></div>
           </div>
@@ -1424,8 +1695,8 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
         <div class="topo__layer">
           <div class="topo__layer__name">L3 · Storage</div>
           <div class="topo__nodes">
-            <div class="topo__node"><span class="topo__node__dot"></span>SQLite <small>~/.coodra/data.db · 14 tables</small></div>
-            <div class="topo__node"><span class="topo__node__dot"></span>sqlite-vec <small>context_packs_vec</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>SQLite <small>~/.coodra/data.db · local hot path</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>.coodra/graphify/out <small>6948 nodes · 15381 edges · 309 communities</small></div>
             <div class="topo__node"><span class="topo__node__dot topo__node__dot--c"></span>Postgres + pgvector <small>team mode only</small></div>
           </div>
         </div>
@@ -1433,7 +1704,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="topo__layer__name">L4 · Clients</div>
           <div class="topo__nodes">
             <div class="topo__node"><span class="topo__node__dot"></span>Web v2 <small>:3001 · Next.js 15</small></div>
-            <div class="topo__node"><span class="topo__node__dot"></span>CLI <small>32 commands · 38 doctor checks</small></div>
+            <div class="topo__node"><span class="topo__node__dot"></span>CLI <small>current command tree · 36 doctor checks</small></div>
             <div class="topo__node"><span class="topo__node__dot topo__node__dot--m"></span>Ink TUI <small>coodra ui</small></div>
           </div>
         </div>
@@ -1452,18 +1723,11 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
             </tr></thead>
             <tbody>
               <tr>
-                <td><code>mcp-server</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">20 MCP tools · stdio + HTTP transport</span></td>
+                <td><code>mcp-server</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">26 MCP tools · stdio + HTTP transport</span></td>
                 <td><code>3100</code></td>
                 <td><code>127.0.0.1</code></td>
                 <td>SQLite (local)</td>
-                <td><code>coodra start</code> · native plugin subprocess</td>
-              </tr>
-              <tr>
-                <td><code>hooks-bridge</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Hono HTTP · 5 Claude Code events</span></td>
-                <td><code>3101</code></td>
-                <td><code>127.0.0.1</code></td>
-                <td>SQLite (local)</td>
-                <td><code>coodra start</code></td>
+                <td><code>coodra start</code> · native plugins · hook-runner</td>
               </tr>
               <tr>
                 <td><code>sync-daemon</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Push + pull · kill-switch puller</span></td>
@@ -1473,7 +1737,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
                 <td><code>coodra start</code> · team mode only</td>
               </tr>
               <tr>
-                <td><code>web-v2</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Next.js 15 · 46 page/route files</span></td>
+                <td><code>web-v2</code><br><span style="color:var(--ink-dim);font-size:12px;font-family:var(--sans)">Next.js 15 · 56 page/route files</span></td>
                 <td><code>3001</code></td>
                 <td><code>0.0.0.0</code></td>
                 <td>SQLite (server actions)</td>
@@ -1486,21 +1750,21 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
 
       <!-- hook lifecycle -->
       <div class="sub" id="lifecycle">
-        <h3 class="sub__title"><span class="sub__title__index">/05.2</span>Hook <em>lifecycle</em></h3>
-        <p class="sub__lede">Exactly what happens between you typing into Claude Code and an edit landing on disk.</p>
+        <h3 class="sub__title"><span class="sub__title__index">/05.2</span>MCP <em>lifecycle</em></h3>
+        <p class="sub__lede">Exactly what happens between an agent session starting and the final run evidence landing in Coodra.</p>
 
         <div class="lifecycle">
           <div class="lifecycle__row">
             <div class="lifecycle__num">/01</div>
             <div class="lifecycle__event">SessionStart</div>
-            <div class="lifecycle__desc">Hooks bridge opens or resumes a <code>runs</code> row, captures <code>base_sha</code>, returns Feature Pack body via <code>additionalContext</code>.</div>
+            <div class="lifecycle__desc">Native plugin calls <code>lifecycle_event</code>, opens or resumes a <code>runs</code> row, captures <code>base_sha</code>, and returns session context plus a pullable memory manifest.</div>
             <div class="lifecycle__effect">RUN OPENED</div>
           </div>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/02</div>
             <div class="lifecycle__event">UserPromptSubmit</div>
-            <div class="lifecycle__desc">Injects recent decisions from the project's history into the prompt context.</div>
-            <div class="lifecycle__effect">MEMORY</div>
+            <div class="lifecycle__desc">Adds a bounded relevance refresh when the host supports it: prompt, issue, file, Work Pack, FTS/BM25, and Graphify-backed decision signals.</div>
+            <div class="lifecycle__effect">REFRESH</div>
           </div>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/03</div>
@@ -1517,7 +1781,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/05</div>
             <div class="lifecycle__event">Stop · SessionEnd</div>
-            <div class="lifecycle__desc">Marks <code>runs.status = completed</code>, runs <code>run-diff-runner</code> to populate <code>run_diffs</code>, writes auto-Context Pack.</div>
+            <div class="lifecycle__desc"><code>@coodra/lifecycle</code> marks completion, captures run diff, writes fallback Context Pack, updates Work Packs, and can trigger structural Graphify refreshes on daemon transports.</div>
             <div class="lifecycle__effect">CLOSE</div>
           </div>
         </div>
@@ -1531,12 +1795,12 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
           <div class="section__num">/06 — Storage</div>
           <h2 class="section__title">Data <em>model</em>.</h2>
         </div>
-        <div class="section__head__aside">14 SQLite tables<br>17 + 3 cloud-only</div>
+        <div class="section__head__aside">33 SQLite tables<br>36 Postgres tables</div>
       </div>
-      <p class="section__lede">Drizzle dual-dialect schemas. Postgres mirrors SQLite column-for-column, enforced by <code>__tests__/unit/schema-parity.test.ts</code>. The only intentional drift: <code>context_packs.summary_embedding</code> is <code>vector(384)</code> in Postgres, <code>text</code> in SQLite.</p>
+      <p class="section__lede">Drizzle dual-dialect schemas. Postgres mirrors SQLite for shared product tables and adds cloud-only migration/audit tables. The intentional column drift: <code>context_packs.summary_embedding</code> is <code>vector(384)</code> in Postgres and <code>text</code> in SQLite.</p>
 
       <div class="table-wrap">
-        <div style="padding:14px 18px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-dim);background:var(--bg)">SQLite primary store · 14 tables</div>
+        <div style="padding:14px 18px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink-dim);background:var(--bg)">SQLite primary store · grouped tables</div>
         <table class="table">
           <thead><tr>
             <th>Table</th>
@@ -1544,19 +1808,19 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
             <th>Key constraints</th>
           </tr></thead>
           <tbody>
-            <tr><td><code>projects</code></td><td>Project registry. One per repo (by slug).</td><td><code>slug</code> UNIQUE · <code>org_id</code></td></tr>
-            <tr><td><code>runs</code></td><td>One per agent session. Bound to project.</td><td>UNIQUE <code>(project_id, session_id)</code></td></tr>
-            <tr><td><code>run_events</code></td><td>Append-only PostToolUse log.</td><td>FK→runs · <code>ON DELETE SET NULL</code></td></tr>
-            <tr><td><code>context_packs</code></td><td>One markdown summary per run.</td><td>UNIQUE <code>(run_id)</code></td></tr>
-            <tr><td><code>decisions</code></td><td>Cross-session architectural choices.</td><td>UNIQUE <code>idempotency_key</code></td></tr>
-            <tr><td><code>policies</code> · <code>policy_rules</code></td><td>Active policies and their rule axes.</td><td>UNIQUE <code>(policy_id, priority, …)</code></td></tr>
-            <tr><td><code>policy_decisions</code></td><td>Append-only audit of every PreToolUse.</td><td>UNIQUE <code>idempotency_key</code></td></tr>
-            <tr><td><code>kill_switches</code></td><td>Polymorphic operator pauses.</td><td>idx <code>(resumed_at, scope, target)</code></td></tr>
-            <tr><td><code>feature_packs</code> · <code>features</code></td><td>Authored blueprints + on-demand skills.</td><td>UNIQUE <code>(project_id, slug)</code></td></tr>
-            <tr><td><code>run_diffs</code></td><td>Unified diff captured at session end.</td><td>PK = <code>run_id</code> · CASCADE</td></tr>
-            <tr><td><code>pending_jobs</code></td><td>Durable outbox. Module 03.1.</td><td>idx <code>(queue, status, run_after)</code></td></tr>
-            <tr><td><code>team_invites</code></td><td>HMAC-signed onboarding tokens.</td><td>UNIQUE <code>jti</code></td></tr>
-            <tr><td><code>context_packs_vec</code></td><td>sqlite-vec virtual table for semantic search.</td><td><em>virtual</em></td></tr>
+            <tr><td><code>projects</code></td><td>Project registry. One durable row per repo slug and org scope.</td><td><code>slug</code> UNIQUE · <code>org_id</code></td></tr>
+            <tr><td><code>runs</code> · <code>run_events</code> · <code>run_diffs</code></td><td>Agent session envelope, append-only tool activity, and end-of-run diff evidence.</td><td>UNIQUE <code>(project_id, session_id)</code> · diff PK = <code>run_id</code></td></tr>
+            <tr><td><code>context_packs</code> · <code>decisions</code> · <code>decision_edges</code></td><td>Long-lived memory: run summaries, architectural decisions, supersession, and file/Work Pack/code-graph impact edges.</td><td>UNIQUE <code>context_packs.run_id</code> · UNIQUE <code>decisions.idempotency_key</code></td></tr>
+            <tr><td><code>memory_access_events</code> · <code>memory_access_daily</code> · <code>memory_cohorts</code></td><td>Raw memory access telemetry, daily utilization rollups, and per-item pull-through cohorts.</td><td>Daily grain includes <code>project_id, day, channel, site, memory_type, actor_user_id</code></td></tr>
+            <tr><td><code>policies</code> · <code>policy_rules</code> · <code>policy_decisions</code></td><td>Active tool policies, ordered rule axes, and append-only PreToolUse audit rows.</td><td>UNIQUE <code>policy_decisions.idempotency_key</code></td></tr>
+            <tr><td><code>policy_versions</code> · <code>policy_exceptions</code> · <code>policy_grants</code></td><td>Policy change history, time-bound exceptions, and capability grants.</td><td>Project-scoped indexes for policy review and enforcement.</td></tr>
+            <tr><td><code>controls</code> · <code>control_attestations</code></td><td>Imported governance controls and native advisory attestation state.</td><td>Control-catalog/project indexes.</td></tr>
+            <tr><td><code>kill_switches</code></td><td>Polymorphic operator pauses for global, project, tool, or agent-type scopes.</td><td>idx <code>(resumed_at, scope, target)</code></td></tr>
+            <tr><td><code>features</code></td><td>Agent Recipe index rows derived from <code>.coodra/recipes/&lt;slug&gt;/recipe.md</code>.</td><td>UNIQUE <code>(project_id, slug)</code></td></tr>
+            <tr><td><code>wikis</code> · <code>wiki_pages</code></td><td>Deep Wiki structure and page bodies authored through wiki MCP tools.</td><td>Project/slug and wiki/page indexes.</td></tr>
+            <tr><td><code>work_packs</code> · <code>work_pack_*_links</code> · <code>external_work_items</code></td><td>Issue-bound implementation packs, provider item mirrors, relationships, and links to decisions/context packs.</td><td>UNIQUE <code>(project_id, slug)</code> · link-pair uniqueness</td></tr>
+            <tr><td><code>integration_connections</code> · <code>sync_events</code> · <code>pending_jobs</code></td><td>Provider sync configuration, local sync audit, and durable outbox queues.</td><td>Provider/project uniqueness · queue/status indexes</td></tr>
+            <tr><td><code>audit_events</code> · <code>team_invites</code></td><td>General audit stream and HMAC-signed onboarding tokens.</td><td>Invite <code>jti</code> UNIQUE</td></tr>
           </tbody>
         </table>
       </div>
@@ -1569,16 +1833,22 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
    │         │           ├─0/1─ <span class="ci">run_diffs</span>       <span class="cm">(PK run_id, CASCADE)</span>
    │         │           └─0/n─ <span class="ci">decisions</span>       <span class="cm">(FK ON DELETE SET NULL)</span>
    │         │
-   │         └──1───n─ <span class="ck">policies</span> ─1───n─ <span class="ci">policy_rules</span>
-   │                                          │
-   │                                          └─ <span class="ci">policy_decisions.matched_rule_id</span>
+   │         ├──1───n─ <span class="ck">policies</span> ─1───n─ <span class="ci">policy_rules</span>
+   │         │                                │
+   │         │                                └─ <span class="ci">policy_decisions.matched_rule_id</span>
+   │         │
+   │         ├──1───n─ <span class="ck">work_packs</span> ───n─ <span class="ci">work_pack_decision_links</span>
+   │         │                        └─n─ <span class="ci">work_pack_context_pack_links</span>
+   │         │
+   │         └──1───n─ <span class="ck">wikis</span> ─1───n─ <span class="ci">wiki_pages</span>
    │
    ├─ <span class="ci">context_packs.project_id</span>
    ├─ <span class="ci">policy_decisions.project_id</span>
-   └─ <span class="ci">features.project_id</span> <span class="cm">(UNIQUE project_id, slug)</span>
+   ├─ <span class="ci">memory_access_events.project_id</span>
+   └─ <span class="ci">features.project_id</span> <span class="cm">(Agent Recipes; UNIQUE project_id, slug)</span>
 
 <span class="cm"># Top-level (not FK'd to projects):</span>
-<span class="ck">feature_packs</span>, <span class="ck">kill_switches</span>, <span class="ck">team_invites</span>, <span class="ck">pending_jobs</span>
+<span class="ck">kill_switches</span>, <span class="ck">team_invites</span>, <span class="ck">pending_jobs</span>
 
 <span class="cm"># Sentinel projects (seeded at every boot):</span>
 '__global__'   ensureGlobalProject()   <span class="cm"># events before a real project</span>
@@ -1586,7 +1856,7 @@ pnpm --version    <span class="cm"># → 10.33.0</span></pre>
 
 <span class="cm"># Cloud-only mirrors (Postgres):</span>
 _migration_attempts ─1───n─ _migration_map   <span class="cm"># migrate resume + rollback</span>
-knowledge_audit                              <span class="cm"># Phase F.3.c audit</span></pre>
+knowledge_audit                              <span class="cm"># cloud knowledge audit</span></pre>
       </div>
 
       <!-- STORAGE -->
@@ -1596,15 +1866,15 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
         <div class="kv">
           <div class="kv__row">
             <div class="kv__k">data.db</div>
-            <div class="kv__v">Primary SQLite store. 14 tables. Override with <code>COODRA_SQLITE_PATH</code>. <small>Managed by <code>coodra db backup</code> / <code>restore</code></small></div>
+            <div class="kv__v">Primary SQLite store. 33 Drizzle tables. Override with <code>COODRA_SQLITE_PATH</code>. <small>Managed by <code>coodra db backup</code> / <code>restore</code></small></div>
           </div>
           <div class="kv__row">
             <div class="kv__k">packs/</div>
             <div class="kv__v">Per-pack markdown mirror of <code>context_packs</code> rows. Filename: <code>{date}-{sanitised-runId}.md</code>. Gitignored. <small>Useful for grep + AI agent file-side reads</small></div>
           </div>
           <div class="kv__row">
-            <div class="kv__k">graphify/&lt;slug&gt;/</div>
-            <div class="kv__v">Codebase graph index produced by an external <code>graphify scan</code>. Read-only consumer in <code>apps/mcp-server/src/lib/graphify.ts</code>. <small>No in-repo producer</small></div>
+            <div class="kv__k">graphify-mcp/</div>
+            <div class="kv__v">Shared machine runtime for the managed Graphify MCP server. Project graph artifacts live under each repo's <code>.coodra/graphify/out/</code>.</div>
           </div>
           <div class="kv__row">
             <div class="kv__k">logs/&lt;service&gt;.log</div>
@@ -1666,7 +1936,7 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
           <div class="section__num">/07 — Reference</div>
           <h2 class="section__title">CLI <em>commands</em>.</h2>
         </div>
-        <div class="section__head__aside">32 source files<br>38 doctor checks</div>
+        <div class="section__head__aside">198 CLI source files<br>36 doctor checks</div>
       </div>
       <p class="section__lede">Every command is a thin shell over a typed core module. Pass <code>--json</code> almost anywhere for machine output. Pass <code>--help</code> for the up-to-date flag list.</p>
 
@@ -1680,12 +1950,16 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
               <th>Key flags</th>
             </tr></thead>
             <tbody>
-              <tr><td><code>coodra init</code></td><td>Bootstrap a project. Writes <code>.coodra/config.json</code> + <code>.coodra/manifest.json</code>, seeds the default policy, and leaves repo-root <code>.mcp.json</code> user-owned.</td><td><code>--solo</code> · <code>--team</code> · <code>--ide</code> · <code>--feature-pack</code> · <code>--force</code> · <code>--dry-run</code></td></tr>
-              <tr><td><code>coodra start</code></td><td>Bring up all daemons. Picks launchd / fallback manager based on platform.</td><td><code>--no-mcp</code> · <code>--no-hooks</code> · <code>--no-sync</code> · <code>--no-web</code> · <code>--foreground</code> · <code>--tunnel</code></td></tr>
+              <tr><td><code>coodra install</code></td><td>Install or repair machine-level runtime state under <code>~/.coodra/</code>.</td><td><code>--dry-run</code> · <code>--json</code></td></tr>
+              <tr><td><code>coodra init</code></td><td>Bootstrap a project. Writes project-local <code>.coodra/</code> config, manifest, recipes, graphify, wiki, and Work Pack directories.</td><td><code>--project-slug</code> · <code>--solo</code> · <code>--team</code> · <code>--force</code> · <code>--dry-run</code></td></tr>
+              <tr><td><code>coodra start</code></td><td>Bring up local runtime services. Picks launchd / fallback manager based on platform.</td><td><code>--no-mcp</code> · <code>--no-sync</code> · <code>--no-web</code> · <code>--foreground</code> · <code>--tunnel</code></td></tr>
               <tr><td><code>coodra stop</code></td><td>Tear down daemons. <code>--uninstall</code> removes launchd plists.</td><td><code>--service</code> · <code>--uninstall</code></td></tr>
               <tr><td><code>coodra status</code></td><td>Health snapshot of each daemon + DB.</td><td><code>--json</code></td></tr>
-              <tr><td><code>coodra doctor</code></td><td>11 essential checks by default. Add <code>--full</code> for all 38.</td><td><code>--full</code> · <code>--fix</code> · <code>--timeout-ms</code> · <code>--json</code></td></tr>
-              <tr><td><code>coodra agents</code></td><td>Detect installed IDEs and confirm each is wired to the bridge.</td><td><code>--json</code></td></tr>
+              <tr><td><code>coodra metrics</code> · <code>coodra roi</code></td><td>Print ROI / value KPIs for captured knowledge, reuse, governance, and modeled net value.</td><td><code>--project</code> · <code>--json</code></td></tr>
+              <tr><td><code>coodra doctor</code></td><td>12 essential checks by default. Add <code>--full</code> for all 36.</td><td><code>--full</code> · <code>--fix</code> · <code>--timeout-ms</code> · <code>--json</code></td></tr>
+              <tr><td><code>coodra agents</code></td><td>Detect installed IDEs and confirm native plugin MCP, hook, and skill wiring.</td><td><code>--json</code></td></tr>
+              <tr><td><code>coodra agent</code></td><td>Install, repair, remove, or inspect one native agent plugin.</td><td><code>add</code> · <code>repair</code> · <code>remove</code> · <code>status</code> · <code>--dry-run</code> · <code>--json</code></td></tr>
+              <tr><td><code>coodra files</code></td><td>Inspect or clean files Coodra generated for this project from <code>.coodra/manifest.json</code>.</td><td><code>status</code> · <code>clean</code> · <code>--force</code> · <code>--dry-run</code> · <code>--json</code></td></tr>
               <tr><td><code>coodra logs &lt;svc&gt;</code></td><td>Tail <code>~/.coodra/logs/&lt;svc&gt;.log</code> across platforms.</td><td><code>--follow</code> · <code>--lines</code> · <code>--since</code></td></tr>
               <tr><td><code>coodra upgrade</code></td><td>Compares installed version against <code>npm view</code>. Restarts daemons unless <code>--no-restart</code>.</td><td><code>--check-only</code> · <code>--no-restart</code></td></tr>
               <tr><td><code>coodra uninstall</code></td><td>Removes the CLI. <code>--purge</code> deletes <code>~/.coodra/</code>.</td><td><code>--purge</code> · <code>--dry-run</code></td></tr>
@@ -1705,11 +1979,13 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
             </tr></thead>
             <tbody>
               <tr><td><code>coodra project</code></td><td><code>list · show · reset · promote · demote</code></td><td>Manage which projects Coodra tracks; promote a transient project to active.</td></tr>
-              <tr><td><code>coodra run</code></td><td><code>list · show · cancel</code></td><td>Inspect or cancel in-flight runs.</td></tr>
-              <tr><td><code>coodra pack</code></td><td><code>new · list · show · regenerate · delete</code></td><td>Author or regenerate Context Packs.</td></tr>
-              <tr><td><code>coodra feature</code></td><td><code>add · list · show · edit · index · remove</code></td><td>Manage on-demand skill rows (pull-on-trigger features).</td></tr>
-              <tr><td><code>coodra policy</code></td><td><code>list · show · add · enable · disable</code></td><td>Author and toggle policy rules per project.</td></tr>
-              <tr><td><code>coodra template</code></td><td><code>list · install &lt;source&gt;</code></td><td>Install community feature-pack templates.</td></tr>
+              <tr><td><code>coodra run</code></td><td><code>list · show · cancel · capabilities</code></td><td>Inspect runs, cancel non-terminal sessions, or adjust capability context.</td></tr>
+              <tr><td><code>coodra work</code></td><td><code>status · show · import</code></td><td>Manage local Work Pack artifacts under <code>.coodra/work-packs/</code>.</td></tr>
+              <tr><td><code>coodra recipe</code></td><td><code>add · list · show · edit · index · remove · migrate</code></td><td>Manage Agent Recipes under <code>.coodra/recipes/</code>.</td></tr>
+              <tr><td><code>coodra wiki</code></td><td><code>build · status · list · open · clean · ask</code></td><td>Generate, inspect, open, clean, or query the project Deep Wiki.</td></tr>
+              <tr><td><code>coodra graphify</code></td><td><code>build · status · open · clean</code></td><td>Build and inspect Coodra-managed Graphify code graph artifacts.</td></tr>
+              <tr><td><code>coodra policy</code></td><td><code>list · show · add · enable · disable · sync · catalog · workflow</code></td><td>Author policy rules, sync policy projections, import control catalogs, and render workflow policy.</td></tr>
+              <tr><td><code>coodra template</code></td><td><code>list · install &lt;source&gt;</code></td><td>Install reusable Coodra templates.</td></tr>
               <tr><td><code>coodra export &lt;runId&gt;</code></td><td>—</td><td>Export a run as <code>markdown</code> · <code>json</code> · <code>html</code> · <code>slack</code>. With <code>--include-audit</code> for the full policy trail.</td></tr>
               <tr><td><code>coodra db</code></td><td><code>migrate · backup · restore</code></td><td>Drizzle migrations + snapshot management.</td></tr>
             </tbody>
@@ -1744,7 +2020,7 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
       <div class="callout">
         <div class="callout__icon">Tip</div>
         <div class="callout__body">
-          <p>The <code>coodra team</code> namespace re-exports <code>login</code> and <code>logout</code> as aliases — both <code>coodra login</code> and <code>coodra team login</code> work. The doctor (<code>--full</code>) runs 38 numbered checks under <code>packages/cli/src/doctor/checks/</code>; the README's claim of "20-check health report" is divergent and being updated.</p>
+          <p>The <code>coodra team</code> namespace re-exports <code>login</code> and <code>logout</code> as aliases — both <code>coodra login</code> and <code>coodra team login</code> work. The doctor runs 12 essential checks by default; <code>--full</code> runs the 36-check registry under <code>packages/cli/src/doctor/checks/</code>.</p>
         </div>
       </div>
     </section>
@@ -1754,11 +2030,11 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
       <div class="section__head">
         <div>
           <div class="section__num">/08 — Reference</div>
-          <h2 class="section__title">MCP <em>tools</em> — all 20.</h2>
+          <h2 class="section__title">MCP <em>tools</em> — all 26.</h2>
         </div>
         <div class="section__head__aside">Source of truth<br>tools/index.ts</div>
       </div>
-      <p class="section__lede">Order matches registration order in <code>apps/mcp-server/src/tools/index.ts</code>. There are no <code>jira_*</code> or <code>github_*</code> tools — older docs that mention them are stale.</p>
+      <p class="section__lede">Order matches registration order in <code>apps/mcp-server/src/tools/index.ts</code>. Graphify is not folded into this list: native plugins wire it as a separate managed MCP server pointed at <code>.coodra/graphify/out/graph.json</code>.</p>
 
       <div class="table-wrap">
         <table class="table">
@@ -1771,32 +2047,38 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
           <tbody>
             <tr><td><code>01</code></td><td><code>ping</code></td><td><span class="badge">read</span></td><td>Health check. Returns <code>{ pong, serverTime, sessionId, idempotencyKey }</code>.</td></tr>
             <tr><td><code>02</code></td><td><code>get_run_id</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotently opens or returns a runs row for this <code>(project, session)</code>.</td></tr>
-            <tr><td><code>03</code></td><td><code>get_feature_pack</code></td><td><span class="badge">read</span></td><td>Returns the module blueprint — spec, implementation, techstack, meta.</td></tr>
-            <tr><td><code>04</code></td><td><code>save_context_pack</code></td><td><span class="badge badge--caution">write</span></td><td>Persists the agent-authored Context Pack. Returns <code>created · idempotent_hit · upgraded_from_bridge_auto</code>.</td></tr>
-            <tr><td><code>05</code></td><td><code>search_packs_nl</code></td><td><span class="badge">read</span></td><td>Keyword LIKE search. Agent ranks. Ordered by recency, not relevance.</td></tr>
-            <tr><td><code>06</code></td><td><code>record_decision</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotent on <code>(runId, sha256(description)[:32])</code>. Surfaces on next session.</td></tr>
-            <tr><td><code>07</code></td><td><code>query_run_history</code></td><td><span class="badge">read</span></td><td>Recent runs + attached pack title, chronological.</td></tr>
-            <tr><td><code>08</code></td><td><code>check_policy</code></td><td><span class="badge badge--caution">write</span></td><td>Returns <code>allow · ask · deny</code>. Fail-open on evaluator faults.</td></tr>
-            <tr><td><code>09</code></td><td><code>query_decisions</code></td><td><span class="badge">read</span></td><td>Cross-session decision history.</td></tr>
-            <tr><td><code>10</code></td><td><code>list_context_packs</code></td><td><span class="badge">read</span></td><td>Paginated, newest-first.</td></tr>
-            <tr><td><code>11</code></td><td><code>read_context_pack</code></td><td><span class="badge">read</span></td><td>Full body + decisions for one pack.</td></tr>
-            <tr><td><code>12</code></td><td><code>list_skills</code></td><td><span class="badge">read</span></td><td>Skill discovery (filtered to <code>status='published'</code>).</td></tr>
-            <tr><td><code>13</code></td><td><code>get_skill</code></td><td><span class="badge">read</span></td><td>Pull-on-trigger; returns frontmatter + body + file list.</td></tr>
-            <tr><td><code>14</code></td><td><code>get_skill_file</code></td><td><span class="badge">read</span></td><td>Reads one supporting file from a skill. 256 KB hard cap. Path-escape guard.</td></tr>
-            <tr><td><code>15</code></td><td><code>query_run_diff</code></td><td><span class="badge">read</span></td><td>Unified diff + per-file numstat. Soft failures: <code>analysis_pending</code>, <code>no_base_sha</code>, <code>git_diff_failed</code>.</td></tr>
-            <tr><td><code>16</code></td><td><code>link_run_to_issue</code></td><td><span class="badge badge--caution">write</span></td><td>Binds the run to a Jira issue key (<code>runs.issueRef</code>) so history is Jira-aware. Local link only — no Jira API call.</td></tr>
-            <tr><td><code>17</code></td><td><code>prepare_jira_comment</code></td><td><span class="badge">read</span></td><td>Assembles a markdown comment from the run's Context Pack + top decisions for Rovo's <code>addCommentToJiraIssue</code>. Posts nothing itself.</td></tr>
-            <tr><td><code>18</code></td><td><code>wiki_save_structure</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 1 — persists the planned <code>WikiStructure</code> and writes the pending page skeleton. Re-plan of an authored wiki requires <code>replace: true</code>.</td></tr>
-            <tr><td><code>19</code></td><td><code>wiki_save_page</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 2 — authors one page's Markdown. Mermaid lint-gated: <code>invalid_mermaid</code>, <code>diagram_missing</code>.</td></tr>
-            <tr><td><code>20</code></td><td><code>wiki_status</code></td><td><span class="badge">read</span></td><td>Deep Wiki progress/resume — reports authored vs pending pages. Read-only.</td></tr>
+            <tr><td><code>03</code></td><td><code>lifecycle_event</code></td><td><span class="badge badge--caution">write</span></td><td>Canonical native-plugin event path for SessionStart, prompts, tool use, compaction, and SessionEnd finalization.</td></tr>
+            <tr><td><code>04</code></td><td><code>save_context_pack</code></td><td><span class="badge badge--caution">write</span></td><td>Persists an agent-authored Context Pack, including Work Pack links and idempotent automatic fallback upgrades.</td></tr>
+            <tr><td><code>05</code></td><td><code>search_packs_nl</code></td><td><span class="badge">read</span></td><td>Local keyword search over Context Packs. The agent ranks and synthesizes from returned evidence.</td></tr>
+            <tr><td><code>06</code></td><td><code>record_decision</code></td><td><span class="badge badge--caution">write</span></td><td>Idempotent durable decision write with file, graph-node, supersession, and Work Pack targeting.</td></tr>
+            <tr><td><code>07</code></td><td><code>query_run_history</code></td><td><span class="badge">read</span></td><td>Recent runs, attached Context Packs, issue/PR references, and chronological session history.</td></tr>
+            <tr><td><code>08</code></td><td><code>check_policy</code></td><td><span class="badge badge--caution">write</span></td><td>Evaluates policy rules and kill switches, writes audit rows, and defers to native permissions when Coodra has no rule.</td></tr>
+            <tr><td><code>09</code></td><td><code>query_decisions</code></td><td><span class="badge">read</span></td><td>Cross-session decision history with Work Pack and relationship-aware filters.</td></tr>
+            <tr><td><code>10</code></td><td><code>query_decisions_by_file</code></td><td><span class="badge">read</span></td><td>File-impact lookup using decision targets plus Graphify-backed neighborhood matching when available.</td></tr>
+            <tr><td><code>11</code></td><td><code>list_context_packs</code></td><td><span class="badge">read</span></td><td>Paginated, newest-first Context Pack index with Work Pack-aware filters.</td></tr>
+            <tr><td><code>12</code></td><td><code>read_context_pack</code></td><td><span class="badge">read</span></td><td>Full Context Pack body, metadata, linked decisions, and memory-access instrumentation.</td></tr>
+            <tr><td><code>13</code></td><td><code>list_recipes</code></td><td><span class="badge">read</span></td><td>Lightweight Agent Recipe index from <code>.coodra/recipes/</code>; agents choose what to pull.</td></tr>
+            <tr><td><code>14</code></td><td><code>get_recipe</code></td><td><span class="badge">read</span></td><td>Pull-on-trigger recipe body plus supporting file list. Does not inline every file blindly.</td></tr>
+            <tr><td><code>15</code></td><td><code>get_recipe_file</code></td><td><span class="badge">read</span></td><td>Reads one allowed supporting recipe file with path-escape and size guards.</td></tr>
+            <tr><td><code>16</code></td><td><code>query_run_diff</code></td><td><span class="badge">read</span></td><td>Unified diff plus per-file numstat. Soft failures include <code>analysis_pending</code>, <code>no_base_sha</code>, and <code>git_diff_failed</code>.</td></tr>
+            <tr><td><code>17</code></td><td><code>link_run_to_issue</code></td><td><span class="badge badge--caution">write</span></td><td>Binds the run to an issue key locally. It does not call Jira.</td></tr>
+            <tr><td><code>18</code></td><td><code>link_run_to_pr</code></td><td><span class="badge badge--caution">write</span></td><td>Binds the run to a PR/MR reference locally. Provider reads/writes stay in provider MCPs.</td></tr>
+            <tr><td><code>19</code></td><td><code>prepare_jira_comment</code></td><td><span class="badge">read</span></td><td>Assembles a markdown Jira comment from run evidence. Posts nothing itself.</td></tr>
+            <tr><td><code>20</code></td><td><code>wiki_save_structure</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 1: persists the planned structure and pending page skeletons.</td></tr>
+            <tr><td><code>21</code></td><td><code>wiki_save_page</code></td><td><span class="badge badge--caution">write</span></td><td>Deep Wiki pass 2: authors one page's Markdown with Mermaid validation.</td></tr>
+            <tr><td><code>22</code></td><td><code>wiki_status</code></td><td><span class="badge">read</span></td><td>Deep Wiki progress and resume status.</td></tr>
+            <tr><td><code>23</code></td><td><code>wiki_ask</code></td><td><span class="badge">read</span></td><td>Cloud-facing/wiki-store retrieval counterpart to local <code>coodra wiki ask</code>.</td></tr>
+            <tr><td><code>24</code></td><td><code>work_pack_upsert</code></td><td><span class="badge badge--caution">write</span></td><td>Creates or refreshes a local issue-bound Work Pack and external-work-item map.</td></tr>
+            <tr><td><code>25</code></td><td><code>work_pack_update</code></td><td><span class="badge badge--caution">write</span></td><td>Partial local Work Pack editorial patch; marks linked provider items local-ahead for later sync.</td></tr>
+            <tr><td><code>26</code></td><td><code>work_pack_status</code></td><td><span class="badge">read</span></td><td>Reads current local Work Pack state so agents can resume issue-bound work safely.</td></tr>
           </tbody>
         </table>
       </div>
 
       <!-- HOOK EVENTS -->
       <div class="sub" id="hook-events">
-        <h3 class="sub__title"><span class="sub__title__index">/08.1</span>Hook <em>events</em></h3>
-        <p class="sub__lede">Wired by native Coodra plugins. Body validated by <code>ClaudeCodeHookPayloadSchema</code>; fail-open on invalid JSON.</p>
+        <h3 class="sub__title"><span class="sub__title__index">/08.1</span>Lifecycle <em>events</em></h3>
+        <p class="sub__lede">Wired by native Coodra plugins and normalized through <code>lifecycle_event</code>. Invalid or unsupported payloads fail softly so the agent can keep working.</p>
 
         <div class="table-wrap">
           <table class="table">
@@ -1806,11 +2088,12 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
               <th>Side effects</th>
             </tr></thead>
             <tbody>
-              <tr><td><code>SessionStart</code></td><td><code>handlers/session-start.ts</code></td><td>Opens / resumes run · captures <code>base_sha</code> · returns Feature Pack body</td></tr>
-              <tr><td><code>UserPromptSubmit</code></td><td><code>handlers/user-prompt-submit.ts</code></td><td>Injects recent decisions</td></tr>
-              <tr><td><code>PreToolUse</code></td><td><code>handlers/pre-tool-use.ts</code></td><td>Kill-switch · policy.check · writes <code>policy_decisions</code></td></tr>
-              <tr><td><code>PostToolUse</code></td><td><code>handlers/post-tool-use.ts</code></td><td>Inserts <code>run_events</code> row</td></tr>
-              <tr><td><code>Stop · SessionEnd</code></td><td><code>handlers/session-end.ts</code></td><td>Mark completed · <code>run-diff-runner</code> · auto-Context Pack</td></tr>
+              <tr><td><code>SessionStart</code></td><td><code>lifecycle_event</code></td><td>Opens / resumes run · captures <code>base_sha</code> · returns manifest and recent context</td></tr>
+              <tr><td><code>UserPromptSubmit</code></td><td><code>lifecycle_event</code></td><td>Bounded relevance refresh using exact, FTS/BM25, Work Pack, file, and graph signals</td></tr>
+              <tr><td><code>PreToolUse</code></td><td><code>lifecycle_event</code></td><td>Kill-switch · policy check · native-permission defer · audit rows</td></tr>
+              <tr><td><code>PostToolUse</code></td><td><code>lifecycle_event</code></td><td>Inserts <code>run_events</code> row and records external MCP activity</td></tr>
+              <tr><td><code>PostCompact</code></td><td><code>lifecycle_event</code></td><td>Bumps baseline generation; the next prompt-time refresh can surface post-compaction context</td></tr>
+              <tr><td><code>Stop · SessionEnd</code></td><td><code>@coodra/lifecycle</code></td><td>Mark completed · run diff · auto Context Pack · Work Pack update · graph refresh triggers</td></tr>
             </tbody>
           </table>
         </div>
@@ -1862,13 +2145,12 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
             <tr><td><code>MCP_SERVER_PORT</code></td><td><code>3100</code></td><td>HTTP transport port.</td></tr>
             <tr><td><code>MCP_SERVER_HOST</code></td><td><code>127.0.0.1</code></td><td>HTTP bind.</td></tr>
             <tr><td><code>MCP_SERVER_TRANSPORT</code></td><td><code>both</code></td><td><code>stdio</code> · <code>http</code> · <code>both</code>.</td></tr>
-            <tr><td><code>HOOKS_BRIDGE_PORT</code></td><td><code>3101</code></td><td>Hono listener.</td></tr>
-            <tr><td><code>HOOKS_BRIDGE_HOST</code></td><td><code>127.0.0.1</code></td><td>Hono bind.</td></tr>
-            <tr><td><code>WEB_APP_PORT</code></td><td><code>3001</code></td><td>Next.js port for web-v2.</td></tr>
+            <tr><td><code>COODRA_WEB_PORT</code></td><td><code>3001</code></td><td>Service-manager override for the web-v2 port.</td></tr>
+            <tr><td><code>PORT</code></td><td><code>3001</code></td><td>Port passed to the Next.js standalone process.</td></tr>
             <tr><td><code>COODRA_SQLITE_PATH</code></td><td><code>~/.coodra/data.db</code></td><td>Override the SQLite file location.</td></tr>
             <tr><td><code>COODRA_HOME</code></td><td><code>~/.coodra</code></td><td>Override the whole data dir. Used in compose.</td></tr>
-            <tr><td><code>COODRA_CONTEXT_PACKS_ROOT</code></td><td><code>&lt;cwd&gt;/docs/context-packs</code></td><td>Where pack markdown is materialised.</td></tr>
-            <tr><td><code>COODRA_GRAPHIFY_ROOT</code></td><td><code>~/.coodra/graphify</code></td><td>Where to look up <code>graph.json</code>.</td></tr>
+            <tr><td><code>COODRA_CONTEXT_PACKS_ROOT</code></td><td><code>~/.coodra/packs</code></td><td>Where Context Pack markdown mirrors are materialised.</td></tr>
+            <tr><td><code>GRAPHIFY_OUT</code></td><td><code>.coodra/graphify/out</code></td><td>Managed project-local Graphify output for <code>graph.json</code>, <code>GRAPH_REPORT.md</code>, and <code>graph.html</code>.</td></tr>
             <tr><td><code>COODRA_SYNC_TICK_MS</code></td><td><code>1000</code></td><td>Outbox + puller cadence.</td></tr>
             <tr><td><code>COODRA_SYNC_LEASE_MS</code></td><td><code>30000</code></td><td>Worker lease duration.</td></tr>
             <tr><td><code>COODRA_WEB_URL</code></td><td><code>http://localhost:3001</code></td><td>Used by CLI <code>login</code> for browser handoff.</td></tr>
@@ -1877,10 +2159,10 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
         </table>
       </div>
 
-      <div class="callout callout--warn">
-        <div class="callout__icon">Stale</div>
+      <div class="callout">
+        <div class="callout__icon">Env</div>
         <div class="callout__body">
-          <p>Some keys in <code>.env.example</code> are no longer consumed by live code: <code>NL_ASSEMBLY_PORT</code>, <code>SEMANTIC_DIFF_PORT</code>, <code>ANTHROPIC_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code>, <code>GITHUB_APP_ID</code>, <code>ATLASSIAN_*</code>. They reference modules superseded by ADR-012 + ADR-013 (M05 / M06). <code>REDIS_URL</code> is provisioned in compose but has no live consumer either.</p>
+          <p>The runtime source of truth is the generated machine env under <code>~/.coodra/.env</code> plus the service manager. For the web app, Coodra resolves <code>COODRA_WEB_PORT</code> and starts Next.js with <code>PORT</code>; the documented default is <code>3001</code>.</p>
         </div>
       </div>
     </section>
@@ -1892,9 +2174,9 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
           <div class="section__num">/10 — Operate</div>
           <h2 class="section__title"><em>Self-host</em> the team stack.</h2>
         </div>
-        <div class="section__head__aside">5 services<br>docker compose</div>
+        <div class="section__head__aside">4 services<br>docker compose</div>
       </div>
-      <p class="section__lede">Team mode runs on your own Postgres. <code>deploy/compose.yaml</code> ships a 5-service stack — postgres, a one-shot migrator, the MCP server, the hooks bridge, and the sync-daemon — that any operator can lift end-to-end.</p>
+      <p class="section__lede">Team mode runs on your own Postgres. <code>deploy/compose.yaml</code> ships the database, migrator, MCP server, and sync-daemon; native agent plugins still keep the hot path local-first.</p>
 
       <div class="table-wrap">
         <table class="table">
@@ -1908,7 +2190,6 @@ knowledge_audit                              <span class="cm"># Phase F.3.c audi
             <tr><td><code>postgres</code></td><td><code>pgvector/pgvector:pg16</code></td><td>—</td><td><code>${POSTGRES_PORT:-5432}:5432</code></td></tr>
             <tr><td><code>cloud-migrate</code></td><td><code>deploy/Dockerfile.cloud-migrate</code></td><td><code>postgres</code> healthy</td><td>one-shot</td></tr>
             <tr><td><code>mcp-server</code></td><td><code>deploy/Dockerfile.mcp-server</code></td><td><code>cloud-migrate</code> done</td><td><code>${MCP_SERVER_PORT:-3100}:3100</code></td></tr>
-            <tr><td><code>hooks-bridge</code></td><td><code>deploy/Dockerfile.hooks-bridge</code></td><td><code>cloud-migrate</code> done</td><td><code>${HOOKS_BRIDGE_PORT:-3101}:3101</code></td></tr>
             <tr><td><code>sync-daemon</code></td><td><code>deploy/Dockerfile.sync-daemon</code></td><td><code>cloud-migrate</code> done</td><td>—</td></tr>
           </tbody>
         </table>
@@ -1932,7 +2213,7 @@ cp deploy/.env.example deploy/.env
       <!-- AUTH -->
       <div class="sub" id="auth">
         <h3 class="sub__title"><span class="sub__title__index">/10.1</span>Auth chain &amp; <em>RBAC</em></h3>
-        <p class="sub__lede">The hooks-bridge and MCP server share the same auth chain. First match wins.</p>
+        <p class="sub__lede">The MCP server, web app, and sync daemon share the same identity rules. First match wins.</p>
 
         <div class="lifecycle">
           <div class="lifecycle__row">
@@ -1943,9 +2224,9 @@ cp deploy/.env.example deploy/.env
           </div>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/02</div>
-            <div class="lifecycle__event">X-Local-Hook-Secret</div>
-            <div class="lifecycle__desc">Compared against <code>LOCAL_HOOK_SECRET</code>. Attaches <code>{ source: 'local-hook' }</code>. Used by the native plugin subprocess.</div>
-            <div class="lifecycle__effect">local-hook</div>
+            <div class="lifecycle__event">Local plugin secret</div>
+            <div class="lifecycle__desc">Compared against <code>LOCAL_HOOK_SECRET</code>. Attaches <code>{ source: 'local-plugin' }</code>. Used by generated native plugin callers.</div>
+            <div class="lifecycle__effect">local-plugin</div>
           </div>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/03</div>
@@ -1979,11 +2260,10 @@ cp deploy/.env.example deploy/.env
       <div class="grid-2">
         <div class="card">
           <div class="card__eyebrow">/ symptom</div>
-          <h4 class="card__title">Agent never sees the <em>Feature Pack</em></h4>
+          <h4 class="card__title">Agent never sees <em>Coodra context</em></h4>
           <div class="card__body">
-            <p>SessionStart isn't reaching the bridge. Confirm the native Coodra plugin is installed, then:</p>
-            <p><code>coodra status</code> shows hooks-bridge listening on <code>3101</code>?<br><code>curl 127.0.0.1:3101/healthz</code> returns <code>ok: true</code>?<br><code>tail ~/.coodra/logs/hooks-bridge.log</code> shows the inbound POST?</p>
-            <p>If yes to all three but the agent still doesn't see it — check <code>X-Local-Hook-Secret</code> against <code>LOCAL_HOOK_SECRET</code>.</p>
+            <p><code>SessionStart</code> is not reaching Coodra's MCP lifecycle path. Confirm the native plugin is installed and healthy:</p>
+            <p><code>coodra agents</code> reports the target agent fully wired?<br><code>coodra status</code> shows <code>mcp-server</code> healthy on <code>3100</code>?<br><code>tail ~/.coodra/logs/mcp-server.log</code> shows <code>native_plugin_lifecycle_event</code>?</p>
           </div>
         </div>
 
@@ -2032,6 +2312,15 @@ cp deploy/.env.example deploy/.env
             <p>Re-trigger with <code>coodra run show &lt;id&gt; --regen-diff</code> after checking out the right commit.</p>
           </div>
         </div>
+
+        <div class="card">
+          <div class="card__eyebrow">/ symptom</div>
+          <h4 class="card__title">Graphify or wiki context is <em>stale</em></h4>
+          <div class="card__body">
+            <p>Check the managed graph first: <code>coodra graphify status</code>. Current managed output lives under <code>.coodra/graphify/out/</code>, not root-level <code>graphify-out/</code>.</p>
+            <p>Rebuild structurally without LLM spend via <code>coodra graphify build --no-llm</code>, then refresh the wiki with <code>coodra wiki build</code> and the two-pass wiki save flow.</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -2044,7 +2333,7 @@ cp deploy/.env.example deploy/.env
         </div>
         <div class="section__head__aside">Turbo · Vitest<br>Biome</div>
       </div>
-      <p class="section__lede">A monorepo with Turbo for orchestration, Biome for lint, and Vitest for everything from unit to e2e. CI runs four jobs in dependency order.</p>
+      <p class="section__lede">A monorepo with Turbo for orchestration, Biome for lint, and Vitest for everything from unit to e2e. CI currently runs six jobs: Linux verification/integration/e2e, cross-platform hook-adapter smoke, and two Windows smoke lanes.</p>
 
       <div class="sub" id="install">
         <h3 class="sub__title"><span class="sub__title__index">/12.1</span>Install &amp; <em>build</em></h3>
@@ -2075,7 +2364,7 @@ cp deploy/.env.example deploy/.env
               <tr><td><code>pnpm test:unit</code></td><td>Vitest</td><td>nothing — runs entirely in-process</td></tr>
               <tr><td><code>pnpm test:integration</code></td><td>Vitest</td><td>Postgres + Redis service containers</td></tr>
               <tr><td><code>pnpm test:e2e</code></td><td>Vitest · testcontainers</td><td>Docker · <code>fileParallelism: false</code> · 120s hook timeout</td></tr>
-              <tr><td><code>pnpm test:functional</code></td><td>bash</td><td><code>__tests__/functional/run-all.sh</code> · 11 shell scripts</td></tr>
+              <tr><td><code>pnpm test:functional</code></td><td>bash</td><td><code>__tests__/functional/run-all.sh</code> · 13 shell scripts</td></tr>
             </tbody>
           </table>
         </div>
@@ -2104,9 +2393,21 @@ cp deploy/.env.example deploy/.env
           </div>
           <div class="lifecycle__row">
             <div class="lifecycle__num">/04</div>
+            <div class="lifecycle__event">windows-core-smoke</div>
+            <div class="lifecycle__desc">Windows x64 core install smoke: native dependencies, <code>coodra init</code>, MCP daemon start, <code>/healthz</code>, status, stop.</div>
+            <div class="lifecycle__effect">depends → verify</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/05</div>
+            <div class="lifecycle__event">windows-native-full-smoke</div>
+            <div class="lifecycle__desc">PowerShell-native lane with Windows-focused unit tests, Graphify path checks, web standalone build, publish artifact assertion, and web smoke.</div>
+            <div class="lifecycle__effect">depends → verify</div>
+          </div>
+          <div class="lifecycle__row">
+            <div class="lifecycle__num">/06</div>
             <div class="lifecycle__event">e2e</div>
             <div class="lifecycle__desc">Testcontainers-driven full-stack scenarios.</div>
-            <div class="lifecycle__effect">depends → integration</div>
+            <div class="lifecycle__effect">depends → verify + integration</div>
           </div>
         </div>
       </div>
@@ -2162,7 +2463,7 @@ cp deploy/.env.example deploy/.env
             <div class="step__num">/04</div>
             <div class="step__body">
               <h4>Update <em>docs</em>.</h4>
-              <p>If you touched the public surface — env vars, CLI flags, MCP tools, hook payloads — update the relevant table in this docs page in the same PR. Also update <code>essentialsforclaude/</code> if the agent contract changes.</p>
+              <p>If you touched the public surface — env vars, CLI flags, MCP tools, lifecycle payloads — update the relevant table in this docs page in the same PR. If the change alters durable architecture, record or supersede the decision through <code>record_decision</code>.</p>
             </div>
           </div>
           <div class="step">
@@ -2176,7 +2477,7 @@ cp deploy/.env.example deploy/.env
             <div class="step__num">/06</div>
             <div class="step__body">
               <h4>Open the <em>PR</em>.</h4>
-              <p>Title in conventional-commit form (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>, <code>docs:</code>). Body should state: what changed, why, how to verify locally, and any ADR/docs it touches. CI will run verify → integration → hook-adapter-smoke → e2e.</p>
+              <p>Title in conventional-commit form (<code>feat:</code>, <code>fix:</code>, <code>chore:</code>, <code>docs:</code>). Body should state: what changed, why, how to verify locally, and any decision/docs it touches. CI will run verify, integration, hook-adapter-smoke, windows-core-smoke, windows-native-full-smoke, and e2e.</p>
             </div>
           </div>
         </div>
@@ -2223,28 +2524,34 @@ cp deploy/.env.example deploy/.env
         <div class="code__head"><span>repo map</span></div>
 <pre class="code"><span class="ck">Coodra/</span>
 ├── apps/
-│   ├── <span class="cn">mcp-server/</span>      <span class="cm"># 20 MCP tools · stdio + HTTP transport</span>
-│   ├── <span class="cn">hooks-bridge/</span>    <span class="cm"># Hono HTTP · 5 Claude Code hook events</span>
+│   ├── <span class="cn">mcp-server/</span>      <span class="cm"># 26 MCP tools · stdio + HTTP transport</span>
 │   ├── <span class="cn">sync-daemon/</span>     <span class="cm"># push + pull workers · team mode only</span>
-│   ├── web/             <span class="cw"># DEPRECATED · do not extend</span>
-│   └── <span class="cn">web-v2/</span>          <span class="cm"># Next.js 15 dashboard · 46 routes</span>
+│   └── <span class="cn">web-v2/</span>          <span class="cm"># Next.js 15 dashboard · 56 page/route files</span>
 ├── packages/
 │   ├── <span class="cn">cli/</span>             <span class="cm"># @coodra/cli npm package · only published artefact</span>
 │   ├── <span class="cn">db/</span>              <span class="cm"># Drizzle dual-dialect schema + migrations</span>
+│   ├── <span class="cn">lifecycle/</span>       <span class="cm"># shared SessionStart/End, diff, graph refresh, memory workers</span>
 │   ├── <span class="cn">policy/</span>          <span class="cm"># Cockatiel-wrapped evaluator + types</span>
-│   └── <span class="cn">shared/</span>          <span class="cm"># auth, roles, hook adapters, logger, env</span>
+│   └── <span class="cn">shared/</span>          <span class="cm"># auth, roles, recipes, wiki, logger, env</span>
+├── .coodra/
+│   ├── recipes/        <span class="cm"># project-local Agent Recipes</span>
+│   ├── graphify/out/   <span class="cm"># managed graph.json, GRAPH_REPORT.md, graph.html</span>
+│   ├── wiki/           <span class="cm"># Deep Wiki grounding + Markdown mirrors</span>
+│   └── work-packs/     <span class="cm"># local issue-bound implementation artifacts</span>
 ├── docs/
-│   ├── feature-packs/   <span class="cm"># 16 module blueprints</span>
-│   ├── context-packs/   <span class="cm"># template + module/phase closeouts</span>
+│   ├── index.html       <span class="cm"># public docs source of truth</span>
+│   ├── brand/           <span class="cm"># brand kit</span>
+│   ├── deploy/          <span class="cm"># self-hosting</span>
 │   ├── DEVELOPMENT.md
-│   └── deploy/self-host.md
-├── essentialsforclaude/ <span class="cm"># 12 numbered docs auto-imported by CLAUDE.md</span>
+│   ├── PRD-memory-utilization.md
+│   ├── team-*.md        <span class="cm"># team setup/onboarding manuals</span>
+│   └── value-story.md
 ├── deploy/              <span class="cm"># 4 Dockerfiles + compose.yaml</span>
-├── scripts/             <span class="cm"># hook-adapter installers + maintenance</span>
+├── scripts/             <span class="cm"># maintenance + publishing helpers</span>
 ├── __tests__/           <span class="cm"># e2e + functional + manual harnesses</span>
 └── .github/workflows/   <span class="cm"># ci.yml (4 jobs)</span></pre>
 
-        <p class="p p--dim">Hot tip: when in doubt about whether a behaviour is correct, search <code>docs/audit/</code> and <code>docs/verification/</code>. Those reports cite exact file:line ranges for every claim made elsewhere.</p>
+        <p class="p p--dim">Hot tip: when in doubt about whether a behaviour is correct, start from <code>.coodra/wiki/coodra/md/</code> and verify targeted source files. The wiki is grounded by Graphify, but source files remain the final authority.</p>
       </div>
     </section>
 
@@ -2255,9 +2562,9 @@ cp deploy/.env.example deploy/.env
           <div class="section__num">/14 — Design</div>
           <h2 class="section__title">Decisions of <em>record</em>.</h2>
         </div>
-        <div class="section__head__aside">essentialsforclaude<br>11-adrs.md</div>
+        <div class="section__head__aside">Coodra decisions store<br>curated highlights</div>
       </div>
-      <p class="section__lede">Architectural decisions, locked once accepted, superseded only by another ADR. The ones below are the most load-bearing — if you're new to the codebase, these explain why things look the way they do.</p>
+      <p class="section__lede">Architectural decisions are durable Coodra memory, written through <code>record_decision</code> and superseded through decision edges rather than maintained as standalone ADR files. The cards below are curated highlights of the most load-bearing decisions.</p>
 
       <div class="grid-2">
         <div class="card">
@@ -2268,17 +2575,17 @@ cp deploy/.env.example deploy/.env
         <div class="card">
           <div class="card__eyebrow">ADR-010</div>
           <h4 class="card__title">Graphify is a <em>reader</em></h4>
-          <p class="card__body">Coodra reads <code>~/.coodra/graphify/&lt;slug&gt;/graph.json</code> produced by an external <code>graphify scan</code>. No in-repo producer ships — separation of concerns and faster iteration on the graph format.</p>
+          <p class="card__body">Coodra consumes Graphify as a separate managed MCP server pointed at <code>.coodra/graphify/out/graph.json</code>. It installs and refreshes the structural graph, but does not fold graph queries into Coodra's own tool list or mint Work Packs from graph communities.</p>
         </div>
         <div class="card">
           <div class="card__eyebrow">ADR-012</div>
           <h4 class="card__title">Agent-driven NL <em>assembly</em></h4>
-          <p class="card__body">Module 05 originally proposed a Python FastAPI service with sentence-transformers. Replaced with MCP tools (<code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>) — the agent does the ranking. No external service. No model dependency.</p>
+          <p class="card__body">Natural-language memory assembly stays inside the agent loop. Coodra exposes retrieval tools (<code>search_packs_nl</code>, <code>list_context_packs</code>, <code>read_context_pack</code>); the agent ranks, synthesizes, and cites returned evidence.</p>
         </div>
         <div class="card">
           <div class="card__eyebrow">ADR-013</div>
           <h4 class="card__title">Run Diff in <em>process</em></h4>
-          <p class="card__body">Module 06 was renamed from "Semantic Diff" to "Run Diff". The Python tree-sitter service is gone. Replaced by an in-process git-diff runner in the hooks-bridge that captures <code>base_sha → head_sha</code> at session end.</p>
+          <p class="card__body">Shared lifecycle finalization captures <code>base_sha → head_sha</code>, stores deterministic git diff evidence, and links the result back to the run without depending on a separate analysis service.</p>
         </div>
         <div class="card">
           <div class="card__eyebrow">ADR-014</div>
@@ -2286,9 +2593,9 @@ cp deploy/.env.example deploy/.env
           <p class="card__body">Three roles — viewer, member, admin — parsed from Clerk org roles. <code>assertCanEdit</code> centralises the gate; ownership unlocks member-level edits on rows they created. Knowledge mutations are their own narrower gate.</p>
         </div>
         <div class="card">
-          <div class="card__eyebrow">ADR-014 · caveat</div>
-          <h4 class="card__title">Bridge stays <em>local</em></h4>
-          <p class="card__body">Hooks-bridge always runs on the laptop. No cloud bridge ships, even in team mode. The sync-daemon is the only process that opens the cloud connection — preserves the "fail-open & loopback" invariant.</p>
+          <div class="card__eyebrow">COOD-53</div>
+          <h4 class="card__title">Lifecycle is <em>MCP-native</em></h4>
+          <p class="card__body">Native plugins route session events to <code>lifecycle_event</code>. Shared <code>@coodra/lifecycle</code> owns finalization, diff capture, auto Context Packs, Work Pack updates, and graph refresh.</p>
         </div>
       </div>
     </section>
@@ -2313,7 +2620,7 @@ cp deploy/.env.example deploy/.env
           </tr></thead>
           <tbody>
             <tr><td><code>@modelcontextprotocol/sdk</code></td><td>mcp-server</td><td>MCP protocol server with stdio + HTTP transports.</td></tr>
-            <tr><td><code>hono</code> · <code>@hono/node-server</code></td><td>hooks-bridge · mcp-server HTTP</td><td>Tiny HTTP framework. Validates payloads via <code>@hono/zod-validator</code>.</td></tr>
+            <tr><td><code>hono</code> · <code>@hono/node-server</code></td><td>mcp-server HTTP</td><td>Tiny HTTP framework. Validates payloads via <code>@hono/zod-validator</code>.</td></tr>
             <tr><td><code>drizzle-orm</code></td><td>packages/db</td><td>Dual-dialect schemas + migrations.</td></tr>
             <tr><td><code>better-sqlite3</code></td><td>everywhere local</td><td>Synchronous SQLite driver. Native module — rebuild after install.</td></tr>
             <tr><td><code>sqlite-vec</code></td><td>packages/db extension</td><td>Vector search for the <code>context_packs_vec</code> virtual table.</td></tr>
@@ -2347,19 +2654,19 @@ cp deploy/.env.example deploy/.env
       <div class="kv">
         <div class="kv__row">
           <div class="kv__k">Is Coodra a code editor?</div>
-          <div class="kv__v">No. It runs <em>alongside</em> your editor — Claude Code, Codex. Coodra is the layer between the agent and your project: blueprints in, audit out.</div>
+          <div class="kv__v">No. It runs <em>alongside</em> your editor or coding agent. Coodra is the plugin/MCP layer between the agent and your project: context in, evidence out.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">Does it call out to OpenAI / Anthropic?</div>
-          <div class="kv__v">Coodra itself does not. Your agent (Claude Code, etc.) talks to its model. Coodra only ever talks to the agent through MCP, locally.</div>
+          <div class="kv__v">Coodra itself does not call model APIs. Your agent talks to its model. Coodra talks to the agent through MCP and may run key-free structural Graphify refreshes locally.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">Can I use Coodra without Claude Code?</div>
-          <div class="kv__v">Yes. Codex is fully supported alongside Claude Code — both get the native plugin, hooks, and MCP wiring. Any MCP-speaking client can talk to <code>mcp-server</code>.</div>
+          <div class="kv__v">Yes. Codex, Cursor, Devin, and Antigravity are supported through native plugins, and any MCP-speaking client can talk to <code>mcp-server</code>.</div>
         </div>
         <div class="kv__row">
-          <div class="kv__k">What happens if the hooks bridge goes down?</div>
-          <div class="kv__v">The agent's hook calls fail-open with a default ALLOW. You lose audit + memory injection for the affected tool calls, but you don't lose the ability to code.</div>
+          <div class="kv__k">What happens if Coodra's lifecycle path goes down?</div>
+          <div class="kv__v">The agent keeps coding through its native flow. You lose Coodra audit, memory refresh, run diffs, and policy advice for affected events until MCP/plugin health is restored.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">Where is my data stored?</div>
@@ -2370,8 +2677,8 @@ cp deploy/.env.example deploy/.env
           <div class="kv__v">Yes — <code>scripts/wipe-disposable-projects.sh</code> or <code>scripts/wipe-all.sh</code>. Append-only doesn't mean undeletable; it means we don't update rows in place.</div>
         </div>
         <div class="kv__row">
-          <div class="kv__k">Why does <code>.env.example</code> mention services that don't exist?</div>
-          <div class="kv__v">Historical. Modules 05 (NL Assembly) and 06 (Semantic Diff) were superseded by ADR-012 and ADR-013. The example file is being trimmed.</div>
+          <div class="kv__k">Can I change the web port?</div>
+          <div class="kv__v">Yes. Set <code>COODRA_WEB_PORT</code> for Coodra's service manager, or <code>PORT</code> when running the Next.js standalone process directly. Default is <code>3001</code>.</div>
         </div>
         <div class="kv__row">
           <div class="kv__k">Is the web UI required?</div>
@@ -2392,12 +2699,13 @@ cp deploy/.env.example deploy/.env
 
       <div class="kv">
         <div class="kv__row"><div class="kv__k">Actor</div><div class="kv__v">The authenticated entity behind a request — <code>userId</code>, <code>orgId</code>, <code>role</code>, <code>source</code>. Solo bypass attaches <code>SOLO_ACTOR</code>.</div></div>
-        <div class="kv__row"><div class="kv__k">Bridge</div><div class="kv__v">Short for hooks-bridge — the Hono HTTP service on <code>3101</code> that the agent's hooks POST to.</div></div>
         <div class="kv__row"><div class="kv__k">Cockatiel</div><div class="kv__v">The resilience library wrapping policy DB reads. Provides timeout + circuit breaker primitives.</div></div>
-        <div class="kv__row"><div class="kv__k">Doctor</div><div class="kv__v">A self-diagnostic CLI command. 11 essential checks by default, 38 with <code>--full</code>.</div></div>
+        <div class="kv__row"><div class="kv__k">Doctor</div><div class="kv__v">A self-diagnostic CLI command. 12 essential checks by default, 36 with <code>--full</code>.</div></div>
         <div class="kv__row"><div class="kv__k">Drizzle</div><div class="kv__v">The TypeScript ORM. Dual-dialect schemas in <code>packages/db/src/schema/{sqlite,postgres}.ts</code>.</div></div>
         <div class="kv__row"><div class="kv__k">Fail-open</div><div class="kv__v">When the engine can't decide, the verdict is ALLOW. Never block the agent because of our own faults.</div></div>
-        <div class="kv__row"><div class="kv__k">graphify</div><div class="kv__v">An external CLI that scans your codebase and emits <code>graph.json</code>. Coodra reads it; doesn't produce it.</div></div>
+        <div class="kv__row"><div class="kv__k">Graphify</div><div class="kv__v">Coodra-managed structural code graph under <code>.coodra/graphify/out/</code>, queried through a separate managed Graphify MCP server.</div></div>
+        <div class="kv__row"><div class="kv__k">Hook MCP tool</div><div class="kv__v"><code>lifecycle_event</code>, the canonical Coodra MCP tool native plugins call for SessionStart, prompt, tool, compaction, and SessionEnd events.</div></div>
+        <div class="kv__row"><div class="kv__k">lifecycle_event</div><div class="kv__v">The MCP-native lifecycle entrypoint for run creation, prompt-time memory refresh, tool policy checks, event recording, and finalization.</div></div>
         <div class="kv__row"><div class="kv__k">Idempotency key</div><div class="kv__v">A deterministic string used to gate writes. Same key → at most one row.</div></div>
         <div class="kv__row"><div class="kv__k">Ink</div><div class="kv__v">React for the terminal. Powers <code>coodra ui</code>.</div></div>
         <div class="kv__row"><div class="kv__k">launchd</div><div class="kv__v">macOS's service manager. Coodra writes per-service plists into <code>~/Library/LaunchAgents/</code> during <code>start</code>.</div></div>
@@ -2427,7 +2735,7 @@ cp deploy/.env.example deploy/.env
 <footer class="footer">
   <div>
     <div class="footer__title">Master the <em>context</em>.</div>
-    <div class="footer__sub">Coodra · Documentation · v 0.2.0-beta.3 — <a href="Coodra Brand Kit.html">Brand kit</a> · <a href="#welcome">Back to top ↑</a></div>
+    <div class="footer__sub">Coodra · Documentation · v 0.5.11 — <a href="brand/brand.html">Brand kit</a> · <a href="#welcome">Back to top ↑</a></div>
   </div>
   <div class="footer__meta">
     MIT licensed<br>
@@ -2534,6 +2842,26 @@ cp deploy/.env.example deploy/.env
         setTimeout(() => { btn.textContent = old; btn.style.color = ''; btn.style.borderColor = ''; }, 1400);
       });
     });
+  });
+</script>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    securityLevel: 'strict',
+    themeVariables: {
+      background: '#0d130d',
+      mainBkg: '#111811',
+      primaryColor: '#111811',
+      primaryBorderColor: '#7dd87d',
+      primaryTextColor: '#e8e6e1',
+      lineColor: '#7dd87d',
+      secondaryColor: '#0a0e0a',
+      tertiaryColor: '#172017',
+      fontFamily: 'Inter Tight, system-ui, sans-serif'
+    }
   });
 </script>
 
