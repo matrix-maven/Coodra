@@ -436,3 +436,70 @@ describe('COOD-88 — just-in-time teaching through permissionDecisionReason', (
     expect(rows[0]?.memoryId).toBe('dec_a');
   });
 });
+
+/**
+ * COOD-97 — a pull event id must identify the EVENT, not the query.
+ *
+ * Pull rows were minted as `mae_${idempotencyKey}_${i}`, where the
+ * idempotency key comes from the registry's `readonly` builder. Those
+ * keys are derived purely from tool INPUT — `search_packs_nl`'s carries
+ * only project slug and query prefix, and its own comment says
+ * collisions "are fine for log-correlation (not dedup-critical)". They
+ * were never event identities.
+ *
+ * Combined with `insertMemoryAccessEvent`'s `onConflictDoNothing`, the
+ * second access with the same inputs was silently dropped.
+ *
+ * `read_context_pack` was the worst case and the one that matters most:
+ * its key is `readonly:read_context_pack:${id}:e${excerptOnly}`, so
+ * every read of a given pack — across every session, forever — collapsed
+ * to a single row. That is exactly the pull COOD-83's cohort pairing
+ * depends on and the numerator of the pull-through rate COOD-94's
+ * observation week is meant to read.
+ */
+describe('COOD-97 — pull events are per access, not per query', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+    await seedRunAndDecisions(h);
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('records two rows when two sessions issue the identical query', async () => {
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await callQueryDecisions(registry, 'sess-2');
+    await settleAndDrain(h);
+
+    const rows = await accessRows(h);
+    const pulls = rows.filter((r) => r.channel === 'pull');
+    const sessions = new Set(pulls.map((r) => r.sessionId));
+    expect(sessions, 'both sessions must appear').toEqual(new Set(['sess-1', 'sess-2']));
+    // Two accesses, each returning the same two decisions.
+    expect(pulls.length).toBe(4);
+  });
+
+  it('records two rows when ONE session repeats the identical query', async () => {
+    // Two accesses are two events. Collapsing them undercounts the
+    // denominator that "was this memory wanted?" is computed from.
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await callQueryDecisions(registry, 'sess-1');
+    await settleAndDrain(h);
+
+    const pulls = (await accessRows(h)).filter((r) => r.channel === 'pull');
+    expect(pulls.length).toBe(4);
+  });
+
+  it('mints a distinct id per row so nothing can collide', async () => {
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await callQueryDecisions(registry, 'sess-2');
+    await settleAndDrain(h);
+
+    const pulls = (await accessRows(h)).filter((r) => r.channel === 'pull');
+    expect(new Set(pulls.map((r) => r.id)).size).toBe(pulls.length);
+  });
+});
