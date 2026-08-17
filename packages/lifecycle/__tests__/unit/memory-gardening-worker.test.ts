@@ -291,3 +291,121 @@ describe('runMemoryGardeningOnce — decisions', () => {
     }
   });
 });
+
+/**
+ * COOD-100 — gardening must not judge other projects' memory.
+ *
+ * `~/.coodra/data.db` holds EVERY project on the machine. The
+ * context-pack query has always filtered on `projectId`; the
+ * `decision_edges` query did not, and `markDecisionFreshness` updates by
+ * decision id alone.
+ *
+ * So a pass for project A walked project B's decisions and checked them
+ * against A's working tree. B's files resolve nowhere under A's cwd, so
+ * every one of them came back "deleted" — a confident, wrong staleness
+ * verdict on a project the pass was never asked about, written by a
+ * background worker nobody was watching.
+ */
+describe('runMemoryGardeningOnce — project scoping', () => {
+  async function seedTwoProjects(handle: SqliteHandle): Promise<void> {
+    for (const [projectId, slug, cwd] of [
+      ['proj-a', 'a', '/repo-a'],
+      ['proj-b', 'b', '/repo-b'],
+    ] as const) {
+      await handle.db.insert(sqliteSchema.projects).values({ id: projectId, orgId: 'org-1', slug, name: slug, cwd });
+      await handle.db.insert(sqliteSchema.runs).values({
+        id: `run-${projectId}`,
+        orgId: 'org-1',
+        projectId,
+        sessionId: `sess-${projectId}`,
+        agentType: 'claude_code',
+        mode: 'solo',
+      });
+      await handle.db.insert(sqliteSchema.decisions).values({
+        id: `dec-${projectId}`,
+        orgId: 'org-1',
+        projectId,
+        runId: `run-${projectId}`,
+        idempotencyKey: `idem-${projectId}`,
+        description: `choice for ${slug}`,
+        rationale: 'because',
+      });
+      await handle.db.insert(sqliteSchema.decisionEdges).values({
+        id: `de-${projectId}`,
+        projectId,
+        fromDecisionId: `dec-${projectId}`,
+        edgeType: 'affects',
+        targetType: 'file',
+        // A path that exists in that project's tree and nowhere else.
+        targetId: `packages/${slug}/src/index.ts`,
+      });
+    }
+  }
+
+  async function decisionRow(handle: SqliteHandle, id: string) {
+    const rows = await handle.db.select().from(sqliteSchema.decisions).where(eq(sqliteSchema.decisions.id, id));
+    return rows[0];
+  }
+
+  it('leaves another project’s decision completely untouched', async () => {
+    const handle = openMigrated();
+    try {
+      await seedTwoProjects(handle);
+
+      // Running for A, on A's filesystem. B's file is absent here —
+      // which is exactly why the unscoped query marked it deleted.
+      await runMemoryGardeningOnce({
+        db: handle,
+        projectCwd: '/repo-a',
+        projectId: 'proj-a',
+        pathExists: fsWith(['packages/a/src/index.ts']),
+      });
+
+      expect((await decisionRow(handle, 'dec-proj-a'))?.freshnessStatus).toBe('fresh');
+      const b = await decisionRow(handle, 'dec-proj-b');
+      expect(b?.freshnessStatus, 'B was never asked about').toBe('unverified');
+      expect(b?.staleReason).toBeNull();
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('does not report another project’s files as deleted', async () => {
+    const handle = openMigrated();
+    try {
+      await seedTwoProjects(handle);
+
+      // Nothing exists on A's disk. A's own decision should go stale;
+      // B's must still be left alone rather than swept up.
+      await runMemoryGardeningOnce({
+        db: handle,
+        projectCwd: '/repo-a',
+        projectId: 'proj-a',
+        pathExists: fsWith([]),
+      });
+
+      expect((await decisionRow(handle, 'dec-proj-a'))?.freshnessStatus).toBe('stale');
+      expect((await decisionRow(handle, 'dec-proj-b'))?.freshnessStatus).toBe('unverified');
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('counts only this project’s decisions as checked', async () => {
+    // The `batch * 5` budget was being spent on other projects' edges,
+    // so a large sibling could starve this project of any checking.
+    const handle = openMigrated();
+    try {
+      await seedTwoProjects(handle);
+      const result = await runMemoryGardeningOnce({
+        db: handle,
+        projectCwd: '/repo-a',
+        projectId: 'proj-a',
+        pathExists: fsWith(['packages/a/src/index.ts']),
+      });
+      expect(result.decisionsChecked).toBe(1);
+    } finally {
+      handle.close();
+    }
+  });
+});

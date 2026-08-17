@@ -9,7 +9,7 @@ import {
   sqliteSchema,
 } from '@coodra/db';
 import { createLogger, isElidedPath, looksLikeFilePath } from '@coodra/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 /**
  * `packages/lifecycle/src/memory-gardening-worker` — COOD-86.
@@ -214,7 +214,27 @@ export async function runMemoryGardeningOnce(opts: MemoryGardeningOptions): Prom
         targetId: sqliteSchema.decisionEdges.targetId,
       })
       .from(sqliteSchema.decisionEdges)
-      .where(eq(sqliteSchema.decisionEdges.targetType, 'file'))
+      // COOD-100 — scope to THIS project.
+      //
+      // The context-pack query above has always filtered on projectId;
+      // this one did not, and `markDecisionFreshness` updates by
+      // decision id alone. `~/.coodra/data.db` holds every project on
+      // the machine, so a pass for project A walked project B's
+      // decisions and judged them against A's working tree: B's files
+      // resolve nowhere under A's cwd, so every one of them would be
+      // reported deleted. A confident, wrong staleness verdict on a
+      // project the pass was never asked about.
+      //
+      // Also fixes a quieter bug: the `batch * 5` budget was being
+      // spent on other projects' edges, so a large sibling project
+      // could starve this one's decisions of any checking at all.
+      .where(
+        and(
+          eq(sqliteSchema.decisionEdges.projectId, projectId),
+          eq(sqliteSchema.decisionEdges.edgeType, 'affects'),
+          eq(sqliteSchema.decisionEdges.targetType, 'file'),
+        ),
+      )
       .limit(batch * 5);
 
     const filesByDecision = new Map<string, string[]>();
