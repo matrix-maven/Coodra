@@ -61,9 +61,17 @@ async function seedRecipe(cwd: string, slug: string, description: string): Promi
   await mkdir(dir, { recursive: true });
   await writeFile(
     join(dir, 'recipe.md'),
-    ['---', `name: ${slug}`, `description: ${description}`, 'maturity: stable', '---', '', `# ${slug}`, '', 'Body.'].join(
-      '\n',
-    ),
+    [
+      '---',
+      `name: ${slug}`,
+      `description: ${description}`,
+      'maturity: stable',
+      '---',
+      '',
+      `# ${slug}`,
+      '',
+      'Body.',
+    ].join('\n'),
     'utf8',
   );
 }

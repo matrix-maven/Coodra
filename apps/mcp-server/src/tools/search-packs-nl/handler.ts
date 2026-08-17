@@ -96,7 +96,9 @@ async function selectSupersededDecisionIds(db: DbHandle, decisionIds: ReadonlyAr
     const rows = await db.db
       .select({ targetId: edges.targetId })
       .from(edges)
-      .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+      .where(
+        and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)),
+      );
     for (const row of rows) superseded.add(row.targetId);
     return superseded;
   }

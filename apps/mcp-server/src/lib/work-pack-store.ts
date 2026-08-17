@@ -91,7 +91,9 @@ function parseJsonObject(value: string | null | undefined): Record<string, unkno
   if (value === undefined || value === null || value.length === 0) return {};
   try {
     const parsed = JSON.parse(value) as unknown;
-    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
+    return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
   } catch {
     return {};
   }
@@ -212,7 +214,9 @@ function mergeWorkPackPatch(
   patch: WorkPackPatchInput,
 ): ExistingWorkPackForUpdate & { readonly metadataObject: Record<string, unknown>; readonly fieldsChanged: string[] } {
   const metadataObject =
-    patch.metadataJson === undefined ? parseJsonObject(existing.metadataJson) : { ...parseJsonObject(existing.metadataJson), ...patch.metadataJson };
+    patch.metadataJson === undefined
+      ? parseJsonObject(existing.metadataJson)
+      : { ...parseJsonObject(existing.metadataJson), ...patch.metadataJson };
   const next = {
     ...existing,
     title: patch.title ?? existing.title,
@@ -639,7 +643,9 @@ export async function updateWorkPack(
       }));
     const merged = mergeWorkPackPatch(existing, args.patch);
     const fieldsChanged =
-      args.relationships === undefined ? merged.fieldsChanged : [...new Set([...merged.fieldsChanged, 'relationships'])];
+      args.relationships === undefined
+        ? merged.fieldsChanged
+        : [...new Set([...merged.fieldsChanged, 'relationships'])];
 
     await db.db
       .update(sqliteSchema.workPacks)
@@ -656,7 +662,9 @@ export async function updateWorkPack(
       .where(eq(sqliteSchema.workPacks.id, existing.id));
 
     if (args.relationships !== undefined) {
-      await db.db.delete(sqliteSchema.workPackRelationships).where(eq(sqliteSchema.workPackRelationships.sourceWorkPackId, existing.id));
+      await db.db
+        .delete(sqliteSchema.workPackRelationships)
+        .where(eq(sqliteSchema.workPackRelationships.sourceWorkPackId, existing.id));
       if (args.relationships.length > 0) {
         await db.db.insert(sqliteSchema.workPackRelationships).values(
           args.relationships.map((rel) => ({
@@ -796,7 +804,9 @@ export async function updateWorkPack(
     .where(eq(postgresSchema.workPacks.id, existing.id));
 
   if (args.relationships !== undefined) {
-    await db.db.delete(postgresSchema.workPackRelationships).where(eq(postgresSchema.workPackRelationships.sourceWorkPackId, existing.id));
+    await db.db
+      .delete(postgresSchema.workPackRelationships)
+      .where(eq(postgresSchema.workPackRelationships.sourceWorkPackId, existing.id));
     if (args.relationships.length > 0) {
       await db.db.insert(postgresSchema.workPackRelationships).values(
         args.relationships.map((rel) => ({

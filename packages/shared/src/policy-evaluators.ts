@@ -109,7 +109,10 @@ export function policyDecisionForStorage(decision: string): 'allow' | 'ask' | 'd
   return 'allow';
 }
 
-export function policyGovernanceVerdictForStorage(decision: string, severity: string = 'medium'): PolicyGovernanceVerdict {
+export function policyGovernanceVerdictForStorage(
+  decision: string,
+  severity: string = 'medium',
+): PolicyGovernanceVerdict {
   if (decision === 'deny' || decision === 'block') return 'block';
   if (decision === 'ask') return 'confirm';
   if (decision === 'warn') return 'warn';

@@ -215,7 +215,10 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
       .from(sqliteSchema.runEvents)
       .where(eq(sqliteSchema.runEvents.runId, runId ?? ''));
     expect(events.length).toBeGreaterThan(0);
-    expect(events.some((e: { phase: string }) => e.phase === 'post'), 'PostToolUse recorded').toBe(true);
+    expect(
+      events.some((e: { phase: string }) => e.phase === 'post'),
+      'PostToolUse recorded',
+    ).toBe(true);
     // NOTE — divergence from the retired bridge, asserted deliberately:
     // the bridge stored UserPromptSubmit as `phase='user_prompt'`, while
     // `eventRecordPhase` on the native path collapses anything not

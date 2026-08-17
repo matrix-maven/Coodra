@@ -80,5 +80,4 @@ describe('native advisory rule templates', () => {
     expect(rules.every((rule) => rule.governanceVerdict !== 'pass')).toBe(true);
     expect(new Set(rules.map((rule) => rule.controlKey))).toEqual(NATIVE_ADVISORY_CONTROLS);
   });
-
 });

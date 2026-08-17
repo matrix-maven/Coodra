@@ -274,10 +274,7 @@ function Header({ snap, base }: { snap: RoiSnapshot; base: RoiResult }) {
           <strong>{fmtInt(snap.adoption.totalRuns)} runs</strong>
           <br />
           {fmtInt(
-            snap.knowledge.contextPacks +
-              snap.knowledge.decisions +
-              snap.knowledge.workPacks +
-              snap.knowledge.features,
+            snap.knowledge.contextPacks + snap.knowledge.decisions + snap.knowledge.workPacks + snap.knowledge.features,
           )}{' '}
           knowledge assets
           <br />

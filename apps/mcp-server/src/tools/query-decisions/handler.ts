@@ -346,7 +346,9 @@ async function selectSupersededBy(db: DbHandle, decisionIds: ReadonlyArray<strin
     const rows = await db.db
       .select({ targetId: edges.targetId, fromDecisionId: edges.fromDecisionId })
       .from(edges)
-      .where(and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)));
+      .where(
+        and(eq(edges.edgeType, 'supersedes'), eq(edges.targetType, 'decision'), inArray(edges.targetId, uniqueIds)),
+      );
     for (const row of rows) if (!supersededBy.has(row.targetId)) supersededBy.set(row.targetId, row.fromDecisionId);
     return supersededBy;
   }

@@ -68,14 +68,34 @@ function seedWorkPack(h: Harness, withExternalLink: boolean): void {
         (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run('wp_wpu', 'proj_wpu', 'cood-100', 'Original scope', 'story', 'draft', 'Old spec', 'Old impl', 'Old sync', '{"risk":"low"}');
+    .run(
+      'wp_wpu',
+      'proj_wpu',
+      'cood-100',
+      'Original scope',
+      'story',
+      'draft',
+      'Old spec',
+      'Old impl',
+      'Old sync',
+      '{"risk":"low"}',
+    );
   h.handle.raw
     .prepare(
       `INSERT INTO work_pack_relationships
         (id, project_id, source_work_pack_id, source_external_key, target_external_key, relationship_type, sync_level, metadata_json)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run('rel_wpu', 'proj_wpu', 'wp_wpu', withExternalLink ? 'COOD-100' : null, 'COOD-99', 'Relates', 'summary', '{"why":"nearby"}');
+    .run(
+      'rel_wpu',
+      'proj_wpu',
+      'wp_wpu',
+      withExternalLink ? 'COOD-100' : null,
+      'COOD-99',
+      'Relates',
+      'summary',
+      '{"why":"nearby"}',
+    );
   if (!withExternalLink) return;
   h.handle.raw
     .prepare(
@@ -146,7 +166,12 @@ describe('work_pack_update — local Work Pack patching and sync state', () => {
 
     const wp = h.handle.raw
       .prepare('SELECT title, spec_markdown, implementation_markdown, metadata_json FROM work_packs WHERE id = ?')
-      .get('wp_wpu') as { title: string; spec_markdown: string; implementation_markdown: string; metadata_json: string };
+      .get('wp_wpu') as {
+      title: string;
+      spec_markdown: string;
+      implementation_markdown: string;
+      metadata_json: string;
+    };
     expect(wp.title).toBe('Revised scope');
     expect(wp.spec_markdown).toBe('New acceptance criteria');
     expect(wp.implementation_markdown).toBe('Old impl');
@@ -158,7 +183,9 @@ describe('work_pack_update — local Work Pack patching and sync state', () => {
     expect(link).toEqual({ sync_state: 'local_ahead', conflict_state: null });
 
     const sync = h.handle.raw
-      .prepare('SELECT provider, direction, action, result, external_key, summary, metadata_json FROM sync_events WHERE work_pack_id = ?')
+      .prepare(
+        'SELECT provider, direction, action, result, external_key, summary, metadata_json FROM sync_events WHERE work_pack_id = ?',
+      )
       .get('wp_wpu') as {
       provider: string;
       direction: string;

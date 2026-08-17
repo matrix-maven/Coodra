@@ -50,7 +50,9 @@ function buildRegistry(h: Harness): ToolRegistry {
   return registry;
 }
 
-function unwrap(result: { readonly content: ReadonlyArray<{ type: string; text: string }> }): QueryDecisionsByFileOutput {
+function unwrap(result: {
+  readonly content: ReadonlyArray<{ type: string; text: string }>;
+}): QueryDecisionsByFileOutput {
   const parsed = JSON.parse(result.content[0]?.text ?? '{}') as { ok: boolean; data?: QueryDecisionsByFileOutput };
   if (!parsed.ok || !parsed.data) throw new Error(`unexpected envelope: ${JSON.stringify(parsed)}`);
   return parsed.data;
@@ -147,7 +149,15 @@ describe('query_decisions_by_file — COOD-58 reverse lookup', () => {
         `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run('dec_neighbor_file', 'proj_file', 'idem_neighbor_file', 'run_file', 'neighbor file choice', 'neighbor', 1000);
+      .run(
+        'dec_neighbor_file',
+        'proj_file',
+        'idem_neighbor_file',
+        'run_file',
+        'neighbor file choice',
+        'neighbor',
+        1000,
+      );
     h.handle.raw
       .prepare(
         `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
@@ -159,7 +169,15 @@ describe('query_decisions_by_file — COOD-58 reverse lookup', () => {
         `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run('dec_label_collision', 'proj_file', 'idem_label_collision', 'run_file', 'label collision choice', 'collision', 3000);
+      .run(
+        'dec_label_collision',
+        'proj_file',
+        'idem_label_collision',
+        'run_file',
+        'label collision choice',
+        'collision',
+        3000,
+      );
     h.handle.raw
       .prepare(
         `INSERT INTO decision_edges (id, project_id, from_decision_id, edge_type, target_type, target_id)

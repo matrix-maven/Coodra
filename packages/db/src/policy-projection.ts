@@ -75,14 +75,12 @@ export async function buildPolicyProjection(db: DbHandle, args: BuildPolicyProje
   const activeExceptionIds = exceptions.map((row) => row.id).sort();
   const activeGrantIds = grants.map((row) => row.id).sort();
   const activeCapabilities = [
-    ...new Set(
-      [
-        ...policies.flatMap((policy) =>
-          policy.rules.flatMap((rule) => [rule.requiredCapability, rule.excludedCapability].filter(Boolean)),
-        ),
-        ...grants.map((grant) => grant.targetCapability).filter(Boolean),
-      ] as string[],
-    ),
+    ...new Set([
+      ...policies.flatMap((policy) =>
+        policy.rules.flatMap((rule) => [rule.requiredCapability, rule.excludedCapability].filter(Boolean)),
+      ),
+      ...grants.map((grant) => grant.targetCapability).filter(Boolean),
+    ] as string[]),
   ].sort();
   const policyVersionIds = projectionPolicies
     .map((policy) => policy.activeVersionId)

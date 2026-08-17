@@ -21,12 +21,15 @@ describe('control catalog', () => {
     handle = createSqliteDb({ path: ':memory:' });
     if (handle.kind !== 'sqlite') throw new Error('expected sqlite handle');
     migrateSqlite(handle.db);
-    handle.db.insert(sqliteSchema.projects).values({
-      id: 'proj_catalog',
-      orgId: 'org_dev_local',
-      slug: 'catalog-project',
-      name: 'Catalog Project',
-    }).run();
+    handle.db
+      .insert(sqliteSchema.projects)
+      .values({
+        id: 'proj_catalog',
+        orgId: 'org_dev_local',
+        slug: 'catalog-project',
+        name: 'Catalog Project',
+      })
+      .run();
   });
 
   afterEach(() => {
@@ -95,11 +98,18 @@ describe('control catalog', () => {
     expect(first.inserted).toBe(2);
     expect(first.updated).toBe(0);
 
-    const second = await upsertControls(handle, controls.map((control) => ({ ...control, title: `${control.title} updated` })));
+    const second = await upsertControls(
+      handle,
+      controls.map((control) => ({ ...control, title: `${control.title} updated` })),
+    );
     expect(second.inserted).toBe(0);
     expect(second.updated).toBe(2);
 
-    const native = await listControls(handle, { projectId: 'proj_catalog', source: 'catalog', relevanceTrack: 'native_advisory' });
+    const native = await listControls(handle, {
+      projectId: 'proj_catalog',
+      source: 'catalog',
+      relevanceTrack: 'native_advisory',
+    });
     expect(native).toHaveLength(1);
     expect(native[0]?.title).toBe('No plaintext secrets updated');
 

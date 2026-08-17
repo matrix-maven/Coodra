@@ -65,7 +65,8 @@ export const claudeHookRegistrationCheck: Check = {
       return {
         status: 'yellow',
         detail: `native Claude Code plugin (coodra@coodra) is not fully wired at ${settingsPath} — missing: ${missing.join(', ')}.`,
-        remediation: 'Run `coodra agent add claude` (or `coodra agent repair claude`) to (re)install the native Claude Code plugin.',
+        remediation:
+          'Run `coodra agent add claude` (or `coodra agent repair claude`) to (re)install the native Claude Code plugin.',
       };
     }
     return {
