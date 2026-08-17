@@ -142,7 +142,7 @@ export async function runMemoryRollupOnce(
   `);
   const dailyRows = await db.db.run(sql`
     INSERT INTO memory_access_daily (
-      id, org_id, project_id, day, channel, site, memory_type,
+      id, org_id, project_id, day, channel, site, memory_type, actor_user_id,
       access_count, distinct_items, distinct_runs,
       total_bytes, total_latency_ms, max_latency_ms, stale_at_access_count,
       created_at, updated_at
@@ -155,6 +155,11 @@ export async function runMemoryRollupOnce(
       channel,
       site,
       memory_type,
+      -- COOD-99: solo mode has no Clerk actor, so NULL folds to the
+      -- 'local' sentinel. Keeping NULL would put a NULL in the grain
+      -- UNIQUE index, where SQL treats NULLs as distinct -- the COOD-79
+      -- trap this worker already recomputes around.
+      COALESCE(actor_user_id, 'local'),
       COUNT(*),
       COUNT(DISTINCT memory_id),
       COUNT(DISTINCT run_id),
@@ -167,7 +172,7 @@ export async function runMemoryRollupOnce(
       unixepoch()
     FROM memory_access_events
     WHERE strftime('%Y-%m-%d', created_at, 'unixepoch') < ${today}
-    GROUP BY project_id, day, channel, site, memory_type
+    GROUP BY project_id, day, channel, site, memory_type, COALESCE(actor_user_id, 'local')
   `);
 
   // ---- (b) memory_cohorts ------------------------------------------
