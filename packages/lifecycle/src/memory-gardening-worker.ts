@@ -236,7 +236,15 @@ export async function runMemoryGardeningOnce(opts: MemoryGardeningOptions): Prom
 
     for (const [decisionId, rawTargets] of filesByDecision) {
       const files = rawTargets.filter(looksLikePath);
-      if (files.length === 0) continue; // prose, not paths — nothing to verify
+      if (files.length === 0) {
+        // Prose targets, nothing verifiable. Retract any verdict a
+        // previous, looser pass left behind — same rule as packs. The
+        // /memory dashboard is what caught this asymmetry: it showed 7
+        // stale decisions where the current logic marks 2, the other
+        // five being fossils of an earlier calibration.
+        await markDecisionFreshness(db, decisionId, { status: 'unverified', staleReason: null });
+        continue;
+      }
       decisionsChecked += 1;
       const missing: string[] = [];
       for (const path of files) {
