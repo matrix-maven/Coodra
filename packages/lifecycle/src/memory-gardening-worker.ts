@@ -214,7 +214,7 @@ export async function runMemoryGardeningOnce(opts: MemoryGardeningOptions): Prom
         targetId: sqliteSchema.decisionEdges.targetId,
       })
       .from(sqliteSchema.decisionEdges)
-      // COOD-100 — scope to THIS project.
+      // COOD-99 — scope to THIS project.
       //
       // The context-pack query above has always filtered on projectId;
       // this one did not, and `markDecisionFreshness` updates by

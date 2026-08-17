@@ -218,7 +218,7 @@ let cloud: PostgresHandle;
   });
 
   it('COOD-98 keeps two seats as two cloud rows', async () => {
-    // The whole reason COOD-99 put actor_user_id in the grain: without
+    // The whole reason COOD-100 put actor_user_id in the grain: without
     // it these two collapse to one row and one developer's counts are
     // silently overwritten on every pass.
     await ensureProject(local, { slug: 'mad-seats', orgId: 'sync_test', name: 'mad-seats' });

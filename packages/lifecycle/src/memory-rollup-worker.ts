@@ -157,7 +157,7 @@ export async function runMemoryRollupOnce(
       channel,
       site,
       memory_type,
-      -- COOD-99: solo mode has no Clerk actor, so NULL folds to the
+      -- COOD-100: solo mode has no Clerk actor, so NULL folds to the
       -- 'local' sentinel. Keeping NULL would put a NULL in the grain
       -- UNIQUE index, where SQL treats NULLs as distinct -- the COOD-79
       -- trap this worker already recomputes around.

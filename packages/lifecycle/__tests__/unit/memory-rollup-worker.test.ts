@@ -316,7 +316,7 @@ describe('runMemoryRollupOnce — prune invariant', () => {
 });
 
 /**
- * COOD-99 — the actor is part of the daily grain.
+ * COOD-100 — the actor is part of the daily grain.
  *
  * `memory_access_events` always carried `actor_user_id`; the rollup
  * aggregated it away. That cost per-seat utilization (the reason the

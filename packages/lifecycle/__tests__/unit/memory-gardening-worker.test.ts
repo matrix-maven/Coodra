@@ -293,7 +293,7 @@ describe('runMemoryGardeningOnce — decisions', () => {
 });
 
 /**
- * COOD-100 — gardening must not judge other projects' memory.
+ * COOD-99 — gardening must not judge other projects' memory.
  *
  * `~/.coodra/data.db` holds EVERY project on the machine. The
  * context-pack query has always filtered on `projectId`; the
