@@ -202,8 +202,10 @@ function SurfaceTable({ rows }: { rows: ReadonlyArray<SurfaceUtilization> }) {
     <section>
       <h2>By surface</h2>
       <p className="lede">
-        Each door memory travels through. <strong>Pull-through</strong> is the share of surfaced items the agent then
-        asked for by id — the closest thing to proof that context was used rather than merely sent.
+        Each door memory travels through. <strong>Pull-through</strong> is the share of items{' '}
+        <em>surfaced at this door</em> that the agent then asked for by id — the closest thing to proof that context was
+        used rather than merely sent. A door that only serves retrievals surfaces nothing, so it shows &ldquo;—&rdquo;
+        rather than borrowing another surface&apos;s number (COOD-101).
       </p>
       <table className="tbl">
         <thead>

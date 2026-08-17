@@ -515,3 +515,108 @@ describe('runMemoryRollupOnce — team sync enqueue', () => {
     }
   });
 });
+
+/**
+ * COOD-101 — a cohort records WHERE it was surfaced and pulled.
+ *
+ * `/memory` grouped cohorts by `memory_type` alone, then showed that one
+ * number under every site carrying that type. Four context-pack surfaces
+ * displayed identical pull-through under a column headed "Surface".
+ *
+ * Neither site can join the grain: a cohort exists to pair a push at one
+ * site with a pull at ANOTHER, so keying on site would split those two
+ * rows apart and there would be no pairing left to measure.
+ */
+describe('runMemoryRollupOnce — cohort sites', () => {
+  it('records the push site and the pull site separately', async () => {
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_a',
+        channel: 'push',
+        site: 'session_start_manifest',
+      });
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_a',
+        channel: 'pull',
+        site: 'read_context_pack',
+      });
+
+      await runMemoryRollupOnce(handle);
+
+      const rows = await cohorts(handle);
+      expect(rows, 'push and pull must still pair into ONE cohort').toHaveLength(1);
+      expect(rows[0]?.surfacedSite).toBe('session_start_manifest');
+      expect(rows[0]?.pulledSite).toBe('read_context_pack');
+      expect(rows[0]?.surfacedCount).toBe(1);
+      expect(rows[0]?.pulledCount).toBe(1);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('leaves pulled_site null when the item was surfaced but never pulled', async () => {
+    // That absence is the signal pull-through is built on — it must not
+    // be filled in with the surfacing site.
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_b',
+        channel: 'push',
+        site: 'session_start_manifest',
+      });
+
+      await runMemoryRollupOnce(handle);
+
+      const rows = await cohorts(handle);
+      expect(rows[0]?.surfacedSite).toBe('session_start_manifest');
+      expect(rows[0]?.pulledSite).toBeNull();
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('keeps two surfacing sites distinguishable instead of merging them', async () => {
+    // The actual defect: two items of the same memory_type surfaced at
+    // DIFFERENT doors used to be indistinguishable, so both doors showed
+    // one blended number.
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_from_manifest',
+        channel: 'push',
+        site: 'session_start_manifest',
+      });
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_from_search',
+        channel: 'push',
+        site: 'search_packs_nl',
+      });
+
+      await runMemoryRollupOnce(handle);
+
+      const sites = (await cohorts(handle)).map((r) => r.surfacedSite).sort();
+      expect(sites).toEqual(['search_packs_nl', 'session_start_manifest']);
+    } finally {
+      handle.close();
+    }
+  });
+});

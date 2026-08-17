@@ -1288,6 +1288,24 @@ export const memoryCohorts = pgTable(
     memoryId: text('memory_id').notNull(),
     surfacedCount: integer('surfaced_count').notNull().default(0),
     pulledCount: integer('pulled_count').notNull().default(0),
+    /**
+     * COOD-101 — WHERE the item was first surfaced, and first pulled.
+     *
+     * Derived attributes, deliberately NOT part of the grain. A cohort
+     * exists precisely to pair a push at one site
+     * (`session_start_manifest`) with a pull at another
+     * (`read_context_pack`); putting either site in the grain would
+     * split those two rows apart and destroy the pairing the table
+     * exists for.
+     *
+     * Without these, `/memory` could not attribute pull-through to a
+     * surface. It grouped cohorts by `memory_type` alone and showed that
+     * single number under every site carrying that type, so four
+     * context-pack surfaces displayed identical pull-through — a
+     * per-surface column that was never per-surface.
+     */
+    surfacedSite: text('surfaced_site'),
+    pulledSite: text('pulled_site'),
     firstSurfacedAt: timestamp('first_surfaced_at', { withTimezone: true, mode: 'date' }),
     firstPulledAt: timestamp('first_pulled_at', { withTimezone: true, mode: 'date' }),
     timeToFirstPullMs: integer('time_to_first_pull_ms'),
