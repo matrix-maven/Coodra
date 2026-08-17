@@ -1,0 +1,22 @@
+-- COOD-101: record WHERE a cohort item was surfaced and where it was pulled.
+--
+-- `/memory` grouped cohorts by memory_type alone and then displayed that
+-- single number under every site carrying that type, so four
+-- context-pack surfaces (session_start_manifest, read_context_pack,
+-- search_packs_nl, list_context_packs) all showed identical
+-- surfaced/pulled/pull-through. A column labelled per-surface that was
+-- never per-surface.
+--
+-- Both columns are DERIVED, never part of the grain. A cohort exists to
+-- pair a push at one site with a pull at another; putting either site in
+-- (run_id, baseline_generation, memory_type, memory_id) would split
+-- those two rows apart and destroy the pairing the table exists for.
+--
+-- Nullable on purpose: an item surfaced but never pulled has no
+-- pulled_site, and that absence is the signal pull-through is built on.
+-- Existing rows backfill to NULL rather than a guess -- they were rolled
+-- up before the site was recorded, and inventing one would fabricate
+-- attribution.
+ALTER TABLE `memory_cohorts` ADD COLUMN `surfaced_site` text;
+--> statement-breakpoint
+ALTER TABLE `memory_cohorts` ADD COLUMN `pulled_site` text;

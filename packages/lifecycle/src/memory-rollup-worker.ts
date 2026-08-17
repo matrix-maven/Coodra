@@ -199,7 +199,7 @@ export async function runMemoryRollupOnce(
   const cohortRows = await db.db.run(sql`
     INSERT INTO memory_cohorts (
       id, org_id, project_id, run_id, baseline_generation, memory_type, memory_id,
-      surfaced_count, pulled_count, first_surfaced_at, first_pulled_at,
+      surfaced_count, pulled_count, surfaced_site, pulled_site, first_surfaced_at, first_pulled_at,
       time_to_first_pull_ms, stale_at_access, created_at, updated_at
     )
     SELECT
@@ -212,6 +212,25 @@ export async function runMemoryRollupOnce(
       memory_id,
       SUM(CASE WHEN channel = 'push' THEN 1 ELSE 0 END),
       SUM(CASE WHEN channel = 'pull' THEN 1 ELSE 0 END),
+      -- COOD-101: the site of the FIRST push / FIRST pull, matching how
+      -- first_surfaced_at and first_pulled_at are already chosen. Both
+      -- stay NULL when that channel never happened, and an item
+      -- surfaced-but-never-pulled having no pulled_site is exactly the
+      -- absence pull-through is built on.
+      (SELECT e2.site FROM memory_access_events e2
+        WHERE e2.run_id = memory_access_events.run_id
+          AND e2.baseline_generation = memory_access_events.baseline_generation
+          AND e2.memory_type = memory_access_events.memory_type
+          AND e2.memory_id = memory_access_events.memory_id
+          AND e2.channel = 'push'
+        ORDER BY e2.created_at LIMIT 1),
+      (SELECT e3.site FROM memory_access_events e3
+        WHERE e3.run_id = memory_access_events.run_id
+          AND e3.baseline_generation = memory_access_events.baseline_generation
+          AND e3.memory_type = memory_access_events.memory_type
+          AND e3.memory_id = memory_access_events.memory_id
+          AND e3.channel = 'pull'
+        ORDER BY e3.created_at LIMIT 1),
       MIN(CASE WHEN channel = 'push' THEN created_at END),
       MIN(CASE WHEN channel = 'pull' THEN created_at END),
       CASE

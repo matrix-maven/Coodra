@@ -126,7 +126,7 @@ interface RawUtilization {
     readonly bytes: number | null;
   }>;
   readonly cohortRows: ReadonlyArray<{
-    readonly memoryType: string;
+    readonly surfacedSite: string | null;
     readonly surfaced: number | null;
     readonly pulled: number | null;
   }>;
@@ -178,12 +178,12 @@ async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
 
   const cohortRows = await db
     .select({
-      memoryType: cohorts.memoryType,
+      surfacedSite: cohorts.surfacedSite,
       surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
       pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
     })
     .from(cohorts)
-    .groupBy(cohorts.memoryType);
+    .groupBy(cohorts.surfacedSite);
 
   const [packTotal] = await db.select({ n: count() }).from(packs);
   const [decisionTotal] = await db.select({ n: count() }).from(decisions);
@@ -244,12 +244,12 @@ async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
 
   const cohortRows = await db
     .select({
-      memoryType: cohorts.memoryType,
+      surfacedSite: cohorts.surfacedSite,
       surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
       pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
     })
     .from(cohorts)
-    .groupBy(cohorts.memoryType);
+    .groupBy(cohorts.surfacedSite);
 
   const [packTotal] = await db.select({ n: count() }).from(packs);
   const [decisionTotal] = await db.select({ n: count() }).from(decisions);
@@ -288,19 +288,26 @@ export async function fetchMemoryUtilization(): Promise<MemoryUtilizationSnapsho
   const handle = createWebDb();
   const raw = handle.kind === 'sqlite' ? await readSqlite(handle.db) : await readPostgres(handle.db);
 
-  const pullByType = new Map(raw.cohortRows.map((row) => [row.memoryType, row]));
+  // COOD-101 — pull-through is attributed to the site an item was
+  // SURFACED at, not to the memory type it carries.
+  //
+  // This used to group cohorts by `memory_type` and then map every site
+  // to a type, so `session_start_manifest`, `read_context_pack`,
+  // `search_packs_nl` and `list_context_packs` — all context_pack sites
+  // — displayed the SAME surfaced/pulled/pull-through under a column
+  // headed "Surface". Four rows of one number, presented as four
+  // measurements.
+  //
+  // Surfaced-site is the right key because the question pull-through
+  // answers is "did what we showed at this door get used?". A pure pull
+  // door like `read_context_pack` surfaces nothing, so it now reports
+  // null — rendered "—" — instead of borrowing the manifest's number.
+  const pullBySurfacedSite = new Map(
+    raw.cohortRows.flatMap((row) => (row.surfacedSite === null ? [] : [[row.surfacedSite, row] as const])),
+  );
 
   const bySurface: SurfaceUtilization[] = raw.dailyRows.map((row) => {
-    // Sites map to the memory type they carry; a site with no cohort
-    // data reports null rather than 0.
-    const type = row.site.includes('decision')
-      ? 'decision'
-      : row.site.includes('wiki')
-        ? 'wiki_page'
-        : row.site.includes('recipe')
-          ? 'recipe'
-          : 'context_pack';
-    const cohort = pullByType.get(type);
+    const cohort = pullBySurfacedSite.get(row.site);
     const surfaced = Number(cohort?.surfaced ?? 0);
     const pulled = Number(cohort?.pulled ?? 0);
     const accesses = Number(row.accesses ?? 0);
