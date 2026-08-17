@@ -1,11 +1,11 @@
-import { type DbHandle } from '@coodra/db';
+import type { DbHandle } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 
 import type { ToolContext } from '../framework/tool-context.js';
-import { createQueryDecisionsByFileHandler } from '../tools/query-decisions-by-file/handler.js';
-import type { QueryDecisionsByFileOutput } from '../tools/query-decisions-by-file/schema.js';
 import { createQueryDecisionsHandler } from '../tools/query-decisions/handler.js';
 import type { DecisionEntry } from '../tools/query-decisions/schema.js';
+import { createQueryDecisionsByFileHandler } from '../tools/query-decisions-by-file/handler.js';
+import type { QueryDecisionsByFileOutput } from '../tools/query-decisions-by-file/schema.js';
 import { createSearchPacksNlHandler } from '../tools/search-packs-nl/handler.js';
 import type { PackResult } from '../tools/search-packs-nl/schema.js';
 
@@ -117,8 +117,7 @@ const STOP_WORDS = new Set([
   'your',
 ]);
 
-const FILE_PATH_RE =
-  /(?:^|\s|["'`(])((?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.@-]+\.[A-Za-z0-9]+)(?=$|\s|["'`),:;])/g;
+const FILE_PATH_RE = /(?:^|\s|["'`(])((?:[A-Za-z0-9_.-]+\/)+[A-Za-z0-9_.@-]+\.[A-Za-z0-9]+)(?=$|\s|["'`),:;])/g;
 const ISSUE_REF_RE = /\b[A-Z][A-Z0-9]+-\d+\b/g;
 const WORK_PACK_RE = /\b(?:work[_ -]?pack|pack)\s+([a-z0-9][a-z0-9._-]{1,80})\b/gi;
 
@@ -265,6 +264,18 @@ export async function selectPromptRelevantContext(
     readonly prompt: string;
     readonly runId: string | null;
     readonly ctx: ToolContext;
+    /**
+     * COOD-84 — memory ids already pushed into the CURRENT baseline
+     * generation. Subtracted so an item is never sent twice into the
+     * same context window.
+     *
+     * This also closes a long-standing waste: the renderer below dedups
+     * within a single injection but never across turns, so a
+     * frequently-matching decision was re-injected on turns 5, 12 and
+     * 30 — quietly making the most-often-matched item the most salient,
+     * which is not the same as the most important.
+     */
+    readonly alreadySurfaced?: ReadonlySet<string>;
   },
 ): Promise<PromptContextResult> {
   const signals = extractPromptSignals(args.prompt);
@@ -316,10 +327,11 @@ export async function selectPromptRelevantContext(
     ]);
 
     const fileBlocks = fileResults.map((result, idx) => renderFileDecision(signals.filePaths[idx] ?? '', result));
+    const seen = args.alreadySurfaced ?? new Set<string>();
     return {
       additionalContext: renderPromptContext({
-        decisions: decisionsResult.ok ? decisionsResult.decisions : [],
-        packs: packsResult.ok ? packsResult.packs : [],
+        decisions: (decisionsResult.ok ? decisionsResult.decisions : []).filter((d) => !seen.has(d.id)),
+        packs: (packsResult.ok ? packsResult.packs : []).filter((p) => !seen.has(p.id)),
         fileBlocks,
       }),
     };

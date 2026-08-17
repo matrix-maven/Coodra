@@ -184,6 +184,41 @@ export interface RunRecorder {
  * construction time. Every `handleCall` spreads this bag into the
  * per-call ctx that handlers see.
  */
+/**
+ * COOD-80. Structural type rather than an import so `tool-context.ts`
+ * stays free of `lib/*` dependencies — the same reason the other
+ * client interfaces are declared here rather than imported.
+ */
+export interface MemoryAccessRecorder {
+  recordPull(args: {
+    readonly toolName: string;
+    readonly projectSlug: string | null;
+    readonly sessionId: string;
+    readonly agentType?: string | null;
+    readonly idempotencyKey: string;
+    readonly output: unknown;
+    readonly latencyMs: number;
+  }): Promise<void>;
+  recordPush(args: {
+    readonly site: string;
+    readonly triggerType: string;
+    readonly sessionId: string;
+    readonly runId: string | null;
+    readonly projectId: string | null;
+    readonly orgId: string | null;
+    readonly agentType?: string | null;
+    readonly idempotencyKey: string;
+    readonly baselineGeneration?: number;
+    readonly items: ReadonlyArray<{
+      readonly memoryType: string;
+      readonly memoryId: string;
+      readonly position: number;
+      readonly bytes: number;
+    }>;
+  }): Promise<void>;
+  attributionMisses(): number;
+}
+
 export interface ContextDeps {
   readonly db: DbClient;
   readonly logger: Logger;
@@ -191,6 +226,12 @@ export interface ContextDeps {
   readonly policy: PolicyClient;
   readonly contextPack: ContextPackStore;
   readonly runRecorder: RunRecorder;
+  /**
+   * COOD-80 — pull-side memory utilization recorder. Optional so the
+   * registry degrades to "no telemetry" rather than failing when a
+   * caller (tests, embedded uses) does not wire one.
+   */
+  readonly memoryAccess?: MemoryAccessRecorder;
 }
 
 /** Per-call fields the registry populates for every invocation. */

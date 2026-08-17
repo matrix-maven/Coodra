@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { coalesceWorkPackListRows, type WorkPackListItem } from '../../src/work-packs';
+import { coalesceWorkPackListRows, type WorkPackListItem } from '../../src/work-packs.js';
 
 const baseRow: WorkPackListItem = {
   id: 'work_1',

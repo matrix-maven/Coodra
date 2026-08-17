@@ -87,6 +87,17 @@ export const runs = sqliteTable(
     // same run allows compaction unconditionally rather than blocking
     // repeatedly.
     compactionNudgedAt: integer('compaction_nudged_at', { mode: 'timestamp' }),
+    /**
+     * COOD-84 — compaction generation counter.
+     *
+     * Incremented on every compaction. Injected context is a disposable
+     * hint, not durable truth: a compaction may drop or summarise away
+     * everything Coodra surfaced, so a delta computed against the
+     * pre-compaction baseline would reference blocks the agent no
+     * longer holds. Generations make the baseline explicit, so a delta
+     * is always relative to a window that still exists.
+     */
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
     // COOD-34 — explicit capability context for policy matching. JSON text
     // with an array/object shape owned by the policy layer; default keeps
     // legacy runs capability-free without NULL checks.
@@ -1250,8 +1261,224 @@ export const wikiPages = sqliteTable(
   ],
 );
 
+/**
+ * COOD-78 — memory access log (`docs/PRD-memory-utilization.md` §W1).
+ *
+ * One row per Coodra memory item surfaced to an agent, on either
+ * channel:
+ *   - `push` — Coodra injected it (SessionStart manifest, prompt
+ *     context, post-compact re-emission, policy reason text).
+ *   - `pull` — the agent explicitly asked for it (`read_context_pack`,
+ *     `search_packs_nl`, `query_decisions`, `wiki_ask`, `get_recipe`, …).
+ *
+ * Why the distinction is the whole point: push only proves Coodra
+ * spent tokens. Pull proves the agent wanted the item enough to ask
+ * for it — the first real utilization signal Coodra has ever had.
+ * Pull-through rate (surfaced → pulled) and stale share (was it still
+ * true when shown?) are the two north-star metrics built on this.
+ *
+ * Naming. Called `memory_*` and not `context_*` because `context_packs`
+ * already exists and would make this read pack-scoped, which is the
+ * opposite of the generalization it exists for; and not `artifact_*`
+ * because `artifact` already means Graphify build output in this repo
+ * (`packages/cli/src/commands/graphify-artifacts.ts`).
+ *
+ * Deliberately NOT here: policy outcomes. `policy_decisions` already
+ * carries `ask_outcome`, `matched_rule_id`, `governance_verdict`,
+ * `base_decision` and `effective_decision` with more fidelity, and two
+ * sources of truth for policy metrics is a bug waiting to happen. The
+ * single exception is `site: 'policy_reason'` (COOD-88), which records
+ * that a decision was *taught* through deny/ask reason text — something
+ * `policy_decisions` cannot observe.
+ *
+ * Privacy: ids, counts, hashes, byte costs and metadata only. Never
+ * raw prompt text or memory content by default; `query_hash` /
+ * `trigger_text_hash` carry hashes so repeats can be counted without
+ * storing a transcript mirror.
+ *
+ * Writes go through the durable outbox (`scheduleDurableWrite`, queue
+ * `memory_access`) so hook latency is unaffected and a SIGTERM mid-hook
+ * cannot lose the row.
+ */
+export const memoryAccessEvents = sqliteTable(
+  'memory_access_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    // Nullable for the same reason run_events.run_id is: a surfacing can
+    // happen before a `runs` row exists, and COOD-80's attribution chain
+    // deliberately writes NULL (plus a counter) rather than guessing when
+    // projectSlug → projectId → lookupRunId misses.
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    sessionId: text('session_id'),
+    // Who/what caused the access — per-seat and per-agent utilization in
+    // team mode. Both nullable: solo mode has no Clerk user.
+    actorUserId: text('actor_user_id'),
+    agentType: text('agent_type'),
+    runEventId: text('run_event_id').references(() => runEvents.id, { onDelete: 'set null' }),
+    /** `push` | `pull` */
+    channel: text('channel').notNull(),
+    /**
+     * Which door the item came through — `session_start_manifest`,
+     * `prompt_context`, `post_compact`, `search_packs_nl`,
+     * `read_context_pack`, `query_decisions`, `query_decisions_by_file`,
+     * `wiki_ask`, `get_recipe`, `policy_reason`.
+     *
+     * Deliberately distinct from `memory_type`: `site` answers "through
+     * which door", `memory_type` answers "what came through it".
+     * Pull-through rate is naturally a per-site metric.
+     */
+    site: text('site').notNull(),
+    /** `context_pack` | `decision` | `wiki_page` | `recipe` | `work_pack` | `manifest` */
+    memoryType: text('memory_type').notNull(),
+    /** Nullable — a search that returned nothing still logs a row. */
+    memoryId: text('memory_id'),
+    /** Rank within the injection or result set. */
+    position: integer('position'),
+    bytes: integer('bytes'),
+    latencyMs: integer('latency_ms'),
+    /** `session_start` | `user_prompt` | `post_compact` | `tool_call` */
+    triggerType: text('trigger_type').notNull(),
+    queryHash: text('query_hash'),
+    triggerTextHash: text('trigger_text_hash'),
+    /** For search-type sites: how many results came back. */
+    resultCount: integer('result_count'),
+    /**
+     * Point-in-time snapshot of the item's freshness (COOD-85). A pack
+     * that goes stale *later* must not rewrite history, so this is
+     * copied at access time rather than joined at read time.
+     */
+    freshnessStatusAtAccess: text('freshness_status_at_access'),
+    /**
+     * Increments on each compaction within a run (COOD-84). Deltas and
+     * invalidations are defined relative to a generation, so a delta is
+     * never emitted against a baseline no longer in the context window;
+     * `memory_cohorts` keys on it so post-compaction pulls join the new
+     * cohort rather than inflating the original manifest's pull-through.
+     */
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    // Daily rollup scan (COOD-79): project + day, grouped by channel/site/type.
+    index('memory_access_events_project_created_idx').on(t.projectId, t.createdAt),
+    // Cohort rollup (COOD-79) and "was this manifest entry pulled?" lookups.
+    index('memory_access_events_cohort_idx').on(t.runId, t.baselineGeneration, t.memoryType, t.memoryId),
+    // "Never surfaced" dead-memory LEFT JOIN from the artifact tables.
+    index('memory_access_events_memory_idx').on(t.memoryType, t.memoryId, t.createdAt),
+  ],
+);
+
+/**
+ * COOD-79 — daily volume/cost rollup over `memory_access_events`.
+ *
+ * Dashboard queries (COOD-87) read this, never the raw event table
+ * beyond the retention window, so the dashboard cannot degrade on
+ * exactly the long-running projects this epic exists to serve.
+ *
+ * **No percentile columns, deliberately.** p50/p95 do not re-aggregate
+ * from stored aggregates — averaging daily percentiles is not the
+ * percentile of the union, and it produces confidently wrong numbers.
+ * `total_latency_ms` + `access_count` gives an exact mean and
+ * `max_latency_ms` an exact max, and both compose across days. If real
+ * percentiles are ever needed, add fixed histogram buckets (which
+ * *do* compose) rather than trying to roll up a p95.
+ *
+ * `day` is a UTC `YYYY-MM-DD` string rather than a timestamp: the grain
+ * is a calendar day, and storing it as text keeps the unique index and
+ * the GROUP BY honest across both dialects without timezone drift.
+ */
+export const memoryAccessDaily = sqliteTable(
+  'memory_access_daily',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    /** UTC calendar day, `YYYY-MM-DD`. */
+    day: text('day').notNull(),
+    channel: text('channel').notNull(),
+    site: text('site').notNull(),
+    memoryType: text('memory_type').notNull(),
+    accessCount: integer('access_count').notNull().default(0),
+    /** Distinct `memory_id`s touched — NULL memory_ids are not counted. */
+    distinctItems: integer('distinct_items').notNull().default(0),
+    distinctRuns: integer('distinct_runs').notNull().default(0),
+    totalBytes: integer('total_bytes').notNull().default(0),
+    totalLatencyMs: integer('total_latency_ms').notNull().default(0),
+    maxLatencyMs: integer('max_latency_ms').notNull().default(0),
+    /** Accesses where the item was already stale when surfaced. */
+    staleAtAccessCount: integer('stale_at_access_count').notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('memory_access_daily_grain_uk').on(t.projectId, t.day, t.channel, t.site, t.memoryType),
+    index('memory_access_daily_day_idx').on(t.day),
+  ],
+);
+
+/**
+ * COOD-79 — per-item cohort rollup: the pull-through primitive.
+ *
+ * The daily grain above loses `memory_id`, so it can count accesses but
+ * cannot answer the actual north-star question: *this manifest entry
+ * was shown — was this specific body then pulled?* One row per
+ * (run, generation, item) answers it.
+ *
+ * **Keyed on `baseline_generation`** so a pull is attributed to the
+ * manifest generation that actually surfaced it. After a compaction
+ * re-emits the manifest (COOD-84), the next pull belongs to the new
+ * cohort — without this, post-compaction pulls would be credited to the
+ * original manifest and pull-through would read artificially high on
+ * exactly the long sessions this epic exists to fix.
+ *
+ * Small by construction (one row per item per generation, not per
+ * access), so it carries a **longer retention than raw events**:
+ * dead-memory detection needs months of history, raw access rows do
+ * not. "Never surfaced" is an artifact-table LEFT JOIN against this
+ * rather than a scan of raw events.
+ *
+ * Rows are only written for accesses that carry a `memory_id` — a
+ * zero-result search is a real access event (and is counted in the
+ * daily rollup) but has no item to have a pull-through rate for.
+ */
+export const memoryCohorts = sqliteTable(
+  'memory_cohorts',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id').references(() => projects.id),
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
+    memoryType: text('memory_type').notNull(),
+    memoryId: text('memory_id').notNull(),
+    surfacedCount: integer('surfaced_count').notNull().default(0),
+    pulledCount: integer('pulled_count').notNull().default(0),
+    firstSurfacedAt: integer('first_surfaced_at', { mode: 'timestamp' }),
+    firstPulledAt: integer('first_pulled_at', { mode: 'timestamp' }),
+    /** NULL unless the item was both surfaced and later pulled. */
+    timeToFirstPullMs: integer('time_to_first_pull_ms'),
+    staleAtAccess: integer('stale_at_access', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    uniqueIndex('memory_cohorts_grain_uk').on(t.runId, t.baselineGeneration, t.memoryType, t.memoryId),
+    // Drives "never surfaced" / "never pulled" dead-memory queries.
+    index('memory_cohorts_item_idx').on(t.memoryType, t.memoryId),
+    index('memory_cohorts_project_idx').on(t.projectId, t.createdAt),
+  ],
+);
+
 export type Wiki = typeof wikis.$inferSelect;
 export type NewWiki = typeof wikis.$inferInsert;
+export type MemoryAccessEvent = typeof memoryAccessEvents.$inferSelect;
+export type NewMemoryAccessEvent = typeof memoryAccessEvents.$inferInsert;
+export type MemoryAccessDailyRow = typeof memoryAccessDaily.$inferSelect;
+export type NewMemoryAccessDailyRow = typeof memoryAccessDaily.$inferInsert;
+export type MemoryCohortRow = typeof memoryCohorts.$inferSelect;
+export type NewMemoryCohortRow = typeof memoryCohorts.$inferInsert;
 export type WikiPageRow = typeof wikiPages.$inferSelect;
 export type NewWikiPageRow = typeof wikiPages.$inferInsert;
 export type Control = typeof controls.$inferSelect;

@@ -1,4 +1,4 @@
-import { closeRun, type DbHandle, insertRun, insertRunEvent, lookupRunId } from '@coodra/db';
+import { closeRun, type DbHandle, insertMemoryAccessEvent, insertRun, insertRunEvent, lookupRunId } from '@coodra/db';
 import { recordPolicyDecision } from '@coodra/policy';
 import { createLogger, type Logger } from '@coodra/shared';
 
@@ -106,10 +106,68 @@ export interface SessionClosePayloadV1 {
   readonly sessionId: string;
 }
 
+/**
+ * COOD-78 — one memory item surfaced to an agent.
+ *
+ * Required: the five fields that make a row interpretable at all
+ * (`rowId`, `channel`, `site`, `memoryType`, `triggerType`) plus the
+ * run `resolution`. Everything else is optional metadata that degrades
+ * to NULL rather than failing the job — dropping a row would make
+ * utilization metrics under-report, which is the blindness this log
+ * exists to fix.
+ *
+ * `memoryId` is optional on purpose: a search that returned nothing is
+ * still a real access event, and is what makes wiki empty-answer rate
+ * and "recipes never invoked" measurable.
+ */
+export interface MemoryAccessPayloadV1 {
+  readonly v: 1;
+  readonly rowId: string;
+  readonly resolution: RunIdResolution;
+  /** `push` — Coodra injected it. `pull` — the agent asked for it. */
+  readonly channel: 'push' | 'pull';
+  /** Which door: `session_start_manifest`, `wiki_ask`, `get_recipe`, … */
+  readonly site: string;
+  /** `context_pack` | `decision` | `wiki_page` | `recipe` | `work_pack` | `manifest` */
+  readonly memoryType: string;
+  /** `session_start` | `user_prompt` | `post_compact` | `tool_call` */
+  readonly triggerType: string;
+  readonly orgId?: string | null;
+  readonly projectId?: string | null;
+  readonly sessionId?: string | null;
+  readonly actorUserId?: string | null;
+  readonly agentType?: string | null;
+  readonly runEventId?: string | null;
+  readonly memoryId?: string | null;
+  readonly position?: number | null;
+  readonly bytes?: number | null;
+  readonly latencyMs?: number | null;
+  readonly queryHash?: string | null;
+  readonly triggerTextHash?: string | null;
+  readonly resultCount?: number | null;
+  readonly freshnessStatusAtAccess?: string | null;
+  readonly baselineGeneration?: number;
+}
+
 export interface CreateOutboxDispatchHandlerDeps {
   readonly db: DbHandle;
   /** Override the default child logger (`outbox.dispatcher`). */
   readonly logger?: Logger;
+}
+
+/**
+ * COOD-78 helpers. The memory-access payload is mostly optional
+ * metadata, and a malformed optional must degrade to NULL rather than
+ * fail the whole job — losing the row would make utilization metrics
+ * silently under-report, which is exactly the blindness the log exists
+ * to fix. Required fields are still validated strictly at the callsite.
+ */
+function optionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function optionalInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.trunc(value) : null;
 }
 
 const PERMANENT = (error: string): OutboxDispatchOutcome => ({ status: 'permanent_failure', error });
@@ -232,7 +290,9 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
               ? payload.matchedExceptionId
               : null;
           const matchedGrantId =
-            payload.matchedGrantId === null || typeof payload.matchedGrantId === 'string' ? payload.matchedGrantId : null;
+            payload.matchedGrantId === null || typeof payload.matchedGrantId === 'string'
+              ? payload.matchedGrantId
+              : null;
           const baseDecision =
             payload.baseDecision === 'allow' || payload.baseDecision === 'deny' || payload.baseDecision === 'ask'
               ? payload.baseDecision
@@ -326,6 +386,75 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
               runId: runId ?? 'unresolved',
             },
             'policy_decisions row dispatched',
+          );
+          return SUCCESS;
+        }
+
+        /**
+         * COOD-78 — memory access log. One row per memory item surfaced
+         * to an agent, on the `push` or `pull` channel.
+         *
+         * `runId` resolves the same way `run_event` does, and stays
+         * NULL on a miss rather than failing the job: an unattributed
+         * surfacing is still worth recording (and COOD-80 counts the
+         * misses separately), whereas dropping the row would make the
+         * telemetry quietly under-report.
+         */
+        case 'memory_access': {
+          const rowId = payload.rowId;
+          const channel = payload.channel;
+          const site = payload.site;
+          const memoryType = payload.memoryType;
+          const triggerType = payload.triggerType;
+          const resolution = readResolution(payload.resolution);
+          if (
+            typeof rowId !== 'string' ||
+            typeof channel !== 'string' ||
+            typeof site !== 'string' ||
+            typeof memoryType !== 'string' ||
+            typeof triggerType !== 'string' ||
+            resolution === null
+          ) {
+            return PERMANENT('memory_access payload missing required fields');
+          }
+          if (channel !== 'push' && channel !== 'pull') {
+            return PERMANENT(`memory_access unknown channel ${channel}`);
+          }
+          const runId = await resolveRunId(deps.db, resolution);
+          await insertMemoryAccessEvent(deps.db, {
+            id: rowId,
+            orgId: optionalString(payload.orgId),
+            projectId: optionalString(payload.projectId),
+            runId,
+            sessionId: optionalString(payload.sessionId),
+            actorUserId: optionalString(payload.actorUserId),
+            agentType: optionalString(payload.agentType),
+            runEventId: optionalString(payload.runEventId),
+            channel,
+            site,
+            memoryType,
+            memoryId: optionalString(payload.memoryId),
+            position: optionalInteger(payload.position),
+            bytes: optionalInteger(payload.bytes),
+            latencyMs: optionalInteger(payload.latencyMs),
+            triggerType,
+            queryHash: optionalString(payload.queryHash),
+            triggerTextHash: optionalString(payload.triggerTextHash),
+            resultCount: optionalInteger(payload.resultCount),
+            freshnessStatusAtAccess: optionalString(payload.freshnessStatusAtAccess),
+            baselineGeneration: optionalInteger(payload.baselineGeneration) ?? 0,
+          });
+          log.debug(
+            {
+              event: 'outbox_dispatch_memory_access',
+              jobId: job.id,
+              rowId,
+              runId: runId ?? 'unresolved',
+              channel,
+              site,
+              memoryType,
+            },
+            'memory_access_events row dispatched',
           );
           return SUCCESS;
         }

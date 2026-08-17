@@ -43,6 +43,54 @@ export async function insertRunEvent(db: DbHandle, row: InsertRunEventRow): Prom
   await db.db.insert(postgresSchema.runEvents).values(row).onConflictDoNothing({ target: postgresSchema.runEvents.id });
 }
 
+/**
+ * COOD-78 — one surfacing of a Coodra memory item to an agent.
+ *
+ * `runId` is nullable by design: COOD-80's attribution chain
+ * (projectSlug → projectId → `lookupRunId(db, projectId, sessionId)`)
+ * writes NULL and increments a counter on a miss rather than guessing,
+ * so attribution loss is observable instead of silent. `memoryId` is
+ * nullable too — a search that returned nothing is still a real access
+ * event and is what makes empty/low-signal answer rates measurable.
+ */
+export interface InsertMemoryAccessEventRow {
+  readonly id: string;
+  readonly orgId?: string | null;
+  readonly projectId?: string | null;
+  readonly runId: string | null;
+  readonly sessionId?: string | null;
+  readonly actorUserId?: string | null;
+  readonly agentType?: string | null;
+  readonly runEventId?: string | null;
+  readonly channel: string;
+  readonly site: string;
+  readonly memoryType: string;
+  readonly memoryId?: string | null;
+  readonly position?: number | null;
+  readonly bytes?: number | null;
+  readonly latencyMs?: number | null;
+  readonly triggerType: string;
+  readonly queryHash?: string | null;
+  readonly triggerTextHash?: string | null;
+  readonly resultCount?: number | null;
+  readonly freshnessStatusAtAccess?: string | null;
+  readonly baselineGeneration?: number;
+}
+
+export async function insertMemoryAccessEvent(db: DbHandle, row: InsertMemoryAccessEventRow): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .insert(sqliteSchema.memoryAccessEvents)
+      .values(row)
+      .onConflictDoNothing({ target: sqliteSchema.memoryAccessEvents.id });
+    return;
+  }
+  await db.db
+    .insert(postgresSchema.memoryAccessEvents)
+    .values(row)
+    .onConflictDoNothing({ target: postgresSchema.memoryAccessEvents.id });
+}
+
 export interface InsertRunRow {
   readonly id: string;
   readonly orgId?: string | null;

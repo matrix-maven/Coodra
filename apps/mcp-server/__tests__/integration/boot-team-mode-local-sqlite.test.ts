@@ -74,7 +74,14 @@ describe('boot — COODRA_MODE=team with no override knob (finding §8.3 closed)
   it('binary boots with team-mode auth + sqlite store; tools/list returns the full inventory', async () => {
     const { tools } = await h.client.listTools();
     // See `boot.test.ts` for the tool count drift log.
-    expect(tools.length).toBe(25);
+    //   COOD-30 (2026-08-13): wiki_ask added for team-mode Deep Wiki
+    //     retrieval — the read side of the wiki tools → 26
+    //
+    //   NOTE: this assertion only exercises the BUILT binary, so a drift
+    //   here stays invisible until `dist/` is rebuilt. wiki_ask landed
+    //   without the count being updated and went unnoticed for exactly
+    //   that reason (found while building COOD-81).
+    expect(tools.length).toBe(26);
   });
 
   it('tool runs end-to-end against sqlite — DB read path executed (proves no Postgres connection attempted)', async () => {

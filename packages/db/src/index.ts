@@ -20,27 +20,29 @@ export {
 export { buildCodexNativePermissionsProjection } from './codex-permissions.js';
 export {
   type ControlAttestationRow,
+  type ControlCatalogInputRow,
   type ControlImplementationMode,
   type ControlRelevanceTrack,
   type ControlRow,
   classifyControl,
   createControlAttestation,
+  EXTERNAL_OWNER_CONTROLS,
   implementationModeForTrack,
   listControls,
   mapControlCatalogRows,
+  NATIVE_ADVISORY_CONTROLS,
   normalizeControlKey,
   type UpsertControlInput,
   type UpsertControlsResult,
   upsertControls,
-  EXTERNAL_OWNER_CONTROLS,
-  NATIVE_ADVISORY_CONTROLS,
-  type ControlCatalogInputRow,
 } from './control-catalog.js';
 export {
   type CloseRunArgs,
   closeRun,
+  type InsertMemoryAccessEventRow,
   type InsertRunEventRow,
   type InsertRunRow,
+  insertMemoryAccessEvent,
   insertRun,
   insertRunEvent,
 } from './destinations.js';
@@ -70,7 +72,13 @@ export {
   softResumeKillSwitch,
 } from './kill-switches.js';
 export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
-export { lookupRunId } from './lookup-run.js';
+export {
+  bumpRunBaselineGeneration,
+  getRunBaselineGeneration,
+  lookupRunBySessionId,
+  lookupRunId,
+  surfacedMemoryIdsForGeneration,
+} from './lookup-run.js';
 export {
   ensurePgVector,
   MIGRATIONS_FOLDER,

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { createLogger, runKeySegmentSchema } from '@coodra/shared';
 import type { z } from 'zod';
+import { isInstrumentedPullTool } from '../lib/memory-access-recorder.js';
 
 import {
   assertIdempotencyKeyBuilder,
@@ -418,6 +419,7 @@ export class ToolRegistry {
     });
 
     let handlerOutput: unknown;
+    const handlerStartedAt = Date.now();
     try {
       handlerOutput = await tool.handler(input, ctx);
     } catch (err) {
@@ -531,6 +533,43 @@ export class ToolRegistry {
               err: err instanceof Error ? err.message : String(err),
             },
             'mcp_call run_event record threw; swallowing (audit-only path)',
+          );
+        });
+    }
+
+    // COOD-80: pull-side memory utilization. Recorded from the tool's
+    // OUTPUT after a successful call, never from its input — and the
+    // run is resolved inside the recorder from (projectSlug, sessionId),
+    // never from a `runId` argument, because on `query_decisions` that
+    // argument is a retrieval FILTER and reading it for attribution
+    // would silently narrow every result set to a single run.
+    //
+    // Fire-and-forget: telemetry must never delay or fail a tool call
+    // whose result is already on its way to the agent.
+    if (this.deps.memoryAccess !== undefined && isInstrumentedPullTool(name)) {
+      const projectSlug =
+        typeof input === 'object' && input !== null && 'projectSlug' in input
+          ? (input as { projectSlug?: unknown }).projectSlug
+          : undefined;
+      void this.deps.memoryAccess
+        .recordPull({
+          toolName: name,
+          projectSlug: typeof projectSlug === 'string' && projectSlug.length > 0 ? projectSlug : null,
+          sessionId,
+          agentType: perCall.agentType ?? null,
+          idempotencyKey: idempotencyKey.key,
+          output: outValidated.data,
+          latencyMs: Date.now() - handlerStartedAt,
+        })
+        .catch((err: unknown) => {
+          registryLogger.warn(
+            {
+              event: 'memory_access_record_failed',
+              tool: name,
+              sessionId,
+              err: err instanceof Error ? err.message : String(err),
+            },
+            'memory_access record threw; swallowing (telemetry-only path)',
           );
         });
     }
