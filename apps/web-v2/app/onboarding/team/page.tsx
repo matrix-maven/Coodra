@@ -203,15 +203,13 @@ function StepOneSupabase() {
           n="1.1"
           title={<>Create a project at supabase.com</>}
           body={
-            <>
-              <span>
-                Visit{' '}
-                <a href="https://supabase.com/dashboard/new" target="_blank" rel="noreferrer" style={linkStyle}>
-                  supabase.com/dashboard/new
-                </a>
-                . Pick any region near you. Set a strong DB password — you’ll need it in step 1.2.
-              </span>
-            </>
+            <span>
+              Visit{' '}
+              <a href="https://supabase.com/dashboard/new" target="_blank" rel="noreferrer" style={linkStyle}>
+                supabase.com/dashboard/new
+              </a>
+              . Pick any region near you. Set a strong DB password — you’ll need it in step 1.2.
+            </span>
           }
         />
 
@@ -412,15 +410,13 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
           n="3.1"
           title={<>Create a Clerk application</>}
           body={
-            <>
-              <span>
-                Visit{' '}
-                <a href="https://dashboard.clerk.com/apps/new" target="_blank" rel="noreferrer" style={linkStyle}>
-                  dashboard.clerk.com/apps/new
-                </a>
-                . Pick name “Coodra”. Enable <strong>Email + Password</strong> at minimum; OAuth is optional.
-              </span>
-            </>
+            <span>
+              Visit{' '}
+              <a href="https://dashboard.clerk.com/apps/new" target="_blank" rel="noreferrer" style={linkStyle}>
+                dashboard.clerk.com/apps/new
+              </a>
+              . Pick name “Coodra”. Enable <strong>Email + Password</strong> at minimum; OAuth is optional.
+            </span>
           }
         />
 
@@ -428,13 +424,11 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
           n="3.2"
           title={<>Enable Organizations</>}
           body={
-            <>
-              <span>
-                In your Clerk app, open <strong>Organizations → Settings</strong> and toggle “Enable organizations”.
-                Optionally add the <strong>org:viewer</strong> custom role for read-only seats (members and admins exist
-                by default).
-              </span>
-            </>
+            <span>
+              In your Clerk app, open <strong>Organizations → Settings</strong> and toggle “Enable organizations”.
+              Optionally add the <strong>org:viewer</strong> custom role for read-only seats (members and admins exist
+              by default).
+            </span>
           }
         />
 
@@ -476,14 +470,12 @@ function StepThreeClerk({ sp }: { readonly sp: SearchParams }) {
           n="3.4"
           title={<>Copy the publishable + secret keys</>}
           body={
-            <>
-              <span>
-                In Clerk’s <strong>API Keys</strong> page, copy{' '}
-                <code style={inlineMono}>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and{' '}
-                <code style={inlineMono}>CLERK_SECRET_KEY</code>. The web app reads both — the publishable on the
-                client, the secret on the server. They go into <code style={inlineMono}>~/.coodra/.env</code> in step 4.
-              </span>
-            </>
+            <span>
+              In Clerk’s <strong>API Keys</strong> page, copy{' '}
+              <code style={inlineMono}>NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY</code> and{' '}
+              <code style={inlineMono}>CLERK_SECRET_KEY</code>. The web app reads both — the publishable on the client,
+              the secret on the server. They go into <code style={inlineMono}>~/.coodra/.env</code> in step 4.
+            </span>
           }
         />
 

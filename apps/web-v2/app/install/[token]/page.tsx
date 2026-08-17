@@ -126,7 +126,7 @@ export default async function InstallPage({ params }: PageProps) {
                   that matches how you'll use Coodra — both are reversible.
                 </>
               ) : (
-                <>{copyForFailure(preview)}</>
+                copyForFailure(preview)
               )}
             </p>
           </div>

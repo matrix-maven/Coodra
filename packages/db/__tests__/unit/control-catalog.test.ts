@@ -4,14 +4,14 @@ import {
   classifyControl,
   createControlAttestation,
   createSqliteDb,
+  type DbHandle,
+  EXTERNAL_OWNER_CONTROLS,
   listControls,
   mapControlCatalogRows,
   migrateSqlite,
+  NATIVE_ADVISORY_CONTROLS,
   sqliteSchema,
   upsertControls,
-  EXTERNAL_OWNER_CONTROLS,
-  NATIVE_ADVISORY_CONTROLS,
-  type DbHandle,
 } from '../../src/index.js';
 
 describe('control catalog', () => {

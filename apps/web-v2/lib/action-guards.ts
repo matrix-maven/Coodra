@@ -37,7 +37,14 @@ import { resolveDeploymentMode } from '@/lib/deployment-mode';
  *     doesn't exist on the deployment server
  *   - cancel-stuck-runs that touches local SQLite
  */
-export function refuseInTeamHosted(action: string): never | void {
+// Returns `void`, not `never | void`: that union collapses to `void`, so
+// it never expressed the "may not return" intent it looks like it does.
+// What actually happens is that `redirect()` throws — control does not
+// come back from the last line, and TypeScript has no return type that
+// says "returns, or throws". Callers must not treat a normal return as
+// proof the guard passed; they get that from the guard being called at
+// all, since the non-refusing path is the only one that returns.
+export function refuseInTeamHosted(action: string): void {
   if (resolveDeploymentMode() !== 'team-hosted') return;
   // eslint-disable-next-line no-console
   console.warn(`[action-guard] refused ${action} in team-hosted mode (local-only operation)`);
@@ -48,7 +55,8 @@ export function refuseInTeamHosted(action: string): never | void {
  * Refuse the action if the deployment is `local-solo`. Use on actions
  * that need a team context to make sense (RBAC, invites, member views).
  */
-export function refuseInLocalSolo(action: string): never | void {
+/** `void` rather than `never | void` — see `refuseInTeamHosted`. */
+export function refuseInLocalSolo(action: string): void {
   if (resolveDeploymentMode() !== 'local-solo') return;
   // eslint-disable-next-line no-console
   console.warn(`[action-guard] refused ${action} in local-solo mode (team-only operation)`);

@@ -91,7 +91,7 @@ describe('doctor binary — integration spawn', () => {
     // `[…m`. Strip them before matching so the regex doesn't
     // have to enumerate every reset/style code.
     // Construct the regex from a charcode to keep biome's noControlCharactersInRegex rule happy in source.
-    const ANSI_PATTERN = new RegExp(String.fromCharCode(0x1b) + '\\[[0-9;]*m', 'g');
+    const ANSI_PATTERN = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;]*m`, 'g');
     const stdout = rawStdout.replace(ANSI_PATTERN, '');
     expect(stdout).toContain('coodra doctor');
     // The check-row format is `<icon> <id padded>  <name>` (Phase B

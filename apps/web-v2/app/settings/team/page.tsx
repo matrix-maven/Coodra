@@ -278,7 +278,7 @@ export default async function TeamSettingsPage({ searchParams }: { searchParams:
                               ) : null}
                             </>
                           ) : (
-                            <>{displayLabel}</>
+                            displayLabel
                           )}
                         </div>
                         <div className="tbl__mono">

@@ -1,15 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   createSqliteDb,
+  type DbHandle,
   ensureNativeAdvisoryRules,
   migrateSqlite,
+  NATIVE_ADVISORY_CONTROLS,
   NATIVE_ADVISORY_POLICY_NAME,
   NATIVE_ADVISORY_RULE_TEMPLATES,
   sqliteSchema,
-  NATIVE_ADVISORY_CONTROLS,
-  type DbHandle,
 } from '../../src/index.js';
 
 describe('native advisory rule templates', () => {

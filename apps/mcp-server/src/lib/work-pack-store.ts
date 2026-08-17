@@ -202,13 +202,6 @@ interface ExistingExternalLinkForUpdate {
   readonly rawExternalJson: string;
 }
 
-interface ExistingRelationshipForUpdate extends WorkPackRelationshipInput {
-  readonly targetExternalKey: string;
-  readonly relationshipType: string;
-  readonly syncLevel: 'summary' | 'full';
-  readonly metadataJson?: Record<string, unknown>;
-}
-
 function mergeWorkPackPatch(
   existing: ExistingWorkPackForUpdate,
   patch: WorkPackPatchInput,

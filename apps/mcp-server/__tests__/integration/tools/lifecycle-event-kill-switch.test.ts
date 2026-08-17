@@ -7,14 +7,13 @@ import { createKillSwitchEvaluator } from '@coodra/lifecycle';
 import { createPolicyClient } from '@coodra/policy';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-import { drainOutbox } from '../_helpers/drain-outbox.js';
 import type { ContextDeps } from '../../../src/framework/tool-context.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
 import { createContextPackStore } from '../../../src/lib/context-pack.js';
 import { createDbClient } from '../../../src/lib/db.js';
 import { createLifecycleEventToolRegistration } from '../../../src/tools/lifecycle-event/manifest.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
+import { drainOutbox } from '../_helpers/drain-outbox.js';
 
 /**
  * COOD-61 regression coverage: kill-switch evaluation (`coodra pause`)

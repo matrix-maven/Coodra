@@ -73,8 +73,7 @@ function readZipText(entries: Map<string, { text: string }>, name: string): stri
 
 function resolveSheetTarget(workbookXml: string, relsXml: string, sheetName: string): string {
   const sheetPattern = /<x?:?sheet\b[^>]*>/g;
-  let match: RegExpExecArray | null;
-  while ((match = sheetPattern.exec(workbookXml)) !== null) {
+  for (const match of workbookXml.matchAll(sheetPattern)) {
     const tag = match[0] ?? '';
     if (xmlAttr(tag, 'name') !== sheetName) continue;
     const relationshipId = xmlAttr(tag, 'r:id') ?? xmlAttr(tag, 'id');
@@ -89,8 +88,7 @@ function resolveSheetTarget(workbookXml: string, relsXml: string, sheetName: str
 
 function findRelationshipTarget(relsXml: string, relationshipId: string): string | null {
   const relPattern = /<Relationship\b[^>]*>/g;
-  let match: RegExpExecArray | null;
-  while ((match = relPattern.exec(relsXml)) !== null) {
+  for (const match of relsXml.matchAll(relPattern)) {
     const tag = match[0] ?? '';
     if (xmlAttr(tag, 'Id') === relationshipId) return xmlAttr(tag, 'Target');
   }
@@ -101,8 +99,7 @@ function parseSharedStrings(sharedStringsXml: string): ReadonlyArray<string> {
   if (sharedStringsXml.length === 0) return [];
   const strings: string[] = [];
   const itemPattern = /<x?:?si\b[^>]*>([\s\S]*?)<\/x?:?si>/g;
-  let match: RegExpExecArray | null;
-  while ((match = itemPattern.exec(sharedStringsXml)) !== null) {
+  for (const match of sharedStringsXml.matchAll(itemPattern)) {
     strings.push(textFromXmlFragment(match[1] ?? ''));
   }
   return strings;
@@ -111,8 +108,7 @@ function parseSharedStrings(sharedStringsXml: string): ReadonlyArray<string> {
 function parseSheetRows(sheetXml: string, sharedStrings: ReadonlyArray<string>): ReadonlyArray<SheetRow> {
   const rowPattern = /<x?:?row\b[^>]*>([\s\S]*?)<\/x?:?row>/g;
   const rows: string[][] = [];
-  let rowMatch: RegExpExecArray | null;
-  while ((rowMatch = rowPattern.exec(sheetXml)) !== null) {
+  for (const rowMatch of sheetXml.matchAll(rowPattern)) {
     rows.push(parseCells(rowMatch[1] ?? '', sharedStrings));
   }
   const headerIndex = rows.findIndex((row) => row.some((cell) => normalizeHeader(cell) === 'controlid'));
@@ -135,8 +131,7 @@ function parseSheetRows(sheetXml: string, sharedStrings: ReadonlyArray<string>):
 function parseCells(rowXml: string, sharedStrings: ReadonlyArray<string>): string[] {
   const cells: string[] = [];
   const cellPattern = /<x?:?c\b([^>]*)>([\s\S]*?)<\/x?:?c>|<x?:?c\b([^>]*)\/>/g;
-  let match: RegExpExecArray | null;
-  while ((match = cellPattern.exec(rowXml)) !== null) {
+  for (const match of rowXml.matchAll(cellPattern)) {
     const attrs = match[1] ?? match[3] ?? '';
     const body = match[2] ?? '';
     const ref = xmlAttr(attrs, 'r');
@@ -171,8 +166,7 @@ function firstTagText(xml: string, tag: string): string | null {
 function textFromXmlFragment(xml: string): string {
   const parts: string[] = [];
   const textPattern = /<x?:?t\b[^>]*>([\s\S]*?)<\/x?:?t>/g;
-  let match: RegExpExecArray | null;
-  while ((match = textPattern.exec(xml)) !== null) {
+  for (const match of xml.matchAll(textPattern)) {
     parts.push(decodeXml(match[1] ?? ''));
   }
   if (parts.length > 0) return parts.join('');

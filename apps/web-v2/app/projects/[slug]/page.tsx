@@ -349,105 +349,103 @@ export default async function ProjectHomePage({
 
         {/* Admin: rename · reset · delete (skipped on __global__ sentinel) */}
         {!isSentinel ? (
-          <>
-            <div className="card" style={{ padding: 28, marginTop: 32 }}>
-              <div className="card__head">
-                <h2 className="card__title">
-                  Project <em>admin</em>
-                </h2>
-                <span className="card__role">careful — these touch the real database</span>
-              </div>
+          <div className="card" style={{ padding: 28, marginTop: 32 }}>
+            <div className="card__head">
+              <h2 className="card__title">
+                Project <em>admin</em>
+              </h2>
+              <span className="card__role">careful — these touch the real database</span>
+            </div>
 
-              <div className="dash-grid" style={{ marginTop: 12 }}>
-                {/* Rename */}
-                <form action={renameProjectAction} className="aside-card" style={{ marginBottom: 0 }}>
+            <div className="dash-grid" style={{ marginTop: 12 }}>
+              {/* Rename */}
+              <form action={renameProjectAction} className="aside-card" style={{ marginBottom: 0 }}>
+                <h3 className="aside-card__title" style={{ marginBottom: 12 }}>
+                  Rename <em>slug</em>
+                </h3>
+                <input type="hidden" name="identifier" value={project.id} />
+                <Field label="New slug" name="newSlug" placeholder="new-slug" required pattern="[a-z0-9_-]+" />
+                <Field
+                  label={`Confirmation (type "${project.slug}-renamed" or whatever you typed above)`}
+                  name="confirmation"
+                  required
+                />
+                <button className="btn btn--sm" type="submit">
+                  Rename project
+                </button>
+              </form>
+
+              {/* Reset audit + danger */}
+              <div>
+                <form action={resetProjectAction} className="aside-card">
                   <h3 className="aside-card__title" style={{ marginBottom: 12 }}>
-                    Rename <em>slug</em>
+                    Reset <em>audit data</em>
                   </h3>
                   <input type="hidden" name="identifier" value={project.id} />
-                  <Field label="New slug" name="newSlug" placeholder="new-slug" required pattern="[a-z0-9_-]+" />
+                  <p style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 10, lineHeight: 1.6 }}>
+                    Drops every run / event / decision / policy_decision / context_pack for{' '}
+                    <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>{project.slug}</span>. Policies
+                    stay by default — tick the box to drop those too.
+                  </p>
+                  <label
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                      marginBottom: 10,
+                      fontFamily: 'var(--mono)',
+                      fontSize: 11,
+                      color: 'var(--ink-dim)',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    <input type="checkbox" name="alsoDeletePolicies" />
+                    Also delete policies + kill_switches
+                  </label>
                   <Field
-                    label={`Confirmation (type "${project.slug}-renamed" or whatever you typed above)`}
+                    label={`Type "${project.slug}" to confirm`}
                     name="confirmation"
                     required
+                    placeholder={project.slug}
                   />
-                  <button className="btn btn--sm" type="submit">
-                    Rename project
+                  <button
+                    className="btn btn--sm"
+                    type="submit"
+                    style={{ borderColor: 'var(--warn)', color: 'var(--warn)' }}
+                  >
+                    Reset audit data
                   </button>
                 </form>
 
-                {/* Reset audit + danger */}
-                <div>
-                  <form action={resetProjectAction} className="aside-card">
-                    <h3 className="aside-card__title" style={{ marginBottom: 12 }}>
-                      Reset <em>audit data</em>
-                    </h3>
-                    <input type="hidden" name="identifier" value={project.id} />
-                    <p style={{ fontSize: 12, color: 'var(--ink-dim)', marginBottom: 10, lineHeight: 1.6 }}>
-                      Drops every run / event / decision / policy_decision / context_pack for{' '}
-                      <span style={{ fontFamily: 'var(--mono)', color: 'var(--ink)' }}>{project.slug}</span>. Policies
-                      stay by default — tick the box to drop those too.
-                    </p>
-                    <label
-                      style={{
-                        display: 'flex',
-                        gap: 8,
-                        alignItems: 'center',
-                        marginBottom: 10,
-                        fontFamily: 'var(--mono)',
-                        fontSize: 11,
-                        color: 'var(--ink-dim)',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      <input type="checkbox" name="alsoDeletePolicies" />
-                      Also delete policies + kill_switches
-                    </label>
-                    <Field
-                      label={`Type "${project.slug}" to confirm`}
-                      name="confirmation"
-                      required
-                      placeholder={project.slug}
-                    />
-                    <button
-                      className="btn btn--sm"
-                      type="submit"
-                      style={{ borderColor: 'var(--warn)', color: 'var(--warn)' }}
-                    >
-                      Reset audit data
-                    </button>
-                  </form>
-
-                  <form action={deleteProjectAction} className="aside-card" style={{ marginTop: 16 }}>
-                    <h3 className="aside-card__title" style={{ marginBottom: 12 }}>
-                      Delete <em>project</em>
-                    </h3>
-                    <input type="hidden" name="identifier" value={project.id} />
-                    <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 10, lineHeight: 1.6 }}>
-                      Irreversible. Drops the projects row, every audit row, and every policy/kill-switch scoped to it.
-                    </p>
-                    <Field
-                      label={`Type "${project.slug}" to confirm`}
-                      name="confirmation"
-                      required
-                      placeholder={project.slug}
-                    />
-                    <button
-                      className="btn btn--sm"
-                      type="submit"
-                      style={{
-                        borderColor: 'var(--warn)',
-                        color: 'var(--warn)',
-                        background: 'var(--warn-glow)',
-                      }}
-                    >
-                      Delete project
-                    </button>
-                  </form>
-                </div>
+                <form action={deleteProjectAction} className="aside-card" style={{ marginTop: 16 }}>
+                  <h3 className="aside-card__title" style={{ marginBottom: 12 }}>
+                    Delete <em>project</em>
+                  </h3>
+                  <input type="hidden" name="identifier" value={project.id} />
+                  <p style={{ fontSize: 12, color: 'var(--warn)', marginBottom: 10, lineHeight: 1.6 }}>
+                    Irreversible. Drops the projects row, every audit row, and every policy/kill-switch scoped to it.
+                  </p>
+                  <Field
+                    label={`Type "${project.slug}" to confirm`}
+                    name="confirmation"
+                    required
+                    placeholder={project.slug}
+                  />
+                  <button
+                    className="btn btn--sm"
+                    type="submit"
+                    style={{
+                      borderColor: 'var(--warn)',
+                      color: 'var(--warn)',
+                      background: 'var(--warn-glow)',
+                    }}
+                  >
+                    Delete project
+                  </button>
+                </form>
               </div>
             </div>
-          </>
+          </div>
         ) : null}
       </section>
     </>
