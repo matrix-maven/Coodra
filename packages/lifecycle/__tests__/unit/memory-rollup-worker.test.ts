@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { createDb, migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { runMemoryRollupOnce } from '../../src/memory-rollup-worker.js';
 
@@ -401,6 +401,115 @@ describe('runMemoryRollupOnce — actor dimension', () => {
       );
       expect(new Set(keys).size).toBe(keys.length);
       expect(keys).toHaveLength(2);
+    } finally {
+      handle.close();
+    }
+  });
+});
+
+/**
+ * COOD-98 — rollups reach cloud so `/memory` is a team view.
+ *
+ * Only the two ROLLUPS sync, never raw `memory_access_events`: those are
+ * per-access, per-item, hot-path telemetry with no measured volume
+ * figure yet (a COOD-94 acceptance item), and the rollups answer every
+ * question the dashboard asks.
+ *
+ * The payload carries the GRAIN, not the row id. The recompute above
+ * deletes and reinserts with a fresh `randomblob` id every pass, so an
+ * id captured at enqueue is routinely stale by the time the daemon
+ * dispatches — the grain is the only thing that survives a recompute.
+ */
+describe('runMemoryRollupOnce — team sync enqueue', () => {
+  const priorMode = process.env.COODRA_MODE;
+  afterEach(() => {
+    if (priorMode === undefined) delete process.env.COODRA_MODE;
+    else process.env.COODRA_MODE = priorMode;
+  });
+
+  async function syncJobs(handle: SqliteHandle) {
+    const rows = await handle.db.select().from(sqliteSchema.pendingJobs);
+    return rows.filter((r) => r.queue === 'sync_to_cloud');
+  }
+
+  it('enqueues nothing in solo mode', async () => {
+    process.env.COODRA_MODE = 'solo';
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, { daysAgo: 1, projectId: 'proj-1', runId: 'run-1', memoryId: 'pack_a' });
+
+      const result = await runMemoryRollupOnce(handle);
+
+      expect(result.syncJobs).toBe(0);
+      expect(await syncJobs(handle)).toHaveLength(0);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('enqueues a grain-keyed job per rollup row in team mode', async () => {
+    process.env.COODRA_MODE = 'team';
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, {
+        daysAgo: 1,
+        projectId: 'proj-1',
+        runId: 'run-1',
+        memoryId: 'pack_a',
+        actorUserId: 'user_alice',
+      });
+
+      const result = await runMemoryRollupOnce(handle);
+
+      expect(result.syncJobs).toBeGreaterThan(0);
+      const jobs = await syncJobs(handle);
+      const payloads = jobs.map((j) => JSON.parse(j.payload) as { table: string; lookup: Record<string, unknown> });
+
+      const dailyJob = payloads.find((p) => p.table === 'memory_access_daily');
+      expect(dailyJob, 'the daily rollup must be offered to cloud').toBeDefined();
+      expect(dailyJob?.lookup.kind).toBe('memory_daily_grain');
+      // The actor is in the grain — without it two developers' rows
+      // collide on one cloud key and the upsert loses one of them.
+      expect(dailyJob?.lookup.actorUserId).toBe('user_alice');
+      expect(dailyJob?.lookup, 'never the row id, which the recompute regenerates').not.toHaveProperty('value');
+
+      const cohortJob = payloads.find((p) => p.table === 'memory_cohorts');
+      expect(cohortJob?.lookup.kind).toBe('memory_cohort_grain');
+      expect(cohortJob?.lookup.memoryId).toBe('pack_a');
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('never enqueues raw memory_access_events', async () => {
+    process.env.COODRA_MODE = 'team';
+    const handle = openMigrated();
+    try {
+      await seedRun(handle);
+      await insertAccess(handle, { daysAgo: 1, projectId: 'proj-1', runId: 'run-1', memoryId: 'pack_a' });
+      await runMemoryRollupOnce(handle);
+
+      const tables = (await syncJobs(handle)).map((j) => (JSON.parse(j.payload) as { table: string }).table);
+      expect(tables).not.toContain('memory_access_events');
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('skips unattributed rows rather than queueing a job that can never land', async () => {
+    // Daily needs project_id and cohorts need run_id to satisfy their
+    // cloud foreign keys. Enqueuing them anyway would retry forever.
+    process.env.COODRA_MODE = 'team';
+    const handle = openMigrated();
+    try {
+      await insertAccess(handle, { daysAgo: 1, projectId: null, runId: null, memoryId: 'pack_orphan' });
+
+      const result = await runMemoryRollupOnce(handle);
+
+      expect(result.dailyRows, 'the rollup itself still happens locally').toBeGreaterThan(0);
+      expect(result.syncJobs).toBe(0);
     } finally {
       handle.close();
     }

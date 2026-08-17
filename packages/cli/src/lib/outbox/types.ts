@@ -115,9 +115,45 @@ export const AUDIT_QUEUE_KINDS = [
 export type SyncLookup =
   | { readonly kind: 'id'; readonly value: string }
   | { readonly kind: 'idempotency_key'; readonly value: string }
-  | { readonly kind: 'project_session'; readonly projectId: string; readonly sessionId: string };
+  | { readonly kind: 'project_session'; readonly projectId: string; readonly sessionId: string }
+  /**
+   * COOD-98 — memory rollups are keyed by GRAIN, not by id.
+   *
+   * Every other sync lookup can use `id` because those rows are
+   * append-only, so the id the enqueue captured still resolves at
+   * dispatch. The rollups are not: `runMemoryRollupOnce` recomputes by
+   * delete-then-insert and mints a fresh `lower(hex(randomblob(16)))`
+   * each pass, so an id captured at enqueue is routinely gone seconds
+   * later and a different row holds the same grain. Only the grain is
+   * stable across a recompute.
+   */
+  | {
+      readonly kind: 'memory_daily_grain';
+      readonly projectId: string;
+      readonly day: string;
+      readonly channel: string;
+      readonly site: string;
+      readonly memoryType: string;
+      readonly actorUserId: string;
+    }
+  | {
+      readonly kind: 'memory_cohort_grain';
+      readonly runId: string;
+      readonly baselineGeneration: number;
+      readonly memoryType: string;
+      readonly memoryId: string;
+    };
 
-export type SyncTableName = 'runs' | 'run_events' | 'policy_decisions' | 'decisions' | 'context_packs';
+export type SyncTableName =
+  | 'runs'
+  | 'run_events'
+  | 'policy_decisions'
+  | 'decisions'
+  | 'context_packs'
+  // COOD-98 — utilization rollups only; raw memory_access_events never
+  // syncs (per-access volume, hot path, no measured volume figure yet).
+  | 'memory_access_daily'
+  | 'memory_cohorts';
 
 export interface SyncToCloudPayloadV1 {
   readonly v: 1;

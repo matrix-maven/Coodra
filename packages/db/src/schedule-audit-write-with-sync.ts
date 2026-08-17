@@ -58,12 +58,56 @@ export type SyncTableName =
   // (re-plan replaces the structure; authoring flips a page) — pushed by
   // id with ON CONFLICT DO UPDATE; pulled by the team-rows-puller.
   | 'wikis'
-  | 'wiki_pages';
+  | 'wiki_pages'
+  /**
+   * COOD-98/COOD-99 — utilization rollups, so `/memory` is a team view
+   * rather than one laptop's.
+   *
+   * Only the two ROLLUPS sync, never raw `memory_access_events`: those
+   * are per-access, per-item and on the hot path, and no real volume
+   * figure exists yet (a COOD-94 acceptance item). The rollups answer
+   * every question the dashboard asks and are orders of magnitude
+   * smaller.
+   *
+   * Safe to share only because both grains are collision-free across
+   * machines: cohorts key on a globally-unique `run_id`, and daily
+   * gained `actor_user_id` in COOD-99 — without it two developers wrote
+   * the same key and one silently overwrote the other.
+   */
+  | 'memory_access_daily'
+  | 'memory_cohorts';
 
 export type SyncLookup =
   | { readonly kind: 'id'; readonly value: string }
   | { readonly kind: 'idempotency_key'; readonly value: string }
-  | { readonly kind: 'project_session'; readonly projectId: string; readonly sessionId: string };
+  | { readonly kind: 'project_session'; readonly projectId: string; readonly sessionId: string }
+  /**
+   * COOD-98 — memory rollups are keyed by GRAIN, not by id.
+   *
+   * Every other sync lookup can use `id` because those rows are
+   * append-only, so the id the enqueue captured still resolves at
+   * dispatch. The rollups are not: `runMemoryRollupOnce` recomputes by
+   * delete-then-insert and mints a fresh `lower(hex(randomblob(16)))`
+   * each pass, so an id captured at enqueue is routinely gone seconds
+   * later and a different row holds the same grain. Only the grain is
+   * stable across a recompute.
+   */
+  | {
+      readonly kind: 'memory_daily_grain';
+      readonly projectId: string;
+      readonly day: string;
+      readonly channel: string;
+      readonly site: string;
+      readonly memoryType: string;
+      readonly actorUserId: string;
+    }
+  | {
+      readonly kind: 'memory_cohort_grain';
+      readonly runId: string;
+      readonly baselineGeneration: number;
+      readonly memoryType: string;
+      readonly memoryId: string;
+    };
 
 export interface SyncSpec {
   readonly table: SyncTableName;
