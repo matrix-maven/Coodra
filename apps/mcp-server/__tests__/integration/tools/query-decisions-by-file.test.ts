@@ -126,6 +126,49 @@ describe('query_decisions_by_file — COOD-58 reverse lookup', () => {
     ]);
   });
 
+  /**
+   * COOD-92 — a torn `graph.json` must degrade, not throw.
+   *
+   * Graphify writes the artifact atomically (temp file in the same
+   * directory + `os.replace`, verified in `graphify/paths.py`), so a
+   * reader should never observe a partial document from a concurrent
+   * rebuild. This locks the fallback anyway, because atomicity is a
+   * property of a package Coodra does not own and cannot enforce — and
+   * because a disk-full write, a hand-edit, or a future non-atomic path
+   * would all land here.
+   *
+   * The required behaviour is conservative: withhold the topology and
+   * fall back to the exact-file lookup. A caller that knows nothing gets
+   * a correct-but-narrow answer; a caller handed garbage topology gets
+   * confident nonsense.
+   */
+  it('COOD-92 degrades to unknown when graph.json is truncated mid-write', async () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), 'qdbf-torn-graph-'));
+    const graphRoot = join(projectRoot, '.coodra', 'graphify', 'out');
+    mkdirSync(graphRoot, { recursive: true });
+    // Exactly what a half-finished write leaves behind: valid JSON
+    // prefix, no closing structure.
+    writeFileSync(join(graphRoot, 'graph.json'), '{"directed": true, "nodes": [{"id": "apps_ro');
+    h.handle.raw.prepare('UPDATE projects SET cwd = ? WHERE id = ?').run(projectRoot, 'proj_file');
+
+    const registry = buildRegistry(h);
+    const result = unwrap(
+      await registry.handleCall(
+        'query_decisions_by_file',
+        { projectSlug: 'slug-file', filePath: 'apps/root.ts' },
+        'sess_file',
+      ),
+    );
+
+    expect(result.ok, 'a torn artifact must not fail the whole call').toBe(true);
+    if (!result.ok) return;
+    expect(result.blastRadius.graphAvailable).toBe(false);
+    // `unknown`, never `stale` — nothing was measured. COOD-81 draws that
+    // line deliberately and a parse failure must not blur it.
+    expect(result.blastRadius.staleness).toBe('unknown');
+    expect(result.blastRadius.fileTargets).toContain('apps/root.ts');
+  });
+
   it('uses Graphify blast radius to include neighboring file and graph_node decision edges', async () => {
     const projectRoot = mkdtempSync(join(tmpdir(), 'qdbf-graphify-project-'));
     const graphRoot = join(projectRoot, '.coodra', 'graphify', 'out');
