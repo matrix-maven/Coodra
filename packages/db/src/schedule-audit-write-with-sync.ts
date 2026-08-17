@@ -60,7 +60,7 @@ export type SyncTableName =
   | 'wikis'
   | 'wiki_pages'
   /**
-   * COOD-98/COOD-99 — utilization rollups, so `/memory` is a team view
+   * COOD-98/COOD-100 — utilization rollups, so `/memory` is a team view
    * rather than one laptop's.
    *
    * Only the two ROLLUPS sync, never raw `memory_access_events`: those
@@ -71,7 +71,7 @@ export type SyncTableName =
    *
    * Safe to share only because both grains are collision-free across
    * machines: cohorts key on a globally-unique `run_id`, and daily
-   * gained `actor_user_id` in COOD-99 — without it two developers wrote
+   * gained `actor_user_id` in COOD-100 — without it two developers wrote
    * the same key and one silently overwrote the other.
    */
   | 'memory_access_daily'

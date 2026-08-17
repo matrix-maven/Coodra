@@ -958,7 +958,7 @@ async function syncWikiPages({ localDb, cloudDb, lookup, log, jobId }: SyncOneAr
  * the same grain.
  *
  * `ON CONFLICT DO UPDATE` on that grain is safe precisely because
- * COOD-99 put `actor_user_id` in it. Before that, two developers wrote
+ * COOD-100 put `actor_user_id` in it. Before that, two developers wrote
  * the same key and this upsert would have had one silently overwrite the
  * other's counts every pass. Now a machine only ever overwrites its own
  * seat's row, and overwriting is what we want: a recompute supersedes

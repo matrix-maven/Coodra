@@ -1,4 +1,4 @@
--- COOD-99: add the actor dimension to the daily memory rollup.
+-- COOD-100: add the actor dimension to the daily memory rollup.
 --
 -- `memory_access_events` has always carried `actor_user_id`; the rollup
 -- aggregated it away. That cost per-seat utilization (the reason the

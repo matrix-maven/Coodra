@@ -80,7 +80,7 @@ export interface FreshnessBreakdown {
   readonly unverified: number;
 }
 
-/** COOD-99 — one seat's share of the volume. */
+/** COOD-100 — one seat's share of the volume. */
 export interface ActorUtilization {
   readonly actorUserId: string;
   readonly accesses: number;
@@ -130,7 +130,7 @@ interface RawUtilization {
     readonly surfaced: number | null;
     readonly pulled: number | null;
   }>;
-  /** COOD-99 — per-seat volume. Empty in solo, where every row is `local`. */
+  /** COOD-100 — per-seat volume. Empty in solo, where every row is `local`. */
   readonly byActor: ReadonlyArray<{
     readonly actorUserId: string;
     readonly accesses: number | null;

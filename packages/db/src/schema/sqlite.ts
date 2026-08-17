@@ -1441,7 +1441,7 @@ export const memoryAccessDaily = sqliteTable(
     site: text('site').notNull(),
     memoryType: text('memory_type').notNull(),
     /**
-     * COOD-99 — who the utilization belongs to.
+     * COOD-100 — who the utilization belongs to.
      *
      * `memory_access_events` has always carried `actor_user_id`; the
      * rollup aggregated it away, which cost two things at once.

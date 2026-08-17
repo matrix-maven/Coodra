@@ -1,4 +1,4 @@
--- COOD-99: add the actor dimension to the daily memory rollup.
+-- COOD-100: add the actor dimension to the daily memory rollup.
 -- Postgres counterpart of sqlite/0039_memory_daily_actor.sql -- see that
 -- file for the full rationale (per-seat utilization, and a grain that
 -- does not collide when two developers sync to one cloud).
