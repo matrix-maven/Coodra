@@ -503,3 +503,55 @@ describe('COOD-97 — pull events are per access, not per query', () => {
     expect(new Set(pulls.map((r) => r.id)).size).toBe(pulls.length);
   });
 });
+
+/**
+ * COOD-102 — the query hash reaches the row.
+ *
+ * The column and the payload field both shipped; the registry simply
+ * never passed the tool input, so nothing was ever hashed. The chain is
+ * registry → recorder → outbox payload → dispatcher → column, and it was
+ * broken only at the first hop.
+ */
+describe('COOD-102 — query_hash', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+    await seedRunAndDecisions(h);
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('stores a hash of the question, and never the question', async () => {
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await settleAndDrain(h);
+
+    const pulls = (await accessRows(h)).filter((r) => r.channel === 'pull');
+    expect(pulls.length).toBeGreaterThan(0);
+    expect(pulls[0]?.queryHash).toMatch(/^[0-9a-f]{64}$/);
+    // The query was 'store' — the row must not carry it in the clear.
+    expect(JSON.stringify(pulls)).not.toContain('"store"');
+  });
+
+  it('gives the same hash to the same question from two sessions', async () => {
+    // This is the whole point: it turns "40 empty answers" into "one
+    // question asked 40 times", which is a fixable finding.
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await callQueryDecisions(registry, 'sess-2');
+    await settleAndDrain(h);
+
+    const hashes = new Set((await accessRows(h)).filter((r) => r.channel === 'pull').map((r) => r.queryHash));
+    expect(hashes.size).toBe(1);
+  });
+
+  it('leaves query_hash null on a push, which has no question', async () => {
+    const registry = buildRegistry(h, true);
+    await callQueryDecisions(registry, 'sess-1');
+    await settleAndDrain(h);
+
+    const pushes = (await accessRows(h)).filter((r) => r.channel === 'push');
+    for (const row of pushes) expect(row.queryHash).toBeNull();
+  });
+});

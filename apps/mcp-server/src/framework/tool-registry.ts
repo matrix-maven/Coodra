@@ -559,6 +559,7 @@ export class ToolRegistry {
           agentType: perCall.agentType ?? null,
           idempotencyKey: idempotencyKey.key,
           output: outValidated.data,
+          input,
           latencyMs: Date.now() - handlerStartedAt,
         })
         .catch((err: unknown) => {
