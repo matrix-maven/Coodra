@@ -765,14 +765,31 @@ function renderRecentContextManifest(
 }
 
 /**
- * COOD-83 flag. Excerpt mode stays the default until eval Layer 1
- * (COOD-70/71) shows the manifest lowers injected bytes WITHOUT costing
- * recall — the two failure modes are opposite (bloat vs under-retrieval)
- * and shipping unmeasured would be guessing.
+ * COOD-83 flag, defaulted ON by COOD-94.
+ *
+ * Push-the-index / pull-the-body is the premise of COOD-77, not an
+ * optimisation bolted onto it: an agent handed a catalogue and told how
+ * to fetch a body decides what it needs, and that decision is the only
+ * observable evidence that memory was WANTED rather than merely sent.
+ * Excerpt mode cannot produce that evidence at any byte budget.
+ *
+ * The gate this used to name — eval Layer 1 (COOD-70/71) — measures
+ * ranker quality via nDCG over a labelled corpus. That is a real thing
+ * to want, but it answers "is the right pack ranked first", not "does
+ * the agent pull when handed an index". The second question is agent
+ * behaviour, and COOD-79's `memory_cohorts` already measures it
+ * directly through pull-through rate. So the promotion is gated on
+ * observed pull-through (COOD-94), not on Layer 1.
+ *
+ * `COODRA_SESSION_MANIFEST=0` restores excerpt mode. Kept because the
+ * two failure modes are opposite — bloat versus under-retrieval — and a
+ * project whose agents ignore the index needs a way back that does not
+ * require a release.
  */
 function manifestModeEnabled(): boolean {
   const raw = process.env.COODRA_SESSION_MANIFEST;
-  return raw === '1' || raw === 'true';
+  if (raw === undefined || raw.length === 0) return true;
+  return raw !== '0' && raw !== 'false';
 }
 
 function renderRecentContext(

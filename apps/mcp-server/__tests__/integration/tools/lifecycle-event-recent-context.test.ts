@@ -105,6 +105,7 @@ describe('lifecycle_event — SessionStart recent context', () => {
     h = await openHarness('proj-lc-rc');
   });
   afterEach(async () => {
+    delete process.env.COODRA_SESSION_MANIFEST;
     await h.close();
   });
 
@@ -204,6 +205,10 @@ describe('lifecycle_event — SessionStart recent context', () => {
   });
 
   it('COOD-59 renders closed Work Pack context as warm one-liners without excerpts', async () => {
+    // Excerpt mode is the opt-out since COOD-94; this case is a
+    // regression test for THAT renderer's hot/warm tiering, so it pins
+    // the mode rather than riding on whatever the default happens to be.
+    process.env.COODRA_SESSION_MANIFEST = '0';
     const registry = buildRegistry(h);
     const seeded = await sessionStart(registry, h, 'sess_warm');
     if (seeded.runId === null) throw new Error('expected a runId from SessionStart structuredContent');
@@ -233,6 +238,46 @@ describe('lifecycle_event — SessionStart recent context', () => {
     if (additionalContext === undefined) return;
     expect(additionalContext).toContain('Warm Context Packs');
     expect(additionalContext).toContain('**[done-pack]** Closed pack recap');
+    expect(additionalContext).not.toContain('Verbose details should stay queryable');
+  });
+
+  it('COOD-94 keeps the closed/open distinction in the default manifest, still without excerpts', async () => {
+    // The tiering COOD-59 introduced must survive the COOD-94 default
+    // flip. The manifest drops the separate "Warm" heading — every pack
+    // is one line either way — so the signal moves into a `_(closed)_`
+    // marker on the line itself. Losing it would leave an agent unable
+    // to tell live work from finished work before deciding what to pull.
+    const registry = buildRegistry(h);
+    const seeded = await sessionStart(registry, h, 'sess_warm_m');
+    if (seeded.runId === null) throw new Error('expected a runId from SessionStart structuredContent');
+
+    h.handle.raw
+      .prepare(
+        `INSERT INTO work_packs
+          (id, project_id, slug, title, pack_type, status, spec_markdown, implementation_markdown, sync_markdown, metadata_json)
+         VALUES (?, (SELECT id FROM projects WHERE slug = ?), ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('work_done_m', 'proj-lc-rc', 'done-pack-m', 'Done Pack', 'task', 'done', '', '', '', '{}');
+
+    await registry.handleCall(
+      'save_context_pack',
+      {
+        runId: seeded.runId,
+        title: 'Closed pack recap',
+        content: 'Verbose details should stay queryable, but not be pushed into SessionStart by default.',
+        workPackSlug: 'done-pack-m',
+        kind: 'final_recap',
+      },
+      'sess_warm_m',
+    );
+
+    const { additionalContext } = await sessionStart(registry, h, 'sess_warm_m_next');
+    expect(additionalContext).toBeDefined();
+    if (additionalContext === undefined) return;
+    expect(additionalContext).toContain('Recent context (index)');
+    expect(additionalContext, 'the closed pack is still listed').toContain('Closed pack recap');
+    expect(additionalContext, 'and still marked as closed').toContain('_(closed)_');
+    expect(additionalContext, 'a pullable id, not a body').toMatch(/`cp_[0-9a-f-]+`/);
     expect(additionalContext).not.toContain('Verbose details should stay queryable');
   });
 

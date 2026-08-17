@@ -1,4 +1,4 @@
-import { postgresSchema, sqliteSchema } from '@coodra/db';
+import { type PostgresDb, postgresSchema, type SqliteDb, sqliteSchema } from '@coodra/db';
 import { and, count, eq, isNotNull, sql } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
@@ -94,117 +94,204 @@ function ratio(numerator: number, denominator: number): number | null {
   return denominator === 0 ? null : numerator / denominator;
 }
 
+/**
+ * Raw counts, dialect-free.
+ *
+ * Every field is a plain number or string, so all the assembly below —
+ * ratios, dead-memory arithmetic, surface mapping — is written once and
+ * shared. Only the reads are duplicated per dialect, and they have to
+ * be: `handle.db` is a union of the Postgres and SQLite builders, whose
+ * `.select()` signatures are not mutually assignable, so it is callable
+ * only after `handle.kind` narrows it. Assigning the discriminant to a
+ * local (`const isSqlite = handle.kind === 'sqlite'`) does NOT narrow
+ * `handle` — which is exactly how this file shipped uncompilable.
+ */
+interface RawUtilization {
+  readonly dailyRows: ReadonlyArray<{
+    readonly site: string;
+    readonly accesses: number | null;
+    readonly stale: number | null;
+    readonly bytes: number | null;
+  }>;
+  readonly cohortRows: ReadonlyArray<{
+    readonly memoryType: string;
+    readonly surfaced: number | null;
+    readonly pulled: number | null;
+  }>;
+  readonly packsTotal: number;
+  readonly decisionsTotal: number;
+  readonly packsSurfaced: number;
+  readonly decisionsSurfaced: number;
+  readonly packFreshness: FreshnessBreakdown;
+  readonly decisionFreshness: FreshnessBreakdown;
+}
+
+function breakdownFrom(
+  rows: ReadonlyArray<{ readonly status: string | null; readonly n: number }>,
+): FreshnessBreakdown {
+  const get = (status: string) => Number(rows.find((r) => r.status === status)?.n ?? 0);
+  return { fresh: get('fresh'), stale: get('stale'), unverified: get('unverified') };
+}
+
+async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
+  const daily = sqliteSchema.memoryAccessDaily;
+  const cohorts = sqliteSchema.memoryCohorts;
+  const packs = sqliteSchema.contextPacks;
+  const decisions = sqliteSchema.decisions;
+
+  const dailyRows = await db
+    .select({
+      site: daily.site,
+      accesses: sql<number>`SUM(${daily.accessCount})`,
+      stale: sql<number>`SUM(${daily.staleAtAccessCount})`,
+      bytes: sql<number>`SUM(${daily.totalBytes})`,
+    })
+    .from(daily)
+    .groupBy(daily.site);
+
+  const cohortRows = await db
+    .select({
+      memoryType: cohorts.memoryType,
+      surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
+      pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
+    })
+    .from(cohorts)
+    .groupBy(cohorts.memoryType);
+
+  const [packTotal] = await db.select({ n: count() }).from(packs);
+  const [decisionTotal] = await db.select({ n: count() }).from(decisions);
+  const [packsSurfaced] = await db
+    .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
+    .from(cohorts)
+    .where(and(eq(cohorts.memoryType, 'context_pack'), isNotNull(cohorts.memoryId)));
+  const [decisionsSurfaced] = await db
+    .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
+    .from(cohorts)
+    .where(and(eq(cohorts.memoryType, 'decision'), isNotNull(cohorts.memoryId)));
+  const packFresh = await db
+    .select({ status: packs.freshnessStatus, n: count() })
+    .from(packs)
+    .groupBy(packs.freshnessStatus);
+  const decisionFresh = await db
+    .select({ status: decisions.freshnessStatus, n: count() })
+    .from(decisions)
+    .groupBy(decisions.freshnessStatus);
+
+  return {
+    dailyRows,
+    cohortRows,
+    packsTotal: Number(packTotal?.n ?? 0),
+    decisionsTotal: Number(decisionTotal?.n ?? 0),
+    packsSurfaced: Number(packsSurfaced?.n ?? 0),
+    decisionsSurfaced: Number(decisionsSurfaced?.n ?? 0),
+    packFreshness: breakdownFrom(packFresh),
+    decisionFreshness: breakdownFrom(decisionFresh),
+  };
+}
+
+async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
+  const daily = postgresSchema.memoryAccessDaily;
+  const cohorts = postgresSchema.memoryCohorts;
+  const packs = postgresSchema.contextPacks;
+  const decisions = postgresSchema.decisions;
+
+  const dailyRows = await db
+    .select({
+      site: daily.site,
+      accesses: sql<number>`SUM(${daily.accessCount})`,
+      stale: sql<number>`SUM(${daily.staleAtAccessCount})`,
+      bytes: sql<number>`SUM(${daily.totalBytes})`,
+    })
+    .from(daily)
+    .groupBy(daily.site);
+
+  const cohortRows = await db
+    .select({
+      memoryType: cohorts.memoryType,
+      surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
+      pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
+    })
+    .from(cohorts)
+    .groupBy(cohorts.memoryType);
+
+  const [packTotal] = await db.select({ n: count() }).from(packs);
+  const [decisionTotal] = await db.select({ n: count() }).from(decisions);
+  const [packsSurfaced] = await db
+    .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
+    .from(cohorts)
+    .where(and(eq(cohorts.memoryType, 'context_pack'), isNotNull(cohorts.memoryId)));
+  const [decisionsSurfaced] = await db
+    .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
+    .from(cohorts)
+    .where(and(eq(cohorts.memoryType, 'decision'), isNotNull(cohorts.memoryId)));
+  const packFresh = await db
+    .select({ status: packs.freshnessStatus, n: count() })
+    .from(packs)
+    .groupBy(packs.freshnessStatus);
+  const decisionFresh = await db
+    .select({ status: decisions.freshnessStatus, n: count() })
+    .from(decisions)
+    .groupBy(decisions.freshnessStatus);
+
+  return {
+    dailyRows,
+    cohortRows,
+    packsTotal: Number(packTotal?.n ?? 0),
+    decisionsTotal: Number(decisionTotal?.n ?? 0),
+    packsSurfaced: Number(packsSurfaced?.n ?? 0),
+    decisionsSurfaced: Number(decisionsSurfaced?.n ?? 0),
+    packFreshness: breakdownFrom(packFresh),
+    decisionFreshness: breakdownFrom(decisionFresh),
+  };
+}
+
 export async function fetchMemoryUtilization(): Promise<MemoryUtilizationSnapshot> {
   // Cached handle owned by `lib/db`; not ours to close.
   const handle = createWebDb();
-  {
-    const isSqlite = handle.kind === 'sqlite';
-    const daily = isSqlite ? sqliteSchema.memoryAccessDaily : postgresSchema.memoryAccessDaily;
-    const cohorts = isSqlite ? sqliteSchema.memoryCohorts : postgresSchema.memoryCohorts;
-    const packs = isSqlite ? sqliteSchema.contextPacks : postgresSchema.contextPacks;
-    const decisions = isSqlite ? sqliteSchema.decisions : postgresSchema.decisions;
+  const raw = handle.kind === 'sqlite' ? await readSqlite(handle.db) : await readPostgres(handle.db);
 
-    // ---- volume + stale share, from the daily rollup ---------------
-    const dailyRows = await handle.db
-      .select({
-        site: daily.site,
-        accesses: sql<number>`SUM(${daily.accessCount})`,
-        stale: sql<number>`SUM(${daily.staleAtAccessCount})`,
-        bytes: sql<number>`SUM(${daily.totalBytes})`,
-      })
-      .from(daily)
-      .groupBy(daily.site);
+  const pullByType = new Map(raw.cohortRows.map((row) => [row.memoryType, row]));
 
-    // ---- pull-through, from the cohort rollup ----------------------
-    //
-    // Grained per (run, generation, item), so an item surfaced in two
-    // generations counts twice — which is correct: each manifest got
-    // its own chance to be acted on, and COOD-84 keys generations
-    // precisely so a post-compaction pull is not credited to the
-    // manifest that preceded it.
-    const cohortRows = await handle.db
-      .select({
-        memoryType: cohorts.memoryType,
-        surfaced: sql<number>`SUM(CASE WHEN ${cohorts.surfacedCount} > 0 THEN 1 ELSE 0 END)`,
-        pulled: sql<number>`SUM(CASE WHEN ${cohorts.pulledCount} > 0 THEN 1 ELSE 0 END)`,
-      })
-      .from(cohorts)
-      .groupBy(cohorts.memoryType);
-
-    const pullByType = new Map(cohortRows.map((row) => [row.memoryType, row]));
-
-    const bySurface: SurfaceUtilization[] = dailyRows.map((row) => {
-      // Sites map to the memory type they carry; a site with no cohort
-      // data reports null rather than 0.
-      const type = row.site.includes('decision')
-        ? 'decision'
-        : row.site.includes('wiki')
-          ? 'wiki_page'
-          : row.site.includes('recipe')
-            ? 'recipe'
-            : 'context_pack';
-      const cohort = pullByType.get(type);
-      const surfaced = Number(cohort?.surfaced ?? 0);
-      const pulled = Number(cohort?.pulled ?? 0);
-      const accesses = Number(row.accesses ?? 0);
-      const stale = Number(row.stale ?? 0);
-      return {
-        surface: row.site,
-        surfaced,
-        pulled,
-        pullThroughRate: ratio(pulled, surfaced),
-        staleAtAccess: stale,
-        totalAccesses: accesses,
-        staleShare: ratio(stale, accesses),
-        totalBytes: Number(row.bytes ?? 0),
-      };
-    });
-
-    // ---- dead memory: created but never surfaced -------------------
-    //
-    // A LEFT JOIN against the small, long-lived cohort table rather
-    // than a scan of raw events — which is exactly why cohorts outlive
-    // the raw retention window.
-    const [packTotal] = await handle.db.select({ n: count() }).from(packs);
-    const [decisionTotal] = await handle.db.select({ n: count() }).from(decisions);
-    const [packsSurfaced] = await handle.db
-      .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
-      .from(cohorts)
-      .where(and(eq(cohorts.memoryType, 'context_pack'), isNotNull(cohorts.memoryId)));
-    const [decisionsSurfaced] = await handle.db
-      .select({ n: sql<number>`COUNT(DISTINCT ${cohorts.memoryId})` })
-      .from(cohorts)
-      .where(and(eq(cohorts.memoryType, 'decision'), isNotNull(cohorts.memoryId)));
-
-    const packsTotalN = Number(packTotal?.n ?? 0);
-    const decisionsTotalN = Number(decisionTotal?.n ?? 0);
-    const packsSurfacedN = Number(packsSurfaced?.n ?? 0);
-    const decisionsSurfacedN = Number(decisionsSurfaced?.n ?? 0);
-
-    // ---- freshness breakdown (COOD-85) -----------------------------
-    async function freshnessOf(table: typeof packs | typeof decisions): Promise<FreshnessBreakdown> {
-      const rows = await handle.db
-        .select({ status: table.freshnessStatus, n: count() })
-        .from(table)
-        .groupBy(table.freshnessStatus);
-      const get = (status: string) => Number(rows.find((r) => r.status === status)?.n ?? 0);
-      return { fresh: get('fresh'), stale: get('stale'), unverified: get('unverified') };
-    }
-
+  const bySurface: SurfaceUtilization[] = raw.dailyRows.map((row) => {
+    // Sites map to the memory type they carry; a site with no cohort
+    // data reports null rather than 0.
+    const type = row.site.includes('decision')
+      ? 'decision'
+      : row.site.includes('wiki')
+        ? 'wiki_page'
+        : row.site.includes('recipe')
+          ? 'recipe'
+          : 'context_pack';
+    const cohort = pullByType.get(type);
+    const surfaced = Number(cohort?.surfaced ?? 0);
+    const pulled = Number(cohort?.pulled ?? 0);
+    const accesses = Number(row.accesses ?? 0);
+    const stale = Number(row.stale ?? 0);
     return {
-      bySurface,
-      deadMemory: {
-        contextPacksNeverSurfaced: Math.max(0, packsTotalN - packsSurfacedN),
-        contextPacksTotal: packsTotalN,
-        decisionsNeverSurfaced: Math.max(0, decisionsTotalN - decisionsSurfacedN),
-        decisionsTotal: decisionsTotalN,
-      },
-      packFreshness: await freshnessOf(packs),
-      decisionFreshness: await freshnessOf(decisions),
-      // Distinguishes "nothing to show yet" from "everything is zero",
-      // so a fresh install reads as pending rather than broken.
-      noDataYet: dailyRows.length === 0 && cohortRows.length === 0,
-      fetchedAt: new Date().toISOString(),
+      surface: row.site,
+      surfaced,
+      pulled,
+      pullThroughRate: ratio(pulled, surfaced),
+      staleAtAccess: stale,
+      totalAccesses: accesses,
+      staleShare: ratio(stale, accesses),
+      totalBytes: Number(row.bytes ?? 0),
     };
-  }
+  });
+
+  return {
+    bySurface,
+    deadMemory: {
+      contextPacksNeverSurfaced: Math.max(0, raw.packsTotal - raw.packsSurfaced),
+      contextPacksTotal: raw.packsTotal,
+      decisionsNeverSurfaced: Math.max(0, raw.decisionsTotal - raw.decisionsSurfaced),
+      decisionsTotal: raw.decisionsTotal,
+    },
+    packFreshness: raw.packFreshness,
+    decisionFreshness: raw.decisionFreshness,
+    // Distinguishes "nothing to show yet" from "everything is zero",
+    // so a fresh install reads as pending rather than broken.
+    noDataYet: raw.dailyRows.length === 0 && raw.cohortRows.length === 0,
+    fetchedAt: new Date().toISOString(),
+  };
 }
