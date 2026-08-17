@@ -47,7 +47,8 @@ export default async function MemoryPage() {
           </p>
         </header>
 
-        {snap.noDataYet ? <PendingState /> : null}
+        {dm === 'team-hosted' ? <NotSyncedNotice /> : null}
+        {snap.noDataYet ? <PendingState teamHosted={dm === 'team-hosted'} /> : null}
 
         <DeadMemorySection snap={snap} />
         <FreshnessSection snap={snap} />
@@ -67,11 +68,50 @@ export default async function MemoryPage() {
 }
 
 /**
+ * COOD-98 — memory access rows do not sync to cloud.
+ *
+ * `recordPush` / `recordPull` enqueue on the `memory_access` queue,
+ * which is the LOCAL durable-write path. The team path is the paired
+ * `scheduleAuditWriteWithSync`, and its `SyncTableName` union covers
+ * runs, run_events, policy_decisions, decisions, context_packs, wikis
+ * and kill_switches — none of the memory tables.
+ *
+ * On a team-hosted deployment this page reads cloud Postgres, where
+ * those tables are migrated but never written. Every number is zero and
+ * always will be, so the page has to say so. The alternative — showing
+ * an honest-looking dashboard of zeros — reads as "nobody uses their
+ * memory", which is the single most wrong conclusion this page could
+ * lead someone to.
+ */
+function NotSyncedNotice() {
+  return (
+    <div className="empty">
+      <strong>
+        Not <em>synced</em> to this deployment.
+      </strong>
+      <p>
+        Memory access events are recorded on each developer&apos;s own machine and are <strong>not</strong> pushed to
+        cloud — the sync path covers runs, decisions, Context Packs and wikis, but not the memory tables. This page is
+        reading cloud Postgres, so the figures below are structurally empty rather than a real measurement.
+      </p>
+      <p className="muted">
+        For per-machine utilization, open <code>/memory</code> on a developer&apos;s local Coodra.
+      </p>
+    </div>
+  );
+}
+
+/**
  * A fresh install has no rollups yet. Saying so explicitly matters:
  * every ratio below would otherwise render as "—" and read as broken
  * rather than pending.
  */
-function PendingState() {
+function PendingState({ teamHosted }: { teamHosted: boolean }) {
+  // On team-hosted the "wait for the worker" advice is false: no worker
+  // writes to THIS database. NotSyncedNotice above already explains why,
+  // so say nothing further rather than repeat a promise that cannot be
+  // kept.
+  if (teamHosted) return null;
   return (
     <div className="empty">
       <strong>
