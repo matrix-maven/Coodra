@@ -5,9 +5,9 @@ import {
   buildPolicyProjection,
   createPolicyGrant,
   createSqliteDb,
+  type DbHandle,
   migrateSqlite,
   sqliteSchema,
-  type DbHandle,
 } from '../../src/index.js';
 
 describe('policy projection', () => {

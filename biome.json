@@ -28,7 +28,10 @@
       "!packages/db/migrations.lock.json",
       "!.claude",
       "!context_memory",
-      "!graphify-out"
+      "!graphify-out",
+      "!promo-video",
+      "!.devin",
+      "!.codex"
     ]
   },
   "formatter": {

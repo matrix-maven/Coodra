@@ -32,7 +32,13 @@ export function createWorkPackUpdateHandler(deps: WorkPackUpdateHandlerDeps) {
     if (typeof result !== 'string') return result;
 
     handlerLogger.info(
-      { event: 'work_pack_update_not_found', error: result, runId: input.runId, slug: input.slug, sessionId: ctx.sessionId },
+      {
+        event: 'work_pack_update_not_found',
+        error: result,
+        runId: input.runId,
+        slug: input.slug,
+        sessionId: ctx.sessionId,
+      },
       'work_pack_update: runId or Work Pack slug unknown; returning soft failure',
     );
     if (result === 'run_not_found') {

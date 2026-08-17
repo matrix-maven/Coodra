@@ -107,7 +107,7 @@ const FULL_ENV = [
   'CLERK_SECRET_KEY=sk_test_realkey',
   'CLERK_PUBLISHABLE_KEY=pk_test_realkey',
   'DATABASE_URL=postgres://user:pass@host/db',
-  'LOCAL_HOOK_SECRET=' + 'f'.repeat(64),
+  `LOCAL_HOOK_SECRET=${'f'.repeat(64)}`,
   '',
 ].join('\n');
 

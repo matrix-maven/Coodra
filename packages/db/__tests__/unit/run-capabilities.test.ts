@@ -5,9 +5,9 @@ import {
   getRunActiveCapabilitiesForSession,
   migrateSqlite,
   normalizeRunCapabilities,
+  type SqliteHandle,
   sqliteSchema,
   updateRunActiveCapabilities,
-  type SqliteHandle,
 } from '../../src/index.js';
 
 let handle: SqliteHandle;

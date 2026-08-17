@@ -1,15 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   createSqliteDb,
+  type DbHandle,
   ensureNativeAdvisoryRules,
   migrateSqlite,
+  NATIVE_ADVISORY_CONTROLS,
   NATIVE_ADVISORY_POLICY_NAME,
   NATIVE_ADVISORY_RULE_TEMPLATES,
   sqliteSchema,
-  NATIVE_ADVISORY_CONTROLS,
-  type DbHandle,
 } from '../../src/index.js';
 
 describe('native advisory rule templates', () => {
@@ -80,5 +80,4 @@ describe('native advisory rule templates', () => {
     expect(rules.every((rule) => rule.governanceVerdict !== 'pass')).toBe(true);
     expect(new Set(rules.map((rule) => rule.controlKey))).toEqual(NATIVE_ADVISORY_CONTROLS);
   });
-
 });

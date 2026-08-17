@@ -4,11 +4,11 @@ import {
   type DecisionRow,
   getRunWithEverything,
   type ListRunsFilter,
-  normalizeRunCapabilities,
-  parseRunCapabilitiesJson,
   listRunsForProject,
   lookupProjectBySlug,
+  normalizeRunCapabilities,
   type PolicyDecisionRow,
+  parseRunCapabilitiesJson,
   type RunEventRow,
   type RunRow,
   type RunWithEverything,
@@ -463,10 +463,7 @@ function printRunWithEverythingHuman(io: RunIO, x: RunWithEverything): void {
   }
 }
 
-function computeCapabilityMutation(
-  existing: readonly string[],
-  options: RunCapabilitiesOptions,
-): readonly string[] {
+function computeCapabilityMutation(existing: readonly string[], options: RunCapabilitiesOptions): readonly string[] {
   if (options.clear === true) return [];
   if (typeof options.set === 'string') {
     return normalizeRunCapabilities(splitCapabilityList(options.set));

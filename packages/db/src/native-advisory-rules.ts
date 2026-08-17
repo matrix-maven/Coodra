@@ -310,7 +310,9 @@ export async function ensureNativeAdvisoryRules(
           .from(sqliteSchema.policyRules)
           .where(eq(sqliteSchema.policyRules.policyId, policyId));
     const existingIdentities = new Set(existingRules.map(templateIdentity));
-    const missing = NATIVE_ADVISORY_RULE_TEMPLATES.filter((template) => !existingIdentities.has(templateIdentity(template)));
+    const missing = NATIVE_ADVISORY_RULE_TEMPLATES.filter(
+      (template) => !existingIdentities.has(templateIdentity(template)),
+    );
     if (missing.length > 0) {
       await db.db.insert(sqliteSchema.policyRules).values(missing.map((template) => ruleRow(policyId, template)));
     }
@@ -353,7 +355,9 @@ export async function ensureNativeAdvisoryRules(
         .from(postgresSchema.policyRules)
         .where(eq(postgresSchema.policyRules.policyId, policyId));
   const existingIdentities = new Set(existingRules.map(templateIdentity));
-  const missing = NATIVE_ADVISORY_RULE_TEMPLATES.filter((template) => !existingIdentities.has(templateIdentity(template)));
+  const missing = NATIVE_ADVISORY_RULE_TEMPLATES.filter(
+    (template) => !existingIdentities.has(templateIdentity(template)),
+  );
   if (missing.length > 0) {
     await db.db.insert(postgresSchema.policyRules).values(missing.map((template) => ruleRow(policyId, template)));
   }

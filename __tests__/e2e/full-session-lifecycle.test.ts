@@ -1,15 +1,15 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { OutboxWorker } from '@coodra/cli/lib/outbox';
-import { sqliteSchema } from '@coodra/db';
-import { createMcpDispatchHandler } from '../../apps/mcp-server/src/lib/outbox-dispatch.js';
+import { type SqliteDb, sqliteSchema } from '@coodra/db';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createMcpDispatchHandler } from '../../apps/mcp-server/src/lib/outbox-dispatch.js';
 
 import { type BootHandle, bootForE2E, buildE2eEnv, openSqliteHandle } from './_helpers/boot.js';
 
@@ -43,6 +43,26 @@ interface Harness {
 }
 
 let h: Harness;
+
+/**
+ * The typed way to reach the query builder.
+ *
+ * `dbHandle` is the `DbHandle` union, and `handle.db` is only callable
+ * once `handle.kind` narrows it — the Postgres and SQLite `.select()`
+ * signatures are not mutually assignable. These assertions used to reach
+ * through `as { db: any }` instead, which cost every query below its
+ * type checking: a column renamed in the schema would still compile here
+ * and fail at runtime, in the one suite meant to catch exactly that.
+ *
+ * The throw is the honest form of the assumption the casts were making
+ * silently. This harness boots SQLite; if that ever changes, it should
+ * say so rather than produce mystery failures.
+ */
+function sqliteDb(): SqliteDb {
+  const handle = h.boot.dbHandle;
+  if (handle.kind !== 'sqlite') throw new Error(`e2e lifecycle harness expects sqlite, got ${handle.kind}`);
+  return handle.db;
+}
 
 const SESSION_ID = 'lifecycle-sess-e2e-001';
 
@@ -136,7 +156,7 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
     const out = await lifecycle({ hook_event_name: 'SessionStart', session_id: SESSION_ID });
     expect(out.hookSpecificOutput?.additionalContext).toContain('Coodra session contract');
 
-    const runs = await (h.boot.dbHandle as { db: any }).db
+    const runs = await sqliteDb()
       .select({ id: sqliteSchema.runs.id, status: sqliteSchema.runs.status })
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, SESSION_ID)));
@@ -170,7 +190,7 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
 
   it('4. both PreToolUse decisions are audited in policy_decisions', async () => {
     await h.drain();
-    const decisions = await (h.boot.dbHandle as { db: any }).db
+    const decisions = await sqliteDb()
       .select({
         toolName: sqliteSchema.policyDecisions.toolName,
         permissionDecision: sqliteSchema.policyDecisions.permissionDecision,
@@ -203,19 +223,22 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
     });
     await h.drain();
 
-    const runs = await (h.boot.dbHandle as { db: any }).db
+    const runs = await sqliteDb()
       .select({ id: sqliteSchema.runs.id })
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, SESSION_ID)));
     const runId = runs[0]?.id;
     expect(runId).toBeDefined();
 
-    const events = await (h.boot.dbHandle as { db: any }).db
+    const events = await sqliteDb()
       .select({ phase: sqliteSchema.runEvents.phase, toolName: sqliteSchema.runEvents.toolName })
       .from(sqliteSchema.runEvents)
       .where(eq(sqliteSchema.runEvents.runId, runId ?? ''));
     expect(events.length).toBeGreaterThan(0);
-    expect(events.some((e: { phase: string }) => e.phase === 'post'), 'PostToolUse recorded').toBe(true);
+    expect(
+      events.some((e: { phase: string }) => e.phase === 'post'),
+      'PostToolUse recorded',
+    ).toBe(true);
     // NOTE — divergence from the retired bridge, asserted deliberately:
     // the bridge stored UserPromptSubmit as `phase='user_prompt'`, while
     // `eventRecordPhase` on the native path collapses anything not
@@ -233,7 +256,7 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
     await lifecycle({ hook_event_name: 'SessionEnd', session_id: SESSION_ID });
     await h.drain();
 
-    const runs = await (h.boot.dbHandle as { db: any }).db
+    const runs = await sqliteDb()
       .select({ id: sqliteSchema.runs.id, status: sqliteSchema.runs.status, endedAt: sqliteSchema.runs.endedAt })
       .from(sqliteSchema.runs)
       .where(and(eq(sqliteSchema.runs.projectId, h.projectId), eq(sqliteSchema.runs.sessionId, SESSION_ID)));
@@ -242,7 +265,7 @@ describe('full session lifecycle over the native lifecycle_event MCP tool', () =
 
     // finalizeRunOnSessionEnd's auto-pack — the artifact the bridge
     // suite also asserted, now proven on the native path.
-    const packs = await (h.boot.dbHandle as { db: any }).db
+    const packs = await sqliteDb()
       .select({ id: sqliteSchema.contextPacks.id })
       .from(sqliteSchema.contextPacks)
       .where(eq(sqliteSchema.contextPacks.runId, runs[0]?.id ?? ''));

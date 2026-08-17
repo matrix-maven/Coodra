@@ -30,7 +30,9 @@ const patchSchema = z
 export const workPackUpdateInputSchema = z
   .object({
     runId: z.string().min(1).max(256).describe('The run id returned by get_run_id for the current project session.'),
-    slug: slugSchema.describe('Existing repo-local Work Pack slug, normally the lowercased external key such as cood-12.'),
+    slug: slugSchema.describe(
+      'Existing repo-local Work Pack slug, normally the lowercased external key such as cood-12.',
+    ),
     patch: patchSchema.describe(
       'Partial local Work Pack edits. Omitted fields are preserved; metadataJson is shallow-merged into existing metadata.',
     ),
@@ -83,11 +85,7 @@ const workPackNotFoundBranch = z
   })
   .strict();
 
-export const workPackUpdateOutputSchema = z.union([
-  successBranch,
-  runNotFoundBranch,
-  workPackNotFoundBranch,
-]);
+export const workPackUpdateOutputSchema = z.union([successBranch, runNotFoundBranch, workPackNotFoundBranch]);
 
 export type WorkPackUpdateInput = z.infer<typeof workPackUpdateInputSchema>;
 export type WorkPackUpdateOutput = z.infer<typeof workPackUpdateOutputSchema>;

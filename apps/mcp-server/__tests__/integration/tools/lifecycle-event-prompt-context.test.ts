@@ -153,7 +153,8 @@ describe('lifecycle_event — prompt-relevant context', () => {
       registry,
       h,
       sessionId: 'sess_prompt',
-      prompt: 'Please implement the prompt hook relevance refresh so stale SessionStart snapshots do not guide this work.',
+      prompt:
+        'Please implement the prompt hook relevance refresh so stale SessionStart snapshots do not guide this work.',
     });
 
     expect(additionalContext).toContain('## Prompt-relevant Coodra context');
@@ -206,7 +207,8 @@ describe('lifecycle_event — prompt-relevant context', () => {
       registry,
       h,
       sessionId: 'sess_file_prompt',
-      prompt: 'Before editing apps/mcp-server/src/tools/lifecycle-event/handler.ts, what decisions are in the Graphify blast radius?',
+      prompt:
+        'Before editing apps/mcp-server/src/tools/lifecycle-event/handler.ts, what decisions are in the Graphify blast radius?',
     });
 
     expect(additionalContext).toContain('File impact for apps/mcp-server/src/tools/lifecycle-event/handler.ts');

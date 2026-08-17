@@ -79,7 +79,8 @@ export function createLinkRunToPrHandler(deps: LinkRunToPrHandlerDeps) {
       return {
         ok: false,
         error: 'run_not_found',
-        howToFix: 'Call get_run_id first to obtain a runId for this session, then retry link_run_to_pr with that runId.',
+        howToFix:
+          'Call get_run_id first to obtain a runId for this session, then retry link_run_to_pr with that runId.',
       };
     }
 

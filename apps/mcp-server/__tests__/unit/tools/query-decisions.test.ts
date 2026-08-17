@@ -31,7 +31,14 @@ describe('query_decisions — idempotency-key shape', () => {
   it('is readonly + encodes projectSlug + query + runId + workPackId + includeRelated + activeOnly + limit', () => {
     const reg = createQueryDecisionsToolRegistration({ db: fakeDb });
     const key = reg.idempotencyKey(
-      { projectSlug: 'proj-a', query: 'storage', runId: 'run:p:s:u', includeRelated: false, activeOnly: true, limit: 5 },
+      {
+        projectSlug: 'proj-a',
+        query: 'storage',
+        runId: 'run:p:s:u',
+        includeRelated: false,
+        activeOnly: true,
+        limit: 5,
+      },
       { sessionId: 'sess_1', receivedAt: new Date(0) },
     );
     expect(key.kind).toBe('readonly');

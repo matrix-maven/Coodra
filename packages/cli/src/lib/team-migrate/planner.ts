@@ -55,40 +55,32 @@ async function countLocalRows(local: SqliteHandle): Promise<MigrationCounts> {
   // pre-migrate to FK any orphan run_events) and rows attached to it.
   // Excluding here keeps the migration scoped to user data.
   const projectFilter = sql`project_id != '__global__'`;
-  const [
-    projectsRow,
-    runsRow,
-    runEventsRow,
-    contextPacksRow,
-    decisionsRow,
-    policiesRow,
-    killSwitchesRow,
-    runDiffsRow,
-  ] = await Promise.all([
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.projects).where(sql`id != '__global__'`),
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.runs).where(projectFilter),
-    local.db
-      .select({ n: sql<number>`COUNT(*)` })
-      .from(s.runEvents)
-      .innerJoin(s.runs, eq(s.runEvents.runId, s.runs.id))
-      .where(projectFilter),
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.contextPacks).where(projectFilter),
-    local.db
-      .select({ n: sql<number>`COUNT(*)` })
-      .from(s.decisions)
-      .innerJoin(s.runs, eq(s.decisions.runId, s.runs.id))
-      .where(projectFilter),
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.policies).where(projectFilter),
-    // Kill switches are scoped by `target` for project scope; for v1 we
-    // skip them on migrate (per the plan — discard local kill switches
-    // by default). Count for telemetry.
-    local.db.select({ n: sql<number>`COUNT(*)` }).from(s.killSwitches),
-    local.db
-      .select({ n: sql<number>`COUNT(*)` })
-      .from(s.runDiffs)
-      .innerJoin(s.runs, eq(s.runDiffs.runId, s.runs.id))
-      .where(projectFilter),
-  ]);
+  const [projectsRow, runsRow, runEventsRow, contextPacksRow, decisionsRow, policiesRow, killSwitchesRow, runDiffsRow] =
+    await Promise.all([
+      local.db.select({ n: sql<number>`COUNT(*)` }).from(s.projects).where(sql`id != '__global__'`),
+      local.db.select({ n: sql<number>`COUNT(*)` }).from(s.runs).where(projectFilter),
+      local.db
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(s.runEvents)
+        .innerJoin(s.runs, eq(s.runEvents.runId, s.runs.id))
+        .where(projectFilter),
+      local.db.select({ n: sql<number>`COUNT(*)` }).from(s.contextPacks).where(projectFilter),
+      local.db
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(s.decisions)
+        .innerJoin(s.runs, eq(s.decisions.runId, s.runs.id))
+        .where(projectFilter),
+      local.db.select({ n: sql<number>`COUNT(*)` }).from(s.policies).where(projectFilter),
+      // Kill switches are scoped by `target` for project scope; for v1 we
+      // skip them on migrate (per the plan — discard local kill switches
+      // by default). Count for telemetry.
+      local.db.select({ n: sql<number>`COUNT(*)` }).from(s.killSwitches),
+      local.db
+        .select({ n: sql<number>`COUNT(*)` })
+        .from(s.runDiffs)
+        .innerJoin(s.runs, eq(s.runDiffs.runId, s.runs.id))
+        .where(projectFilter),
+    ]);
   return {
     ...ZERO_COUNTS,
     projects: numberFromRow(projectsRow),

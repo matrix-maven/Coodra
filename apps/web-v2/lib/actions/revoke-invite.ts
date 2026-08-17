@@ -32,16 +32,16 @@ export async function revokeInviteAction(formData: FormData): Promise<void> {
 
   const jti = String(formData.get('jti') ?? '').trim();
   if (jti.length === 0) {
-    redirect('/settings/team?error=' + encodeURIComponent('Missing jti on revoke form'));
+    redirect(`/settings/team?error=${encodeURIComponent('Missing jti on revoke form')}`);
   }
 
   const existing = await getInviteByJti(jti);
   if (existing === null) {
-    redirect('/settings/team?error=' + encodeURIComponent('Invite not found'));
+    redirect(`/settings/team?error=${encodeURIComponent('Invite not found')}`);
   }
   if (existing.orgId !== actor.orgId) {
     redirect(
-      '/settings/team?error=' + encodeURIComponent('Refusing to revoke an invite from a different organization'),
+      `/settings/team?error=${encodeURIComponent('Refusing to revoke an invite from a different organization')}`,
     );
   }
   if (existing.usedAt !== null) {

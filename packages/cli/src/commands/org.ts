@@ -107,7 +107,7 @@ export async function runOrgSwitchCommand(options: OrgSwitchOptions = {}, io: Or
       target !== undefined && target.length > 0
         ? `coodra org switch — switching to org "${target}"`
         : 'coodra org switch — opening the org picker',
-    )}\n` + pc.gray("  Opening browser. Pick the target org in Clerk's switcher when prompted.\n"),
+    )}\n${pc.gray("  Opening browser. Pick the target org in Clerk's switcher when prompted.\n")}`,
   );
 
   // Delegate to login. The browser-handoff flow will mint a new JWT

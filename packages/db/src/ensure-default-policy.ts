@@ -141,7 +141,8 @@ const ENV_DENY_REASONS: Readonly<Record<string, string>> = {
 // ask (2026-08-09) so an agent can still touch them with human confirmation
 // instead of a hard block.
 const HYGIENE_ASK_REASONS: Readonly<Record<string, string>> = {
-  '.git/**': 'writes inside .git/** require human confirmation — repository metadata is normally owned by `git`, not the agent',
+  '.git/**':
+    'writes inside .git/** require human confirmation — repository metadata is normally owned by `git`, not the agent',
   '**/.git/**':
     'writes inside nested .git/** (submodules, monorepo workspaces) require human confirmation — repository metadata is normally owned by `git`, not the agent',
   'node_modules/**':

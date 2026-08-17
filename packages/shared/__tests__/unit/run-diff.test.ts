@@ -84,7 +84,7 @@ describe('truncateUnifiedDiff', () => {
   });
 
   it('truncates at a newline boundary when over cap', () => {
-    const line = 'a'.repeat(99) + '\n'; // 100 bytes including newline
+    const line = `${'a'.repeat(99)}\n`; // 100 bytes including newline
     const huge = line.repeat(3000); // ~300_000 bytes — well over 256 KiB
     const result = truncateUnifiedDiff(huge);
     expect(result.truncated).toBe(true);

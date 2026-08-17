@@ -151,25 +151,25 @@ export function normalizeControlKey(value: string): string {
 export function mapControlCatalogRows(rows: ReadonlyArray<ControlCatalogInputRow>): ReadonlyArray<UpsertControlInput> {
   const controls: UpsertControlInput[] = [];
   for (const row of rows) {
-      const controlKey = normalizeControlKey(readCell(row, 'Control ID'));
-      // Accept any `<PREFIX>-<DOMAIN>-<NNN>` control id so an org can
-      // import its own catalog; the built-in templates use `COODRA-*`.
-      if (!/^[A-Z][A-Z0-9]*-[A-Z]+-\d{3}$/.test(controlKey)) continue;
-      const track = classifyControl(controlKey);
-      controls.push({
-        controlKey,
-        source: 'catalog',
-        domain: emptyToNull(readCell(row, 'Domain')),
-        subdomain: emptyToNull(readCell(row, 'Subdomain')),
-        title: readCell(row, 'Control Name') || controlKey,
-        description: emptyToNull(readCell(row, 'Control Objective / Requirement')),
-        owner: emptyToNull(readCell(row, 'Primary Owner')),
-        relevanceTrack: track,
-        implementationMode: implementationModeForTrack(track),
-        status: emptyToNull(readCell(row, 'Status')) ?? 'active',
-        guidance: buildControlGuidance(track, row),
-        sourceMetadata: row,
-      });
+    const controlKey = normalizeControlKey(readCell(row, 'Control ID'));
+    // Accept any `<PREFIX>-<DOMAIN>-<NNN>` control id so an org can
+    // import its own catalog; the built-in templates use `COODRA-*`.
+    if (!/^[A-Z][A-Z0-9]*-[A-Z]+-\d{3}$/.test(controlKey)) continue;
+    const track = classifyControl(controlKey);
+    controls.push({
+      controlKey,
+      source: 'catalog',
+      domain: emptyToNull(readCell(row, 'Domain')),
+      subdomain: emptyToNull(readCell(row, 'Subdomain')),
+      title: readCell(row, 'Control Name') || controlKey,
+      description: emptyToNull(readCell(row, 'Control Objective / Requirement')),
+      owner: emptyToNull(readCell(row, 'Primary Owner')),
+      relevanceTrack: track,
+      implementationMode: implementationModeForTrack(track),
+      status: emptyToNull(readCell(row, 'Status')) ?? 'active',
+      guidance: buildControlGuidance(track, row),
+      sourceMetadata: row,
+    });
   }
   return controls;
 }
@@ -183,7 +183,8 @@ export async function upsertControls(
   const controls: ControlRow[] = [];
   for (const input of inputs) {
     const existing = await findControl(handle, input.projectId ?? null, input.source ?? 'catalog', input.controlKey);
-    const row = existing === null ? await insertControl(handle, input) : await updateControl(handle, existing.id, input);
+    const row =
+      existing === null ? await insertControl(handle, input) : await updateControl(handle, existing.id, input);
     controls.push(row);
     if (existing === null) inserted += 1;
     else updated += 1;
@@ -191,7 +192,10 @@ export async function upsertControls(
   return { inserted, updated, controls };
 }
 
-export async function listControls(handle: DbHandle, filter: ListControlsFilter = {}): Promise<ReadonlyArray<ControlRow>> {
+export async function listControls(
+  handle: DbHandle,
+  filter: ListControlsFilter = {},
+): Promise<ReadonlyArray<ControlRow>> {
   if (handle.kind === 'sqlite') {
     const t = sqliteSchema.controls;
     const predicates = buildControlPredicates(t, filter);
@@ -250,7 +254,13 @@ async function findControl(
     const rows = await handle.db
       .select()
       .from(t)
-      .where(and(projectId === null ? isNull(t.projectId) : eq(t.projectId, projectId), eq(t.source, source), eq(t.controlKey, controlKey)))
+      .where(
+        and(
+          projectId === null ? isNull(t.projectId) : eq(t.projectId, projectId),
+          eq(t.source, source),
+          eq(t.controlKey, controlKey),
+        ),
+      )
       .limit(1);
     return rows[0] === undefined ? null : toControlRow(rows[0]);
   }
@@ -258,7 +268,13 @@ async function findControl(
   const rows = await handle.db
     .select()
     .from(t)
-    .where(and(projectId === null ? isNull(t.projectId) : eq(t.projectId, projectId), eq(t.source, source), eq(t.controlKey, controlKey)))
+    .where(
+      and(
+        projectId === null ? isNull(t.projectId) : eq(t.projectId, projectId),
+        eq(t.source, source),
+        eq(t.controlKey, controlKey),
+      ),
+    )
     .limit(1);
   return rows[0] === undefined ? null : toControlRow(rows[0]);
 }
@@ -309,10 +325,18 @@ async function updateControl(handle: DbHandle, id: string, input: UpsertControlI
     updatedAt: new Date(),
   };
   if (handle.kind === 'sqlite') {
-    const rows = await handle.db.update(sqliteSchema.controls).set(update).where(eq(sqliteSchema.controls.id, id)).returning();
+    const rows = await handle.db
+      .update(sqliteSchema.controls)
+      .set(update)
+      .where(eq(sqliteSchema.controls.id, id))
+      .returning();
     return toControlRow(rows[0] as typeof sqliteSchema.controls.$inferSelect);
   }
-  const rows = await handle.db.update(postgresSchema.controls).set(update).where(eq(postgresSchema.controls.id, id)).returning();
+  const rows = await handle.db
+    .update(postgresSchema.controls)
+    .set(update)
+    .where(eq(postgresSchema.controls.id, id))
+    .returning();
   return toControlRow(rows[0] as typeof postgresSchema.controls.$inferSelect);
 }
 
@@ -322,14 +346,18 @@ function buildControlPredicates(
 ) {
   const predicates = [];
   if ('projectId' in filter) {
-    predicates.push(filter.projectId === null ? isNull(table.projectId) : eq(table.projectId, filter.projectId as string));
+    predicates.push(
+      filter.projectId === null ? isNull(table.projectId) : eq(table.projectId, filter.projectId as string),
+    );
   }
   if (filter.source !== undefined) predicates.push(eq(table.source, filter.source));
   if (filter.relevanceTrack !== undefined) predicates.push(eq(table.relevanceTrack, filter.relevanceTrack));
   return predicates;
 }
 
-function toControlRow(row: typeof sqliteSchema.controls.$inferSelect | typeof postgresSchema.controls.$inferSelect): ControlRow {
+function toControlRow(
+  row: typeof sqliteSchema.controls.$inferSelect | typeof postgresSchema.controls.$inferSelect,
+): ControlRow {
   return {
     id: row.id,
     orgId: row.orgId,
@@ -375,7 +403,10 @@ function toControlAttestationRow(
 }
 
 function stableControlId(projectId: string | null, source: string, controlKey: string): string {
-  const hash = createHash('sha256').update(`${projectId ?? '__global__'}:${source}:${controlKey}`).digest('hex').slice(0, 24);
+  const hash = createHash('sha256')
+    .update(`${projectId ?? '__global__'}:${source}:${controlKey}`)
+    .digest('hex')
+    .slice(0, 24);
   return `ctrl_${hash}`;
 }
 
@@ -384,7 +415,8 @@ function readCell(row: ControlCatalogInputRow, header: string): string {
   if (exact !== undefined && exact !== null) return String(exact).trim();
   const normalizedHeader = normalizeHeader(header);
   for (const [key, value] of Object.entries(row)) {
-    if (normalizeHeader(key) === normalizedHeader) return value === undefined || value === null ? '' : String(value).trim();
+    if (normalizeHeader(key) === normalizedHeader)
+      return value === undefined || value === null ? '' : String(value).trim();
   }
   return '';
 }
@@ -407,7 +439,9 @@ function buildControlGuidance(track: ControlRelevanceTrack, row: ControlCatalogI
       : track === 'external_owner'
         ? 'External-owner: Coodra stores reference metadata; enforcement belongs to the cloud/IAM/platform owner.'
         : 'Evidence/attestation: Coodra stores evidence and review records; human/process confirmation remains authoritative.';
-  return [trackText, minimumEvidence !== null ? `Minimum evidence: ${minimumEvidence}` : null, notes].filter(Boolean).join('\n');
+  return [trackText, minimumEvidence !== null ? `Minimum evidence: ${minimumEvidence}` : null, notes]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function stringifyJson(value: unknown): string {

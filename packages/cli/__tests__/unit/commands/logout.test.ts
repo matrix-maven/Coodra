@@ -77,7 +77,7 @@ function writeTeamEnv(home: string): void {
       '# Some user comment',
       'COODRA_MODE=team',
       'DATABASE_URL=postgres://x/y',
-      'LOCAL_HOOK_SECRET=' + 'f'.repeat(64),
+      `LOCAL_HOOK_SECRET=${'f'.repeat(64)}`,
       'COODRA_TEAM_ORG_ID=org_xyz',
       'CLERK_SECRET_KEY=sk_test_real', // not stripped; user-managed
       '',

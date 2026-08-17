@@ -86,10 +86,7 @@ export const queryDecisionsInputSchema = z
     // — e.g. a decision made on Pack 1 that a related, concurrently-worked
     // Pack 2 should already know about. Ignored when workPackId is absent.
     includeRelated: z.boolean().default(false),
-    activeOnly: z
-      .boolean()
-      .default(true)
-      .describe('When true, exclude decisions superseded by a newer decision edge.'),
+    activeOnly: z.boolean().default(true).describe('When true, exclude decisions superseded by a newer decision edge.'),
     limit: z
       .number()
       .int()

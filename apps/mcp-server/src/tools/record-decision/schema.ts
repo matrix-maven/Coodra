@@ -114,7 +114,9 @@ const successBranch = z
           })
           .strict(),
       )
-      .describe('Active decisions with overlapping text/impact; pass supersedesDecisionIds on a follow-up if this one overrides them.'),
+      .describe(
+        'Active decisions with overlapping text/impact; pass supersedesDecisionIds on a follow-up if this one overrides them.',
+      ),
   })
   .strict();
 

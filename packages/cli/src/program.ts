@@ -284,11 +284,7 @@ interface BuildProgramOptions {
   readonly runRunList?: (options: RunListOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunShow?: (runId: string, options: RunShowOptions, io?: RunIO) => Promise<unknown>;
   readonly runRunCancel?: (runId: string, options: RunCancelOptions, io?: RunIO) => Promise<unknown>;
-  readonly runRunCapabilities?: (
-    runId: string,
-    options: RunCapabilitiesOptions,
-    io?: RunIO,
-  ) => Promise<unknown>;
+  readonly runRunCapabilities?: (runId: string, options: RunCapabilitiesOptions, io?: RunIO) => Promise<unknown>;
   readonly exportIO?: ExportIO;
   readonly runExport?: (runId: string, options: ExportOptions, io?: ExportIO) => Promise<unknown>;
   readonly templateIO?: TemplateIO;
