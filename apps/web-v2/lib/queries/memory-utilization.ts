@@ -80,8 +80,20 @@ export interface FreshnessBreakdown {
   readonly unverified: number;
 }
 
+/** COOD-99 — one seat's share of the volume. */
+export interface ActorUtilization {
+  readonly actorUserId: string;
+  readonly accesses: number;
+  readonly totalBytes: number;
+}
+
 export interface MemoryUtilizationSnapshot {
   readonly bySurface: ReadonlyArray<SurfaceUtilization>;
+  /**
+   * Per-seat volume. In solo mode this is a single `local` row, which is
+   * why the page hides the section there — one row is not a breakdown.
+   */
+  readonly byActor: ReadonlyArray<ActorUtilization>;
   readonly deadMemory: DeadMemory;
   readonly packFreshness: FreshnessBreakdown;
   readonly decisionFreshness: FreshnessBreakdown;
@@ -118,6 +130,12 @@ interface RawUtilization {
     readonly surfaced: number | null;
     readonly pulled: number | null;
   }>;
+  /** COOD-99 — per-seat volume. Empty in solo, where every row is `local`. */
+  readonly byActor: ReadonlyArray<{
+    readonly actorUserId: string;
+    readonly accesses: number | null;
+    readonly bytes: number | null;
+  }>;
   readonly packsTotal: number;
   readonly decisionsTotal: number;
   readonly packsSurfaced: number;
@@ -149,6 +167,15 @@ async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
     .from(daily)
     .groupBy(daily.site);
 
+  const byActor = await db
+    .select({
+      actorUserId: daily.actorUserId,
+      accesses: sql<number>`SUM(${daily.accessCount})`,
+      bytes: sql<number>`SUM(${daily.totalBytes})`,
+    })
+    .from(daily)
+    .groupBy(daily.actorUserId);
+
   const cohortRows = await db
     .select({
       memoryType: cohorts.memoryType,
@@ -180,6 +207,7 @@ async function readSqlite(db: SqliteDb): Promise<RawUtilization> {
   return {
     dailyRows,
     cohortRows,
+    byActor,
     packsTotal: Number(packTotal?.n ?? 0),
     decisionsTotal: Number(decisionTotal?.n ?? 0),
     packsSurfaced: Number(packsSurfaced?.n ?? 0),
@@ -205,6 +233,15 @@ async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
     .from(daily)
     .groupBy(daily.site);
 
+  const byActor = await db
+    .select({
+      actorUserId: daily.actorUserId,
+      accesses: sql<number>`SUM(${daily.accessCount})`,
+      bytes: sql<number>`SUM(${daily.totalBytes})`,
+    })
+    .from(daily)
+    .groupBy(daily.actorUserId);
+
   const cohortRows = await db
     .select({
       memoryType: cohorts.memoryType,
@@ -236,6 +273,7 @@ async function readPostgres(db: PostgresDb): Promise<RawUtilization> {
   return {
     dailyRows,
     cohortRows,
+    byActor,
     packsTotal: Number(packTotal?.n ?? 0),
     decisionsTotal: Number(decisionTotal?.n ?? 0),
     packsSurfaced: Number(packsSurfaced?.n ?? 0),
@@ -279,8 +317,17 @@ export async function fetchMemoryUtilization(): Promise<MemoryUtilizationSnapsho
     };
   });
 
+  const byActor: ActorUtilization[] = raw.byActor
+    .map((row) => ({
+      actorUserId: row.actorUserId,
+      accesses: Number(row.accesses ?? 0),
+      totalBytes: Number(row.bytes ?? 0),
+    }))
+    .sort((a, b) => b.accesses - a.accesses);
+
   return {
     bySurface,
+    byActor,
     deadMemory: {
       contextPacksNeverSurfaced: Math.max(0, raw.packsTotal - raw.packsSurfaced),
       contextPacksTotal: raw.packsTotal,

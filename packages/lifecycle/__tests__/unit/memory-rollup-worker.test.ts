@@ -314,3 +314,95 @@ describe('runMemoryRollupOnce — prune invariant', () => {
     }
   });
 });
+
+/**
+ * COOD-99 — the actor is part of the daily grain.
+ *
+ * `memory_access_events` always carried `actor_user_id`; the rollup
+ * aggregated it away. That cost per-seat utilization (the reason the
+ * PRD gave for the column) and it made team sync unsafe: with no actor
+ * in the grain, two developers on one project produce the SAME
+ * (project, day, channel, site, memory_type) row, so pushing to a shared
+ * cloud loses one of them under any conflict policy — DO UPDATE
+ * overwrites, DO NOTHING discards (COOD-98).
+ */
+describe('runMemoryRollupOnce — actor dimension', () => {
+  it('splits one day into a row per actor instead of merging them', async () => {
+    const handle = openMigrated();
+    try {
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_alice', bytes: 100 });
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_alice', bytes: 50 });
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_bob', bytes: 7 });
+
+      await runMemoryRollupOnce(handle);
+
+      const rows = await daily(handle);
+      expect(rows).toHaveLength(2);
+      const byActor = new Map(rows.map((r) => [r.actorUserId, r]));
+      expect(byActor.get('user_alice')?.accessCount).toBe(2);
+      expect(byActor.get('user_alice')?.totalBytes).toBe(150);
+      expect(byActor.get('user_bob')?.accessCount).toBe(1);
+      expect(byActor.get('user_bob')?.totalBytes).toBe(7);
+    } catch (err) {
+      handle.close();
+      throw err;
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('folds a solo NULL actor to the `local` sentinel, never NULL', async () => {
+    // A NULL here would sit inside the grain UNIQUE index, where SQL
+    // treats NULLs as distinct — the COOD-79 trap that already forces
+    // this worker to recompute by delete-then-insert rather than upsert.
+    const handle = openMigrated();
+    try {
+      await insertAccess(handle, { daysAgo: 1, actorUserId: null });
+
+      await runMemoryRollupOnce(handle);
+
+      const rows = await daily(handle);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.actorUserId).toBe('local');
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('stays idempotent per actor — a second pass recomputes, not doubles', async () => {
+    const handle = openMigrated();
+    try {
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_alice' });
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_bob' });
+
+      await runMemoryRollupOnce(handle);
+      await runMemoryRollupOnce(handle);
+
+      const rows = await daily(handle);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => r.accessCount === 1)).toBe(true);
+    } finally {
+      handle.close();
+    }
+  });
+
+  it('keeps two actors distinct under the grain unique index', async () => {
+    // The index is what makes a shared cloud row-per-seat rather than
+    // last-writer-wins. If the actor were missing from it, the second
+    // insert here would collide.
+    const handle = openMigrated();
+    try {
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_alice' });
+      await insertAccess(handle, { daysAgo: 1, actorUserId: 'user_bob' });
+      await runMemoryRollupOnce(handle);
+
+      const keys = (await daily(handle)).map(
+        (r) => `${r.projectId}|${r.day}|${r.channel}|${r.site}|${r.memoryType}|${r.actorUserId}`,
+      );
+      expect(new Set(keys).size).toBe(keys.length);
+      expect(keys).toHaveLength(2);
+    } finally {
+      handle.close();
+    }
+  });
+});

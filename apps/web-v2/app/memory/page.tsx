@@ -1,6 +1,7 @@
 import { Topbar } from '@/components/Topbar';
 import { resolveDeploymentMode } from '@/lib/deployment-mode';
 import {
+  type ActorUtilization,
   type FreshnessBreakdown,
   fetchMemoryUtilization,
   type MemoryUtilizationSnapshot,
@@ -53,6 +54,7 @@ export default async function MemoryPage() {
         <DeadMemorySection snap={snap} />
         <FreshnessSection snap={snap} />
         <SurfaceTable rows={snap.bySurface} />
+        <ActorTable rows={snap.byActor} />
 
         <footer>
           <p>
@@ -233,6 +235,54 @@ function SurfaceTable({ rows }: { rows: ReadonlyArray<SurfaceUtilization> }) {
       </table>
     </section>
   );
+}
+
+/**
+ * COOD-99 — who the utilization belongs to.
+ *
+ * Hidden when there is only one seat. In solo mode every row carries the
+ * `local` sentinel, and a one-row "breakdown" is chrome that says
+ * nothing. The section appears exactly when it starts to mean something:
+ * more than one actor has used this project's memory.
+ */
+function ActorTable({ rows }: { rows: ReadonlyArray<ActorUtilization> }) {
+  if (rows.length < 2) return null;
+  const total = rows.reduce((sum, row) => sum + row.accesses, 0);
+  return (
+    <section>
+      <h2>By person</h2>
+      <p className="lede">
+        Volume per seat. Useful for spotting whether memory is a shared habit or one person&apos;s — a project where a
+        single developer accounts for nearly all retrieval has a rollout problem, not a retrieval problem.
+      </p>
+      <table className="tbl">
+        <thead>
+          <tr>
+            <th>Actor</th>
+            <th className="num">Accesses</th>
+            <th className="num">Share</th>
+            <th className="num">Bytes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.actorUserId}>
+              <td>
+                <code>{row.actorUserId === 'local' ? 'local user' : row.actorUserId}</code>
+              </td>
+              <td className="num">{row.accesses}</td>
+              <td className="num">{pct(ratioOf(row.accesses, total))}</td>
+              <td className="num">{row.totalBytes.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function ratioOf(numerator: number, denominator: number): number | null {
+  return denominator === 0 ? null : numerator / denominator;
 }
 
 function Card({ label, value, sub, warn }: { label: string; value: string; sub: string; warn?: boolean }) {

@@ -1232,6 +1232,29 @@ export const memoryAccessDaily = pgTable(
     channel: text('channel').notNull(),
     site: text('site').notNull(),
     memoryType: text('memory_type').notNull(),
+    /**
+     * COOD-99 — who the utilization belongs to.
+     *
+     * `memory_access_events` has always carried `actor_user_id`; the
+     * rollup aggregated it away, which cost two things at once.
+     *
+     * 1. **Per-seat utilization**, which the PRD listed as the reason
+     *    the column exists ("needed for per-seat and per-agent
+     *    utilization in team mode") but the rollup never delivered.
+     * 2. **Safe team sync.** Without an actor in the grain, two
+     *    developers on one project produce the SAME
+     *    (project, day, channel, site, memory_type) row, so pushing to
+     *    a shared cloud loses one of them under any conflict policy —
+     *    DO UPDATE overwrites, DO NOTHING discards (COOD-98).
+     *
+     * NOT NULL with a `local` sentinel rather than a nullable column.
+     * Solo mode has no Clerk actor, and a NULL here would land in a
+     * UNIQUE index where SQL treats NULLs as distinct — the precise
+     * trap COOD-79 hit, which is why the rollup recomputes by
+     * delete-then-insert instead of upserting. A sentinel keeps the
+     * grain a real key and gives the dashboard something to label.
+     */
+    actorUserId: text('actor_user_id').notNull().default('local'),
     accessCount: integer('access_count').notNull().default(0),
     distinctItems: integer('distinct_items').notNull().default(0),
     distinctRuns: integer('distinct_runs').notNull().default(0),
@@ -1243,7 +1266,7 @@ export const memoryAccessDaily = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
   },
   (t) => [
-    uniqueIndex('memory_access_daily_grain_uk').on(t.projectId, t.day, t.channel, t.site, t.memoryType),
+    uniqueIndex('memory_access_daily_grain_uk').on(t.projectId, t.day, t.channel, t.site, t.memoryType, t.actorUserId),
     index('memory_access_daily_day_idx').on(t.day),
   ],
 );
