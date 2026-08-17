@@ -11,12 +11,14 @@ import './bootstrap/ensure-stderr-logging.js';
 import { randomUUID } from 'node:crypto';
 
 import { AUDIT_QUEUE_KINDS, OutboxWorker } from '@coodra/cli/lib/outbox';
-import { ensureGlobalProject, migrateSqlite } from '@coodra/db';
+import { ensureGlobalProject, migrateSqlite, sqliteSchema } from '@coodra/db';
 import {
   type GraphRefreshWorkerHandle,
+  type MemoryGardeningWorkerHandle,
   type MemoryRollupWorkerHandle,
   type StaleRunsSweeperHandle,
   startGraphRefreshWorker,
+  startMemoryGardeningWorker,
   startMemoryRollupWorker,
   startStaleRunsSweeper,
 } from '@coodra/lifecycle';
@@ -236,6 +238,29 @@ async function main(): Promise<void> {
     memoryRollupWorker = startMemoryRollupWorker({ db: dbHandle });
   }
 
+  // COOD-86: memory gardening. Slow cadence by design — rot is measured
+  // in days, so a tight loop would burn filesystem calls re-answering a
+  // question whose answer changes about as often as a refactor lands.
+  // Only projects with a verified `cwd` are swept: without one there is
+  // no tree to check paths against, and guessing would manufacture
+  // staleness, which is worse than none.
+  let memoryGardeningWorker: MemoryGardeningWorkerHandle | null = null;
+  if (startHttp) {
+    memoryGardeningWorker = startMemoryGardeningWorker({
+      db: dbHandle,
+      listProjects: async () => {
+        const rows = await dbHandle.db
+          .select({ projectId: sqliteSchema.projects.id, projectCwd: sqliteSchema.projects.cwd })
+          .from(sqliteSchema.projects);
+        return rows.flatMap((row) =>
+          row.projectCwd !== null && row.projectCwd.length > 0
+            ? [{ projectId: row.projectId, projectCwd: row.projectCwd }]
+            : [],
+        );
+      },
+    });
+  }
+
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     bootLogger.info({ event: 'shutdown_signal', signal }, 'shutting down');
 
@@ -268,6 +293,22 @@ async function main(): Promise<void> {
             err: err instanceof Error ? err.message : String(err),
           },
           'stale-runs sweeper stop threw',
+        );
+      }
+    }
+
+    if (memoryGardeningWorker) {
+      try {
+        await memoryGardeningWorker.stop();
+        bootLogger.info({ event: 'memory_gardening_worker_stopped' }, 'memory gardening worker stopped');
+      } catch (err) {
+        bootLogger.error(
+          {
+            event: 'shutdown_error',
+            subsystem: 'memory_gardening_worker',
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'memory gardening worker stop threw',
         );
       }
     }

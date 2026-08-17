@@ -267,7 +267,41 @@ Why utilization is not OTel-sourced: native OTel emits what the *agent* knows, a
 
 The coverage asymmetry cuts the other way from expectation: because the access log is Coodra instrumenting its own code path, it works identically for **all five agents**, making it the only telemetry uniform across the supported matrix.
 
-**Design-now requirement:** carry a stable correlation key so agent-native OTel can be joined later. COOD-46 (confirm Codex's OTel metrics-export state, and whether a join key back to `run_id` exists or must be injected into resource attributes) becomes more valuable than when written, because the access log now gives it something worth joining to. Recommend promoting COOD-46 ahead of COOD-45.
+#### Correlation key — RESOLVED (COOD-89, 2026-08-17)
+
+Probed directly rather than inferred, per COOD-46's live-probing brief.
+
+**The join key is `session_id`, not `run_id`.** No injection is needed.
+
+- **Claude Code** attaches `session.id` to its OTel metrics and spans as a standard attribute.
+- **Codex CLI 0.148.0-alpha.9** carries `thread.id` / `session_id`, verified by scanning the installed binary.
+
+Coodra's `runs` table is uniquely indexed on `(project_id, session_id)`, and `lookupRunBySessionId` (added in COOD-83) already resolves a run from a session alone. The `session_id` Coodra records *is* the agent's own session id — it arrives on the hook payload. So the join is:
+
+```
+agent OTel  session.id / thread.id
+                    ↓
+runs.session_id → runs.id → memory_access_events.run_id
+```
+
+This closes the design-now requirement without any change to `memory_access_events`, which already carries `run_id` **and** `session_id`. Injecting a Coodra-minted id into `OTEL_RESOURCE_ATTRIBUTES` at agent-add time was the fallback plan and is **not needed** — and would not have worked anyway, since `run_id` is per-session and unknown at install time.
+
+#### Codex metrics export — RESOLVED (COOD-46)
+
+COOD-44's research recorded that Codex shipped traces/logs but that **metrics export was not yet supported**. That is now out of date.
+
+The installed `codex-cli 0.148.0-alpha.9` binary contains `opentelemetry-otlp-0.31.0/src/exporter/http/metrics.rs`, `PeriodicReader`, `MeterProvider` and `OTEL_METRIC_EXPORT_INTERVAL` — the metrics pipeline is compiled in. It emits a full token breakdown:
+
+```
+codex.turn.token_usage.input_tokens
+codex.turn.token_usage.cached_input_tokens
+codex.turn.token_usage.cache_write_input_tokens
+codex.turn.token_usage.non_cached_input_tokens
+codex.turn.token_usage.output_tokens
+codex.turn.token_usage.reasoning_output_tokens
+```
+
+So COOD-45's ingestion pipeline can cover **both** Claude Code and Codex, not Claude Code alone. The 2-of-5-agents coverage limit stands (Cursor, Devin and Antigravity still have no native OTel), but the reachable half is larger than the epic assumed.
 
 ### W9 — Eval Layer 1, in parallel
 
@@ -334,7 +368,7 @@ This table is small (one row per artifact per generation, not per access), so it
 2. **Manifest default.** Does the manifest replace excerpts outright, or ship behind a flag until W9 numbers justify it? Recommend flagged.
 3. **Gardening cadence and autonomy.** Marks only, or opens proposals? On what schedule? Who reviews?
 4. **Repo projection (deferred, not rejected).** A one-way generated export — the shape of OpenAI's own `docs/generated/` — would make memory visible to agents running without Coodra, and to humans in PR review. Cheap, reversible, no divergence risk because it is regenerated and never hand-edited. Deferred because DB + MCP is canonical and the benefit is unproven, not because the objection is invalid.
-5. **Correlation key** for later OTel join — resolve via COOD-46 before W8 design locks.
+5. ~~**Correlation key** for later OTel join~~ — **RESOLVED (COOD-89)**: the key is `session_id`, carried natively by both Claude Code (`session.id`) and Codex (`thread.id`), joining through `runs.session_id`. No injection needed, no schema change. See §W8.
 6. **Graph rebuild cost.** 6,924 nodes on this repo; a 30-second rebuild justifies running on every merge, a ten-minute one is background-only. Measure before choosing triggers (W5.1).
 7. **Graph drift threshold.** At what commits-behind / files-changed point does blast radius stop being annotated and start being withheld? Needs a number, ideally derived from how often stale edges actually resolve to moved-or-missing paths.
 

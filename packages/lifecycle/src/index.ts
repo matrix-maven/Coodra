@@ -37,6 +37,14 @@ export {
   type KillSwitchMatch,
 } from './kill-switch-evaluator.js';
 export {
+  extractReferencedPaths,
+  type MemoryGardeningOptions,
+  type MemoryGardeningResult,
+  type MemoryGardeningWorkerHandle,
+  runMemoryGardeningOnce,
+  startMemoryGardeningWorker,
+} from './memory-gardening-worker.js';
+export {
   type MemoryRollupResult,
   type MemoryRollupWorkerHandle,
   type MemoryRollupWorkerOptions,

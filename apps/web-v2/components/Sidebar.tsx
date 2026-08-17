@@ -178,6 +178,7 @@ export function Sidebar({
             items: [
               { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
               { href: '/roi', label: 'ROI', icon: <IconChart /> },
+              { href: '/memory', label: 'Memory', icon: <IconChart /> },
               { href: '/projects', label: 'Projects', icon: <IconStack /> },
             ],
           },
@@ -193,6 +194,7 @@ export function Sidebar({
             items: [
               { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
               { href: '/roi', label: 'ROI', icon: <IconChart /> },
+              { href: '/memory', label: 'Memory', icon: <IconChart /> },
               { href: '/projects', label: 'Projects', icon: <IconStack /> },
             ],
           },

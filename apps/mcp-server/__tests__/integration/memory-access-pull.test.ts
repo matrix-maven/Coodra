@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
+import { ensureDefaultPolicy, migrateSqlite, type SqliteHandle, sqliteSchema } from '@coodra/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ContextDeps } from '../../src/framework/tool-context.js';
@@ -10,6 +10,7 @@ import { ToolRegistry } from '../../src/framework/tool-registry.js';
 import { createContextPackStore } from '../../src/lib/context-pack.js';
 import { createDbClient } from '../../src/lib/db.js';
 import { createMemoryAccessRecorder } from '../../src/lib/memory-access-recorder.js';
+import { createPolicyClient } from '../../src/lib/policy.js';
 import { registerAllTools } from '../../src/tools/index.js';
 import { makeFakeDeps } from '../helpers/fake-deps.js';
 import { drainOutbox } from './_helpers/drain-outbox.js';
@@ -326,5 +327,112 @@ describe('COOD-80 — adapters normalise ids across differently-shaped tools', (
       .where(eq(sqliteSchema.memoryAccessEvents.site, 'query_decisions_by_file'));
     expect(rows).toHaveLength(1);
     expect(rows[0]?.memoryType).toBe('decision');
+  });
+});
+
+describe('COOD-88 — just-in-time teaching through permissionDecisionReason', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+    await seedRunAndDecisions(h);
+    // dec_a already exists; give it a file target so a denial on that
+    // path has something to teach.
+    // The harness inserts the project row directly, which bypasses the
+    // default-policy seeding that `ensureProject` normally does — so
+    // without this there is no `.env` deny rule to teach against.
+    await ensureDefaultPolicy(h.handle, 'proj-1');
+    await h.handle.db.insert(sqliteSchema.decisionEdges).values({
+      id: 'edge-teach',
+      projectId: 'proj-1',
+      fromDecisionId: 'dec_a',
+      edgeType: 'affects',
+      targetType: 'file',
+      targetId: '.env',
+    });
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  async function preToolUse(registry: ToolRegistry, filePath: string): Promise<string | undefined> {
+    const result = await registry.handleCall(
+      'lifecycle_event',
+      {
+        agentType: 'claude_code',
+        rawPayload: {
+          hook_event_name: 'PreToolUse',
+          session_id: 'sess-1',
+          cwd: h.cwd,
+          tool_name: 'Write',
+          tool_input: { file_path: filePath, content: 'x' },
+          tool_use_id: `tu-${filePath}`,
+        },
+      },
+      'sess-1',
+      { agentType: 'claude_code' },
+    );
+    const structured = result.structuredContent as
+      | { hookOutput?: { hookSpecificOutput?: { permissionDecisionReason?: string } } }
+      | undefined;
+    return structured?.hookOutput?.hookSpecificOutput?.permissionDecisionReason;
+  }
+
+  it('teaches the motivating decision on a real deny', async () => {
+    // The seeded policy denies `.env` writes — a genuine opinion, so
+    // Coodra asserts it AND now explains it.
+    const registry = new ToolRegistry({
+      deps: Object.freeze({
+        ...h.baseDeps,
+        policy: createPolicyClient({ db: h.handle }),
+        memoryAccess: createMemoryAccessRecorder({ db: h.handle }),
+      }),
+    });
+    registerAllTools(registry, { db: h.handle, mode: 'solo' });
+
+    const reason = await preToolUse(registry, '.env');
+    expect(reason, 'a denial should still be a denial').toBeTruthy();
+    expect(reason, 'and should now carry the decision that motivated it').toContain('dec_a');
+  });
+
+  it('leaves an un-gated path byte-identical — no empty scaffolding', async () => {
+    const registry = new ToolRegistry({
+      deps: Object.freeze({
+        ...h.baseDeps,
+        policy: createPolicyClient({ db: h.handle }),
+        memoryAccess: createMemoryAccessRecorder({ db: h.handle }),
+      }),
+    });
+    registerAllTools(registry, { db: h.handle, mode: 'solo' });
+
+    // No rule matches src/app.ts, so Coodra has no opinion and must not
+    // assert one — COOD-62's "don't interfere" contract.
+    const reason = await preToolUse(registry, 'src/app.ts');
+    expect(reason).toBeUndefined();
+  });
+
+  it('records a policy_reason push row so the channel is measurable', async () => {
+    const registry = new ToolRegistry({
+      deps: Object.freeze({
+        ...h.baseDeps,
+        policy: createPolicyClient({ db: h.handle }),
+        memoryAccess: createMemoryAccessRecorder({ db: h.handle }),
+      }),
+    });
+    registerAllTools(registry, { db: h.handle, mode: 'solo' });
+
+    await preToolUse(registry, '.env');
+    await settleAndDrain(h);
+
+    const rows = await h.handle.db
+      .select()
+      .from(sqliteSchema.memoryAccessEvents)
+      .where(eq(sqliteSchema.memoryAccessEvents.site, 'policy_reason'));
+    // policy_decisions can see that a rule fired, but not whether a
+    // decision was TAUGHT through the reason text — without this row the
+    // channel is unmeasurable.
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]?.channel).toBe('push');
+    expect(rows[0]?.memoryType).toBe('decision');
+    expect(rows[0]?.memoryId).toBe('dec_a');
   });
 });

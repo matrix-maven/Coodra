@@ -260,6 +260,13 @@
       "when": 1786962687216,
       "tag": "0036_open_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1786963616286,
+      "tag": "0037_demonic_hellfire_club",
+      "breakpoints": true
     }
   ]
 }
