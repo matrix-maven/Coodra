@@ -87,6 +87,17 @@ export const runs = sqliteTable(
     // same run allows compaction unconditionally rather than blocking
     // repeatedly.
     compactionNudgedAt: integer('compaction_nudged_at', { mode: 'timestamp' }),
+    /**
+     * COOD-84 — compaction generation counter.
+     *
+     * Incremented on every compaction. Injected context is a disposable
+     * hint, not durable truth: a compaction may drop or summarise away
+     * everything Coodra surfaced, so a delta computed against the
+     * pre-compaction baseline would reference blocks the agent no
+     * longer holds. Generations make the baseline explicit, so a delta
+     * is always relative to a window that still exists.
+     */
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
     // COOD-34 — explicit capability context for policy matching. JSON text
     // with an array/object shape owned by the policy layer; default keeps
     // legacy runs capability-free without NULL checks.

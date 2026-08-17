@@ -1,6 +1,8 @@
 import {
+  bumpRunBaselineGeneration,
   type DbHandle,
   getRunActiveCapabilities,
+  getRunBaselineGeneration,
   getRunCompactionNudgedAt,
   hasContextPackForRun,
   hasSessionStartEventForRun,
@@ -9,6 +11,7 @@ import {
   markRunFailed,
   normalizeRunCapabilities,
   serializeRunCapabilities,
+  surfacedMemoryIdsForGeneration,
   updateRunActiveCapabilities,
 } from '@coodra/db';
 import {
@@ -908,8 +911,39 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     const projectConfig = await readCoodraProjectConfig(event.cwd);
     const projectSlug = projectConfig?.projectSlug ?? null;
     const runId = await resolveRunId({ deps, projectSlug, event, ctx });
+    // COOD-84: a compaction may have dropped or summarised away
+    // everything Coodra injected, so the generation counter advances and
+    // the next prompt re-seeds the window.
+    //
+    // The bump happens on PostCompact but the RE-EMISSION cannot: neither
+    // Claude Code nor Devin accepts `additionalContext` on that event
+    // (see the field-table notes in `shapeHookOutput`). So the manifest
+    // rides the first `UserPromptSubmit` afterwards, which every agent
+    // except Cursor does support.
+    if (hookEventName === 'PostCompact' && runId !== null) {
+      const generation = await bumpRunBaselineGeneration(deps.db, runId);
+      logger.info(
+        { event: 'native_plugin_compaction_generation_bumped', runId, generation, agentType: input.agentType },
+        'compaction advanced the baseline generation; next prompt re-seeds context',
+      );
+    }
+
+    // Current generation, and whether anything has been pushed into it
+    // yet. An empty generation after a bump is the re-emission signal.
+    const baselineGeneration = runId !== null ? await getRunBaselineGeneration(deps.db, runId) : 0;
+    const surfacedThisGeneration =
+      runId !== null ? await surfacedMemoryIdsForGeneration(deps.db, runId, baselineGeneration) : new Set<string>();
+
+    const needsReemitAfterCompaction =
+      hookEventName === 'UserPromptSubmit' &&
+      runId !== null &&
+      projectSlug !== null &&
+      baselineGeneration > 0 &&
+      surfacedThisGeneration.size === 0;
+
     const isSessionStartEquivalent =
       hookEventName === 'SessionStart' ||
+      needsReemitAfterCompaction ||
       (hookEventName === 'UserPromptSubmit' &&
         runId !== null &&
         projectSlug !== null &&
@@ -1206,7 +1240,8 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
               projectId: recentContextProject?.id ?? null,
               orgId: recentContextProject?.orgId ?? null,
               agentType: input.agentType,
-              idempotencyKey: `sess_start_${event.sessionId}`,
+              idempotencyKey: `sess_start_${event.sessionId}_g${baselineGeneration}`,
+              baselineGeneration,
               items: [
                 ...diversified.packs.map((pack, i) => ({
                   memoryType: 'context_pack' as const,
@@ -1339,7 +1374,11 @@ export function createLifecycleEventHandler(deps: LifecycleEventHandlerDeps) {
     ) {
       const promptContext = await selectPromptRelevantContext(
         { db: deps.db },
-        { projectSlug, prompt: promptText, runId, ctx },
+        // COOD-84: delta injection. Items already pushed into THIS
+        // generation are subtracted, so nothing is sent twice into the
+        // same window — and after a compaction the set is empty, so the
+        // whole selection is legitimately re-sendable.
+        { projectSlug, prompt: promptText, runId, ctx, alreadySurfaced: surfacedThisGeneration },
       );
       promptRelevantContext = promptContext.additionalContext;
     }

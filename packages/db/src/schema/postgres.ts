@@ -69,6 +69,17 @@ export const runs = pgTable(
     // Claude Code hook coverage expansion (2026-08-04) — see
     // ./sqlite.ts::runs.compactionNudgedAt for the full rationale.
     compactionNudgedAt: timestamp('compaction_nudged_at', { withTimezone: true, mode: 'date' }),
+    /**
+     * COOD-84 — compaction generation counter.
+     *
+     * Incremented on every compaction. Injected context is a disposable
+     * hint, not durable truth: a compaction may drop or summarise away
+     * everything Coodra surfaced, so a delta computed against the
+     * pre-compaction baseline would reference blocks the agent no
+     * longer holds. Generations make the baseline explicit, so a delta
+     * is always relative to a window that still exists.
+     */
+    baselineGeneration: integer('baseline_generation').notNull().default(0),
     // COOD-34 — see ./sqlite.ts::runs.activeCapabilitiesJson.
     activeCapabilitiesJson: text('active_capabilities_json').notNull().default('[]'),
   },

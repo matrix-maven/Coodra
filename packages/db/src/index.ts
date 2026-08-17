@@ -72,7 +72,13 @@ export {
   softResumeKillSwitch,
 } from './kill-switches.js';
 export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from './lookup-project.js';
-export { lookupRunBySessionId, lookupRunId } from './lookup-run.js';
+export {
+  bumpRunBaselineGeneration,
+  getRunBaselineGeneration,
+  lookupRunBySessionId,
+  lookupRunId,
+  surfacedMemoryIdsForGeneration,
+} from './lookup-run.js';
 export {
   ensurePgVector,
   MIGRATIONS_FOLDER,

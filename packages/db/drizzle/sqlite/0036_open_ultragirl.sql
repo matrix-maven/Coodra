@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `baseline_generation` integer DEFAULT 0 NOT NULL;
