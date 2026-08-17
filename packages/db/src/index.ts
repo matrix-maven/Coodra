@@ -80,6 +80,15 @@ export {
   surfacedMemoryIdsForGeneration,
 } from './lookup-run.js';
 export {
+  decodeVerifiedAgainstFiles,
+  evaluateStaleness,
+  freshnessForMemoryIds,
+  type MemoryFreshnessMark,
+  type MemoryFreshnessStatus,
+  markContextPackFreshness,
+  markDecisionFreshness,
+} from './memory-freshness.js';
+export {
   ensurePgVector,
   MIGRATIONS_FOLDER,
   migratePostgres,

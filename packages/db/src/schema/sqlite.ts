@@ -190,6 +190,35 @@ export const contextPacks = sqliteTable(
     // original rows stay readable and point at that digest instead of being
     // deleted or rewritten.
     archivedInPackId: text('archived_in_pack_id'),
+    /**
+     * COOD-85 — freshness, which is a DIFFERENT property from supersession.
+     *
+     *   staleness    — is this still TRUE? (derived from code drift)
+     *   supersession — has this been REPLACED? (canonical in decision_edges
+     *                  for decisions, archived_in_pack_id for packs)
+     *
+     * Nothing here derives supersession, and there is deliberately no
+     * `superseded_by` column: that would be a second source of truth for
+     * authority, free to disagree with the edges it duplicates.
+     *
+     * `verified_against_commit` / `verified_against_files` are the
+     * load-bearing pair. They turn "is this still true?" into a
+     * mechanical query — have the files this was verified against changed
+     * since? — instead of waiting for an agent to volunteer that it is
+     * obsolete, which is the whole failure COOD-58's supersede edges
+     * still have (they only exist when someone records them).
+     *
+     * Existing rows backfill to `unverified`, not `fresh`: we have never
+     * checked them, and claiming freshness we never established is the
+     * error this field exists to prevent.
+     */
+    freshnessStatus: text('freshness_status').notNull().default('unverified'),
+    lastVerifiedAt: integer('last_verified_at', { mode: 'timestamp' }),
+    /** Why it went stale — `files_changed`, `files_deleted`, … */
+    staleReason: text('stale_reason'),
+    verifiedAgainstCommit: text('verified_against_commit'),
+    /** JSON string array of repo-relative paths this was verified against. */
+    verifiedAgainstFiles: text('verified_against_files'),
   },
   (t) => [
     // Append-only redesign (2026-08-05): was uniqueIndex(run_idx) — a run
@@ -772,6 +801,17 @@ export const decisions = sqliteTable(
     confidence: text('confidence'),
     // Boolean stored as integer per better-sqlite3 convention; NULL = unknown.
     reversible: integer('reversible', { mode: 'boolean' }),
+    /**
+     * COOD-85 — freshness. See `context_packs` for the full rationale;
+     * the short version is that staleness ("is this still true?") and
+     * supersession ("has this been replaced?") are different properties,
+     * and supersession stays canonical in `decision_edges`.
+     */
+    freshnessStatus: text('freshness_status').notNull().default('unverified'),
+    staleReason: text('stale_reason'),
+    verifiedAgainstCommit: text('verified_against_commit'),
+    verifiedAgainstFiles: text('verified_against_files'),
+    lastVerifiedAt: integer('last_verified_at', { mode: 'timestamp' }),
     // Team mode (Module 04 Phase 4, 2026-05-09). Clerk user id of the
     // member whose agent recorded the decision. NULL on solo + on
     // pre-Phase-4 rows. The MCP `record_decision` tool reads this from

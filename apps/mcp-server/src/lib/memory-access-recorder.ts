@@ -1,6 +1,7 @@
 import type { MemoryAccessPayloadV1 } from '@coodra/cli/lib/outbox';
 import {
   type DbHandle,
+  freshnessForMemoryIds,
   lookupProjectBySlug,
   lookupRunBySessionId,
   lookupRunId,
@@ -208,6 +209,20 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
     attributionMisses: () => misses,
 
     async recordPush(args: RecordPushArgs): Promise<void> {
+      // COOD-85: same point-in-time snapshot as the pull path. Grouped
+      // by type because packs and decisions live in different tables.
+      const freshnessByType = new Map<string, ReadonlyMap<string, string>>();
+      for (const type of new Set(args.items.map((item) => item.memoryType))) {
+        freshnessByType.set(
+          type,
+          await freshnessForMemoryIds(
+            deps.db,
+            type,
+            args.items.filter((item) => item.memoryType === type).map((item) => item.memoryId),
+          ),
+        );
+      }
+
       for (const [i, item] of args.items.entries()) {
         const payload: MemoryAccessPayloadV1 = {
           v: 1,
@@ -225,6 +240,7 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           position: item.position,
           bytes: item.bytes,
           resultCount: args.items.length,
+          freshnessStatusAtAccess: freshnessByType.get(item.memoryType)?.get(item.memoryId) ?? 'unverified',
           ...(args.baselineGeneration !== undefined ? { baselineGeneration: args.baselineGeneration } : {}),
         };
         try {
@@ -299,6 +315,17 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           ? extracted.ids.map((id, i) => ({ memoryId: id, position: i, bytes: extracted.bytes[i] ?? null }))
           : [{ memoryId: null, position: null, bytes: null }];
 
+      // COOD-85: snapshot freshness AT ACCESS TIME. Joining it at read
+      // time instead would let an item that goes stale next week rewrite
+      // how it looked when it was actually surfaced — and "what fraction
+      // of surfaced memory had already gone stale?" is a question about
+      // the moment of surfacing.
+      const freshness = await freshnessForMemoryIds(
+        deps.db,
+        extracted.memoryType,
+        rows.flatMap((r) => (r.memoryId === null ? [] : [r.memoryId])),
+      );
+
       for (const [i, row] of rows.entries()) {
         const payload: MemoryAccessPayloadV1 = {
           v: 1,
@@ -323,6 +350,9 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           // in the daily rollup, so only the first row carries it.
           latencyMs: i === 0 ? args.latencyMs : null,
           resultCount: extracted.resultCount,
+          // Absent from the map means never verified — reported as
+          // `unverified`, never silently upgraded to `fresh`.
+          freshnessStatusAtAccess: row.memoryId === null ? null : (freshness.get(row.memoryId) ?? 'unverified'),
         };
         try {
           await scheduleDurableWrite(deps.db, { queue: 'memory_access', payload });

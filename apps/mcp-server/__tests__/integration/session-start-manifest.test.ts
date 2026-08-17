@@ -193,6 +193,10 @@ describe('COOD-83 — surfaced rows are recorded in BOTH modes', () => {
     expect(rows[0]?.triggerType).toBe('session_start');
     expect(rows[0]?.projectId).toBe('proj-1');
     expect(rows.some((r) => r.memoryType === 'context_pack')).toBe(true);
+    // COOD-85: freshness is snapshotted AT ACCESS TIME. A pack nobody
+    // has verified reads `unverified` — never silently upgraded to
+    // `fresh`, which is the whole point of the three-state model.
+    expect(rows[0]?.freshnessStatusAtAccess).toBe('unverified');
   });
 
   it('records push rows in manifest mode too, with the smaller byte cost', async () => {
