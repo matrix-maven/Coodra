@@ -568,3 +568,192 @@ describe('record_decision — COOD-58 decision_edges', () => {
     expect(cycle).toMatchObject({ ok: false, error: 'supersession_cycle', decisionId: 'dec_old_cycle' });
   });
 });
+
+// ---------------------------------------------------------------------------
+// COOD-96 — repairing links on a retry
+// ---------------------------------------------------------------------------
+
+/**
+ * The decision ROW is idempotent on (runId, description); its LINKS are
+ * not. That asymmetry is deliberate — it is what lets a supersession
+ * edge be attached to an already-recorded decision without minting a
+ * duplicate decision to carry it — but two things made it unusable in
+ * practice, and both are locked here.
+ */
+describe('record_decision — COOD-96 retry repairs links', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await openHarness();
+  });
+  afterEach(async () => {
+    await h.close();
+  });
+
+  it('attaches a supersedes edge on retry without creating a second decision', async () => {
+    const registry = buildRegistry(h);
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('dec_prior', h.projectId, 'idem_prior', h.runId, 'the older ruling', 'older', 1000);
+
+    // First call: the agent forgets to declare the supersession.
+    const first = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { runId: h.runId, description: 'the newer ruling', rationale: 'replaces the older one' },
+        'sess_rd',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    // Retry with the same description, now declaring it.
+    const retry = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        {
+          runId: h.runId,
+          description: 'the newer ruling',
+          rationale: 'replaces the older one',
+          supersedesDecisionIds: ['dec_prior'],
+        },
+        'sess_rd',
+      ),
+    );
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(retry.created, 'the retry must not mint a duplicate decision').toBe(false);
+    expect(retry.decisionId).toBe(first.decisionId);
+
+    const rows = h.handle.raw
+      .prepare(
+        `SELECT from_decision_id FROM decision_edges
+         WHERE edge_type = 'supersedes' AND target_type = 'decision' AND target_id = 'dec_prior'`,
+      )
+      .all() as Array<{ from_decision_id: string }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.from_decision_id).toBe(first.decisionId);
+
+    const count = h.handle.raw
+      .prepare(`SELECT COUNT(*) AS n FROM decisions WHERE description = 'the newer ruling'`)
+      .get() as { n: number };
+    expect(count.n).toBe(1);
+  });
+
+  it('still returns overlap candidates on an idempotent hit, then goes quiet once handled', async () => {
+    // Returning candidates only on the FIRST call meant an agent that
+    // ignored the hint got no second chance — the retry, which is the
+    // natural moment to declare the edge, came back empty and read as
+    // confirmation that nothing overlapped.
+    const registry = buildRegistry(h);
+    h.handle.raw
+      .prepare(
+        `INSERT INTO decisions (id, project_id, idempotency_key, run_id, description, rationale, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('dec_overlap', h.projectId, 'idem_overlap', h.runId, 'manifest ships behind a flag', 'flagged', 1000);
+
+    const args = {
+      runId: h.runId,
+      description: 'manifest ships behind a flag no longer — it is the default',
+      rationale: 'flagged mode replaced by default',
+    };
+
+    const first = unwrap(await registry.handleCall('record_decision', args, 'sess_rd'));
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.relatedDecisionCandidates.map((c) => c.decisionId)).toContain('dec_overlap');
+
+    const retry = unwrap(await registry.handleCall('record_decision', args, 'sess_rd'));
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(retry.created).toBe(false);
+    expect(
+      retry.relatedDecisionCandidates.map((c) => c.decisionId),
+      'the reminder must survive the retry',
+    ).toContain('dec_overlap');
+
+    // Declare the edge, and the candidate drops out — the list excludes
+    // decisions that already have an incoming supersedes edge, so a
+    // handled overlap stops nagging without any extra suppression.
+    const declared = unwrap(
+      await registry.handleCall('record_decision', { ...args, supersedesDecisionIds: ['dec_overlap'] }, 'sess_rd'),
+    );
+    expect(declared.ok).toBe(true);
+    if (!declared.ok) return;
+    expect(declared.relatedDecisionCandidates.map((c) => c.decisionId)).not.toContain('dec_overlap');
+  });
+
+  it('merges impact on retry so the column cannot disagree with its own edges', async () => {
+    const registry = buildRegistry(h);
+    const args = {
+      runId: h.runId,
+      description: 'a decision that grows its impact',
+      rationale: 'first pass named one file',
+    };
+
+    const first = unwrap(
+      await registry.handleCall('record_decision', { ...args, impact: ['packages/db/src/a.ts'] }, 'sess_rd'),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    const retry = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { ...args, impact: ['packages/db/src/a.ts', 'packages/db/src/b.ts'] },
+        'sess_rd',
+      ),
+    );
+    expect(retry.ok).toBe(true);
+    if (!retry.ok) return;
+    expect(retry.created).toBe(false);
+
+    const edgeTargets = (
+      h.handle.raw
+        .prepare(
+          `SELECT target_id FROM decision_edges
+           WHERE from_decision_id = ? AND edge_type = 'affects' AND target_type = 'file'`,
+        )
+        .all(first.decisionId) as Array<{ target_id: string }>
+    ).map((r) => r.target_id);
+    expect(edgeTargets).toContain('packages/db/src/a.ts');
+    expect(edgeTargets).toContain('packages/db/src/b.ts');
+
+    const row = h.handle.raw.prepare(`SELECT impact FROM decisions WHERE id = ?`).get(first.decisionId) as {
+      impact: string | null;
+    };
+    const stored = JSON.parse(row.impact ?? '[]') as string[];
+    // The column is what read_context_pack and the run admin views
+    // display; a frozen column beside a grown edge set is a row
+    // disagreeing with itself.
+    expect(stored).toEqual(['packages/db/src/a.ts', 'packages/db/src/b.ts']);
+  });
+
+  it('unions rather than replaces, so a narrower retry cannot orphan earlier edges', async () => {
+    // Nothing here deletes edges. If a retry replaced the column, the
+    // `affects` edges from the dropped entries would survive with no
+    // trace in the row that produced them.
+    const registry = buildRegistry(h);
+    const args = { runId: h.runId, description: 'impact narrows on retry', rationale: 'why' };
+
+    const first = unwrap(
+      await registry.handleCall(
+        'record_decision',
+        { ...args, impact: ['packages/db/src/a.ts', 'packages/db/src/b.ts'] },
+        'sess_rd',
+      ),
+    );
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+
+    await registry.handleCall('record_decision', { ...args, impact: ['packages/db/src/a.ts'] }, 'sess_rd');
+
+    const row = h.handle.raw.prepare(`SELECT impact FROM decisions WHERE id = ?`).get(first.decisionId) as {
+      impact: string | null;
+    };
+    expect(JSON.parse(row.impact ?? '[]')).toEqual(['packages/db/src/a.ts', 'packages/db/src/b.ts']);
+  });
+});

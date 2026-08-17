@@ -222,7 +222,10 @@ async function selectByIdempotencyKey(db: DbHandle, key: string): Promise<Existi
   return row ? { id: row.id, createdAt: row.createdAt } : null;
 }
 
-async function selectDecisionTargets(db: DbHandle, ids: ReadonlyArray<string>): Promise<Map<string, DecisionTargetRow>> {
+async function selectDecisionTargets(
+  db: DbHandle,
+  ids: ReadonlyArray<string>,
+): Promise<Map<string, DecisionTargetRow>> {
   const uniqueIds = [...new Set(ids)].filter((id) => id.length > 0);
   const byId = new Map<string, DecisionTargetRow>();
   if (uniqueIds.length === 0) return byId;
@@ -283,7 +286,10 @@ async function selectSupersededTargets(db: DbHandle, decisionId: string): Promis
   return rows.map((row) => row.targetId);
 }
 
-async function selectIncomingSupersededTargetIds(db: DbHandle, decisionIds: ReadonlyArray<string>): Promise<Set<string>> {
+async function selectIncomingSupersededTargetIds(
+  db: DbHandle,
+  decisionIds: ReadonlyArray<string>,
+): Promise<Set<string>> {
   const uniqueIds = [...new Set(decisionIds)];
   const superseded = new Set<string>();
   if (uniqueIds.length === 0) return superseded;
@@ -579,6 +585,50 @@ async function insertIgnoreOnConflict(
   return { inserted: false, id: existing.id, createdAt: existing.createdAt };
 }
 
+/**
+ * Keep the `impact` column in step with the `affects` edges on a retry.
+ *
+ * The decision ROW is idempotent on (runId, description) — a retry does
+ * not rewrite rationale, context or confidence. Edges are not: they are
+ * inserted unconditionally so a later call can add a link to an
+ * already-recorded decision, which is what makes supersession repair
+ * possible without a duplicate decision.
+ *
+ * That asymmetry left `impact` inconsistent with itself. A retry adding
+ * `impact: ['packages/db/src/foo.ts']` wrote the `affects` edge but left
+ * the column frozen at the first call's array, so the row and the edges
+ * derived from it disagreed — and the column is what `read_context_pack`
+ * and the run admin views display. Merging is the fix that matches the
+ * edges' own additive semantics; the alternative (skip the edge on
+ * retry) would make supersession repair the only additive path and leave
+ * `impact` uniquely unable to be corrected.
+ *
+ * Union, not replace: dropping entries a previous call recorded would
+ * orphan the `affects` edges those entries already produced, since
+ * nothing here deletes edges.
+ */
+async function mergeImpactOnIdempotentHit(
+  db: DbHandle,
+  decisionId: string,
+  incoming: ReadonlyArray<string>,
+): Promise<void> {
+  if (incoming.length === 0) return;
+  const existingRows = await selectDecisionTargets(db, [decisionId]);
+  const current = parseImpact(existingRows.get(decisionId)?.impact);
+  const merged = [...current];
+  for (const entry of incoming) {
+    const value = entry.trim();
+    if (value.length > 0 && !merged.includes(value)) merged.push(value);
+  }
+  if (merged.length === current.length) return;
+  const json = JSON.stringify(merged);
+  if (db.kind === 'sqlite') {
+    await db.db.update(sqliteSchema.decisions).set({ impact: json }).where(eq(sqliteSchema.decisions.id, decisionId));
+    return;
+  }
+  await db.db.update(postgresSchema.decisions).set({ impact: json }).where(eq(postgresSchema.decisions.id, decisionId));
+}
+
 export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
   if (!deps || typeof deps !== 'object') {
     throw new TypeError('createRecordDecisionHandler requires a deps object');
@@ -686,6 +736,9 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
         },
         'record_decision: idempotency key collided — returning existing decisionId',
       );
+      // Edges below are inserted on a retry; keep the column that mirrors
+      // them from freezing at the first call's value.
+      await mergeImpactOnIdempotentHit(deps.db, id, input.impact ?? []);
     }
 
     // coodra-work redesign, round 2 — always link to the run's current
@@ -758,16 +811,27 @@ export function createRecordDecisionHandler(deps: RecordDecisionHandlerDeps) {
       await insertDecisionEdges(deps.db, edgeInserts);
     }
 
-    const candidates = inserted
-      ? await relatedDecisionCandidates(deps.db, {
-          projectId: runAttribution.projectId,
-          decisionId: id,
-          description: input.description,
-          rationale: input.rationale,
-          context: input.context ?? null,
-          impact: input.impact ?? [],
-        })
-      : [];
+    // Computed on an idempotent hit too, not only on a fresh insert.
+    //
+    // The whole point of the candidates is to catch a decision that
+    // silently contradicts an older one. Returning them only on the
+    // first call meant an agent that ignored the hint got no second
+    // chance: the retry — the natural moment to add the supersession
+    // edge it should have declared — came back empty and looked like
+    // confirmation that nothing was overlapping.
+    //
+    // This does not become noise once handled, because
+    // `selectRecentActiveDecisionCandidates` already excludes decisions
+    // with an incoming `supersedes` edge. So a target drops off the list
+    // as soon as the edge is written, and a repeat retry is quiet.
+    const candidates = await relatedDecisionCandidates(deps.db, {
+      projectId: runAttribution.projectId,
+      decisionId: id,
+      description: input.description,
+      rationale: input.rationale,
+      context: input.context ?? null,
+      impact: input.impact ?? [],
+    });
 
     // M04 Phase 4: in team mode, enqueue a sync_to_cloud job so the
     // sync-daemon pushes the decision to cloud Postgres. Without this

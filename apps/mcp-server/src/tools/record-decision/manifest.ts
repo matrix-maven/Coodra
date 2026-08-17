@@ -45,7 +45,7 @@ export function createRecordDecisionToolRegistration(
       'Call this the moment you make a design or implementation decision — picking a library over alternatives, designing an API shape, deciding NOT to do something. ' +
       'Future sessions consult this table and SessionStart auto-injects the most recent decisions; silent contradictions are the failure mode this tool prevents. ' +
       'Pass `context`, `impact`, `confidence`, `reversible`, and `workPackSlugs` when relevant. Pass `supersedesDecisionIds` when this replaces older decisions; the tool writes typed decision_edges and surfaces overlap candidates. ' +
-      'Idempotent on (runId, description) — a retry returns the original decisionId with created:false; new metadata on the retry is discarded. ' +
+      'Idempotent on (runId, description): a retry keeps the original row and prose, but DOES add new supersedes/impact/workPack links — retry to repair links you omitted. ' +
       'Returns { ok: true, decisionId, createdAt, created } on success. Soft-failure: run_not_found.',
     inputSchema: recordDecisionInputSchema,
     outputSchema: recordDecisionOutputSchema,
