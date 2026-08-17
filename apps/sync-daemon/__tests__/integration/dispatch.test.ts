@@ -148,6 +148,144 @@ let cloud: PostgresHandle;
     expect(ticks).toBeLessThan(5); // should drain quickly
   });
 
+  /**
+   * COOD-98 — utilization rollups reach cloud.
+   *
+   * The grain lookup is the point. Every other sync uses `kind: 'id'`
+   * because those rows are append-only; the rollups are recomputed by
+   * delete-then-insert with a fresh `randomblob` id each pass, so an id
+   * captured at enqueue is routinely gone by dispatch while a different
+   * row holds the same grain.
+   */
+  it('COOD-98 pushes a memory_access_daily grain and upserts on recompute', async () => {
+    await ensureProject(local, { slug: 'mad-sync', orgId: 'sync_test', name: 'mad-sync' });
+    const project = (
+      await local.db.select().from(sqliteSchema.projects).where(eq(sqliteSchema.projects.slug, 'mad-sync')).limit(1)
+    )[0];
+    const projectId = project!.id;
+    const { postgresSchema: pg } = await import('@coodra/db');
+    await cloud.db
+      .insert(pg.projects)
+      .values({ id: projectId, slug: project!.slug, orgId: project!.orgId, name: project!.name })
+      .onConflictDoNothing();
+
+    const insertDaily = (id: string, accessCount: number) =>
+      local.raw
+        .prepare(
+          `INSERT INTO memory_access_daily
+             (id, project_id, day, channel, site, memory_type, actor_user_id,
+              access_count, distinct_items, distinct_runs, total_bytes,
+              total_latency_ms, max_latency_ms, stale_at_access_count, created_at, updated_at)
+           VALUES (?, ?, '2026-08-16', 'pull', 'read_context_pack', 'context_pack', 'user_alice',
+                   ?, 1, 1, 10, 5, 5, 0, unixepoch(), unixepoch())`,
+        )
+        .run(id, projectId, accessCount);
+
+    insertDaily('mad_first', 3);
+    const lookup = {
+      kind: 'memory_daily_grain' as const,
+      projectId,
+      day: '2026-08-16',
+      channel: 'pull',
+      site: 'read_context_pack',
+      memoryType: 'context_pack',
+      actorUserId: 'user_alice',
+    };
+    await scheduleDurableWrite(local, {
+      queue: 'sync_to_cloud',
+      payload: { v: 1, table: 'memory_access_daily', lookup },
+    });
+    await drain(makeWorker());
+
+    let rows = await cloud.db.select().from(pg.memoryAccessDaily).where(eq(pg.memoryAccessDaily.projectId, projectId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.accessCount).toBe(3);
+
+    // Recompute: same grain, NEW id and higher counts. The second push
+    // must update the existing cloud row, not insert a duplicate --
+    // which is only safe because the actor is in the grain.
+    local.raw.prepare(`DELETE FROM memory_access_daily WHERE id = 'mad_first'`).run();
+    insertDaily('mad_second', 9);
+    await scheduleDurableWrite(local, {
+      queue: 'sync_to_cloud',
+      payload: { v: 1, table: 'memory_access_daily', lookup },
+    });
+    await drain(makeWorker());
+
+    rows = await cloud.db.select().from(pg.memoryAccessDaily).where(eq(pg.memoryAccessDaily.projectId, projectId));
+    expect(rows, 'a recompute must not duplicate the grain').toHaveLength(1);
+    expect(rows[0]?.accessCount).toBe(9);
+  });
+
+  it('COOD-98 keeps two seats as two cloud rows', async () => {
+    // The whole reason COOD-99 put actor_user_id in the grain: without
+    // it these two collapse to one row and one developer's counts are
+    // silently overwritten on every pass.
+    await ensureProject(local, { slug: 'mad-seats', orgId: 'sync_test', name: 'mad-seats' });
+    const project = (
+      await local.db.select().from(sqliteSchema.projects).where(eq(sqliteSchema.projects.slug, 'mad-seats')).limit(1)
+    )[0];
+    const projectId = project!.id;
+    const { postgresSchema: pg } = await import('@coodra/db');
+    await cloud.db
+      .insert(pg.projects)
+      .values({ id: projectId, slug: project!.slug, orgId: project!.orgId, name: project!.name })
+      .onConflictDoNothing();
+
+    for (const [id, actor, n] of [
+      ['seat_a', 'user_alice', 4],
+      ['seat_b', 'user_bob', 6],
+    ] as const) {
+      local.raw
+        .prepare(
+          `INSERT INTO memory_access_daily
+             (id, project_id, day, channel, site, memory_type, actor_user_id,
+              access_count, distinct_items, distinct_runs, total_bytes,
+              total_latency_ms, max_latency_ms, stale_at_access_count, created_at, updated_at)
+           VALUES (?, ?, '2026-08-17', 'pull', 'read_context_pack', 'context_pack', ?,
+                   ?, 1, 1, 10, 5, 5, 0, unixepoch(), unixepoch())`,
+        )
+        .run(id, projectId, actor, n);
+      await scheduleDurableWrite(local, {
+        queue: 'sync_to_cloud',
+        payload: {
+          v: 1,
+          table: 'memory_access_daily',
+          lookup: {
+            kind: 'memory_daily_grain',
+            projectId,
+            day: '2026-08-17',
+            channel: 'pull',
+            site: 'read_context_pack',
+            memoryType: 'context_pack',
+            actorUserId: actor,
+          },
+        },
+      });
+    }
+    await drain(makeWorker());
+
+    const rows = await cloud.db
+      .select()
+      .from(pg.memoryAccessDaily)
+      .where(eq(pg.memoryAccessDaily.projectId, projectId));
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.accessCount).sort()).toEqual([4, 6]);
+  });
+
+  it('COOD-98 rejects an unknown memory lookup shape as permanent, not transient', async () => {
+    // A malformed grain can never become valid by retrying; failing it
+    // permanently keeps it out of the retry loop forever.
+    await scheduleDurableWrite(local, {
+      queue: 'sync_to_cloud',
+      payload: { v: 1, table: 'memory_access_daily', lookup: { kind: 'id', value: 'whatever' } },
+    });
+    await drain(makeWorker());
+    const jobs = await local.db.select().from(sqliteSchema.pendingJobs);
+    const job = jobs.find((j) => j.queue === 'sync_to_cloud');
+    expect(job?.status).not.toBe('done');
+  });
+
   it('returns transient_failure when local row is not yet present (paired audit not dispatched)', async () => {
     // Enqueue ONLY the sync job; no local runs row exists.
     await scheduleDurableWrite(local, {

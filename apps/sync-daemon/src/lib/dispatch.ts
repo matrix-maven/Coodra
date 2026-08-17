@@ -50,7 +50,13 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function readLookup(value: unknown): SyncLookup | null {
+/**
+ * Exported for unit test: this is the only new pure logic in the COOD-98
+ * grain path, and the dispatcher's own suite needs a live Postgres, so
+ * without this the parsing would ship unexecuted on any machine without
+ * one.
+ */
+export function readLookup(value: unknown): SyncLookup | null {
   if (!isObject(value)) return null;
   if (value.kind === 'id' && typeof value.value === 'string') {
     return { kind: 'id', value: value.value };
@@ -60,6 +66,43 @@ function readLookup(value: unknown): SyncLookup | null {
   }
   if (value.kind === 'project_session' && typeof value.projectId === 'string' && typeof value.sessionId === 'string') {
     return { kind: 'project_session', projectId: value.projectId, sessionId: value.sessionId };
+  }
+  // COOD-98 — grain lookups. The rollups recompute by delete-then-insert
+  // and mint a new id each pass, so an id captured at enqueue is
+  // routinely stale by dispatch; only the grain survives a recompute.
+  if (
+    value.kind === 'memory_daily_grain' &&
+    typeof value.projectId === 'string' &&
+    typeof value.day === 'string' &&
+    typeof value.channel === 'string' &&
+    typeof value.site === 'string' &&
+    typeof value.memoryType === 'string' &&
+    typeof value.actorUserId === 'string'
+  ) {
+    return {
+      kind: 'memory_daily_grain',
+      projectId: value.projectId,
+      day: value.day,
+      channel: value.channel,
+      site: value.site,
+      memoryType: value.memoryType,
+      actorUserId: value.actorUserId,
+    };
+  }
+  if (
+    value.kind === 'memory_cohort_grain' &&
+    typeof value.runId === 'string' &&
+    typeof value.baselineGeneration === 'number' &&
+    typeof value.memoryType === 'string' &&
+    typeof value.memoryId === 'string'
+  ) {
+    return {
+      kind: 'memory_cohort_grain',
+      runId: value.runId,
+      baselineGeneration: value.baselineGeneration,
+      memoryType: value.memoryType,
+      memoryId: value.memoryId,
+    };
   }
   return null;
 }
@@ -87,6 +130,12 @@ const SYNC_TABLES = [
   // ON CONFLICT DO UPDATE.
   'wikis',
   'wiki_pages',
+  // COOD-98/99 — utilization rollups, so /memory is a team view rather
+  // than one laptop's. Rollups only: raw memory_access_events is
+  // per-access, per-item, hot-path telemetry with no measured volume
+  // figure yet, and the rollups answer everything the dashboard asks.
+  'memory_access_daily',
+  'memory_cohorts',
 ] as const;
 type SyncTableName = (typeof SYNC_TABLES)[number];
 
@@ -166,6 +215,12 @@ export function createSyncDispatchHandler(deps: CreateSyncDispatchHandlerDeps): 
 
 function describeLookup(lookup: SyncLookup): string {
   if (lookup.kind === 'project_session') return `${lookup.projectId}/${lookup.sessionId}`;
+  if (lookup.kind === 'memory_daily_grain') {
+    return `${lookup.projectId}/${lookup.day}/${lookup.channel}/${lookup.site}/${lookup.memoryType}/${lookup.actorUserId}`;
+  }
+  if (lookup.kind === 'memory_cohort_grain') {
+    return `${lookup.runId}/g${lookup.baselineGeneration}/${lookup.memoryType}/${lookup.memoryId}`;
+  }
   return lookup.value;
 }
 
@@ -198,6 +253,10 @@ async function syncOne(args: SyncOneArgs): Promise<boolean> {
       return syncDecisions(args);
     case 'context_packs':
       return syncContextPacks(args);
+    case 'memory_access_daily':
+      return syncMemoryAccessDaily(args);
+    case 'memory_cohorts':
+      return syncMemoryCohorts(args);
     case 'kill_switches':
       return syncKillSwitches(args);
     case 'features':
@@ -887,5 +946,140 @@ async function syncWikiPages({ localDb, cloudDb, lookup, log, jobId }: SyncOneAr
     { event: 'sync_wiki_pages_pushed', jobId, pageRowId: row.id, wikiId: row.wikiId, pageId: row.pageId },
     'wiki_pages row synced',
   );
+  return true;
+}
+
+/**
+ * COOD-98 — push one daily utilization grain to cloud.
+ *
+ * Looked up by GRAIN, not id: `runMemoryRollupOnce` recomputes by
+ * delete-then-insert and mints a new id every pass, so the id captured
+ * at enqueue is routinely gone by dispatch while a different row holds
+ * the same grain.
+ *
+ * `ON CONFLICT DO UPDATE` on that grain is safe precisely because
+ * COOD-99 put `actor_user_id` in it. Before that, two developers wrote
+ * the same key and this upsert would have had one silently overwrite the
+ * other's counts every pass. Now a machine only ever overwrites its own
+ * seat's row, and overwriting is what we want: a recompute supersedes
+ * whatever that seat reported for that day.
+ */
+async function syncMemoryAccessDaily({ localDb, cloudDb, lookup }: SyncOneArgs): Promise<boolean> {
+  if (lookup.kind !== 'memory_daily_grain') return false;
+  const lt = sqliteSchema.memoryAccessDaily;
+  const row = (
+    await localDb.db
+      .select()
+      .from(lt)
+      .where(
+        and(
+          eq(lt.projectId, lookup.projectId),
+          eq(lt.day, lookup.day),
+          eq(lt.channel, lookup.channel),
+          eq(lt.site, lookup.site),
+          eq(lt.memoryType, lookup.memoryType),
+          eq(lt.actorUserId, lookup.actorUserId),
+        ),
+      )
+      .limit(1)
+  )[0];
+  if (!row) return false;
+  const projectOutcome = await ensureProjectInCloud(localDb, cloudDb, lookup.projectId);
+  if (projectOutcome === 'local_only') return true;
+  if (projectOutcome === 'missing') return false;
+
+  const ct = postgresSchema.memoryAccessDaily;
+  const values = {
+    accessCount: row.accessCount,
+    distinctItems: row.distinctItems,
+    distinctRuns: row.distinctRuns,
+    totalBytes: row.totalBytes,
+    totalLatencyMs: row.totalLatencyMs,
+    maxLatencyMs: row.maxLatencyMs,
+    staleAtAccessCount: row.staleAtAccessCount,
+    orgId: row.orgId,
+    updatedAt: row.updatedAt,
+  };
+  await cloudDb.db
+    .insert(ct)
+    .values({
+      id: row.id,
+      projectId: row.projectId,
+      day: row.day,
+      channel: row.channel,
+      site: row.site,
+      memoryType: row.memoryType,
+      actorUserId: row.actorUserId,
+      createdAt: row.createdAt,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: [ct.projectId, ct.day, ct.channel, ct.site, ct.memoryType, ct.actorUserId],
+      set: values,
+    });
+  return true;
+}
+
+/**
+ * COOD-98 — push one cohort grain to cloud.
+ *
+ * Cohorts carry pull-through, the metric COOD-94 is built to read, and
+ * they were already collision-free across machines: `run_id` is globally
+ * unique, so two developers can never contend for one cohort row.
+ *
+ * Recomputed like the daily rollup, so the same grain-not-id rule
+ * applies. `memory_id` is NOT NULL here by construction — the worker
+ * only builds cohorts for rows carrying one, because a zero-result
+ * search has no item whose pull-through could be measured.
+ */
+async function syncMemoryCohorts({ localDb, cloudDb, lookup }: SyncOneArgs): Promise<boolean> {
+  if (lookup.kind !== 'memory_cohort_grain') return false;
+  const lt = sqliteSchema.memoryCohorts;
+  const row = (
+    await localDb.db
+      .select()
+      .from(lt)
+      .where(
+        and(
+          eq(lt.runId, lookup.runId),
+          eq(lt.baselineGeneration, lookup.baselineGeneration),
+          eq(lt.memoryType, lookup.memoryType),
+          eq(lt.memoryId, lookup.memoryId),
+        ),
+      )
+      .limit(1)
+  )[0];
+  if (!row) return false;
+  const runOutcome = await ensureRunAndProjectInCloud(localDb, cloudDb, lookup.runId);
+  if (runOutcome === 'local_only') return true;
+  if (runOutcome === 'missing') return false;
+
+  const ct = postgresSchema.memoryCohorts;
+  const values = {
+    surfacedCount: row.surfacedCount,
+    pulledCount: row.pulledCount,
+    firstSurfacedAt: row.firstSurfacedAt,
+    firstPulledAt: row.firstPulledAt,
+    timeToFirstPullMs: row.timeToFirstPullMs,
+    staleAtAccess: row.staleAtAccess,
+    orgId: row.orgId,
+    projectId: row.projectId,
+    updatedAt: row.updatedAt,
+  };
+  await cloudDb.db
+    .insert(ct)
+    .values({
+      id: row.id,
+      runId: row.runId,
+      baselineGeneration: row.baselineGeneration,
+      memoryType: row.memoryType,
+      memoryId: row.memoryId,
+      createdAt: row.createdAt,
+      ...values,
+    })
+    .onConflictDoUpdate({
+      target: [ct.runId, ct.baselineGeneration, ct.memoryType, ct.memoryId],
+      set: values,
+    });
   return true;
 }

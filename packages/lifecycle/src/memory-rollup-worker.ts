@@ -1,4 +1,4 @@
-import type { DbHandle } from '@coodra/db';
+import { type DbHandle, type SqliteHandle, scheduleDurableWrite } from '@coodra/db';
 import { createLogger } from '@coodra/shared';
 import { sql } from 'drizzle-orm';
 
@@ -84,6 +84,8 @@ export interface MemoryRollupResult {
   readonly dailyRows: number;
   readonly cohortRows: number;
   readonly pruned: number;
+  /** COOD-98 — sync jobs enqueued for cloud. Always 0 in solo mode. */
+  readonly syncJobs: number;
 }
 
 export interface MemoryRollupWorkerHandle {
@@ -107,7 +109,7 @@ export async function runMemoryRollupOnce(
   retentionDays: number = DEFAULT_RETENTION_DAYS,
 ): Promise<MemoryRollupResult> {
   if (db.kind !== 'sqlite') {
-    return { dailyRows: 0, cohortRows: 0, pruned: 0 };
+    return { dailyRows: 0, cohortRows: 0, pruned: 0, syncJobs: 0 };
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -239,10 +241,13 @@ export async function runMemoryRollupOnce(
       )
   `);
 
+  const syncJobs = await enqueueRollupSync(db);
+
   const result: MemoryRollupResult = {
     dailyRows: changesOf(dailyRows),
     cohortRows: changesOf(cohortRows),
     pruned: changesOf(pruned),
+    syncJobs,
   };
   if (result.dailyRows > 0 || result.cohortRows > 0 || result.pruned > 0) {
     rollupLogger.info(
@@ -255,6 +260,78 @@ export async function runMemoryRollupOnce(
 
 function changesOf(result: unknown): number {
   return (result as { changes?: number } | undefined)?.changes ?? 0;
+}
+
+/**
+ * COOD-98 — hand the recomputed rollups to the sync daemon, team only.
+ *
+ * Enqueued AFTER the recompute, once per surviving grain. The payload
+ * carries the grain rather than the row id on purpose: the recompute
+ * above deletes and reinserts with a fresh `randomblob` id every pass,
+ * so an id captured here is routinely stale by the time the daemon
+ * dispatches, while the grain is the one thing that survives.
+ *
+ * Deliberately skips unattributed rows — daily needs `project_id` and
+ * cohorts need `run_id` to satisfy their cloud foreign keys, and a row
+ * that cannot name its project is not something a team dashboard can
+ * place anyway. Those stay local rather than failing forever in the
+ * outbox.
+ *
+ * Solo returns 0 without querying: there is no cloud to push to, and
+ * this runs on every rollup pass.
+ */
+async function enqueueRollupSync(db: SqliteHandle): Promise<number> {
+  if (process.env.COODRA_MODE !== 'team') return 0;
+
+  let enqueued = 0;
+  const daily = (await db.db.all(sql`
+    SELECT project_id, day, channel, site, memory_type, actor_user_id
+    FROM memory_access_daily
+    WHERE project_id IS NOT NULL
+  `)) as ReadonlyArray<Record<string, unknown>>;
+  for (const row of daily) {
+    await scheduleDurableWrite(db, {
+      queue: 'sync_to_cloud',
+      payload: {
+        v: 1 as const,
+        table: 'memory_access_daily',
+        lookup: {
+          kind: 'memory_daily_grain',
+          projectId: String(row.project_id),
+          day: String(row.day),
+          channel: String(row.channel),
+          site: String(row.site),
+          memoryType: String(row.memory_type),
+          actorUserId: String(row.actor_user_id),
+        },
+      },
+    });
+    enqueued += 1;
+  }
+
+  const cohorts = (await db.db.all(sql`
+    SELECT run_id, baseline_generation, memory_type, memory_id
+    FROM memory_cohorts
+    WHERE run_id IS NOT NULL AND memory_id IS NOT NULL
+  `)) as ReadonlyArray<Record<string, unknown>>;
+  for (const row of cohorts) {
+    await scheduleDurableWrite(db, {
+      queue: 'sync_to_cloud',
+      payload: {
+        v: 1 as const,
+        table: 'memory_cohorts',
+        lookup: {
+          kind: 'memory_cohort_grain',
+          runId: String(row.run_id),
+          baselineGeneration: Number(row.baseline_generation ?? 0),
+          memoryType: String(row.memory_type),
+          memoryId: String(row.memory_id),
+        },
+      },
+    });
+    enqueued += 1;
+  }
+  return enqueued;
 }
 
 export function startMemoryRollupWorker(opts: MemoryRollupWorkerOptions): MemoryRollupWorkerHandle {
@@ -276,7 +353,7 @@ export function startMemoryRollupWorker(opts: MemoryRollupWorkerOptions): Memory
         { event: 'memory_rollup_error', err: err instanceof Error ? err.message : String(err) },
         'memory rollup pass threw; will retry on next interval',
       );
-      return { dailyRows: 0, cohortRows: 0, pruned: 0 };
+      return { dailyRows: 0, cohortRows: 0, pruned: 0, syncJobs: 0 };
     }
   }
 
