@@ -138,7 +138,7 @@ export default async function TeamSettingsPage({ searchParams }: { searchParams:
   const secretHint =
     team.localHookSecret !== null
       ? `${team.localHookSecret.slice(0, 6)}…${team.localHookSecret.slice(-4)} · ${team.localHookSecret.length} chars`
-      : '(team-hosted deployment — local hook secret is not present on this server)';
+      : '(team-hosted deployment — local team secret is not present on this server)';
   const databaseUrl = process.env.DATABASE_URL ?? '(not visible to web — set in COODRA_HOME/.env)';
   const databaseUrlMasked = maskDatabaseUrl(databaseUrl);
 

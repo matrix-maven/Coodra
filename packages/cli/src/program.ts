@@ -1389,7 +1389,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
   // Module 04 Phase 4 — admin bootstrap (legacy six-flag interface).
   // Run ONCE per team after creating your own Supabase / Postgres
   // project. Validates connectivity, installs pgvector, applies
-  // migrations, generates a local hook secret, prints credentials for
+  // migrations, generates a local team secret, prints credentials for
   // teammates' `team join`. `team init` is the preferred interactive
   // counterpart for first-time admin use.
   const setupRunner = options.runTeamSetup ?? runTeamSetupCommand;
@@ -1402,7 +1402,7 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--user-id <id>', 'Your Clerk user id (or env COODRA_TEAM_USER_ID).')
     .option('--org-id <id>', 'Your Clerk org id (or env COODRA_TEAM_ORG_ID).')
     .option('--org-slug <slug>', 'Optional Clerk org slug for display.')
-    .option('--secret <hex>', 'Local hook secret to use (or generate fresh 32-byte hex if absent).')
+    .option('--secret <hex>', 'Local team secret to use (or generate fresh 32-byte hex if absent).')
     .option('--database-url <url>', 'Cloud Postgres URL (or env DATABASE_URL).')
     .option('--skip-pgvector', 'Skip CREATE EXTENSION vector (use when role lacks privileges).')
     .option('--json', 'Print credentials as JSON instead of human-formatted prose.')

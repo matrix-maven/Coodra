@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic';
  *   Step 3 · Clerk        — admin creates a Clerk app + an org, copies keys + their userId / orgId.
  *   Step 4 · CLI          — admin runs `coodra team setup` (we render the exact, copy-paste-ready command).
  *   Step 5 · Invite       — admin shares the four-credential block with teammates so they can run `coodra team join`.
- *   Step 6 · Integrations — OPTIONAL: wire Graphify's and/or Jira's (Atlassian Rovo) MCP server into the agent configs (Module 09), or skip.
+ *   Step 6 · Integrations — OPTIONAL: wire Graphify and program-management MCP servers into the agent configs, or skip.
  *
  * State is fully URL-driven (search params). No client state. The
  * verify-step server action redirects with the result encoded back
@@ -611,7 +611,7 @@ CLERK_SECRET_KEY=sk_live_…`}
           }}
         >
           The <code style={inlineMono}>NEXT_PUBLIC_</code> prefix exposes the key to the browser bundle; the unprefixed
-          copy is what the MCP server + Hooks Bridge boot-time env validators look for. Skipping the unprefixed line
+          copy is what the MCP server and web runtime env validators look for. Skipping the unprefixed line
           crashes <code style={inlineMono}>coodra start</code> with{' '}
           <code style={inlineMono}>CLERK_PUBLISHABLE_KEY required when CLERK_SECRET_KEY is set</code>.
         </p>
@@ -665,7 +665,7 @@ function StepFiveInvite() {
         <pre style={{ ...codeBlockStyle, padding: 22 }}>
           {`database url        postgresql://postgres.abc…@…:5432/postgres
 clerk org id        org_2nKjYourClerkOrgId
-local hook secret   <printed by step 4 — don't lose it>
+local team secret   <printed by step 4 — don't lose it>
 clerk publishable   pk_live_…   (each teammate appends as BOTH
                                  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
                                  and CLERK_PUBLISHABLE_KEY= to ~/.coodra/.env)

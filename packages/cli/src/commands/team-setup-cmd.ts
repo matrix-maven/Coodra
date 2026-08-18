@@ -23,10 +23,10 @@ import { DEFAULT_TEAM_IO } from './team.js';
  *      assigns to the `postgres` role; new Supabase projects come with
  *      this granted by default).
  *   3. Applies all Drizzle migrations (idempotent).
- *   4. Generates a 32-byte local hook secret (or accepts one via
+ *   4. Generates a 32-byte local team secret (or accepts one via
  *      `--secret` for re-runs / re-keying).
  *   5. Writes `~/.coodra/config.json::team` for the admin's own
- *      machine so their bridge + MCP server stamp `created_by_user_id`.
+ *      machine so local lifecycle and MCP writes stamp `created_by_user_id`.
  *   6. Prints a "share with teammates" block with the four credentials
  *      they need for `coodra team join` (user_id, org_id, secret,
  *      database_url). The admin distributes this securely (Bitwarden,
@@ -39,7 +39,7 @@ import { DEFAULT_TEAM_IO } from './team.js';
  *
  * Re-running `team setup` is safe — Drizzle's migration table dedupes,
  * `CREATE EXTENSION IF NOT EXISTS` is a no-op, the local config-write
- * is overwrite-the-existing-block. Use this to rotate the local hook
+ * is overwrite-the-existing-block. Use this to rotate the local team
  * secret or to onboard a second admin to the same team.
  */
 
@@ -285,7 +285,7 @@ export async function runTeamSetupCommand(
       io.writeStdout(
         `  ${pc.bold('database url')}        ${resolved.databaseUrl}\n` +
           `  ${pc.bold('clerk org id')}        ${resolved.orgId}\n` +
-          `  ${pc.bold('local hook secret')}   ${resolved.secret}\n`,
+          `  ${pc.bold('local team secret')}   ${resolved.secret}\n`,
       );
       io.writeStdout(pc.cyan('───────────────────────────────────────────────────────────────\n\n'));
       io.writeStdout(

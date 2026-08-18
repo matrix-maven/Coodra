@@ -28,17 +28,19 @@ quietly spends a hundred dollars of API budget before anyone notices.
 
 ---
 
-## What Coodra does — three pillars
+## What Coodra does - the launch vocabulary
 
 | Pillar | What it is | What it kills |
 |---|---|---|
-| **Feature Pack** | The architectural blueprint of a module, injected at session start. | Blind re‑discovery. The agent starts *informed*. |
+| **Agent Recipe** | Reusable task guidance the agent loads when a task matches a recipe. | Blind re-discovery. The agent starts *informed*. |
+| **Work Pack** | Issue-shaped execution context linked to Jira, Linear, GitHub/GitLab, or manual work. | Ticket-to-code drift. The agent works from the same scope humans manage. |
 | **Context Pack** | A durable record of what was built and decided. | Amnesia. The next session *resumes* instead of restarting. |
 | **Policy** | Every agent action checked before it runs. | Unsafe writes and runaway loops — stopped before they cost you. |
 
-Around those: **MCP‑native** (works with Claude Code, Codex, and Cursor), a
-**local‑first store** (your code's history never has to leave your machine), and
-**optional team sync**.
+Around those: **plugin-native lifecycle events**, **26 Coodra MCP tools**,
+managed **Graphify MCP** for structural code graph queries, a **local-first
+store** (your code's history never has to leave your machine), and **optional
+team sync**.
 
 ---
 
@@ -80,8 +82,9 @@ story, every measured count stated plainly and every modeled dollar itemized.
 The most expensive thing an agent wastes isn't tokens — it's a developer's attention.
 
 - **Onboarding collapses.** Instead of an agent (or a new teammate) spending the first
-  half‑hour of every task re‑deriving how a module works, the Feature Pack hands it the
-  blueprint at second zero.
+  half-hour of every task re-deriving how a module works, Agent Recipes,
+  Work Packs, Deep Wiki pages, and Graphify-backed context give it a grounded
+  starting point.
 - **Re‑derivation disappears.** When the agent recalls a prior decision or context pack
   instead of reasoning it out again, that's a *reuse read* — a measured event. Each one
   is an avoided detour. We value it at the programmer‑specific interruption‑recovery
@@ -158,15 +161,15 @@ This is access governance for AI agents — not just context injection.
 Coodra doesn't ask you to adopt a new IDE or rewrite your workflow. It wires into the
 tools you run:
 
-- **MCP‑native** — one server, 21 tools, consumed by Claude Code, Codex, and Cursor
-  alike. Native plugin hooks add zero‑effort Feature‑Pack injection and Context‑Pack
-  capture on all three.
-- **Jira (via Atlassian's Rovo MCP)** — Coodra doesn't rebuild a Jira client; it wires
-  Atlassian's own MCP and adds the leverage: **link a run to an issue** so history
-  becomes ticket‑aware ("what work touched PROJ‑412?"), and **post the session summary
-  back to the ticket** on request.
-- **Graphify (via its MCP)** — live codebase‑graph queries for blast‑radius and
-  "where is X defined?" before a refactor.
+- **Plugin-native + MCP-native** — native plugins for Claude Code, Codex,
+  Cursor, Devin, and Antigravity call Coodra's 26 MCP tools and lifecycle
+  entrypoint.
+- **Jira / Linear / GitHub / GitLab** — Coodra doesn't replace your program
+  management tool. The agent can use each provider's native MCP to fetch or sync
+  issue data, then persist the agent-ready execution shape as a Coodra Work Pack.
+- **Graphify (via its MCP)** — Graphify is an independent open-source project.
+  Coodra manages the local Graphify MCP wiring and project artifact path for
+  codebase-graph queries before a refactor.
 - **Deep Wiki** — an agent‑authored, hierarchical, mind‑map explanation of the codebase,
   rendered in the web app.
 
@@ -256,8 +259,8 @@ counts from a single developer's local instance, and the **modeled** rollup the 
 machine produced (badged accordingly):
 
 **Measured (facts):** 83 runs across 45 projects · 39 completed · 9,100 recorded tool
-calls · **9,117 governed actions** (0 blocked, 0 ask) · 39 context packs (3 agent‑authored,
-36 auto) · 2 decisions · 1 Feature Pack · 42 wiki pages · 11 knowledge‑reuse reads ·
+calls · **9,117 governed actions** (0 blocked, 0 ask) · 39 context packs (3 agent-authored,
+36 auto) · 2 decisions · 1 Agent Recipe · 42 wiki pages · 11 knowledge-reuse reads ·
 ~16,100 tokens of captured knowledge.
 
 **Modeled (estimates, base case):** ~33.1M tokens of work avoided → **$165 credits
@@ -287,9 +290,11 @@ hands you the formula and the editable assumption next to every number.
 ## Get started
 
 ```bash
-npm i -g @coodra/cli@beta
-coodra init          # register the project, wire the agent
-coodra start         # local MCP server + hooks bridge + web dashboard
+npm i -g @coodra/cli
+coodra install       # prepare the machine runtime
+coodra agent add codex
+coodra init          # register the project
+coodra start         # local MCP server + web dashboard (+ sync in team mode)
 coodra roi           # see your return on context, any time
 ```
 

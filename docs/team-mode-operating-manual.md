@@ -1,5 +1,12 @@
 # Team Mode — Operating Manual
 
+> **Historical design note.** This manual contains older design and verification
+> material. It is useful for context, but it is not the current public launch
+> guide. For current product documentation, use `docs/index.html`. In current
+> Coodra, lifecycle events enter through native plugin calls to the
+> `lifecycle_event` MCP tool; retired HTTP bridge/3101 references below are not
+> new-install guidance.
+
 > One document. The mental model, every role's daily flow, every feature
 > mapped to either a Web URL or a CLI command, and an honest gap analysis
 > of what still needs work. Read once, refer back when stuck.

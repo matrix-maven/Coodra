@@ -154,10 +154,10 @@ Coodra exposes 26 MCP tools:
 | Deep Wiki | `wiki_save_structure`, `wiki_save_page`, `wiki_status`, `wiki_ask` |
 | Work Packs | `work_pack_upsert`, `work_pack_update`, `work_pack_status` |
 
-Graphify is intentionally separate. It runs as its own MCP server and answers
-structural code graph questions with tools such as graph queries, node lookup,
-neighbors, and paths. Coodra owns the wiring and points Graphify at the current
-project's `.coodra/graphify/out/graph.json`.
+Graphify is intentionally separate. It is an independent open-source project
+that Coodra can install and manage locally as a Graphify MCP server. Coodra owns
+the wiring and points Graphify at the current project's
+`.coodra/graphify/out/graph.json`; Graphify owns the graph engine.
 
 ## CLI Surface
 
@@ -260,8 +260,10 @@ governance, solo mode, and team-mode sync.
 ## Contributing And Security
 
 - Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Support: [`SUPPORT.md`](SUPPORT.md)
 - Security reports: [`SECURITY.md`](SECURITY.md)
 - Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- Third-party notices: [`NOTICE`](NOTICE)
 
 ## License
 

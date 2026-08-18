@@ -1,5 +1,11 @@
 # Team Mode Onboarding Guide
 
+> **Historical verification note.** This file records an older team-mode
+> onboarding test and is not the current launch guide. For public setup guidance,
+> use `docs/index.html` and `docs/team-setup.md`. In current Coodra, lifecycle
+> events flow through the native plugin `lifecycle_event` MCP tool; retired HTTP
+> bridge/3101 references below should not be used for new installs.
+
 > Real, end-to-end-verified runbook. Every command in this guide was executed
 > against the user's actual Supabase + Clerk during the v2 onboarding test.
 > Nothing here is theoretical.

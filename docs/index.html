@@ -2661,6 +2661,10 @@ cp deploy/.env.example deploy/.env
           <div class="kv__v">Coodra itself does not call model APIs. Your agent talks to its model. Coodra talks to the agent through MCP and may run key-free structural Graphify refreshes locally.</div>
         </div>
         <div class="kv__row">
+          <div class="kv__k">Is Graphify part of Coodra?</div>
+          <div class="kv__v">No. Graphify is an independent open-source project. Coodra manages the local wiring, MCP entry, and <code>.coodra/graphify/out/</code> artifact path; Graphify owns the graph engine. See the repository <code>NOTICE</code> file for attribution.</div>
+        </div>
+        <div class="kv__row">
           <div class="kv__k">Can I use Coodra without Claude Code?</div>
           <div class="kv__v">Yes. Codex, Cursor, Devin, and Antigravity are supported through native plugins, and any MCP-speaking client can talk to <code>mcp-server</code>.</div>
         </div>
@@ -2735,7 +2739,7 @@ cp deploy/.env.example deploy/.env
 <footer class="footer">
   <div>
     <div class="footer__title">Master the <em>context</em>.</div>
-    <div class="footer__sub">Coodra · Documentation · v 0.5.11 — <a href="brand/brand.html">Brand kit</a> · <a href="#welcome">Back to top ↑</a></div>
+    <div class="footer__sub">Coodra · Documentation · v 0.5.11 — <a href="brand/brand.html">Brand kit</a> · <a href="https://github.com/matrix-maven/Coodra/blob/main/NOTICE">Notices</a> · <a href="#welcome">Back to top ↑</a></div>
   </div>
   <div class="footer__meta">
     MIT licensed<br>

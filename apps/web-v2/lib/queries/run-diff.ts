@@ -6,8 +6,8 @@ import { createWebDb } from '@/lib/db';
 
 /**
  * `apps/web-v2/lib/queries/run-diff.ts` — server-only reader for the
- * `run_diffs` row written by the hooks-bridge SessionEnd runner
- * (Module 06). Returns `null` when no row exists yet (analysis pending),
+ * `run_diffs` row written by the lifecycle finalization path. Returns
+ * `null` when no row exists yet (analysis pending),
  * otherwise the parsed snapshot the diff page renders.
  *
  * The shape mirrors the MCP `query_run_diff` tool's success branch so

@@ -1,5 +1,10 @@
 # Coodra v2 — System Architecture
 
+> Historical architecture snapshot. This file predates the plugin-first 0.5.11
+> public docs and is not current launch guidance. Use `docs/index.html`,
+> `README.md`, `docs/DEVELOPMENT.md`, and `docs/deploy/self-host.md` for the
+> current product shape.
+
 > Ground-up design. Built on the 18 proven decisions from the prototype. Every trade-off named, every decision reasoned. No cargo-culted cloud patterns.
 
 **Constraints locked via Q&A:**

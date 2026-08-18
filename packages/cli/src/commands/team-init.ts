@@ -82,7 +82,7 @@ export async function runTeamInitCommand(
     `${pc.bold('Coodra team setup')} — three steps:\n` +
       `  (1) Postgres — your team's cloud database\n` +
       `  (2) Clerk    — your team's identity provider\n` +
-      `  (3) Local    — generate hook secret + write config\n\n`,
+      `  (3) Local    — generate team secret + write config\n\n`,
   );
 
   // Step 1 input — DATABASE_URL
@@ -239,7 +239,7 @@ export async function runTeamInitCommand(
     clerkSecretKey,
     clerkPublishableKey,
   });
-  io.writeStdout(`${pc.green('✓')} Generated/persisted 32-byte hook + invite secrets\n`);
+  io.writeStdout(`${pc.green('✓')} Generated/persisted 32-byte team + invite secrets\n`);
   io.writeStdout(`${pc.green('✓')} Wrote ${finalize.configPath}\n`);
   io.writeStdout(`${pc.green('✓')} Wrote ${finalize.envPath}\n\n`);
 

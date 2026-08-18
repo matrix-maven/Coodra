@@ -150,9 +150,7 @@ export default async function DashboardPage({
             bring this machine online.
           </BannerStrip>
         ) : null}
-        {sp.started !== undefined ? (
-          <BannerStrip tone="ok">Services started · MCP + Hooks Bridge online.</BannerStrip>
-        ) : null}
+        {sp.started !== undefined ? <BannerStrip tone="ok">Services started · MCP + web dashboard online.</BannerStrip> : null}
         {sp.stopped !== undefined ? <BannerStrip tone="ok">Services stopped.</BannerStrip> : null}
         {sp.cleared !== undefined ? (
           <BannerStrip tone="ok">

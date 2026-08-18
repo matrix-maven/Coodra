@@ -32,7 +32,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
               Start from a <em>known shape</em>.
             </h1>
             <p className="head__lede">
-              Templates ship with policy seeds, hook scripts, and a starter feature pack. Pick one — the CLI does the
+              Templates ship with policy seeds, agent plugin wiring, and starter recipes. Pick one — the CLI does the
               rest.
             </p>
           </div>

@@ -17,9 +17,8 @@ import { createWebDb } from '@/lib/db';
  * Every server component / server action that needs run data goes
  * through here so the storage-adapter selection is centralised.
  *
- * Defaults: 50-row limit on list (per `docs/feature-packs/04-web-app/
- * wireframes/02-screens/runs-list.md`); explicit pagination is reserved
- * for an S3 follow-up if needed.
+ * Defaults: 50-row limit on list; explicit pagination can be added once
+ * run lists need deeper browsing.
  */
 
 /** A run row enriched with its last recorded activity — see `getLastEventAtForRuns`. */

@@ -9,7 +9,7 @@ This guide walks an admin through the one-time bootstrap, then walks each teamma
 ## What you'll need (admin)
 
 1. A Supabase project — free tier works for evaluation. Other Postgres providers work too as long as `vector` extension is available (Neon, Railway, RDS with pgvector preinstalled, self-hosted with `apt install postgresql-16-pgvector`).
-2. A Clerk application + organization for your team (you should have these from the web onboarding).
+2. A Clerk application + organization for your team.
 3. The `coodra` CLI installed: `npm install -g @coodra/cli`.
 4. ~5 minutes.
 
@@ -27,7 +27,7 @@ This guide walks an admin through the one-time bootstrap, then walks each teamma
 
 1. Open [dashboard.clerk.com](https://dashboard.clerk.com).
 2. Pick the application your team will use.
-3. Open the **Organizations** tab. Either create the team's organization here OR have the team's admin create it from the web app once it's wired (Phase 4-web).
+3. Open the **Organizations** tab. Either create the team's organization here or have the team's admin create it from the web app.
 4. Copy:
    - Your Clerk **user id** — `user_2abcXYZ...` from the **Users** tab (your row).
    - Your Clerk **organization id** — `org_2abcXYZ...` from the **Organizations** tab.
@@ -38,7 +38,7 @@ This command:
 1. Verifies the Postgres connection works.
 2. Installs `pgvector` (`CREATE EXTENSION IF NOT EXISTS vector`).
 3. Applies the Coodra schema (Drizzle migrations, idempotent).
-4. Generates a 32-byte hex local hook secret.
+4. Generates a 32-byte hex local team secret used by local daemons.
 5. Writes your local `~/.coodra/config.json` for team mode.
 6. Prints the credentials your teammates will need.
 
@@ -59,14 +59,14 @@ coodra team setup — bootstrapping team Postgres at postgresql://postgres:***@d
   ✓ pgvector ready
   ▸ applying schema migrations (Drizzle)...
   ✓ schema applied
-  ▸ verifying schema (15 expected tables)...
+  ▸ verifying schema (14 expected tables)...
   ✓ 14 tables present
   ✓ local config promoted to team mode (~/.coodra/config.json)
 
 ────────  share these credentials with your teammates  ────────
   database url        postgresql://postgres:...@db.abcdefgh.supabase.co:5432/postgres
   clerk org id        org_2abcXYZ...
-  local hook secret   a1b2c3d4...
+  local team secret   a1b2c3d4...
 
 Each teammate runs:
   coodra team join \
@@ -138,7 +138,7 @@ coodra team join \
 ```
 
 This writes their `~/.coodra/config.json` to team mode. The next time they:
-- Open Claude Code: the bridge stamps `runs.created_by_user_id` with their Clerk id.
+- Open a supported agent with the Coodra native plugin: lifecycle events stamp `runs.created_by_user_id` with their Clerk id.
 - Save a context pack via the agent's `save_context_pack` tool: stamped with their id.
 - Record a decision via `record_decision`: stamped.
 
@@ -190,7 +190,7 @@ This:
 - Does NOT delete team-tagged rows from your local SQLite (they remain as historical state — a future `coodra clean-team-data` will offer scrubbing).
 - Does NOT touch cloud data (other team members still see everything).
 
-### "I want to rotate my team's local hook secret"
+### "I want to rotate my team's local team secret"
 
 Re-run `coodra team setup` with `--secret '<new-hex-string>'`. This overwrites the local config block with the new secret. Distribute the new secret to teammates and have them re-join with `coodra team join --secret '<new>'`. Old secret continues to work until everyone has cycled (the secret is a per-machine bearer token, not enforced cluster-side yet).
 
@@ -199,7 +199,7 @@ Re-run `coodra team setup` with `--secret '<new-hex-string>'`. This overwrites t
 ## Cost / data ownership
 
 - **Where your data lives**: in your Supabase project. Coodra does not store team data on any infrastructure we operate.
-- **What flows where**: bridge writes go to local SQLite first (fast, durable), then to your cloud Postgres via the sync daemon. Reads happen from local SQLite (per ADR-008 local-first). The pull-tick brings other team members' writes back from cloud.
+- **What flows where**: lifecycle and MCP writes go to local SQLite first (fast, durable), then to your cloud Postgres via the sync daemon. Reads happen from local SQLite. The pull-tick brings other team members' writes back from cloud.
 - **What's encrypted at rest**: whatever your Postgres provider offers. Supabase encrypts at rest by default. Check your provider's docs.
 - **What's encrypted in transit**: every connection to Postgres uses SSL by default (the connection string includes `sslmode=require` implicitly in Supabase's URLs).
 - **Backups**: your responsibility. Supabase offers daily backups on paid tiers; check your provider.

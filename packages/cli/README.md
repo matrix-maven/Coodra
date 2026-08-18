@@ -80,8 +80,9 @@ The Coodra MCP server exposes 26 tools:
 - Deep Wiki: `wiki_save_structure`, `wiki_save_page`, `wiki_status`, `wiki_ask`.
 - Work Packs: `work_pack_upsert`, `work_pack_update`, `work_pack_status`.
 
-Graphify runs as its own MCP server. Coodra owns the plugin wiring and points it
-at each project's `.coodra/graphify/out/graph.json`.
+Graphify is an independent open-source project. Coodra owns the plugin wiring
+and points the managed Graphify MCP server at each project's
+`.coodra/graphify/out/graph.json`.
 
 ## Work Packs
 
@@ -119,6 +120,7 @@ upload. Use `npm publish --dry-run` to rehearse.
 - Local docs source: [`docs/index.html`](../../docs/index.html)
 - Development loop: [`docs/DEVELOPMENT.md`](../../docs/DEVELOPMENT.md)
 - Changelog: [`CHANGELOG.md`](../../CHANGELOG.md)
+- Third-party notices: [`NOTICE`](NOTICE)
 
 ## License
 

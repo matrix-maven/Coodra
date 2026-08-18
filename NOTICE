@@ -1,0 +1,38 @@
+Coodra Notices
+===============
+
+Coodra is licensed under the MIT License.
+
+Copyright (c) 2026 Matrix Maven
+
+Third-party components
+----------------------
+
+Coodra depends on and may bundle third-party open-source packages from the npm
+ecosystem when building the published `@coodra/cli` package. Those components
+remain licensed by their respective authors under their own licenses.
+
+The published CLI leaves native runtime dependencies (`better-sqlite3` and
+`sqlite-vec`) as npm-installed dependencies so the correct platform binaries
+are installed on the user's machine.
+
+Graphify
+--------
+
+Coodra can install and manage a local Graphify MCP runtime for code graph
+queries. Graphify is an independent third-party open-source project and is not
+owned by Matrix Maven.
+
+Upstream project: https://github.com/Graphify-Labs/graphify
+Python package used by Coodra: `graphifyy[mcp]`
+
+Coodra's documentation and CLI should describe this integration as
+"Coodra-managed Graphify" or "managed Graphify MCP", meaning Coodra manages the
+local wiring and artifact paths. It does not mean Matrix Maven owns Graphify.
+
+Dependency license review
+-------------------------
+
+For each release, regenerate a dependency license inventory from the exact
+published artifact and keep it with release evidence. The source repository's
+root `LICENSE` only covers Coodra-authored code.

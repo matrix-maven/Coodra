@@ -104,7 +104,7 @@ function resolveCredentials(
     return { error: 'missing org id (use --org-id or COODRA_TEAM_ORG_ID)' };
   }
   if (typeof secret !== 'string' || secret.length === 0) {
-    return { error: 'missing local hook secret (use --secret or COODRA_TEAM_HOOK_SECRET)' };
+    return { error: 'missing local team secret (use --secret or COODRA_TEAM_HOOK_SECRET)' };
   }
   if (typeof databaseUrl !== 'string' || databaseUrl.length === 0) {
     return { error: 'missing database url (use --database-url or DATABASE_URL)' };

@@ -23,8 +23,7 @@ import { FEATURE_SLUG_RE, walkFeatures } from '@coodra/shared/features';
  *   2. Extension is `.md`.
  *   3. Size between MIN_BYTES and MAX_BYTES (skips empty stubs and
  *      runaway dumps).
- *   4. NOT under `docs/feature-packs/`, `.coodra/recipes/`, or legacy
- *      recipe directories.
+ *   4. NOT under `.coodra/recipes/` or existing recipe directories.
  *   5. NOT a `README.md` at the project root (too generic to be a
  *      recipe trigger; will hit the agent's "default conventions"
  *      noise floor).
@@ -43,7 +42,6 @@ const SCAN_DIRECTORIES = ['docs', 'specs', 'architecture', 'arch', 'design'] as 
 
 /** Skip if any path segment matches one of these names. */
 const SKIP_SEGMENT_NAMES = new Set([
-  'feature-packs',
   'features',
   'recipes',
   'node_modules',

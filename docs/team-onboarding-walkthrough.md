@@ -1,5 +1,11 @@
 # Team mode — manual onboarding walkthrough
 
+> **Historical verification note.** This walkthrough captures an older smoke-test
+> flow and is not the current launch guide. For public setup guidance, use
+> `docs/index.html` and `docs/team-setup.md`. In current Coodra, lifecycle events
+> flow through native plugin calls to the `lifecycle_event` MCP tool; retired
+> HTTP bridge/3101 steps below should not be used for new installs.
+
 This document walks you through onboarding Coodra team mode end-to-end as a real user would, from scratch. It's the verified sequence of commands the bug-hunt + smoke-test pass produced — every step has been executed against a real Supabase project.
 
 If something goes wrong, every command surfaces a clear error with a `hint:` line. Don't stress. Worst case you `coodra team leave --yes` and start over.

@@ -1,137 +1,140 @@
-# Self-Hosting Coodra (Team Mode)
+# Self-Hosting Coodra Team Mode
 
-This guide walks one operator through bringing up the Coodra team-mode stack on their own infrastructure using Docker Compose. The canonical happy path is **Docker Compose**; Railway / Fly.io / any other platform that runs Docker images can derive from this guide. Reference: Module 04a Open Question 5.
+This guide covers the Docker Compose stack under `deploy/`. It is an operator
+starting point for a team-owned Postgres mirror and Coodra runtime services.
 
-The stack runs four long-lived services + one one-shot migration container:
+For local developer use, prefer the npm CLI path in `docs/index.html`.
 
-| Service | Port (default) | Role |
-|---|---|---|
-| `postgres` (pgvector/pgvector:pg16) | 5432 | Cloud audit store |
-| `cloud-migrate` (one-shot) | — | Runs `coodra cloud-migrate` once, then exits |
-| `mcp-server` | 3100 | MCP HTTP transport for AI agents |
-| `sync-daemon` | — | Pushes local SQLite audit rows to cloud Postgres |
+## Stack
 
-Total time to a working stack on a fresh machine: **~10 minutes** (most of it the first Docker build).
+| Service | Port | Role |
+|---|---:|---|
+| `postgres` | 5432 | Optional bundled Postgres with pgvector. |
+| `cloud-migrate` | none | One-shot migration container. |
+| `mcp-server` | 3100 | Coodra MCP HTTP transport and lifecycle-event runtime. |
+| `sync-daemon` | none | Pushes local outbox rows and pulls team rows. |
+
+The Compose stack does not include the local web dashboard. Run `coodra start`
+locally for the normal local dashboard on port 3001.
 
 ## Prerequisites
 
-- Docker Engine 25+ (or Docker Desktop)
-- 2 GB free RAM, 4 GB free disk
-- A clone of this repository
+- Docker Engine 25 or Docker Desktop.
+- 2 GB free RAM and 4 GB free disk.
+- A clone of this repository.
+- A Postgres URL, either the bundled Compose Postgres or a managed Postgres you
+  operate.
 
-## 1. Configure the environment
+## Configure
 
 ```bash
-cd deploy
-cp .env.example .env
+cp deploy/.env.example deploy/.env
 ```
 
-Edit `deploy/.env` and fill in:
+Edit `deploy/.env`:
 
-- **`LOCAL_HOOK_SECRET`** — generate a fresh value: `openssl rand -hex 32`. Agents will fire hooks at the bridge using this as the shared secret.
-- **`DATABASE_URL`** — leave as the default (`postgres://coodra:changeme@postgres:5432/coodra`) if you want Compose to manage its own Postgres. If you have a managed cloud Postgres, paste its URL here AND remove the `postgres` service from `compose.yaml` (or set `POSTGRES_PASSWORD` to a strong value if you keep the bundled DB).
-- **`POSTGRES_PASSWORD`** — change from the default if you keep the bundled Postgres.
+- `DATABASE_URL`: leave the default when using bundled Compose Postgres, or set
+  your managed Postgres URL.
+- `LOCAL_HOOK_SECRET`: generate a fresh value with `openssl rand -hex 32`.
+- `POSTGRES_PASSWORD`: change the default if Compose manages Postgres.
+- `MCP_SERVER_PORT`: optional host port override for the MCP server.
 
-## 2. Bring the stack up
+`LOCAL_HOOK_SECRET` protects local lifecycle/tool ingress where that secret is
+used. Treat it like an internal runtime secret.
+
+## Start
 
 ```bash
-cd deploy   # if not already there
-docker compose up -d
+docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
 ```
 
-The first run takes ~5 minutes (Docker downloads the base image and runs `pnpm install` inside the build stage). Subsequent runs reuse the cache.
-
-Watch progress in another terminal:
+Watch logs:
 
 ```bash
-docker compose logs -f
+docker compose -f deploy/compose.yaml --env-file deploy/.env logs -f
 ```
 
-Expected log lines:
+Expected shape:
 
-- `cloud-migrate` exits 0 with a line like `coodra cloud-migrate: applied against postgres://coodra:***@postgres:5432/coodra`.
-- `mcp-server` logs `tool_registered` for 9 tools, then `http_transport_ready`.
-- `sync-daemon` logs `cloud_db_opened` then `sync_worker_started`.
+- `postgres` becomes healthy.
+- `cloud-migrate` exits successfully.
+- `mcp-server` starts and exposes `/healthz`.
+- `sync-daemon` starts its worker loop.
 
-## 3. Smoke-test
-
-From the host:
+## Smoke Test
 
 ```bash
-# MCP server is up
 curl http://localhost:3100/healthz
-# {"ok":true,...}
-
-# Hooks bridge is up
-# {"ok":true,...}
-
-# Cloud-side sanity: connect to the bundled postgres and list tables
-docker compose exec postgres psql -U coodra -d coodra -c "\dt"
-# 11 tables incl. runs, run_events, policy_decisions, decisions,
-# pending_jobs, _runid_backfill_0005
+docker compose -f deploy/compose.yaml --env-file deploy/.env exec postgres \
+  psql -U coodra -d coodra -c "\dt"
 ```
 
-Run the doctor inside the mcp-server container (it ships the CLI binary):
+Run the CLI doctor inside the MCP container:
 
 ```bash
-docker compose exec -e COODRA_MODE=team mcp-server \
-  node /app/packages/cli/dist/index.js doctor
+docker compose -f deploy/compose.yaml --env-file deploy/.env exec \
+  -e COODRA_MODE=team mcp-server \
+  node /app/packages/cli/dist/index.js doctor --full
 ```
 
-Expected: zero RED, zero unexpected YELLOW. The sync-daemon's checks 24–27 should be green.
+## Agent Wiring
 
-## 4. Wire your agents
+For most users, native local plugin wiring is still the supported path:
 
-Point Claude Code / Codex at:
+```bash
+npm i -g @coodra/cli
+coodra install
+coodra agent add codex
+coodra init
+coodra start
+```
 
-- MCP transport: `http://<host>:3100/mcp`
-- Hook + tool ingress: `http://<host>:3100/mcp` (MCP Streamable HTTP; agents send lifecycle events through the `lifecycle_event` tool)
+Advanced MCP clients can point at the hosted MCP HTTP endpoint:
 
-with the same `LOCAL_HOOK_SECRET` you set in `.env`.
+```text
+http://<host>:3100/mcp
+```
 
-## 5. Common operations
+Lifecycle events should enter through the `lifecycle_event` MCP tool.
+
+## Operations
 
 | Task | Command |
 |---|---|
-| Tail all logs | `docker compose logs -f` |
-| Tail one service | `docker compose logs -f sync-daemon` |
-| Restart one service | `docker compose restart sync-daemon` |
-| Apply a new migration after pulling | `docker compose run --rm cloud-migrate` |
-| Stop the stack | `docker compose down` |
-| Stop AND wipe data | `docker compose down -v` (destroys postgres + ~/.coodra volumes) |
+| Tail all logs | `docker compose -f deploy/compose.yaml --env-file deploy/.env logs -f` |
+| Tail one service | `docker compose -f deploy/compose.yaml --env-file deploy/.env logs -f sync-daemon` |
+| Restart one service | `docker compose -f deploy/compose.yaml --env-file deploy/.env restart sync-daemon` |
+| Apply migrations after pulling | `docker compose -f deploy/compose.yaml --env-file deploy/.env run --rm cloud-migrate` |
+| Stop the stack | `docker compose -f deploy/compose.yaml --env-file deploy/.env down` |
+| Stop and wipe bundled data | `docker compose -f deploy/compose.yaml --env-file deploy/.env down -v` |
 
-## 6. Upgrade workflow
+## Upgrade
 
-1. `git pull` (or pull the new images if you publish them)
-2. `docker compose build` — re-build images that changed
-3. `docker compose run --rm cloud-migrate` — apply any new migrations idempotently
-4. `docker compose up -d` — restart services
+```bash
+git pull
+docker compose -f deploy/compose.yaml --env-file deploy/.env build
+docker compose -f deploy/compose.yaml --env-file deploy/.env run --rm cloud-migrate
+docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
+```
 
-## 7. What this stack does NOT include
+## Not Included
 
-- **TLS termination / reverse proxy / WAF.** Front the stack with your own (nginx, Caddy, Traefik, Cloudflare, …) before exposing it publicly.
-- **Backups.** Schedule `pg_dump` against the postgres service or use your managed-Postgres backup tooling.
-- **Multi-tenancy.** Single `org_id` per deploy. Multi-tenant team-mode is post-launch.
-- **Marketing site.** Out of scope per `essentialsforclaude/08-implementation-order.md`.
+- TLS termination, reverse proxy, or WAF.
+- Backups.
+- Hosted multi-tenant control plane.
+- Public marketing site.
 
-## 8. Other platforms (brief mentions)
+Use your platform's normal tooling for those responsibilities.
 
-The Compose definition is portable to any platform that runs Docker images.
+## Troubleshooting
 
-- **Railway** — `railway init` and add each `Dockerfile.<service>` as a service. Wire env vars via the dashboard. Use Railway's managed Postgres (set `DATABASE_URL` from their connection string) and skip the bundled `postgres` service.
-- **Fly.io** — `fly launch` per service with the same Dockerfile each. `fly postgres create` for the cloud DB. Note that sync-daemon has no public port — set `[processes] worker = "..."` rather than `[[services]]`.
-- **Render / DigitalOcean App Platform** — same pattern: per-service Dockerfile + a managed Postgres, secrets set via the dashboard.
-
-For all three, the `deploy/Dockerfile.cloud-migrate` runs once before the long-running services start; consult the platform's "deploy hook" / "release command" feature to wire it.
-
-## 9. Troubleshooting
-
-| Symptom | Diagnose |
+| Symptom | Check |
 |---|---|
-| `cloud-migrate` refuses with "unknown non-empty tables" | Wrong `DATABASE_URL` — pointing at a different application's DB. Triple-check it. |
-| `mcp-server` returns 401 to all hook calls | `LOCAL_HOOK_SECRET` mismatch between the mcp-server env and agent config. |
-| `sync-daemon` reports `transient_failure: local … row not found` | Bridge audit-dispatch hasn't landed the parent row yet. Self-corrects on next worker tick. |
-| `doctor` check 24 RED for >1h | Cloud Postgres permanently unreachable. Check `DATABASE_URL` + network. Local audits continue to land. |
-| Build fails with `gyp ERR! python` | Multi-stage build's `apk add python3` step failed. Re-run `docker compose build --no-cache <service>`. |
+| `cloud-migrate` fails on unknown tables | `DATABASE_URL` may point at the wrong database. |
+| `mcp-server` returns 401 | Check `LOCAL_HOOK_SECRET` and client config. |
+| `sync-daemon` reports transient missing local rows | Usually self-corrects on the next worker tick. |
+| Doctor cloud checks stay red | Check Postgres reachability, credentials, and network policy. |
+| Build fails around native modules | Rebuild without cache and confirm the image has Python/build prerequisites. |
 
-For deeper diagnostics: `docker compose logs <service>` shows pino structured JSON; pipe through `pino-pretty` for human reading.
+For deeper diagnostics, inspect structured service logs with `docker compose
+logs <service>`.

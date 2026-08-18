@@ -1,187 +1,132 @@
-# Coodra — Development Guide
+# Coodra Development Guide
 
-This is the single page you need to get a local Coodra monorepo
-running, make a change, and ship it through the same pipeline CI uses.
-It is intentionally short: anything that would bloat it belongs in the
-canonical standing-context docs at the repo root (`system-architecture.md`,
-`essentialsforclaude/`, `module-wise plan.md`,
-`External api and library reference.md`, `implementation plan and strategy.md`).
+This guide gets a contributor from a fresh clone to the same checks CI runs.
+For the product and architecture overview, start with `docs/index.html`.
 
 ## Prerequisites
 
-- **Node.js** 22.16 or newer. `.nvmrc` is the CI baseline, not an upper
-  compatibility cap; use `nvm use` or `fnm use` when you want to match CI.
-- **pnpm** 10.33 or newer (`corepack enable && corepack prepare pnpm@latest`).
-- **npm** 10 or newer for published-package/global install smoke tests.
-- **Docker + Docker Compose** for the Postgres + Redis services in
-  team mode and for integration tests.
-- **git** ≥ 2.40. Make sure your commits sign cleanly if the project
-  has signed-commits enforcement (none today; Module 05 may add it).
+- Node.js 22.16 or newer. `.nvmrc` is the CI baseline.
+- pnpm 10.33 or newer through Corepack.
+- npm 10 or newer for published-package/global-install smoke checks.
+- Docker and Docker Compose for Postgres-backed integration work.
+- git 2.40 or newer.
 
-## First-time setup
+## First-Time Setup
 
 ```bash
 git clone git@github.com:matrix-maven/Coodra.git
 cd Coodra
-nvm use                 # picks the version from .nvmrc
+nvm use
 corepack enable
-pnpm install            # resolves workspaces + runs postinstalls
-pnpm --filter @coodra/shared build   # builds the workspace package
-                                        # that others import
+pnpm install
+pnpm --filter @coodra/shared build
+pnpm --filter @coodra/db build
 ```
 
-That is enough to run `pnpm lint`, `pnpm typecheck`, and
-`pnpm test:unit`. Integration work needs Postgres:
+That is enough for the main local checks:
 
 ```bash
-docker compose up -d             # brings up postgres + redis
-# Wait ~5 s for health-checks, then:
+pnpm typecheck
+pnpm test:unit
+pnpm lint
+```
+
+Integration work needs Postgres:
+
+```bash
+docker compose up -d
 export DATABASE_URL="postgres://coodra:coodra_dev_password@127.0.0.1:5432/coodra"
 export REDIS_URL="redis://127.0.0.1:6379/0"
-pnpm test:integration            # currently: @coodra/db Postgres smoke
+pnpm test:integration
 ```
 
-Stop and reset:
+Reset local services:
 
 ```bash
-docker compose down -v           # removes named volumes too
+docker compose down -v
 ```
 
-## Monorepo layout
+## Monorepo Layout
 
-```
+```text
+apps/
+  mcp-server/    Coodra MCP server, lifecycle_event, memory, wiki, policy, Work Packs
+  sync-daemon/   Team-mode outbox push and cloud-to-local pull
+  web-v2/        Local/self-hosted web dashboard
+
 packages/
-  shared/                 # @coodra/shared — logger, errors, zod env, idempotency
-  db/                     # @coodra/db     — Drizzle schemas (sqlite + postgres), createDb
-  # (mcp-server, hooks-bridge, sync-daemon, web-v2, cli, policy)
+  cli/           @coodra/cli npm package
+  db/            Drizzle schemas and migrations for SQLite and Postgres
+  lifecycle/     Shared lifecycle helpers
+  policy/        Policy decision engine
+  shared/        Shared schemas, auth, utilities, and contracts
 
 docs/
-  DEVELOPMENT.md          # this file
-  feature-packs/<NN>-*/   # spec, implementation plan, techstack per module
-  context-packs/          # run-after-run summaries; the primary handoff artefact
-
-context_memory/           # per-session working notes (gitignored bodies, committed structure)
+  index.html     Public developer documentation source
+  DEVELOPMENT.md This file
+  deploy/        Self-host notes
 ```
 
-Every workspace package follows the same shape:
-`src/` for implementation, `__tests__/unit/` and
-`__tests__/integration/` for tests, `tsconfig.json` for the build
-(rootDir=src), `tsconfig.typecheck.json` for everything-else
-typechecking, and a `package.json` whose `exports` maps
-subpaths for consumers.
+Every workspace package follows the same general shape: `src/`,
+`__tests__/unit/`, optional `__tests__/integration/`, `tsconfig.json`,
+`tsconfig.typecheck.json`, and package exports.
 
-## Daily workflow
-
-The commands you actually run:
+## Daily Workflow
 
 ```bash
-pnpm lint               # biome check across the repo
-pnpm lint:fix           # biome check --write
-pnpm typecheck          # turbo run typecheck (builds deps first)
-pnpm test:unit          # turbo run test:unit across workspaces
-pnpm test:integration   # turbo run test:integration (needs Postgres)
-pnpm build              # turbo run build
-pnpm --filter @coodra/db db:generate   # regenerate Drizzle migrations
+pnpm lint
+pnpm lint:fix
+pnpm typecheck
+pnpm test:unit
+pnpm test:integration
+pnpm build
+pnpm --filter @coodra/db db:generate
 ```
 
-All of these are the same commands CI runs. If they pass locally they
-pass in CI.
+CI currently runs `verify`, `integration`, `hook-adapter-smoke`,
+`windows-core-smoke`, `windows-native-full-smoke`, and `e2e`. See
+`.github/workflows/ci.yml` for exact commands.
 
-### Iterating on the MCP server (native plugin subprocess staleness)
-
-Closes verification finding §8.2 (`docs/verification/2026-04-25-module-01-02-verification.md`).
-
-The native Coodra Claude/Codex plugin points at the bundled Coodra MCP
-server. The agent spawns this subprocess **once** at session start;
-rebuilds during the session do not reach the running process. If you
-`pnpm build` mid-session and don't restart, the agent keeps using the old
-binary.
-
-Two workarounds:
-
-1. **Production-shaped flow** — after `pnpm build`, fully restart Claude
-   Code (or trigger an MCP reconnect from the IDE). The new dist takes
-   effect on the next subprocess spawn.
-
-2. **Live-reload dev flow** — update the native plugin MCP entry in the
-   local plugin cache to point at a dev command such as `tsx watch`, then
-   restart the agent once. Do not create or commit a repo-root `.mcp.json`;
-   that file is user-owned MCP config.
-
-After the swap, edit a tool description, save, call the tool from a
-fresh Claude Code message — observe the new description.
-
-### Local team-mode auth dev
-
-Closes verification finding §8.3 (final fix landed in Module 03 S4).
-
-Local services always write to local SQLite per `system-architecture.md` §1 — in BOTH solo and team mode. `COODRA_MODE` is an auth-strategy hint (solo bypass vs Clerk) and does NOT change DB routing. Module 02 introduced a `COODRA_DB_OVERRIDE_MODE` env knob as a stop-gap; Module 03 S4 made it unnecessary by refactoring `createDb` to take a `kind: 'local' | 'cloud'` discriminator. The knob is removed.
-
-To exercise the team-mode auth chain locally:
+## Iterating On The MCP Server
 
 ```bash
-COODRA_MODE=team \
-CLERK_SECRET_KEY=sk_test_replace_me \
-CLERK_PUBLISHABLE_KEY=pk_test_xxx \
 pnpm --filter @coodra/mcp-server dev
+pnpm --filter @coodra/mcp-server test:unit --watch
 ```
 
-The auth client routes through the solo-bypass branch (because the secret is the sentinel), the DB stays SQLite, and `tools/list` returns all 21 tools. Use this for local UI smoke tests where you want to exercise the team-mode auth surface but don't need real Clerk JWTs.
+The MCP server supports stdio and HTTP. In stdio mode, stdout is protocol data;
+logs must go to stderr.
 
-### Iterating on Module 03 (Hooks Bridge) — legacy, not part of `coodra start`
+Native Coodra plugins call the server's `lifecycle_event` MCP tool for session,
+prompt, tool-use, compaction, and session-end events. Normal development should
+exercise that path, not retired bridge-era HTTP hooks.
 
-COOD-53 (2026-08-08) retired the HTTP Hooks Bridge from the runtime path:
-`coodra start` no longer launches it, and no native plugin (Claude, Codex,
-Devin, Cursor, Antigravity) POSTs hook events to it anymore. All five now
-route lifecycle events through the native `lifecycle_event` MCP tool —
-Claude Code via an already-persistent `mcp_tool` session, the other four
-via `hook-runner.mjs` spawning `mcp-server --transport stdio` per hook call
-(see COOD-54 for moving that to a persistent HTTP daemon connection).
+If you rebuild the server while an agent session is already open, restart the
+agent or reconnect MCP. Agents usually spawn the MCP subprocess once per
+session.
 
-`apps/hooks-bridge`'s source still exists and still builds — its own test
-suite and the root `e2e` suite exercise it directly — but there is no
-supported install path that talks to it anymore. To run it standalone
-(e.g. to debug its own code, independent of any live plugin):
+## Iterating On The CLI
 
-```bash
-# Terminal 1 — bridge in watch mode
-LOCAL_HOOK_SECRET=$(openssl rand -hex 24) \
-  pnpm --filter @coodra/hooks-bridge dev
-
-# Terminal 2 — tail the bridge log to watch requests land
-# (the bridge writes pino JSON to stderr by default)
-
-# POST a synthetic hook payload yourself — no live agent POSTs here anymore:
-curl -X POST http://127.0.0.1:3101/v1/hooks/claude-code \
-  -H "Content-Type: application/json" \
-  -H "X-Local-Hook-Secret: $LOCAL_HOOK_SECRET" \
-  -d '{"hook_event_name":"SessionStart","session_id":"dev-test","cwd":"'"$PWD"'"}'
-```
-
-### Iterating on the CLI (Module 08a)
-
-`@coodra/cli` is a regular workspace TypeScript package — same `tsc → dist/` pipeline as `@coodra/shared` and every other package. There is no separate build tool. Module 08a Decision 5 ships it as a published npm package (`@coodra/cli`); the publish step itself is out of 08a scope.
-
-For contributors working on the CLI itself, **do not** `npm i -g @coodra/cli` from a published version — you'd shadow your local edits with the registry copy. Instead, invoke the workspace `cli` script:
+Do not install the published npm package when testing local CLI edits; it can
+shadow your workspace changes.
 
 ```bash
-# One-time per branch
-pnpm --filter @coodra/cli build       # tsc — writes packages/cli/dist/
-
-# Run any subcommand against the freshly-built dist
+pnpm --filter @coodra/cli build
 pnpm --filter @coodra/cli cli --help
 pnpm --filter @coodra/cli cli doctor
 pnpm --filter @coodra/cli cli init --dry-run
 
-# Faster edit/run loop — runs from src/ via tsx, no rebuild needed
 pnpm --filter @coodra/cli dev doctor
 ```
 
-The `cli` script in `packages/cli/package.json` runs `node dist/index.js`. We use a script (not `pnpm exec coodra`) because pnpm does not auto-link a workspace package's *own* `bin` into `node_modules/.bin/` — `bin` is a contract for downstream installers (`npm i -g`, the published-tarball path), not a self-link in workspace dev. The script keeps the invocation workspace-aware (no hard-coded path; `pnpm --filter <pkg>` runs in the package's cwd) without depending on a symlink that isn't created. The `dev <cmd>` script runs via `tsx` against `src/index.ts` so file edits land without a rebuild — useful when iterating on a single command. Use the built form for end-to-end tests and snapshot assertions.
+`coodra install` writes machine runtime state under `~/.coodra/` (or
+`$XDG_CONFIG_HOME/coodra/` on Linux when set). `coodra init` writes project-local
+state under `.coodra/{config.json,manifest.json,recipes/,graphify/,wiki/,work-packs/}`.
+Agent-facing native plugins are installed or repaired with
+`coodra agent add <agent>` / `coodra agent repair <agent>`.
 
-`coodra install` writes machine runtime state to `~/.coodra/` (or `$XDG_CONFIG_HOME/coodra/` on Linux when set, per Decision 2). `coodra init` writes only project identity/ownership state and the project-local layout at `<repo>/.coodra/{config.json,manifest.json,skill-packs/,graphify/,wiki/}`. It does not create or modify the project's application `.env`, and it no longer writes a root `.coodra.json`, `.mcp.json`, `.codex/config.toml`, or per-agent instruction files. Agent-facing native plugins are machine-level and installed/repaired through `coodra install` or `coodra agent add <agent>`. When iterating, run `init --dry-run` first to print what it would write without touching disk. Re-running `init` against an already-initialised project is non-destructive by default (Decision 3 — idempotent merge); use `--force` only when you want to overwrite Coodra-owned baselines.
-
-When testing daemon lifecycle (`start` / `stop`), prefer a tmp project root and a non-default `~/.coodra/` location to avoid colliding with your own real install:
+When testing daemon lifecycle, use a temp home to avoid touching your real
+Coodra install:
 
 ```bash
 HOME=/tmp/coodra-dev-home \
@@ -193,228 +138,92 @@ XDG_CONFIG_HOME=/tmp/coodra-dev-xdg \
 pnpm --filter @coodra/cli cli init --project-slug devtest
 ```
 
-### Why I can't boot the binaries against Postgres (F11)
+## Team-Mode Auth Development
 
-Closes verification finding F11 (`docs/verification/2026-04-27-module-01-02-03-verification.md`).
+Local Coodra services write to local SQLite in solo and team mode. Team mode
+adds identity and sync behavior; the sync daemon owns Postgres mirroring.
 
-`apps/mcp-server` and `apps/hooks-bridge` are SQLite-only by design (`system-architecture.md §1`). Their `lib/db.ts` files unconditionally call `createDb({ kind: 'local' })` — there is no env knob, no flag, no boot path that yields a Postgres handle. The Module 02 stop-gap `COODRA_DB_OVERRIDE_MODE` was removed in M03 S4.
-
-If you need to exercise the cloud-write path, it lives in `@coodra/db::createDb({ kind: 'cloud', postgres: { databaseUrl } })` and is tested in `packages/db/__tests__/integration/cloud-mode-write.test.ts`. The Sync Daemon boots against Postgres directly (superseded — no separate NL Assembly service ships, per ADR-013's records-not-services reshape); the local mcp-server/hooks-bridge binaries never will.
-
-### Context Pack file conventions (F13)
-
-Closes verification finding F13 (`docs/verification/2026-04-27-module-01-02-03-verification.md`).
-
-Two folders, two purposes:
-
-| Path | What lives there | Tracked? |
-|---|---|---|
-| `~/.coodra/packs/` | Auto-saved per-pack markdown produced by every `save_context_pack` call. Filename: `{date}-{sanitised-runId}.md`. | No — gitignored via `.coodra/`. |
-| `<repo>/docs/context-packs/` | Hand-curated module closeouts: the canonical, agent-readable record of "what shipped in Module N". One file per module, named like `2026-04-26-module-03-hooks-bridge.md` (no `-run-` segment). | Yes — committed. |
-
-Override the runtime root via `COODRA_CONTEXT_PACKS_ROOT=/path/to/dir` (env) or `contextPacksRoot` on `createContextPackStore({...})` (code). The new default keeps runtime artefacts out of any repo so closeout commits don't need to add or ignore stray auto-saved files.
-
-`docs/context-packs/*-run-*.md` is also defensively gitignored — if an agent overrides the root to point at the repo, those files still won't end up tracked.
-
-### Running a single package
+To exercise the MCP server's team-mode auth surface locally:
 
 ```bash
-pnpm --filter @coodra/shared test:unit
-pnpm --filter @coodra/db typecheck
+COODRA_MODE=team \
+CLERK_SECRET_KEY=sk_test_replace_me \
+CLERK_PUBLISHABLE_KEY=pk_test_xxx \
+pnpm --filter @coodra/mcp-server dev
 ```
 
-### Windows (x64) core-install smoke
+For cloud-write behavior, use `@coodra/db::createDb({ kind: 'cloud', postgres:
+{ databaseUrl } })` or the sync-daemon integration tests.
 
-The Core (Claude Code) install path is supported on Windows x64 and gated by a
-`windows-latest` CI job (`.github/workflows/ci.yml` → `windows-core-smoke`). The
-same end-to-end check runs on any OS, so you can validate it locally before CI:
+## Graphify Development
+
+Coodra consumes Graphify as an independent managed MCP server. Coodra owns the
+local wiring and project artifact paths; Graphify owns the graph engine.
+
+Useful commands:
 
 ```bash
-pnpm --filter @coodra/cli build        # produces dist/ + dist/runtime/{mcp-server,sync-daemon}
-pnpm --filter @coodra/cli smoke:core   # init → start → /healthz → status → stop, against a temp COODRA_HOME
+coodra graphify status
+coodra graphify build --no-llm
+coodra graphify open
+coodra graphify clean
 ```
 
-It asserts `coodra install` prepares the machine runtime, `coodra init` registers
-the project-local `.coodra/` layout, and `coodra start` brings up the mcp-server
-daemon and it passes `/healthz`. The smoke sets
-`COODRA_REQUIRE_VEC=1`, so the mcp-server boots only
-if **both** native deps loaded (`better-sqlite3` prebuild + `sqlite-vec`'s
-platform `.dll`/`.so`/`.dylib`) — a `/healthz` 200 then proves the native load
-**and** that the SQLite DB migrated and the HTTP server bound. It uses port
-39100 and forces `COODRA_DAEMON_MANAGER=fallback` (the PID-file manager)
-so it never collides with a real `coodra start` — launchd/systemd unit names
-are global per user (`com.coodra.<name>`), so without the override the smoke's
-stop would boot out your live daemons. The `web` dashboard is out of scope on
-Windows and is skipped.
+Generated graph artifacts live under `.coodra/graphify/out/`.
 
-### Regenerating Drizzle migrations
+## Drizzle Migrations
 
 After changing `packages/db/src/schema/{sqlite,postgres}.ts`:
 
 ```bash
 pnpm --filter @coodra/db db:generate
-```
-
-Commit both the schema change and the generated SQL in the same commit.
-The schema-parity unit test
-(`packages/db/__tests__/unit/schema-parity.test.ts`) will fail CI if
-the two dialects drift in a way that is not explicitly allow-listed in
-the test's `DIALECT_TYPE_EXEMPTIONS` map.
-
-### Migration lock (hand-written preserve-blocks)
-
-Some SQL that the database needs cannot be emitted by Drizzle-Kit —
-today: the `sqlite-vec` virtual-table DDL (SQLite) and the pgvector
-HNSW index DDL (Postgres). These live inside the Drizzle-generated
-migration files, wrapped in preserve markers:
-
-```sql
--- @preserve-begin hand-written:<marker>
-<hand-written SQL>
--- @preserve-end hand-written:<marker>
-```
-
-Every marked block is sha256-locked in
-`packages/db/migrations.lock.json` with `{ file, blockMarker, sha256,
-lineRange, generatedAt }`. CI (`.github/workflows/ci.yml` → `verify`
-job) and the `.githooks/pre-commit` hook both run the checker:
-
-```bash
 pnpm --filter @coodra/db run check:migration-lock
 ```
 
-The checker surfaces three failure modes, each with a diffable
-message naming the file, the marker, the expected sha256, and the
-remediation command:
+Commit schema changes and generated SQL together. Do not edit published
+migrations in place; add a new migration.
 
-- `MISSING_IN_FILE` — the block is gone (Drizzle-Kit regenerated and
-  wiped it). Restore from git: `git log -p <migration>`.
-- `MISSING_IN_LOCK` — a new hand-written block was added without
-  running `--write`. Run it and commit.
-- `SHA256_MISMATCH` — the body drifted. If the edit was intentional,
-  regenerate the lock:
+Some SQL blocks are intentionally hand-written and protected by
+`packages/db/migrations.lock.json`. If a protected block changed intentionally:
 
-  ```bash
-  pnpm --filter @coodra/db run check:migration-lock -- --write
-  git diff packages/db/migrations.lock.json   # sanity check
-  git add packages/db/migrations.lock.json
-  ```
+```bash
+pnpm --filter @coodra/db run check:migration-lock -- --write
+git diff packages/db/migrations.lock.json
+```
 
-Pre-commit only runs the check when files under `packages/db/` are
-staged; CI always runs it. The hook is wired automatically by `pnpm
-install` (root `prepare` script sets `core.hooksPath` to `.githooks`).
+## Windows Smoke
 
-## Branching, commits, and the session protocol
+The Windows x64 path is covered by CI. You can run the core smoke locally after
+building:
 
-Per the standing context (`CLAUDE.md`, `system-architecture.md` §24),
-each module is delivered on a feature branch named `feat/<NN>-<slug>`
-(e.g. `feat/01-foundation`). Inside that branch, commits are split by
-logical slice, each self-contained and runnable.
+```bash
+pnpm --filter @coodra/cli build
+pnpm --filter @coodra/cli smoke:core
+```
 
-At the end of every session, regardless of whether the module is
-complete:
-
-1. Update `context_memory/current-session.md` with a terse timeline.
-2. Update `context_memory/decisions-log.md` if any non-trivial
-   decision was made in this session.
-3. Write a Context Pack to
-   `docs/context-packs/YYYY-MM-DD-module-NN-<title>.md` using
-   `docs/context-packs/template.md`.
-4. Call `coodra__save_context_pack` with the Pack's markdown body
-   so future sessions can retrieve it via semantic search.
-
-Never close a session on a broken `pnpm lint` / `typecheck` /
-`test:unit`. If you must stop mid-slice, `git stash` or leave the work
-on a scratch branch — `main` and active feature branches stay green.
-
-## Module workflow — at a glance
-
-The full sequence for shipping a module is documented in
-`module-wise plan.md` (§"Module workflow") and the root-level
-`CLAUDE.md`. The short version:
-
-1. Read the standing context. Ask clarifying questions *before*
-   writing code if the module's scope leaves anything ambiguous.
-2. Get explicit approval on the plan before implementing. (The old
-   `docs/feature-packs/<NN>-<slug>/` per-module spec directory is
-   retired; note the design decisions in the PR description and
-   `system-architecture.md` instead.)
-3. Implement slice-by-slice with tests landing in the same commit as
-   the code they cover.
-4. Keep `External api and library reference.md` updated in the **same
-   commit** where a pin changes (amendment B of the bootstrap plan).
-5. End with a Context Pack. Merge the feature branch to `main` only
-   after CI is green.
+The smoke covers install, init, start, MCP health, status, and stop against a
+temporary Coodra home.
 
 ## Troubleshooting
 
-- **`Cannot find module '@coodra/shared'`** — rebuild the workspace
-  package: `pnpm --filter @coodra/shared build`. Turbo's
-  `typecheck` task depends on `^build`, so `pnpm typecheck` from the
-  root handles it automatically.
-- **`better-sqlite3` native build failure** — ensure your Node matches
-  `.nvmrc` (native ABI); run `pnpm rebuild better-sqlite3`.
-- **Integration tests hang or fail to connect** — check
-  `docker compose ps` and make sure the Postgres container is
-  `healthy`. The port `5432` must be free on the host.
-- **Drizzle-kit can't find the schema file** — you probably ran it
-  from the repo root; every `db:*` script is defined in
-  `packages/db/package.json` and must be invoked via
+- `Cannot find module '@coodra/shared'`: rebuild dependencies or run
+  `pnpm typecheck` from the root.
+- `better-sqlite3` native build failure: confirm Node matches `.nvmrc`, then run
+  `pnpm rebuild better-sqlite3`.
+- Integration tests cannot connect: check `docker compose ps` and make sure
+  Postgres is healthy and port 5432 is free.
+- Drizzle cannot find schema: run DB scripts through
   `pnpm --filter @coodra/db ...`.
+- Agent does not see a new MCP tool: rebuild, restart the agent, and confirm
+  the native plugin wiring with `coodra agent status`.
 
-## Known platform-specific behaviour
+## Before Opening A PR
 
-Behaviour that's correct by design but surprises operators on first
-contact. Don't chase these as bugs.
+```bash
+pnpm typecheck
+pnpm test:unit
+pnpm lint
+```
 
-### macOS launchd: `~/.coodra/pids/` stays empty
-
-`coodra start` selects `selectDaemonManager()` per platform. On macOS
-that's the **launchd** manager (`packages/cli/src/lib/daemon/launchd.ts`),
-which sources the PID from `launchctl print` rather than writing
-`<name>.pid` files into `~/.coodra/pids/`. So:
-
-- A healthy macOS install has the daemons running but `~/.coodra/pids/`
-  is **empty**. That's not a missed write — that's launchd's design.
-- `coodra doctor` check 10 (mcp-server healthz — the only daemon-liveness
-  check left in the essential set since COOD-53 retired the hooks-bridge)
-  is **PID-aware via the active manager**: on macOS it asks `launchctl`
-  for liveness; on Linux/Docker the **fallback manager** writes
-  `<name>.pid` and check 10 reads it directly. Same green/yellow/red
-  surface, different sources.
-- The fallback PID-file path (`~/.coodra/pids/<name>.pid`) is the
-  contract for the fallback manager only — don't `cat` it on macOS.
-
-If you genuinely want to crash a daemon on macOS to verify recovery,
-remember launchd's `KeepAlive` will respawn it within ~1s. Use
-`coodra stop` (which deregisters the unit) to observe doctor moving
-from green to yellow on check 10 with `ECONNREFUSED — service not
-running`.
-
-### `run_events` — how it actually gets populated
-
-Both transports write to `run_events`: the native `lifecycle_event` MCP
-tool records every non-self-call tool event via `ctx.runRecorder.record()`
-once a `runId` has resolved (`apps/mcp-server/src/tools/lifecycle-event/handler.ts`),
-and — for Claude Code installs still running the standalone
-`apps/hooks-bridge` — its `PostToolUse` handler
-(`apps/hooks-bridge/src/handlers/post-tool-use.ts`) does the same. Either
-path populates `runs`, `policy_decisions`, `decisions`, `context_packs`,
-AND `run_events` — there is no "pure-MCP, no run_events" case anymore.
-
-Practical consequence: doctor check 7 (the F8 invariant — `run_events.run_id
-NOT NULL when session has runs row`) is only vacuously green when NO
-tool-use hooks have fired at all for the session (e.g. a session that
-opened but never called a tool). To exercise it non-vacuously, drive an
-interactive agent session (any of the five native-plugin agents) through
-at least one `PreToolUse`/`PostToolUse` pair and watch `run_events`
-populate.
-
-## Pointers
-
-- Canonical architecture — `system-architecture.md`
-- Discipline and style — `essentialsforclaude/01-development-discipline.md`
-  and `essentialsforclaude/07-style-and-conventions.md`
-- Per-module workflow — `module-wise plan.md`
-- Dep pins + gotchas — `External api and library reference.md`
-- Session notes — `context_memory/current-session.md`
+Add focused integration or e2e coverage for service-boundary, lifecycle, sync,
+database, packaging, or public CLI behavior changes.
