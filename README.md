@@ -4,317 +4,261 @@
 
 <img src="docs/brand/coodra-lockup.svg" alt="Coodra" height="108">
 
-<img src="docs/brand/coodra-motto.svg" alt="Stop letting AI code blind." height="24">
-
-<img src="docs/brand/coodra-pillars.svg" alt="Feature Pack · Context Pack · Policy" height="16">
-
 [![CI](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coodra/cli/latest.svg)](https://www.npmjs.com/package/@coodra/cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
 
-**Memory, project context, and policy guardrails for AI coding agents.**
-**Works with Claude Code, Codex, and Cursor — local-first, MIT.**
+**Supercharge your coding agent.**
+
+Plugin-native memory, Work Packs, Deep Wiki, Graphify code graph, and policy governance for AI coding agents.
 
 </div>
 
 ---
 
-Your AI agent forgets what it decided last session. It re-learns your project conventions every single time. It writes to files it shouldn't. Coodra fixes all three — by injecting **architectural context** at session start, recording **durable memory** as the session runs, and enforcing **policy rules** before every write. One command to install. Runs entirely on your laptop.
+Coodra gives AI coding agents durable project context instead of asking every
+session to rediscover the same architecture, decisions, tickets, and rules. It
+runs local-first, ships as one npm CLI, and wires into native agent plugin
+surfaces for Claude Code, Codex, Cursor, Devin, and Antigravity.
+
+Use it when you want your coding agent to start with the right repo context,
+retrieve prior decisions, work from issue-shaped Work Packs, query a structural
+code graph, author a Deep Wiki, and check policy before risky actions.
+
+## Install
 
 ```bash
 npm i -g @coodra/cli
 coodra install
+coodra agent add codex     # or: claude, cursor, devin, antigravity, all, detected
+coodra init
 coodra start
-coodra doctor              # verification
-coodra agent add codex     # or: coodra agent add claude / coodra agent add cursor
+coodra doctor
 ```
 
-Then open your repo and either run `coodra init` in the terminal, or ask the
-installed agent to use `/coodra init`.
-
-pnpm users can install globally with native SQLite build approval:
+pnpm users should allow the native SQLite build:
 
 ```bash
 pnpm add -g @coodra/cli --allow-build=better-sqlite3
 ```
 
-`coodra install` prepares the machine-level Coodra runtime under `~/.coodra/`, installs the shared Graphify MCP package into `~/.coodra/graphify-mcp/.venv` (`uv` when available, Python venv + pip otherwise), seeds commented Graphify LLM backend placeholders in `~/.coodra/.env`, and records the machine ledger in `~/.coodra/manifest.json`. `coodra start` launches the local MCP, Hooks Bridge, and web services so `coodra doctor` can verify the live runtime. `coodra agent add codex` / `coodra agent add claude` / `coodra agent add cursor` installs the native global agent plugin with bundled skills, lifecycle hooks, the Coodra MCP server, managed Graphify, and the Deep Wiki authoring recipe. `coodra init` is project-local: it registers the repo and creates `<repo>/.coodra/{config.json,manifest.json,recipes/,graphify/,wiki/,work-packs/}` without writing root `.env`, `.mcp.json`, or per-agent files.
+`coodra install` prepares the machine runtime under `~/.coodra/`, including the
+local SQLite store, logs, daemon state, the shared Graphify MCP runtime, and the
+machine manifest. `coodra agent add <agent>` installs Coodra as a native agent
+plugin with bundled skills, lifecycle hooks, the Coodra MCP entry, and the
+managed Graphify MCP entry. `coodra init` is project-local: it registers the
+repo and creates `.coodra/{config.json,manifest.json,recipes/,graphify/,wiki/,work-packs/}`.
 
----
+`coodra start` launches the Coodra MCP server on port 3100, the web dashboard on
+port 3001, and the sync daemon when the machine is in team mode.
 
-## What your agent gets
+## Core Concepts
 
-Three primitives, each delivered at the right moment in the session:
+| Concept | Purpose |
+|---|---|
+| Agent Recipe | On-demand task guidance the agent can load from `.coodra/recipes/<slug>/`. Recipes keep reusable workflows close to the repo. |
+| Memory | Durable context saved as Context Packs, decisions, run history, and surfaced memory-access telemetry. Session start receives a bounded manifest; prompt-time retrieval happens through MCP tools such as `search_packs_nl`, `query_decisions`, and `wiki_ask`. |
+| Work Pack | Issue-shaped execution context under `.coodra/work-packs/`. Work Packs can be created manually or imported from Jira/Linear-style program-management systems by the agent using those systems' native MCP tools, then persisted through Coodra's `work_pack_*` tools. |
+| Deep Wiki | A codebase wiki authored by the coding agent from source evidence, Graphify, and Coodra context. Canonical wiki content is saved through MCP and mirrored under `.coodra/wiki/` for review/export. |
+| Graphify Code Graph | Structural graph context in `.coodra/graphify/out/graph.json`, served by Graphify's own MCP server and managed by Coodra plugin wiring. |
+| Policy | DB-backed allow, ask, deny, and advisory controls. Policy checks are recorded with reasons so governance decisions are auditable. |
+| Lifecycle Events | Native plugin events such as session start, prompt submit, tool use, and session end. These events let Coodra open runs, surface context, record activity, and enforce policy without project-local hook glue. |
 
-| Primitive | When | What it carries |
-|---|---|---|
-| **Agent Recipe** | Pulled on demand, when the agent's task matches a recipe's trigger | Reusable task guidance (API development, security audit, language conventions) — authored in `.coodra/recipes/<slug>/` |
-| **Context Pack** | Saved at session end; queryable from any future session | Durable record of decisions, file changes, test results, open TODOs |
-| **Policy** | Evaluated before every write or shell command | Project-scoped allow / ask / deny rules; fail-open under load; audit-logged forever |
-
-Plus an **on-demand skill layer** (Anthropic Skills pattern) the agent pulls only when a user prompt matches a registered trigger. You author skills as markdown; Coodra indexes the frontmatter and the agent decides which to load.
-
----
-
-## How it works
+## How It Works
 
 ```mermaid
 flowchart LR
-  A["Claude Code<br/>Codex"]
-  B["MCP Server<br/>:3100<br/>20 tools"]
-  H["Hooks Bridge<br/>:3101<br/>Pre / Post / Start / End"]
-  S["Sync Daemon<br/>team mode only"]
-  D[("SQLite<br/>~/.coodra/data.db")]
-  P[("Postgres<br/>shared org")]
+  Agent["Coding agent<br/>Claude Code, Codex, Cursor,<br/>Devin, Antigravity"]
+  Plugin["Coodra native plugin<br/>skills + lifecycle events"]
+  MCP["Coodra MCP<br/>127.0.0.1:3100<br/>26 tools"]
+  Graphify["Graphify MCP<br/>code graph queries"]
+  Web["Web dashboard<br/>127.0.0.1:3001"]
+  Sync["Sync daemon<br/>team mode"]
+  Local[("SQLite<br/>~/.coodra/data.db")]
+  Team[("Team Postgres<br/>optional")]
+  Repo[("Project .coodra/<br/>recipes, wiki, graphify, work-packs")]
 
-  A <-->|MCP stdio + HTTP| B
-  A -->|hook events| H
-  B --> D
-  H --> D
-  S --> D
-  S <-.team mode.-> P
+  Agent <--> Plugin
+  Plugin <--> MCP
+  Plugin <--> Graphify
+  MCP --> Local
+  MCP --> Repo
+  Graphify --> Repo
+  Web --> Local
+  Sync --> Local
+  Sync <-.team sync.-> Team
 ```
-
-Two long-running processes do all the local work. An optional third (the sync daemon) mirrors selected rows into a Postgres database **your team owns**, with append-only semantics on the hot tables. The hot path always stays on your laptop — sync is asynchronous.
-
----
-
-## A session, end to end
 
 ```mermaid
 sequenceDiagram
   autonumber
-  participant U as You
-  participant A as Agent
-  participant H as Hooks Bridge
-  participant M as MCP Server
+  participant U as Developer
+  participant A as Coding Agent
+  participant P as Coodra Plugin
+  participant M as Coodra MCP
   participant D as SQLite
 
-  U->>A: Open IDE in project
-  A->>H: SessionStart hook
-  H->>D: open `runs` row, capture base SHA
-  H-->>A: recipe index + session contract + recent decisions as additionalContext
-  Note over A: Agent now knows the project
+  U->>A: Open a project
+  A->>P: SessionStart lifecycle event
+  P->>M: lifecycle_event(SessionStart)
+  M->>D: Open run and assemble session manifest
+  M-->>A: Recipes, recent decisions, policy summary, wiki/work-pack pointers
 
-  U->>A: "Refactor the auth flow"
-  A->>M: search_packs_nl + query_decisions
-  M-->>A: prior packs + recorded decisions
+  U->>A: Ask for an implementation
+  A->>M: search_packs_nl / query_decisions / wiki_ask / work_pack_status
+  M-->>A: Bounded relevant context
 
-  A->>H: PreToolUse (Write file)
-  H->>D: check kill_switches + policy rules
-  alt allowed
-    H-->>A: allow
-    A-->>U: writes the file
-    A->>H: PostToolUse → run_events
-  else denied
-    H-->>A: deny + reason
-    A-->>U: refuses, surfaces the rule
-  end
+  A->>P: Before a tool action
+  P->>M: lifecycle_event(PreToolUse)
+  M->>D: Evaluate policy and record reason when applicable
+  M-->>A: allow / ask / deny / advisory
 
-  U->>A: End session
-  A->>H: Stop / SessionEnd hook
-  H->>D: capture run_diff + auto Context Pack
-  A->>M: save_context_pack (narrative recap)
-  M->>D: persist
-  Note over A,D: Next session reads this back
+  A->>P: SessionEnd lifecycle event
+  P->>M: lifecycle_event(SessionEnd)
+  M->>D: Persist run summary, decisions, policy reasons, and context packs
 ```
 
----
+### Memory Model
 
-## Two modes
+Coodra memory is not a single note file. It is a set of DB-backed records tied
+to projects, runs, agents, and retrieved artifacts:
 
-| | Solo | Team |
-|---|---|---|
-| Default after `coodra init` | yes | opt-in via `coodra team setup` |
-| Network footprint | none — fully offline | only sync-daemon ↔ your Postgres |
-| Identity | local, single-user (`__solo__`) | Clerk JWT, org-scoped |
-| Primary store | `~/.coodra/data.db` (SQLite + sqlite-vec) | same SQLite, plus Postgres mirror |
-| Sharing | none | decisions, packs, runs sync across teammate laptops |
-| Cost | $0 | bring your own Postgres (Supabase / fly.io / self-host) + Clerk |
-| Auth chain | solo bypass | bypass → `X-Local-Hook-Secret` → Clerk JWT |
-| Daemons | 2 (mcp-server, hooks-bridge) | 3 (+ sync-daemon) |
+- `record_decision` captures durable architectural or product decisions.
+- `save_context_pack` stores session recaps, implementation notes, test results,
+  and follow-ups.
+- `lifecycle_event(SessionStart)` opens a run and surfaces the session-start
+  manifest, including bounded recent context.
+- `lifecycle_event(UserPromptSubmit)` can surface prompt-relevant context without
+  writing a push row.
+- Memory-access events track retrieval and surfacing where the runtime records
+  them, including session-start manifest and policy-reason pushes.
+- Team mode mirrors selected append-only rows through the sync daemon so shared
+  decisions, packs, runs, wiki pages, and Work Packs can move across laptops.
 
-Switch any time: `coodra team setup` (admin, once per team) → `coodra invite <email>` (admin) → `coodra team join <invite-url>` (teammate).
+The agent pulls memory when it needs more context and Coodra pushes bounded
+context when lifecycle events make it useful.
 
----
+## MCP Tools
 
-## What you'll see in your first hour
-
-1. **At session start**, the agent's first response cites your project's recipes and recent decisions without you teaching it — that's the recipe index and decision history arriving as `additionalContext`.
-2. **Start a new session minutes later** and the agent already knows the decisions it made earlier. That's `query_decisions` + `search_packs_nl` reading what the previous session wrote.
-3. **In team mode**, a teammate's decision from yesterday shows up in your session today. The sync-daemon pulled it from your shared Postgres while you weren't looking.
-
----
-
-## Return on context — the payoff, measured
-
-Coodra's whole bet is that **context is cheaper than re-discovery**. Authoring a pack or recording a decision costs minutes; the payoff compounds on every session after. The built-in **`/roi` dashboard** (and the `coodra roi` CLI — identical math) proves it across four dimensions, with a hard rule printed on every screen: **● measured** counts are stated plainly; **◐ modeled** dollars are derived from those counts × transparent, *editable* assumptions and always shown as a conservative–base–optimistic band. Nothing is "trust us, we save you money" — every dollar links to its formula and source.
-
-<div align="center">
-<img src="docs/assets/roi/roi-hero.png" alt="Coodra /roi dashboard — net value, benefit-cost ratio, and ROI with measured vs. modeled chips" width="860">
-</div>
-
-| What you get back | How Coodra delivers it | Quantified |
-|---|---|---|
-| **Time** | Agents stop re-deriving how a module works every session; recorded decisions are recalled, not re-debated. | Developer minutes reclaimed per knowledge reuse — anchored to the Parnin & Rugaber **10–15 min** interruption-recovery cost, at a $78/hr fully-loaded rate. |
-| **Money** | Context compression (a ~4k-token pack instead of ~12k of blind discovery), prompt-cache reuse, and runaway-loop prevention. | Tokens saved × the published model rate card ($5/MTok in, cache-read 0.1×). |
-| **Knowledge** | Decisions + Context Packs become a compounding asset, not a cost that resets each session. | Reuse rate as the **KCS Link Rate** (target 60–80%); decision-completeness (DIQ); knowledge-captured corpus. |
-| **Safety** | Every agent action is policy-checked before it runs; unsafe writes and runaway loops are stopped. | Governed-action coverage; runaway block valued at ~40k tokens + ~15 min of avoided cleanup. |
-| **Teamwork** | One developer's captured decision is injected into a teammate's next session — local-first, cloud-synced, role-scoped. | Shared memory across laptops; one-click `coodra invite`; admin/member/viewer RBAC. |
-
-**Illustrative, for a 10-developer team (modeled, base case):** ~$268/mo direct API credits avoided **plus** ~240 developer-hours reclaimed — net **≈$18k/month**, with a conservative–optimistic band of **$8.5k–$27.6k**. Halve every assumption and it's still strongly net-positive in month one. The exact figure is *yours to set* — change the constants, recompute.
-
-→ **Read the full, honest value story** (with the complete model, every formula, and the worked example): [`docs/value-story.md`](docs/value-story.md).
-
----
-
-## The 20 MCP tools
-
-Grouped by intent. Every tool ships a five-part description so the agent's planner knows exactly when to call it (and when not to).
+Coodra exposes 26 MCP tools:
 
 | Group | Tools |
 |---|---|
-| **Identity** | `get_run_id` · `ping` |
-| **Agent Recipes** | `list_recipes` · `get_recipe` · `get_recipe_file` |
-| **Cross-session memory** | `save_context_pack` · `list_context_packs` · `read_context_pack` · `search_packs_nl` |
-| **Decisions** | `record_decision` · `query_decisions` |
-| **Policy + runs** | `check_policy` · `query_run_history` · `query_run_diff` |
-| **Deep Wiki** | `wiki_save_structure` · `wiki_save_page` · `wiki_status` |
+| Identity and lifecycle | `ping`, `get_run_id`, `lifecycle_event` |
+| Recipes | `list_recipes`, `get_recipe`, `get_recipe_file` |
+| Memory | `save_context_pack`, `search_packs_nl`, `list_context_packs`, `read_context_pack` |
+| Decisions and runs | `record_decision`, `query_decisions`, `query_decisions_by_file`, `query_run_history`, `query_run_diff` |
+| Policy | `check_policy` |
+| Links and collaboration | `link_run_to_issue`, `link_run_to_pr`, `prepare_jira_comment` |
+| Deep Wiki | `wiki_save_structure`, `wiki_save_page`, `wiki_status`, `wiki_ask` |
+| Work Packs | `work_pack_upsert`, `work_pack_update`, `work_pack_status` |
 
-> **Graphify** is wired as its **own** MCP server alongside Coodra, Coodra-owned end to end. `coodra install` creates one shared machine runtime at `~/.coodra/graphify-mcp/.venv`, seeds optional backend placeholders such as `ANTHROPIC_API_KEY` in `~/.coodra/.env`, and native Coodra plugins for Codex and Claude include a default managed `graphify` entry that points that runtime at each repo's `.coodra/graphify/out/graph.json` — there is no separate manual wiring path. The agent calls Graphify's `query_graph` / `get_node` / `get_neighbors` / `shortest_path` tools directly for structural questions. Coodra mints no Recipes or Work Packs from the graph (ADR-015 retired the graph-seeding tools); it stays structural context, queried live.
+Graphify is intentionally separate. It runs as its own MCP server and answers
+structural code graph questions with tools such as graph queries, node lookup,
+neighbors, and paths. Coodra owns the wiring and points Graphify at the current
+project's `.coodra/graphify/out/graph.json`.
 
-> **Deep Wiki** is one canonical Coodra Wiki system, backed by Coodra DB and rendered at `/wiki`. `coodra wiki build` writes `.coodra/wiki/job.md`, `.coodra/wiki/job.json`, `.coodra/wiki/grounding.md`, scaffolds `.coodra/wiki/<slug>/` for the Markdown mirror, and reserves `.coodra/wiki/okf/` for portability. The agent follows the bundled `coodra-wiki` skill, makes an OpenWiki-style discovery plan from source evidence, Graphify, and Coodra context, derives sections/pages from real repo domains and relationships rather than a fixed template, saves structure/pages through `wiki_save_structure`, `wiki_save_page`, and `wiki_status`, then mirrors successful saves under `.coodra/wiki/<slug>/structure.json` and `.coodra/wiki/<slug>/<pageId>.md`. Markdown files are a review/export mirror, not the source of truth; OKF is a portability format, not a second wiki engine.
+## CLI Surface
 
-`check_policy` is load-bearing for guardrails. `record_decision` + `save_context_pack` are load-bearing for memory. `get_recipe` is load-bearing for on-demand context.
+Common commands:
 
----
+| Command | Purpose |
+|---|---|
+| `coodra install` | Install or repair machine-level runtime state. |
+| `coodra agent add <agent>` | Wire Coodra as a native plugin for one or more agents. |
+| `coodra init` | Register the current project and create project-local `.coodra/` state. |
+| `coodra start` / `coodra stop` / `coodra status` | Run and inspect local services. |
+| `coodra doctor --full` | Run runtime, lifecycle, policy, outbox, and service health checks. |
+| `coodra files status` / `coodra files clean` | Inspect or clean generated project files recorded in `.coodra/manifest.json`. |
+| `coodra metrics` / `coodra roi` | Show knowledge reuse, governance, and modeled value KPIs. |
+| `coodra graphify build/status/open/clean` | Build and inspect the code graph artifacts. |
+| `coodra wiki build/status/list/open/ask/clean` | Create, inspect, open, query, or remove Deep Wiki content. |
+| `coodra work import/status/show` | Prepare and inspect Work Packs. |
+| `coodra policy ...` | Manage local policy rules and governance catalogs. |
+| `coodra project ...` / `coodra run ...` | Inspect project and run records. |
+| `coodra login`, `coodra invite`, `coodra team ...` | Team-mode identity, invites, sync, and setup flows. |
 
-## What ships
+## Work Packs
 
-```
-@coodra/cli                 single npm install — everything bundled
-├── mcp-server              TS · 20 MCP tools · stdio + HTTP transport
-├── hooks-bridge            TS · Hono on 127.0.0.1:3101 · 5 hook events
-├── sync-daemon             TS · outbox push + cloud→local puller (team only)
-├── web-v2                  Next.js 15 admin UI on :3001 (audit log, policies, packs)
-└── runtime/                drizzle migrations + bundled native modules
-```
+Work Packs are the bridge between program management and agent execution. A Work
+Pack can hold the issue goal, acceptance criteria, affected files, dependency
+notes, related issues, implementation plan, and execution status. For Jira or
+Linear, the coding agent uses the provider's own native MCP tools to fetch and
+sync issue data, then writes the Coodra-side execution context through
+`work_pack_upsert`, `work_pack_update`, and `work_pack_status`.
 
-Single tarball via esbuild — `npm i -g @coodra/cli` is the default install step. pnpm global installs use `pnpm add -g @coodra/cli --allow-build=better-sqlite3` because pnpm 10 blocks native dependency build scripts unless explicitly approved. Native modules (`better-sqlite3`, `sqlite-vec`) stay external so they install correctly per platform.
+That keeps Coodra provider-neutral: Jira and Linear remain the source of truth
+for program management, while Coodra stores the agent-ready execution context
+needed inside the repo.
 
-### Platform support
+## Modes
 
-| Platform | Status | Notes |
+| | Solo | Team |
 |---|---|---|
-| macOS (arm64 / x64) | ✅ Full | launchd-managed daemons; all surfaces |
-| Linux (x64 / arm64) | ✅ Full | systemd-user daemons; all surfaces |
-| **Windows (x64)** | ✅ **Core** | `npm i -g @coodra/cli` → `coodra install` → `coodra init` → `coodra start` prepares the machine runtime and registers a project. Daemons run via the detached-child fallback manager; native `better-sqlite3` + `sqlite-vec-windows-x64` install per-platform. Proven by the `windows-latest` CI smoke. |
+| Default after `coodra init` | yes | opt-in |
+| Network footprint | none | sync daemon talks to your Postgres and web identity provider |
+| Identity | local solo user | Clerk-backed user/org identity |
+| Primary store | SQLite under `~/.coodra/` | SQLite plus Postgres mirror |
+| Sharing | local laptop only | selected memory, wiki, policy, run, and Work Pack records sync across teammates |
+| Runtime | MCP server + web dashboard | MCP server + web dashboard + sync daemon |
 
-On Windows the following are **not yet supported** (tracked for a follow-up): the bundled **web dashboard** (`coodra start` skips it on Windows — the Next.js standalone bundle is traced on the build host), `--tunnel` (uses `which`), and **Windows-on-ARM** vector search (`sqlite-vec` ships `windows-x64` only; falls back to LIKE search).
+## Repository Layout
 
----
-
-## Repository layout
-
-```
+```text
 apps/
-  mcp-server/    Coodra MCP server (20 tools)
-  hooks-bridge/  Claude Code / Codex hook receiver
-  sync-daemon/   Team-mode cloud sync (push + pull)
-  web-v2/        Admin + audit-trail UI (Next.js 15)
+  mcp-server/    Coodra MCP server and lifecycle-event runtime
+  sync-daemon/   Team-mode outbox push and cloud-to-local pull
+  web-v2/        Admin, audit, policy, memory, and wiki UI
 
 packages/
-  cli/           The @coodra/cli npm package
-  db/            Drizzle schema + 17 SQLite / 19 Postgres migrations
-  policy/        Pure policy-decision engine (cockatiel timeout + breaker, fail-open)
-  shared/        Cross-cutting Zod schemas, auth (Clerk + solo bypass), hook adapters
+  cli/           @coodra/cli npm package
+  db/            Drizzle schema and migrations
+  policy/        Policy decision engine
+  shared/        Shared schemas, auth, and runtime utilities
 
 docs/
-  DEVELOPMENT.md   Local dev loop
-  deploy/          Self-host stack docs (deploy/compose.yaml ships 5 services)
+  index.html     Public developer documentation source
+  DEVELOPMENT.md Local development loop
+  deploy/        Self-host deployment notes
+  brand/         Coodra brand assets
+
+.coodra/
+  graphify/      Generated code graph artifacts
+  wiki/          Wiki grounding and Markdown mirror
+  work-packs/    Local Work Pack artifacts
 ```
 
-Full architectural spec: [`system-architecture.md`](system-architecture.md) (25 sections, source of truth).
+Full developer documentation lives in [`docs/index.html`](docs/index.html) and
+is published at <https://matrix-maven.github.io/Coodra/docs/>.
 
----
+## Build And Publish From Source
 
-## Build & publish from source
-
-The CLI ships as **one self-contained npm tarball** — esbuild inlines every
-workspace package and JS dependency into `dist/`, and the MCP server, hooks
-bridge, sync daemon, and web dashboard are bundled under `dist/runtime/`. Only
-the two native modules (`better-sqlite3`, `sqlite-vec`) stay external so they
-install correctly per platform. `dist/` is git-ignored, so you build it from a
-clean clone.
-
-**Prerequisites:** Node ≥ 22.16 and pnpm 10.33 (via Corepack — no separate
-install). Works on Linux and macOS.
+The CLI ships as one npm tarball. `dist/` is git-ignored, so build from a clean
+clone when publishing.
 
 ```bash
 git clone https://github.com/matrix-maven/Coodra.git
 cd Coodra
-corepack enable            # provisions the pinned pnpm@10.33.0
+corepack enable
 pnpm install
 cd packages/cli
-npm publish                # prepublishOnly builds the whole workspace, then verifies the bundle
+npm publish
 ```
 
-That's it — `npm publish` runs `pnpm -w run build` (turbo, dependency-ordered)
-and a bundle-integrity assert before it uploads, so you never ship a half-built
-tarball. To rehearse without uploading, run `npm publish --dry-run`. To inspect
-the exact tarball contents, `npm pack` (writes a `.tgz` you can extract).
+`npm publish` runs the workspace build and bundle verification before upload.
+Use `npm publish --dry-run` to rehearse.
 
-**Publishing to _your own_ npm account.** The package name is `@coodra/cli` — a
-scoped name. npm lets you publish a scoped package only if you own that scope:
+## Project Status
 
-- **You're a member of the `@coodra` npm org** → `npm publish` works as-is (the
-  package is already marked `publishConfig.access: public`).
-- **You want to publish under your own account/scope** → change the `name` field
-  in [`packages/cli/package.json`](packages/cli/package.json) to a name you own
-  (e.g. `@your-scope/coodra-cli`, or an unclaimed unscoped name), then
-  `npm publish`. Nothing else needs to change — the build is name-agnostic.
+Latest package: `@coodra/cli@0.5.11`.
 
-Run `npm login` (or set `NODE_AUTH_TOKEN` in CI) first so npm has your
-credentials.
-
----
-
-## Status
-
-**`@coodra/cli@0.5.0`** — stable native-agent release.
-
-Stable: MCP server, hooks bridge, CLI, policy engine, audit log, solo mode, team mode (Clerk + Postgres sync), kill-switch primitives, Run Diff capture, knowledge layer (Agent Recipes + Work Packs).
-
-In progress: `web-v2` admin UI polish, knowledge-layer cloud-sync conflict edge cases, multi-org isolation tightening (Phase G+1).
-
-Coverage: ~180 unit-test files across 9 workspaces, plus an e2e suite that boots real Postgres via testcontainers and exercises the full session lifecycle in CI on every PR. Migration lock prevents Drizzle drift on hand-written SQL blocks (sqlite-vec virtual table, pgvector HNSW index).
-
----
-
-## Get help
-
-- **Bug?** [Open an issue](https://github.com/matrix-maven/Coodra/issues) — include `coodra doctor --json` plus your OS / Node version.
-- **Security concern?** Email [info@matrixmaven.co](mailto:info@matrixmaven.co). Please do not file a public issue.
-- **Architecture question?** Start at [`system-architecture.md`](system-architecture.md). It is long but indexed.
-
----
-
-## Contributing
-
-PRs welcome. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev loop, commit conventions, and the project-specific guardrails (no shallow proxies, no `any`, idempotency at every write, schema changes only through Drizzle migrations).
-
----
+Stable surfaces include native plugin wiring, lifecycle events, Coodra MCP,
+Graphify MCP management, Deep Wiki, Work Packs, DB-backed memory, policy
+governance, solo mode, and team-mode sync.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT License. Copyright (c) 2026 Matrix Maven.
 
-<div align="center">
-
-—
-
-**Coodra is the layer between your AI coding agents and your codebase.**
-Memory. Context. Policy. Local-first.
-
-</div>
+Abishai is listed as a contributor in package metadata.

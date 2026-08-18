@@ -2,7 +2,7 @@
   "name": "coodra",
   "version": "0.0.0",
   "private": true,
-  "description": "Coodra — MCP server platform providing Feature Packs, Context Packs, and policy enforcement for AI coding agents.",
+  "description": "Coodra - plugin-native memory, Work Packs, Deep Wiki, Graphify, and policy governance for AI coding agents.",
   "license": "MIT",
   "author": "Matrix Maven <info@matrixmaven.co>",
   "repository": {

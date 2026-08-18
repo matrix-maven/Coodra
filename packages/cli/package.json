@@ -2,8 +2,12 @@
   "name": "@coodra/cli",
   "version": "0.5.11",
   "private": false,
-  "description": "Coodra CLI — single-binary install/configure/run/diagnose surface for solo and team modes. Module 08a.",
+  "description": "Coodra CLI - plugin-native memory, Work Packs, Deep Wiki, Graphify, and policy governance for AI coding agents.",
   "license": "MIT",
+  "author": "Matrix Maven <info@matrixmaven.co>",
+  "contributors": [
+    "Abishai <abishai95141@gmail.com>"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -87,7 +91,7 @@
   },
   "scripts": {
     "prebuild": "node scripts/sync-version.mjs",
-    "//build": "Two-phase build (decision dec_83ba10c1, 2026-05-02). tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that workspace consumers (apps in dev) import via the `@coodra/cli/lib/outbox` exports entry. Then `scripts/bundle.mjs` runs esbuild to OVERWRITE `dist/index.js` with a self-contained bundle (workspace + npm deps inlined) and writes the bundled apps under `dist/runtime/{mcp-server,sync-daemon}/` (hooks-bridge dropped COOD-53) so `npm i -g @coodra/cli` ships everything needed. Externals: better-sqlite3 + sqlite-vec (native).",
+    "//build": "Two-phase build (decision dec_83ba10c1, 2026-05-02). tsc emits .d.ts + the loose `dist/lib/outbox/*.js` files that workspace consumers (apps in dev) import via the `@coodra/cli/lib/outbox` exports entry. Then `scripts/bundle.mjs` runs esbuild to OVERWRITE `dist/index.js` with a self-contained bundle (workspace + npm deps inlined) and writes bundled runtime apps under `dist/runtime/{mcp-server,sync-daemon}/` so `npm i -g @coodra/cli` ships everything needed. Externals: better-sqlite3 + sqlite-vec (native).",
     "build": "tsc -p tsconfig.json && node scripts/bundle.mjs",
     "build:tsc-only": "tsc -p tsconfig.json",
     "build:bundle-only": "node scripts/bundle.mjs",
@@ -118,7 +122,7 @@
       "built": true
     }
   },
-  "//devDependencies": "Phase 3 Fix E (2026-05-02): @coodra/{mcp-server,hooks-bridge} were previously declared here so the bundle.mjs script's esbuild could resolve their imports via cli's node_modules. They were removed because pnpm + turbo treats devDependencies as ^build edges, and apps/{mcp-server,hooks-bridge} also declare @coodra/cli (for /lib/outbox), which produced a build-time cycle that turbo refused to schedule. esbuild reads apps/{mcp-server,hooks-bridge}/src/index.ts via absolute filesystem paths and resolves their transitive imports through the workspace-root node_modules — no cli-local dep declaration is needed.",
+  "//devDependencies": "Phase 3 Fix E (2026-05-02): runtime apps were previously declared here so bundle.mjs could resolve their imports via cli's node_modules. They were removed because pnpm + turbo treats devDependencies as ^build edges, and runtime apps also declare @coodra/cli (for /lib/outbox), which produced a build-time cycle that turbo refused to schedule. esbuild reads runtime app sources via absolute filesystem paths and resolves their transitive imports through the workspace-root node_modules; no cli-local dep declaration is needed.",
   "//ui-deps": "react + ink + ink-* power the interactive TUI (`coodra` no-args / `coodra ui`) and live in devDependencies, not dependencies: they are pure-JS and esbuild inlines them into dist/index.js at bundle time (same treatment as commander/execa/zod). Only the two native modules stay in `dependencies`. @types/react is dev-only typings.",
   "devDependencies": {
     "@clerk/backend": "^3.4.7",
