@@ -123,7 +123,7 @@ export function AuthShell({ mode, children }: { mode: 'signin' | 'signup'; child
           <div>
             <strong>Coodra</strong>
             <br />
-            Open source · MIT
+            Open source · Apache-2.0
           </div>
           <div style={{ textAlign: 'right' }}>
             <a href={DOCS_URL} target="_blank" rel="noreferrer">

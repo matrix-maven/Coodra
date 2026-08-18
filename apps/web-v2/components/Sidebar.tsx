@@ -57,7 +57,7 @@ export function Sidebar({
   // NEVER hardcode a personal name here: this default renders on every
   // install that doesn't override it (E2E finding, 2026-07-09).
   userName = 'local',
-  userRole = 'Local · MIT',
+  userRole = 'Local · Apache-2.0',
   projects,
   orgSlug = null,
   viewerUserId = null,

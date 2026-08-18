@@ -48,7 +48,7 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'Coodra — App',
-  description: 'Editorial audit surface for Coodra — local-first, MCP-native, MIT.',
+  description: 'Editorial audit surface for Coodra — local-first, MCP-native, Apache-2.0.',
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

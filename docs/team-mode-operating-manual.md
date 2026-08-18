@@ -678,7 +678,7 @@ That's the "demo-ready → ship-ready for a real second teammate" delta.
 
 ## 12. The self-hosted reality — answers to "but how does ___ get in?"
 
-> Coodra is **MIT, fully self-hosted, BYO-everything**. There is **no
+> Coodra is **Apache-2.0, fully self-hosted, BYO-everything**. There is **no
 > Coodra-operated service** anywhere in the picture. No team
 > directory. No SaaS auth. No central registry. This section answers
 > the questions that exposes.

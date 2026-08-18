@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml/badge.svg)](https://github.com/matrix-maven/Coodra/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@coodra/cli/latest.svg)](https://www.npmjs.com/package/@coodra/cli)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.16-brightgreen.svg)](.nvmrc)
 
 **Supercharge your coding agent.**
@@ -267,4 +267,4 @@ governance, solo mode, and team-mode sync.
 
 ## License
 
-MIT License. Copyright (c) 2026 Matrix Maven.
+Apache License 2.0. Copyright 2026 Matrix Maven.

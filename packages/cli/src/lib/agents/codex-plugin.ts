@@ -386,7 +386,7 @@ function pluginManifest(): string {
       author: { name: 'Coodra' },
       homepage: 'https://github.com/matrix-maven/Coodra',
       repository: 'https://github.com/matrix-maven/Coodra',
-      license: 'MIT',
+      license: 'Apache-2.0',
       keywords: ['coodra', 'codex', 'mcp', 'context', 'wiki', 'graphify', 'jira'],
       skills: './skills/',
       hooks: './hooks/hooks.json',

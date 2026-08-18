@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Coodra Web App v2 — design-system shell rebuild on the editorial dark surface. Same backend wiring as @coodra/web; new visual language driven by frontend/project/app.html.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "next build",

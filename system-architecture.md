@@ -849,7 +849,7 @@ Solo-mode v1 scope: both Claude Code's and Codex's hook envelopes carry a first-
 
 ### What Graphify Is
 
-Graphify (`safishamsi/graphify`, MIT, PyPI package `graphifyy`) is a mature,
+Graphify (PyPI package `graphifyy`) is an independent open-source,
 actively-developed codebase-knowledge-graph tool — tree-sitter AST extraction
 across 30+ languages plus SQL, docs, and PDFs, with Leiden community detection.
 It is **not built by Coodra**. Running it (`graphify .`, or the `/graphify`

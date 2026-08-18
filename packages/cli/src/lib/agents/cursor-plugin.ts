@@ -150,7 +150,7 @@ function pluginManifest(): string {
       author: { name: 'Coodra' },
       homepage: 'https://github.com/matrix-maven/Coodra',
       repository: 'https://github.com/matrix-maven/Coodra',
-      license: 'MIT',
+      license: 'Apache-2.0',
       keywords: ['coodra', 'cursor', 'mcp', 'context', 'wiki', 'graphify', 'jira'],
       mcpServers: './mcp.json',
       skills: './skills/',

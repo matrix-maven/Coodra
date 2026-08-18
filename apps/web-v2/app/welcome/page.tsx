@@ -49,7 +49,7 @@ export default async function WelcomePage() {
               Pick your <em>path</em>.
             </h1>
             <p className="head__lede">
-              Coodra is MIT, fully self-hosted. There is no Coodra-operated service — every team brings their own
+              Coodra is Apache-2.0, fully self-hosted. There is no Coodra-operated service — every team brings their own
               Postgres + Clerk and runs everything on machines they own. Three paths in: solo (no cloud), create a new
               team (you'll be the admin), or connect to an existing team (someone already set it up and gave you the
               bundle).
@@ -59,7 +59,7 @@ export default async function WelcomePage() {
             <div className="head__meta">
               <strong>local-first</strong>
               <br />
-              MIT · open source
+              Apache-2.0 · open source
               <br />v 0.1
             </div>
           </div>

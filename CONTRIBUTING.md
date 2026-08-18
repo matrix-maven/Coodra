@@ -1,7 +1,7 @@
 # Contributing To Coodra
 
-Thanks for thinking about contributing. Coodra is open source under MIT and is
-maintained by Matrix Maven.
+Thanks for thinking about contributing. Coodra is open source under the Apache
+License 2.0 and is maintained by Matrix Maven.
 
 This guide covers the public contributor loop. For the product and architecture
 overview, read [`docs/index.html`](docs/index.html) locally or the published
@@ -124,5 +124,5 @@ Coodra is maintained by **Matrix Maven**. Reach us at `info@matrixmaven.co`.
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the MIT
-License, the same as the rest of Coodra.
+By contributing, you agree that your contributions are licensed under the Apache
+License 2.0, the same as the rest of Coodra.

@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Coodra MCP server — stdio transport (S5 walking skeleton), tool-registration framework with enforced invariants, typed env config, Clerk + solo-bypass auth chain (wired in later slices).",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

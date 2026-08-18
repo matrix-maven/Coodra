@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Coodra - plugin-native memory, Work Packs, Deep Wiki, Graphify, and policy governance for AI coding agents.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Matrix Maven <info@matrixmaven.co>",
   "repository": {
     "type": "git",

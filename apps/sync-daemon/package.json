@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Coodra Sync Daemon — third managed process in team mode. Drains pending_jobs sync_to_cloud rows from local SQLite and pushes the referenced row into cloud Postgres. Module 04a.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {

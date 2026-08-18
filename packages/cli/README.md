@@ -124,4 +124,4 @@ upload. Use `npm publish --dry-run` to rehearse.
 
 ## License
 
-MIT License. Copyright (c) 2026 Matrix Maven.
+Apache License 2.0. Copyright 2026 Matrix Maven.

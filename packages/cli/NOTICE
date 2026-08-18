@@ -1,9 +1,9 @@
 Coodra CLI Notices
 ==================
 
-`@coodra/cli` is licensed under the MIT License.
+`@coodra/cli` is licensed under the Apache License, Version 2.0.
 
-Copyright (c) 2026 Matrix Maven
+Copyright 2026 Matrix Maven
 
 This package may contain bundled JavaScript generated from Coodra workspace
 packages and third-party npm dependencies. Those third-party components remain
