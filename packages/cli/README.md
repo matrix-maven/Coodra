@@ -123,5 +123,3 @@ upload. Use `npm publish --dry-run` to rehearse.
 ## License
 
 MIT License. Copyright (c) 2026 Matrix Maven.
-
-Abishai is listed as a contributor in package metadata.

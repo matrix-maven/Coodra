@@ -260,5 +260,3 @@ governance, solo mode, and team-mode sync.
 ## License
 
 MIT License. Copyright (c) 2026 Matrix Maven.
-
-Abishai is listed as a contributor in package metadata.
