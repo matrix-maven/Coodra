@@ -20,7 +20,7 @@ Do not open public issues for vulnerabilities. Follow
 ## Questions
 
 Start with the public developer docs at
-<https://matrix-maven.github.io/Coodra/docs/>. If something is unclear, open a
+<https://matrix-maven.github.io/Coodra/>. If something is unclear, open a
 GitHub issue or discussion with the section you were reading and what you
 expected to find.
 

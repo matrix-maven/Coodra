@@ -230,7 +230,7 @@ docs/
 ```
 
 Full developer documentation lives in [`docs/index.html`](docs/index.html) and
-is published at <https://matrix-maven.github.io/Coodra/docs/>.
+is published at <https://matrix-maven.github.io/Coodra/>.
 
 ## Build And Publish From Source
 

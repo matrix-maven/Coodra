@@ -5,7 +5,7 @@ maintained by Matrix Maven.
 
 This guide covers the public contributor loop. For the product and architecture
 overview, read [`docs/index.html`](docs/index.html) locally or the published
-docs at <https://matrix-maven.github.io/Coodra/docs/>.
+docs at <https://matrix-maven.github.io/Coodra/>.
 
 ## Quick Start
 

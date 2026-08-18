@@ -116,7 +116,7 @@ upload. Use `npm publish --dry-run` to rehearse.
 
 ## Documentation
 
-- Public developer docs: <https://matrix-maven.github.io/Coodra/docs/>
+- Public developer docs: <https://matrix-maven.github.io/Coodra/>
 - Local docs source: [`docs/index.html`](../../docs/index.html)
 - Development loop: [`docs/DEVELOPMENT.md`](../../docs/DEVELOPMENT.md)
 - Changelog: [`CHANGELOG.md`](../../CHANGELOG.md)
