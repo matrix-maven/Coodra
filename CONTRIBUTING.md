@@ -1,117 +1,128 @@
-# Contributing to Coodra
+# Contributing To Coodra
 
-Thanks for thinking about contributing — Coodra is open source under MIT and we welcome both human and AI-assisted contributions.
+Thanks for thinking about contributing. Coodra is open source under MIT and is
+maintained by Matrix Maven.
 
-This guide covers the dev loop, commit conventions, and a few project-specific guardrails. For the full architectural picture read [`system-architecture.md`](system-architecture.md).
+This guide covers the public contributor loop. For the product and architecture
+overview, read [`docs/index.html`](docs/index.html) locally or the published
+docs at <https://matrix-maven.github.io/Coodra/docs/>.
 
----
-
-## Quick start (contributor dev loop)
+## Quick Start
 
 ```bash
-# Prerequisites: Node 22.16+, pnpm 10.33+, Docker (for integration/E2E)
+corepack enable
 pnpm install
-pnpm rebuild              # build better-sqlite3 + sqlite-vec native modules
+pnpm rebuild
 
-# Pick a workspace and iterate
-pnpm --filter @coodra/cli dev
-pnpm --filter @coodra/mcp-server test:unit --watch
-
-# Before pushing
 pnpm typecheck
 pnpm test:unit
 pnpm lint
 ```
 
-Detailed service commands and troubleshooting live in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+Integration and end-to-end checks need the local services described in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
----
+## Codebase Map
 
-## How the codebase is organised
+| Path | What lives here |
+|---|---|
+| `apps/mcp-server` | Coodra MCP server, lifecycle-event runtime, memory, policy, wiki, and Work Pack tools. |
+| `apps/sync-daemon` | Team-mode outbox push and cloud-to-local pull. |
+| `apps/web-v2` | Local/self-hosted web dashboard. |
+| `packages/cli` | The `@coodra/cli` npm package. |
+| `packages/db` | Drizzle schemas and migrations for SQLite and Postgres. |
+| `packages/policy` | Pure policy-decision engine. |
+| `packages/shared` | Shared schemas, auth helpers, utilities, and contracts. |
+| `docs` | Public developer docs, deployment notes, team guides, and brand assets. |
+| `.coodra` | Project-local generated context: Graphify output, wiki mirror, Work Packs, recipes, and manifest. |
 
-| Path | What lives here | When to touch it |
-|---|---|---|
-| `apps/mcp-server` | The MCP server — 20 tools agents call | Adding/changing an agent-facing tool |
-| `apps/hooks-bridge` | Hono HTTP service that receives Claude Code / Codex hooks | Adding a hook event handler, policy in-line behaviour |
-| `apps/sync-daemon` | Team-mode cloud sync (outbox + pullers) | Cloud-sync logic for a new table type |
-| `apps/web-v2` | Next.js admin/audit UI | UI changes for solo + team views |
-| `apps/web` | **Deprecated.** Kept only for team-mode Clerk auth surfaces not yet ported to web-v2 | Fixing team auth bugs (until v2 catches up) |
-| `packages/cli` | The `@coodra/cli` npm package | Anything users invoke from the shell |
-| `packages/db` | Drizzle schema + migrations (SQLite + Postgres) | DB schema changes — always via `pnpm db:generate`, never by hand |
-| `packages/shared` | Cross-cutting Zod schemas, auth helpers, logger | Anything imported by more than one app |
-| `packages/policy` | Pure policy-decision engine | New policy match types |
+## Branches And Commits
 
----
+- Branch from `main`.
+- Use focused branches such as `feat/work-pack-sync`, `fix/policy-audit`, or
+  `docs/security-policy`.
+- Use Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`,
+  `chore:`.
+- Keep one logical change per pull request.
 
-## Branch + commit conventions
+## What Done Looks Like
 
-- **Feature branches off `main`.** Names: `feat/<area>-<slug>`, `fix/<area>-<slug>`, `docs/<topic>`, `chore/<thing>`.
-- **Conventional Commits.** Use `feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`. Scope is optional but encouraged: `feat(cli): add agents command`.
-- **One logical change per PR.** Bundle related cleanups, but don't ride a refactor on top of an unrelated bug fix.
-- **Squash merge to main.** History stays linear.
+A contribution is ready for review when:
 
-Example: `feat(mcp-server): add list_skills tool with description-quality hint`.
+1. `pnpm typecheck` passes.
+2. `pnpm test:unit` passes.
+3. `pnpm lint` passes, or formatting drift is fixed with `pnpm lint:fix`.
+4. Service-boundary, database, sync, lifecycle, or packaging changes have
+   focused integration coverage.
+5. Full runtime changes have an end-to-end check or a clear reason one was not
+   practical.
+6. Public behavior changes update the relevant docs in the same PR.
+7. DB schema changes include new Drizzle migrations for the affected dialects.
+8. User-owned files, generated state, and unrelated worktree changes are not
+   rewritten.
 
----
+Current CI jobs are `verify`, `integration`, `hook-adapter-smoke`,
+`windows-core-smoke`, `windows-native-full-smoke`, and `e2e`. See
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) for exact commands.
 
-## What "done" looks like
+## Project Guardrails
 
-A change is ready to merge when:
+- Do not fake successful behavior with shallow stubs.
+- Avoid `any` and broad type assertions. Use Zod at service and tool
+  boundaries.
+- Do not swallow errors silently. Log or return structured context.
+- Make writes idempotent. Agent retries, network retries, and duplicate MCP calls
+  should not corrupt state.
+- Do not edit published migrations in place. Add a new migration.
+- Keep Coodra-owned generated files tracked in `.coodra/manifest.json` when the
+  CLI creates them.
+- Keep provider systems authoritative for their own data. For example, Jira and
+  Linear remain program-management systems of record; Coodra stores the
+  agent-ready Work Pack context.
 
-1. **Types**: `pnpm typecheck` passes across the whole workspace.
-2. **Tests**: every public function in the change has a unit test, and `pnpm test:unit` passes.
-3. **Lint**: `pnpm lint` passes (or, if you added auto-fixable formatting drift, run `pnpm lint:fix`).
-4. **Integration / E2E**: if your change touches a service boundary or migration, `pnpm test:integration` (and `pnpm test:e2e` for full-lifecycle changes) is green locally.
-5. **Documentation**: if you changed an architectural decision, public CLI flag, or MCP tool surface, `system-architecture.md` is updated in the same PR. Note any new architectural decision in the PR description.
+## Agent-Facing Changes
 
-CI runs all of the above on every PR — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+MCP tools live under `apps/mcp-server/src/tools/<tool-name>/` and should include:
 
----
-
-## Project-specific guardrails
-
-A few rules the project enforces beyond standard OSS hygiene:
-
-1. **No shallow proxies.** Don't ship a function that returns a hardcoded success because the real wire call isn't wired yet. If a feature can't be fully implemented in your PR, either complete it or split it; never fake it.
-2. **No `any`, no `as`.** Use Zod schemas at every service boundary and infer TypeScript types from them. If you reach for `any`, redesign the interface.
-3. **No silent error swallowing.** `catch (e) {}` is banned. At minimum log the error with structured context.
-4. **Idempotency at every write.** Retries (network timeout, agent retry) must produce the same result. See `generateIdempotencyKey()` in `@coodra/shared`.
-5. **Migrations are the source of truth.** Schema changes go through Drizzle (`pnpm db:generate`). Never modify a published migration in place; add a new one.
-
----
-
-## Adding a new MCP tool
-
-Tools live in `apps/mcp-server/src/tools/<name>/` with three files:
-
+```text
+handler.ts    implementation
+schema.ts     Zod input/output schemas
+manifest.ts   name, description, input schema, idempotency metadata
 ```
-handler.ts    # implementation
-schema.ts     # Zod input/output schemas
-manifest.ts   # { name, description, inputSchema } registered in src/tools/index.ts
-```
 
-The `manifest.ts` description follows a five-part recipe (trigger phrase → return shape → why the agent needs it → when NOT to call → 40-80 words). A test in `__tests__/unit/.../manifest.test.ts` enforces the shape.
+When changing agent-facing behavior, update tests and docs for the affected
+surface:
 
----
+- MCP tools and lifecycle events: update `docs/index.html` when public behavior
+  changes.
+- CLI commands: update root `README.md`, `packages/cli/README.md`, or
+  `docs/index.html` depending on audience.
+- Policy behavior: document runtime implications and audit semantics.
+- Work Packs, Deep Wiki, memory, or Graphify: verify the claim against the
+  current implementation and generated `.coodra` artifacts.
 
-## Reporting bugs / asking questions
+## Pull Requests
 
-- **Bugs**: open a GitHub Issue. Include `coodra doctor --json` output and your OS / Node version.
-- **Security issues**: please *don't* file a public issue — email `info@matrixmaven.co` directly.
-- **Architecture questions**: open a Discussion, or skim `system-architecture.md` first (it's long but indexed).
+Use the pull request template and include:
 
----
+- What changed and why.
+- How reviewers can verify it.
+- Any limitations or intentionally deferred work.
+- Related issues, Work Packs, decisions, or docs.
 
-## Maintainers and contributors
+## Bugs, Security, And Questions
 
-Coodra is maintained by **Matrix Maven** — reach us at `info@matrixmaven.co`.
+- Bugs: open a GitHub issue with reproduction steps, `coodra doctor --json`
+  output, OS, Node.js version, CLI version, agent, and mode.
+- Security issues: do not open a public issue. Follow [`SECURITY.md`](SECURITY.md).
+- Architecture questions: start with [`docs/index.html`](docs/index.html), then
+  open an issue or discussion if something is unclear.
 
-Contributors:
+## Maintainer
 
-- Abishai (<abishai95141@gmail.com>)
-
----
+Coodra is maintained by **Matrix Maven**. Reach us at `info@matrixmaven.co`.
 
 ## License
 
-By contributing you agree your contributions are licensed under MIT, the same as the rest of the project.
+By contributing, you agree that your contributions are licensed under the MIT
+License, the same as the rest of Coodra.

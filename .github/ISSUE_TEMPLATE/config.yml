@@ -4,5 +4,5 @@ contact_links:
     url: mailto:info@matrixmaven.co
     about: Report a vulnerability privately — please do not file a public issue.
   - name: Question about architecture or design
-    url: https://github.com/matrix-maven/Coodra/blob/main/system-architecture.md
-    about: Start here for "how does X work?" — the 25-section architectural spec.
+    url: https://matrix-maven.github.io/Coodra/docs/
+    about: Start here for "how does X work?" — the public developer documentation.

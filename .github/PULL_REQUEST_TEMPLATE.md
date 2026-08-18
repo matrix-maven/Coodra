@@ -23,12 +23,12 @@ pnpm test:unit
 - [ ] `pnpm test:unit` passes
 - [ ] `pnpm lint` passes (or formatting drift is auto-fixed via `pnpm lint:fix`)
 - [ ] If touching a service boundary or migration: `pnpm test:integration` passes locally
-- [ ] If touching agent-facing surfaces (MCP tool, CLI command, hook payload): user-visible doc updated in the same PR
+- [ ] If touching agent-facing surfaces (MCP tool, CLI command, lifecycle event, native plugin wiring): user-visible doc updated in the same PR
 - [ ] If schema change: new Drizzle migration (no edits to published migrations); SQLite + Postgres dialects updated together
 - [ ] No `any`, no shallow stubs, no `// TODO`s in committed code
 
 ## Related
 
-<!-- Issues, ADRs, or context packs this PR closes / implements / references. -->
+<!-- Issues, Work Packs, decisions, docs, or context packs this PR closes / implements / references. -->
 
 Closes #

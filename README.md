@@ -257,6 +257,12 @@ Stable surfaces include native plugin wiring, lifecycle events, Coodra MCP,
 Graphify MCP management, Deep Wiki, Work Packs, DB-backed memory, policy
 governance, solo mode, and team-mode sync.
 
+## Contributing And Security
+
+- Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Security reports: [`SECURITY.md`](SECURITY.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+
 ## License
 
 MIT License. Copyright (c) 2026 Matrix Maven.
