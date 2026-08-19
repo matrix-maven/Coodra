@@ -4,6 +4,8 @@ These scripts are runnable one-shots, not vitest targets. Most are historical
 verification aids from earlier Coodra modules; prefer current unit,
 integration, functional, and CI smoke suites for launch validation.
 
+Coodra source and test materials are licensed under Apache-2.0.
+
 Harnesses run against built output. Run `pnpm build` first if source changed.
 
 | Harness | Run with | What it covers |
