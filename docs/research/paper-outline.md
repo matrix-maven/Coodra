@@ -70,10 +70,17 @@ and distinguishes it from supersession ("has this been replaced?").
 `session_id` join to agent-native OpenTelemetry. Released as an open-source
 implementation.
 
-Pick **three** of these as headline contributions if the paper runs long. C2 and C3
-are the most novel; C1 is the organizing frame; C4 is the most coding-agent-specific;
-C5 is the artifact. My recommendation: headline **C1, C2, C3**, present C4 and C5 as
-components.
+**C6 — Silent failure of the measurement layer** *(added 2026-08-19)*. A utilization
+metric cannot distinguish its own breakage from the absence it reports: zero pull-through
+reads the same whether agents ignore memory or the recorder cannot attribute. Documented
+with a live instance in which the hazard had been named in advance and occurred anyway,
+and the broken reading was plausible enough to confirm the design's own predicted failure
+mode.
+
+Pick **three** of these as headline contributions if the paper runs long. C2 and C6 are
+the most novel; C1 is the organizing frame; C3 is the most under-modelled; C4 is the most
+coding-agent-specific; C5 is the artifact. Revised recommendation: headline **C1, C2,
+C6**, present C3, C4 and C5 as components.
 
 ---
 
@@ -234,8 +241,26 @@ named phenomenon so others can cite them.
   the agent went the other way anyway. That is the failure that separates "we failed to
   retrieve" from "retrieval works and nobody listens."
 
+- **F6 — Silent failure of the measurement layer.** *(Added 2026-08-19.)* The
+  instrumentation built to detect F1–F5 is unmonitored code on a hot path, and it
+  fails in the one way that cannot be caught by reading the metric: **a broken
+  utilization metric and a genuinely unused memory read identically.** Instance: pull
+  attribution resolved runs from the transport-minted session id while the run record
+  stored the agent-minted one, so every pull carried a null run reference and the
+  cohort rollup admitted none — 33 surfaced, 0 pulled, on a dry run over a copy of the
+  production store. Two aggravations make it a contribution rather than an anecdote:
+  the design document *named this exact hazard in advance*, citing a prior shipped bug
+  of the same shape, and it happened anyway; and the broken reading was **plausible** —
+  zero pull-through is precisely the under-retrieval the manifest design predicted as
+  its own most likely failure. The instrument confirmed a hypothesis with an artifact
+  of itself.
+
+  This is likely the paper's single most novel contribution. Consider promoting it to
+  the abstract and §1.
+
 **Figure 1** here: the lifecycle diagram with each failure annotated at the stage it
-occurs.
+occurs. F6 is drawn as a band *underneath* the whole lifecycle, not at one stage — it
+is the failure of the observer, not of any one transition.
 
 ### §4 Design: progressive memory (~1,400 words)
 
@@ -326,13 +351,20 @@ the introduction as well as here.
 MCP tool registry with per-artifact attribution resolved at registry level from the
 session, never from tool arguments. Demonstrate with a trace, not a claim.
 
-**M3 — Organic pull-through (collect until submission).** The manifest became the
-default on 2026-08-17. Every ordinary working session since then accrues
-`memory_access_events` and `memory_cohorts` rows at no marginal cost. Report whatever
-window exists at submission, with n stated honestly and no inferential claim attached.
-**Prerequisite: confirm the rollup worker is populating `memory_cohorts` — both rollup
-tables were empty at outline time.** If cohorts do not populate in normal solo use,
-M3 does not exist and §6.5 stands on M1 and M2 alone.
+**M3 — Organic pull-through. BLOCKED as of 2026-08-19; treat as unavailable.**
+Investigation established two independent causes. (a) Operational: the rollup worker is
+gated on the HTTP transport, every agent-spawned server runs stdio, and the one daemon
+listening predates the worker's existence. (b) Structural: pull attribution resolves a
+run from the transport-minted session id while `runs.session_id` holds the agent-minted
+one, so every pull carries a null run reference and the cohort rollup — which requires
+non-null — admits none. Restarting the daemon repairs the denominator only. Dry run over
+a copy of the store: **33 surfaced, 0 pulled.**
+
+Do not plan the paper around M3. §6.5 stands on M1 and M2. **The failure itself is
+worth more to the paper than the number would have been** — it is F6's instance, and it
+should be reported in §3.6 and §7 rather than treated as a missing result. If the
+attribution fix lands and a real window accrues before submission, M3 returns as a
+bonus, not a dependency.
 
 State the ceiling on all three: these are **cost and coverage** measurements. None of
 them is an outcome measurement. Say so in the same paragraph, not in a footnote.
@@ -428,7 +460,7 @@ settled gets thrown away.
 |---|---|---|
 | 1 | Read the three threat papers **in full** | 2607.27250, 2607.17598, 2511.12884. Non-negotiable — these determine what you may claim. |
 | 2 | Fig 3 (push vs pull) | If it is not obvious as a picture, the thesis is not yet sharp. |
-| 3 | §3 taxonomy | The core. Write it first; everything else is framing or consequence. |
+| 3 | §3 taxonomy | **Draft 1 complete** — `docs/research/draft-s3-taxonomy.md`, six failures incl. F6. Carries `[VERIFY]`/`[CITE]` markers to resolve. |
 | 4 | §2 background | Version-stamp everything; verify each mechanic against the installed binaries. |
 | 5 | §4 + §5 | Compress from the PRD, always re-framed as failure→design. |
 | 6 | §6 + §7 | |
