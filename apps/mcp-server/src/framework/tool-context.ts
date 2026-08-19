@@ -256,6 +256,22 @@ export interface PerCallContext {
   /**
    * Identity verified by a request transport, when one exists. stdio has no
    * caller on the wire; HTTP supplies the Clerk/local-hook/solo identity here.
+   *
+   * DEFERRED — plumbing only, deliberately unconsumed. No handler reads this
+   * today and nothing authorizes against it; org scoping is enforced entirely
+   * in `verifyClerkJwt` (`packages/shared/src/auth/auth.ts`), which rejects a
+   * missing or mismatched `org_id` before a request ever reaches a tool. Do
+   * not read this field as evidence that per-call authorization exists.
+   *
+   * Two things must be settled before anything authorizes on it:
+   *   1. `transports/http.ts` populates it from an `AsyncLocalStorage` scoped
+   *      around `transport.handleRequest`. If the MCP SDK ever dispatches a
+   *      call outside that async scope, `getStore()` yields `undefined` and
+   *      this silently becomes `null` — which would fail OPEN for any check
+   *      written as "deny only when identity says so". A consumer must make
+   *      the absent case an explicit denial, not a default.
+   *   2. stdio has no caller identity at all, so any check must state what it
+   *      does on that transport rather than inheriting `null` by accident.
    */
   readonly authenticatedIdentity?: Identity | null;
   /**
