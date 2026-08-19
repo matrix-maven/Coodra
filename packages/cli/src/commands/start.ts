@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { EXIT_OK, EXIT_SERVICE_STARTUP_FAILED, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { resolveCoodraHome, resolveCoodraLogsDir } from '../lib/coodra-home.js';
 import { selectDaemonManager } from '../lib/daemon/index.js';
+import { probePortOccupant, waitForOwnDaemon } from '../lib/daemon-identity.js';
 import { loadHomeEnv } from '../lib/load-home-env.js';
 import { type ResolvedService, resolveServices } from '../lib/services.js';
 import { detectCloudflared, startQuickTunnel, writeTunnelState, writeTunnelUrlToHomeEnv } from '../lib/tunnel.js';
@@ -133,6 +134,24 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
       io.writeStdout(`${pc.gray('·')} Skipping ${service.descriptor.displayName} (${reason}).\n`);
       continue;
     }
+    // Who holds the port BEFORE we start anything. `waitForOwnDaemon`
+    // needs this to tell "my daemon came up" from "the daemon that was
+    // already there is still answering" — the difference between a real
+    // start and the false green that hid an orphaned daemon for eleven
+    // days while every launchd retry died of EADDRINUSE.
+    const occupantBefore =
+      service.descriptor.kind === 'http' && service.port !== null
+        ? await probePortOccupant({ url: service.descriptor.healthUrl(service.port), timeoutMs: 2000 })
+        : { kind: 'none' as const };
+    if (occupantBefore.kind === 'foreign') {
+      io.writeStderr(
+        `${pc.red('✗')} ${service.descriptor.displayName}: port ${service.port} is held by something that is not a ` +
+          `Coodra daemon (${occupantBefore.detail}). Free the port or set a different one, then retry.\n`,
+      );
+      anyFailure = true;
+      continue;
+    }
+
     try {
       await manager.install(service.unit);
       await manager.start(service.descriptor.name);
@@ -147,15 +166,55 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
       // 12-15s in the 2026-05-12 live test (COODRA_HOME resolution
       // + SQLite init + tool registry load); a 10s window flagged
       // healthy services as failed. 30s is the right floor.
-      const healthy = await waitForHealth({
+      const timeoutMs = options.waitTimeoutMs ?? 30_000;
+
+      // The `web` service answers `/api/healthz` with its own envelope
+      // and is not identity-aware, so it keeps the reachability gate.
+      // Only the mcp-server — the one with a rollup worker whose whole
+      // existence depends on THIS process being the live one — is held
+      // to the stricter check.
+      if (service.descriptor.name !== 'mcp-server') {
+        const healthy = await waitForHealth({ url: service.descriptor.healthUrl(service.port), timeoutMs });
+        if (healthy) {
+          io.writeStdout(`${pc.green('✓')} ${service.descriptor.displayName} listening on :${service.port}\n`);
+        } else {
+          io.writeStderr(
+            `${pc.red('✗')} ${service.descriptor.displayName} did not become healthy on :${service.port} within ${timeoutMs}ms\n`,
+          );
+          anyFailure = true;
+        }
+        continue;
+      }
+
+      const started = await waitForOwnDaemon({
         url: service.descriptor.healthUrl(service.port),
-        timeoutMs: options.waitTimeoutMs ?? 30_000,
+        previousBootId: occupantBefore.kind === 'coodra' ? occupantBefore.bootId : null,
+        timeoutMs,
       });
-      if (healthy) {
-        io.writeStdout(`${pc.green('✓')} ${service.descriptor.displayName} listening on :${service.port}\n`);
+      if (started.ok) {
+        io.writeStdout(
+          `${pc.green('✓')} ${service.descriptor.displayName} listening on :${service.port} (pid ${started.identity.pid})\n`,
+        );
+      } else if (started.reason === 'stale_owner') {
+        // The decisive message. Previously this path printed a green
+        // "listening" line while the daemon just launched was dying of
+        // EADDRINUSE against the process named here.
+        io.writeStderr(
+          `${pc.red('✗')} ${service.descriptor.displayName}: port ${service.port} is still held by an earlier daemon ` +
+            `(pid ${started.identity.pid}) that did not shut down. The daemon just launched could not bind and has ` +
+            `exited.\n` +
+            `${pc.gray(`  Run \`coodra stop\` to reap it (it will be terminated by pid), then \`coodra start\` again.`)}\n`,
+        );
+        anyFailure = true;
+      } else if (started.reason === 'foreign_listener') {
+        io.writeStderr(
+          `${pc.red('✗')} ${service.descriptor.displayName}: port ${service.port} is held by something that is not a ` +
+            `Coodra daemon (${started.detail}).\n`,
+        );
+        anyFailure = true;
       } else {
         io.writeStderr(
-          `${pc.red('✗')} ${service.descriptor.displayName} did not become healthy on :${service.port} within ${options.waitTimeoutMs ?? 30_000}ms\n`,
+          `${pc.red('✗')} ${service.descriptor.displayName} did not become healthy on :${service.port} within ${timeoutMs}ms\n`,
         );
         anyFailure = true;
       }

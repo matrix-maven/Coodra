@@ -57,6 +57,18 @@ vi.mock('../../../src/lib/wait-for-health.js', () => ({
   waitForHealth: vi.fn(async () => true),
 }));
 
+// `start` now proves the daemon answering is the one it launched, not
+// merely that something answers. Mocked to "port was free, our daemon
+// came up" so this suite keeps testing platform gating rather than
+// reaching for a real socket.
+vi.mock('../../../src/lib/daemon-identity.js', () => ({
+  probePortOccupant: vi.fn(async () => ({ kind: 'none' as const })),
+  waitForOwnDaemon: vi.fn(async () => ({
+    ok: true as const,
+    identity: { kind: 'coodra' as const, service: 'mcp-server', pid: 4242, bootId: 'boot-test', home: null },
+  })),
+}));
+
 import { runStartCommand, type StartIO } from '../../../src/commands/start.js';
 import { EXIT_OK } from '../../../src/exit-codes.js';
 

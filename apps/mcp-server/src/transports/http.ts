@@ -156,9 +156,59 @@ function buildSdkServer(opts: HttpStartOptions, sessionId: string): McpSdkServer
 // ServerResponse, which conflicts with Hono's Response-return model.
 // ---------------------------------------------------------------------------
 
+/**
+ * Identity of THIS process, minted once at module load.
+ *
+ * `/healthz` used to answer a bare `ok`, which told a caller that
+ * something was listening but nothing about who. That is the whole of
+ * the daemon-ownership bug: `coodra start` gated its success message on
+ * a 200 from the port, so an orphaned daemon holding :3100 made every
+ * start, stop and uninstall report success while the process the
+ * command actually launched died of EADDRINUSE behind it. Observed in
+ * the field as 105832 consecutive bind failures, invisible to the user,
+ * with the CLI printing green throughout.
+ *
+ * `bootId` is the load-bearing field. A pid can be recycled and is
+ * ambiguous across a restart that reuses one; a fresh uuid per process
+ * lets a caller ask the only question that matters — "is the daemon
+ * answering now a DIFFERENT process from the one that was answering
+ * before I started?" — without correlating against a supervisor.
+ *
+ * `home` is here because launchd unit labels are global per user while
+ * `COODRA_HOME` is not: a daemon serving a different home answers this
+ * port perfectly happily, and `daemon/launchd.ts` already documents
+ * that exact confusion ("the user thinks the new home is being served
+ * ... but every audit row is going to the wrong SQLite database").
+ */
+const PROCESS_BOOT_ID = randomUUID();
+const PROCESS_STARTED_AT = new Date().toISOString();
+
+export interface DaemonIdentityBody {
+  readonly ok: true;
+  readonly service: 'mcp-server';
+  readonly pid: number;
+  readonly bootId: string;
+  readonly home: string | null;
+  readonly startedAt: string;
+}
+
 function buildHonoApp(): Hono {
   const app = new Hono();
-  app.get('/healthz', (c) => c.text('ok', 200, { 'cache-control': 'no-store' }));
+  app.get('/healthz', (c) => {
+    const body: DaemonIdentityBody = {
+      ok: true,
+      service: 'mcp-server',
+      pid: process.pid,
+      bootId: PROCESS_BOOT_ID,
+      home: process.env.COODRA_HOME ?? null,
+      startedAt: PROCESS_STARTED_AT,
+    };
+    // Still 200, still unauthed, still `no-store` — every existing
+    // caller checks the status code and is unaffected. `apps/web-v2`
+    // already answers its own `/api/healthz` with a JSON envelope of
+    // the same shape, so this converges rather than diverges.
+    return c.json(body, 200, { 'cache-control': 'no-store' });
+  });
   app.notFound((c) => c.json({ error: 'not_found', path: c.req.path }, 404));
   return app;
 }

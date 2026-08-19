@@ -1,6 +1,7 @@
 import { EXIT_OK, EXIT_SERVICE_STARTUP_FAILED } from '../exit-codes.js';
 import { resolveCoodraHome } from '../lib/coodra-home.js';
 import { selectDaemonManager } from '../lib/daemon/index.js';
+import { reapPortOwner } from '../lib/daemon-identity.js';
 import { SERVICES, type ServiceName } from '../lib/services.js';
 import { clearTunnelUrlFromHomeEnv, stopTunnelByPid } from '../lib/tunnel.js';
 import { commandTitle, pc, terminalWidth } from '../ui/index.js';
@@ -59,6 +60,26 @@ export async function runStopCommand(options: StopOptions = {}, io: StopIO = DEF
       io.writeStderr(`${pc.yellow('⚠')} ${name} stop reported: ${(err as Error).message}\n`);
       anyFailure = true;
     }
+
+    // The supervisor is the correct path and usually works. This is the
+    // backstop for when it cannot: every daemon operation on macOS is
+    // scoped to the launchd LABEL, so a process that lost its label
+    // association is invisible to `bootout` while still holding the
+    // port — and `stop` reported success over it, `uninstall` removed
+    // the plist and left it running, and the next `start` died of
+    // EADDRINUSE behind a green health check.
+    //
+    // Only a listener that self-identifies as this service, for this
+    // home, is reaped. Anything else is reported and left alone.
+    const reaped = await reapForService(name, coodraHome);
+    if (reaped !== null) {
+      if (reaped.failed) {
+        io.writeStderr(reaped.message);
+        anyFailure = true;
+      } else {
+        io.writeStdout(reaped.message);
+      }
+    }
   }
 
   // W4 (2026-05-13) — tear down the Cloudflare quick-tunnel if one is
@@ -86,4 +107,47 @@ export async function runStopCommand(options: StopOptions = {}, io: StopIO = DEF
   }
 
   return io.exit(anyFailure ? EXIT_SERVICE_STARTUP_FAILED : EXIT_OK);
+}
+
+/**
+ * Verify the port really was released, and reap the holder when it is
+ * ours. Returns `null` when there is nothing to say — the common case
+ * where the supervisor did its job and nothing is listening.
+ */
+async function reapForService(
+  name: ServiceName,
+  coodraHome: string,
+): Promise<{ message: string; failed: boolean } | null> {
+  const descriptor = SERVICES.find((s) => s.name === name);
+  if (descriptor === undefined || descriptor.kind !== 'http') return null;
+
+  const result = await reapPortOwner({
+    url: descriptor.healthUrl(descriptor.port),
+    service: name,
+    home: coodraHome,
+  });
+
+  switch (result.outcome) {
+    case 'nothing_listening':
+      return null;
+    case 'reaped':
+      return {
+        message:
+          `${pc.yellow('⚠')} ${name} survived its supervisor and was still holding :${descriptor.port}; ` +
+          `terminated pid ${result.pid}${result.escalated ? ' (SIGKILL)' : ''}\n`,
+        failed: false,
+      };
+    case 'survived':
+      return {
+        message:
+          `${pc.red('✗')} ${name} pid ${result.pid} is still holding :${descriptor.port} after SIGTERM and SIGKILL. ` +
+          `Investigate manually before starting again.\n`,
+        failed: true,
+      };
+    case 'not_ours':
+      return {
+        message: `${pc.gray('·')} :${descriptor.port} is held by another process (${result.detail}); left alone\n`,
+        failed: false,
+      };
+  }
 }
