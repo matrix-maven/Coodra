@@ -611,8 +611,8 @@ CLERK_SECRET_KEY=sk_live_…`}
           }}
         >
           The <code style={inlineMono}>NEXT_PUBLIC_</code> prefix exposes the key to the browser bundle; the unprefixed
-          copy is what the MCP server and web runtime env validators look for. Skipping the unprefixed line
-          crashes <code style={inlineMono}>coodra start</code> with{' '}
+          copy is what the MCP server and web runtime env validators look for. Skipping the unprefixed line crashes{' '}
+          <code style={inlineMono}>coodra start</code> with{' '}
           <code style={inlineMono}>CLERK_PUBLISHABLE_KEY required when CLERK_SECRET_KEY is set</code>.
         </p>
 
