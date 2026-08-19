@@ -3,8 +3,12 @@
 Status: draft outline, 2026-08-19
 Target: arXiv preprint, 8–10 pages (two-column) / ~7,000–8,500 words
 Genre: systems + position paper with proposed measurement methodology
-Evidence posture: design and taxonomy grounded in deployed implementation; empirical
-evaluation explicitly deferred and named as such.
+Evidence posture: design and taxonomy grounded in deployed implementation, plus a
+small **deployment-measurements** section (§6.5) reporting real numbers from the
+shipped system. Controlled *evaluation* of retrieval quality remains deferred and is
+named as such.
+
+Authorship: co-authored (see §8.1).
 
 ---
 
@@ -299,20 +303,55 @@ invalidation`, with the generational boundary drawn across it.
   self-instrumentation, it works uniformly across all five agents while native OTel
   covers two.
 
-### §6 Proposed evaluation (~700 words) — *proposed*, and labelled as such
+### §6 Measurements and proposed evaluation (~950 words)
 
-- **Layer 1, deterministic, offline.** Fixed corpus; Recall@k, distractor rate,
-  injected bytes. Catches the two opposite predicted failure modes of the manifest
-  change: the old model bloats, the new one under-retrieves. Runs in CI in under a
-  second.
-- **Layer 2, counterfactual.** Three arms (no memory / push excerpts / manifest+pull),
-  LLM judge, confidence intervals. Specify it; state it is not yet run.
-- **Production observation.** Pull-through rate, stale share, time-to-first-pull,
-  never-surfaced share, surfaced-then-contradicted.
+Split this section in two. The first half reports what the deployed system has
+actually measured; the second proposes what has not been run. Label the boundary
+explicitly — this is the section a reviewer will scrutinise hardest.
+
+#### §6.5 Deployment measurements (real, reportable)
+
+**M1 — Push cost, measured.** On a real SessionStart in the reference repository,
+excerpt mode injected **15,529 bytes** for six context packs. The manifest rendered
+the same selection in **2,209 bytes** — an **85.8% reduction**. This is not an
+efficiency victory lap; it is evidence for F5. The composition is the finding: four of
+the six packs were auto-saved digests whose entire excerpt was **314 bytes of
+identical boilerplate**, followed by a run id, followed by a truncation mid-word. The
+same sentence was injected four times in every session. *Nothing in the system could
+have detected this, because push emits no signal.* It was found by a human reading a
+rendered payload. That is the paper's thesis stated as an anecdote, and it belongs in
+the introduction as well as here.
+
+**M2 — Instrumentation viability.** Pull events are recorded end-to-end through the
+MCP tool registry with per-artifact attribution resolved at registry level from the
+session, never from tool arguments. Demonstrate with a trace, not a claim.
+
+**M3 — Organic pull-through (collect until submission).** The manifest became the
+default on 2026-08-17. Every ordinary working session since then accrues
+`memory_access_events` and `memory_cohorts` rows at no marginal cost. Report whatever
+window exists at submission, with n stated honestly and no inferential claim attached.
+**Prerequisite: confirm the rollup worker is populating `memory_cohorts` — both rollup
+tables were empty at outline time.** If cohorts do not populate in normal solo use,
+M3 does not exist and §6.5 stands on M1 and M2 alone.
+
+State the ceiling on all three: these are **cost and coverage** measurements. None of
+them is an outcome measurement. Say so in the same paragraph, not in a footnote.
+
+#### §6.6 Proposed evaluation (not run)
+
+- **Counterfactual arms** — no memory / push excerpts / manifest+pull, LLM judge,
+  confidence intervals. Specified; not run.
 - **Power analysis, borrowed from 2607.27250.** They needed ~120 tasks to detect 10pp
   and had 15–17. Use their number. Showing you know the sample size your claim would
-  require, and that you do not have it, is exactly the move that makes a
-  design-paper's deferral credible instead of evasive.
+  require, and that you do not have it, is exactly what makes a deferral credible
+  rather than evasive.
+- **On ranker-quality evaluation, and why it is not the gate.** An nDCG-over-labelled-
+  corpus eval answers "is the right artifact ranked first". The question this paper
+  asks is "given an index instead of bodies, does the agent pull at all" — agent
+  behaviour, not ranker quality. Pull-through measures it directly; a labelled corpus
+  would not have answered it. **Include this distinction in the paper.** It is a
+  methodological point most memory-evaluation work elides, and stating it is a small
+  contribution in its own right.
 
 ### §7 Threats to validity (~450 words)
 
@@ -362,15 +401,21 @@ model retraction; compaction breaks baselines; staleness is computable against a
 commit graph in a way it is not for conversational memory; here is a schema, an
 implementation, and an evaluation design.
 
-**May not claim:** that progressive memory improves task success; any token-savings
-percentage; that pull-through correlates with outcome quality; that the manifest model
-beats excerpts (the baseline measurement has not been run); any generalization beyond
-the systems inspected.
+**May not claim:** that progressive memory improves task success; that pull-through
+correlates with outcome quality; that the manifest model produces better *outcomes*
+than excerpts; any generalization beyond the systems inspected.
 
-**The database currently holds 22 access rows, all `push` at
-`session_start_manifest`, and zero pulls.** Do not report a number derived from it.
-If a descriptive statistic is wanted, report the schema and the collection status —
-"instrumentation deployed; systematic collection is future work" — and nothing more.
+**Note the boundary on the 85.8% figure.** It is a measurement of injected bytes for
+one selection on one repository, and it is reportable as exactly that. It is *not* a
+token-savings claim, because bytes removed from the window are not bytes saved if the
+agent then pulls the bodies. Whether net budget falls is an open empirical question
+and the paper must say so where the number appears.
+
+**Collection status at outline time (2026-08-19):** 24 `memory_access_events` rows —
+22 `push` at `session_start_manifest`, 2 `pull` at `query_decisions`. `memory_cohorts`
+and `memory_access_daily` both empty. Re-check before drafting §6.5 and report the
+window that actually exists at submission. Do not extrapolate from a small n; state it
+and move on.
 
 ---
 
@@ -411,16 +456,33 @@ settled gets thrown away.
 
 ---
 
-## 8. Open questions for the author
+## 8. Author decisions
 
-1. **Solo or co-authored?** A second author from the Codex-side work would strengthen
-   the §2 harness analysis and the empirical claims about binary inspection.
+### 8.1 Authorship — RESOLVED: co-authored
+
+Settle before drafting, because it changes who writes §2:
+
+- **Author order and contribution statement.** arXiv has no formal CRediT requirement,
+  but a one-line contribution note is good practice and prevents later ambiguity.
+- **Corresponding author** and affiliation string.
+- **Division of labour.** Natural split: one author owns §2 (harness mechanics, the
+  binary-inspection findings, Table 1) and §5 (instrumentation); the other owns §3
+  (taxonomy) and §4 (design). §1, §6, §7 written jointly and last.
+- Agree the claim ceiling in §6 **before** either of you drafts, so you are not
+  negotiating it during revision.
+
+### 8.2 Remaining open questions
+
+1. **Does `memory_cohorts` populate in normal use?** Blocks M3 in §6.5, and blocks
+   COOD-94's promotion gate independently of the paper. Highest-priority check.
 2. **Does the system get named?** Recommendation: name it in §5 and the artifact
    release, not in the title or abstract. A paper that reads as a product announcement
    gets dismissed regardless of merit.
-3. **Do we ship the Layer-1 eval before submitting?** It is deterministic and cheap.
-   Even one real table would move this from position paper to systems paper. Worth two
-   weeks if the corpus can be assembled.
-4. **Anonymized data-collection campaign?** Two or three developers over a month would
-   give a genuine pull-through number and turn §6 from proposed into reported. This is
-   the highest-leverage thing that could change the paper's class.
+3. **Ranker-quality eval before submitting?** *Decided: no.* It was already de-scoped
+   as the manifest's promotion gate for a documented reason — it scores ranking, not
+   whether the agent pulls. Reviving it for the paper would spend weeks answering a
+   question the paper does not ask. §6.6 explains the distinction instead, which is
+   worth more than the table would have been.
+4. **Data-collection campaign?** *Decided: no.* Out of budget, and n=1-to-3 developers
+   would not have supported an inferential claim anyway. Organic accrual from ordinary
+   use (M3) is free and requires no campaign; it just requires the rollup to work.
