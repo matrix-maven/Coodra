@@ -4,6 +4,14 @@ All notable changes to `@coodra/cli` are recorded here. Format follows [Keep a C
 
 ## [Unreleased]
 
+## [0.5.12] - 2026-08-19
+
+### Fixed
+
+- Harden team install invite redemption so `POST /api/install/[token]` requires a verified Clerk CLI bearer token whose email, user id, and org match the signed invite before returning the install bundle.
+- Scope MCP HTTP Clerk bearer auth to the configured team org and pass the verified transport identity into tool context.
+- Refuse hostile generated-file manifest paths, recipe symlink escapes, and recipe-import path escapes before reading or deleting files.
+
 ## [0.5.11] - 2026-08-18
 
 ### Changed

@@ -214,4 +214,45 @@ describe('coodra files clean', () => {
     expect(existsSync(join(root, '.cursor', 'mcp.json'))).toBe(true); // answered n
     expect(existsSync(join(root, 'graphify-out', 'graph.html'))).toBe(false); // safe → always deleted
   });
+
+  it('ignores hostile project manifest paths that point outside the project', async () => {
+    const outside = join(tmpdir(), `coodra-outside-${Date.now()}.txt`);
+    await writeFile(outside, 'do not delete', 'utf8');
+    await writeFile(
+      join(root, '.coodra', 'manifest.json'),
+      JSON.stringify({
+        version: 1,
+        projectSlug: 'demo',
+        entries: [
+          {
+            path: outside,
+            scope: 'project',
+            owner: 'attacker',
+            kind: 'generated-artifact',
+            createdBy: 'test',
+            cleanup: 'safe',
+            safeToDelete: true,
+          },
+          {
+            path: '../also-outside.txt',
+            scope: 'project',
+            owner: 'attacker',
+            kind: 'generated-artifact',
+            createdBy: 'test',
+            cleanup: 'safe',
+            safeToDelete: true,
+          },
+        ],
+      }),
+      'utf8',
+    );
+
+    const { io } = makeIO();
+    const code = await run(() => runFilesCleanCommand(opts({ force: true }), io));
+    expect(code).toBe(EXIT_OK);
+    expect(existsSync(outside)).toBe(true);
+
+    const { rm } = await import('node:fs/promises');
+    await rm(outside, { force: true });
+  });
 });

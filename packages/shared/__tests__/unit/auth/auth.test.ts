@@ -157,21 +157,58 @@ describe('verifyClerkJwt', () => {
       COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
+      COODRA_EXPECTED_ORG_ID: 'org_abc',
     });
     const id = await verifyClerkJwt('fake-jwt', env);
     expect(id).toEqual({ userId: 'user_xyz', orgId: 'org_abc', source: 'clerk' });
     expect(mockVerifyToken).toHaveBeenCalledWith('fake-jwt', { secretKey: 'sk_test_real' });
   });
 
-  it('maps missing org_id to null', async () => {
+  it('rejects missing org_id', async () => {
     mockVerifyToken.mockResolvedValueOnce({ sub: 'user_solo' });
     const env = baseEnv({
       COODRA_MODE: 'team',
       CLERK_SECRET_KEY: 'sk_test_real',
       CLERK_PUBLISHABLE_KEY: 'pk_test_real',
+      COODRA_EXPECTED_ORG_ID: 'org_abc',
     });
-    const id = await verifyClerkJwt('fake-jwt', env);
-    expect(id).toEqual({ userId: 'user_solo', orgId: null, source: 'clerk' });
+    await expect(verifyClerkJwt('fake-jwt', env)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('rejects a token from a different configured org', async () => {
+    mockVerifyToken.mockResolvedValueOnce({ sub: 'user_xyz', org_id: 'org_other' });
+    const env = baseEnv({
+      COODRA_MODE: 'team',
+      CLERK_SECRET_KEY: 'sk_test_real',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_real',
+      COODRA_EXPECTED_ORG_ID: 'org_abc',
+    });
+    await expect(verifyClerkJwt('fake-jwt', env)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('accepts COODRA_TEAM_ORG_ID as the configured org boundary', async () => {
+    mockVerifyToken.mockResolvedValueOnce({ sub: 'user_xyz', org_id: 'org_team' });
+    const env = baseEnv({
+      COODRA_MODE: 'team',
+      CLERK_SECRET_KEY: 'sk_test_real',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_real',
+      COODRA_TEAM_ORG_ID: 'org_team',
+    });
+    await expect(verifyClerkJwt('fake-jwt', env)).resolves.toEqual({
+      userId: 'user_xyz',
+      orgId: 'org_team',
+      source: 'clerk',
+    });
+  });
+
+  it('rejects team-mode Bearer auth when no expected org is configured', async () => {
+    mockVerifyToken.mockResolvedValueOnce({ sub: 'user_xyz', org_id: 'org_abc' });
+    const env = baseEnv({
+      COODRA_MODE: 'team',
+      CLERK_SECRET_KEY: 'sk_test_real',
+      CLERK_PUBLISHABLE_KEY: 'pk_test_real',
+    });
+    await expect(verifyClerkJwt('fake-jwt', env)).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
   it('throws UnauthorizedError when the SDK rejects the token', async () => {

@@ -294,4 +294,23 @@ describe('ToolRegistry — happy path', () => {
     await registry.handleCall('reqid_tool', { a: 'x' }, 'sess_1');
     expect(seen).toBe('req_fixed_42');
   });
+
+  it('F. propagates verified transport identity into the tool context', async () => {
+    const deps = makeFakeDeps();
+    const registry = new ToolRegistry({ deps });
+    let seen: ToolContext['authenticatedIdentity'] = null;
+    registry.register(
+      makeValidReg({
+        name: 'identity_tool',
+        handler: (async (_input: { a: string }, ctx: ToolContext) => {
+          seen = ctx.authenticatedIdentity;
+          return { b: 'ok' };
+        }) as unknown as ToolRegistration<z.ZodObject<{ a: z.ZodString }>, z.ZodObject<{ b: z.ZodString }>>['handler'],
+      }),
+    );
+    await registry.handleCall('identity_tool', { a: 'x' }, 'sess_1', {
+      authenticatedIdentity: { userId: 'user_a', orgId: 'org_a', source: 'clerk' },
+    });
+    expect(seen).toEqual({ userId: 'user_a', orgId: 'org_a', source: 'clerk' });
+  });
 });

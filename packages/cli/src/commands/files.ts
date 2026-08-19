@@ -1,6 +1,6 @@
 import { rm, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { EXIT_OK, EXIT_USER_RECOVERABLE } from '../exit-codes.js';
 import { detectProjectRoot } from '../lib/detect.js';
 import { type ManifestEntry, pruneManifestEntries, readManifest } from '../lib/project-store/index.js';
@@ -49,6 +49,14 @@ export const DEFAULT_FILES_IO: FilesIO = {
 /** Resolve a manifest entry's path to an absolute path for stat/rm. */
 function absOf(entry: ManifestEntry, root: string): string {
   return isAbsolute(entry.path) ? entry.path : join(root, entry.path);
+}
+
+function projectAbsOf(entry: ManifestEntry, root: string): string | null {
+  if (entry.scope !== 'project' || isAbsolute(entry.path)) return null;
+  const abs = resolve(root, entry.path);
+  const rel = relative(root, abs);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return null;
+  return abs;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -146,9 +154,13 @@ export async function runFilesCleanCommand(
   // Classify each entry into a clean action.
   const plan: CleanPlanItem[] = [];
   for (const entry of manifest.entries) {
-    const abs = absOf(entry, root);
     if (entry.scope === 'global') {
-      plan.push({ entry, abs, action: 'skip-global' });
+      plan.push({ entry, abs: absOf(entry, root), action: 'skip-global' });
+      continue;
+    }
+    const abs = projectAbsOf(entry, root);
+    if (abs === null) {
+      plan.push({ entry, abs: absOf(entry, root), action: 'skip-preserve' });
     } else if (entry.cleanup === 'preserve') {
       plan.push({ entry, abs, action: 'skip-preserve' });
     } else if (!(await exists(abs))) {

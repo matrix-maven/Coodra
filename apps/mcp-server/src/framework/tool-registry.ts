@@ -12,7 +12,7 @@ import {
 } from './idempotency.js';
 import { type JsonSchemaObject, manifestFromZod } from './manifest-from-zod.js';
 import { PolicyDenyError, type PolicyResult } from './policy-wrapper.js';
-import type { ContextDeps, PerCallContext, ToolContext } from './tool-context.js';
+import type { ContextDeps, Identity, PerCallContext, ToolContext } from './tool-context.js';
 
 /**
  * Tool-registration framework. The single source of enforcement for
@@ -267,9 +267,13 @@ export class ToolRegistry {
     rawName: string,
     rawInput: unknown,
     sessionId: string,
-    options: { readonly requestId?: string; readonly agentType?: string } = {},
+    options: {
+      readonly requestId?: string;
+      readonly agentType?: string;
+      readonly authenticatedIdentity?: Identity | null;
+    } = {},
   ): Promise<ToolResult> {
-    const { requestId, agentType = 'unknown' } = options;
+    const { requestId, agentType = 'unknown', authenticatedIdentity = null } = options;
     // Resolve a back-compat alias (e.g. `list_features` → `list_skills`) to its
     // canonical tool. Everything downstream — policy, idempotency, logging —
     // then keys off the canonical name; the alias is a transparent synonym.
@@ -408,6 +412,7 @@ export class ToolRegistry {
       receivedAt,
       idempotencyKey,
       agentType,
+      authenticatedIdentity,
       // Freeze the `now()` closure over `this.clock` so a handler
       // substituting its own clock at runtime has no effect — the
       // injection point is the registry constructor, full stop.

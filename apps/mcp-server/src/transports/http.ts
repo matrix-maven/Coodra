@@ -1,13 +1,14 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
 import { createLogger } from '@coodra/shared';
+import type { Identity } from '@coodra/shared/auth';
 import { getRequestListener } from '@hono/node-server';
 import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { CallToolRequestSchema, type CallToolResult, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { Hono } from 'hono';
-
 import type { McpServerEnv } from '../config/env.js';
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { resolveAgentType } from '../lib/agent-type.js';
@@ -52,6 +53,7 @@ import { SOLO_IDENTITY, verifyClerkJwt, verifyLocalHookSecret } from '../lib/aut
  */
 
 const httpLogger = createLogger('mcp-server.transport-http');
+const authIdentityStore = new AsyncLocalStorage<Identity>();
 
 export interface HttpStartOptions {
   readonly registry: ToolRegistry;
@@ -74,21 +76,26 @@ export interface HttpTransportHandle {
 // knows the dispatch is complete.
 // ---------------------------------------------------------------------------
 
-type AuthOutcome =
-  | { readonly authenticated: true; readonly source: 'solo-bypass' | 'local-hook' | 'clerk'; readonly userId: string }
-  | { readonly authenticated: false };
+type AuthOutcome = { readonly authenticated: true; readonly identity: Identity } | { readonly authenticated: false };
 
 async function authenticate(req: IncomingMessage, env: McpServerEnv): Promise<AuthOutcome> {
   // Layer 1: solo-bypass sentinel. Identity is fixed SOLO_IDENTITY.
   if (env.CLERK_SECRET_KEY === 'sk_test_replace_me' || env.COODRA_MODE === 'solo') {
-    return { authenticated: true, source: 'solo-bypass', userId: SOLO_IDENTITY.userId };
+    return { authenticated: true, identity: SOLO_IDENTITY };
   }
 
   // Layer 2: X-Local-Hook-Secret.
   const hookSecret = req.headers['x-local-hook-secret'];
   if (typeof hookSecret === 'string' && env.LOCAL_HOOK_SECRET) {
     if (verifyLocalHookSecret(hookSecret, env.LOCAL_HOOK_SECRET)) {
-      return { authenticated: true, source: 'local-hook', userId: 'local-hook' };
+      return {
+        authenticated: true,
+        identity: {
+          userId: 'local-hook',
+          orgId: env.COODRA_TEAM_ORG_ID ?? env.COODRA_EXPECTED_ORG_ID ?? null,
+          source: 'local-hook',
+        },
+      };
     }
   }
 
@@ -98,7 +105,7 @@ async function authenticate(req: IncomingMessage, env: McpServerEnv): Promise<Au
     const token = authHeader.slice('Bearer '.length);
     try {
       const identity = await verifyClerkJwt(token, env);
-      return { authenticated: true, source: 'clerk', userId: identity.userId };
+      return { authenticated: true, identity };
     } catch {
       // Fall through to 401.
     }
@@ -133,7 +140,10 @@ function buildSdkServer(opts: HttpStartOptions, sessionId: string): McpSdkServer
     const { name, arguments: args } = req.params;
     const clientName = server.getClientVersion()?.name;
     const agentType = resolveAgentType(clientName, process.env);
-    const result = await registry.handleCall(name, args ?? {}, sessionId, { agentType });
+    const result = await registry.handleCall(name, args ?? {}, sessionId, {
+      agentType,
+      authenticatedIdentity: authIdentityStore.getStore() ?? null,
+    });
     return result as unknown as CallToolResult;
   });
 
@@ -210,8 +220,9 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
           {
             event: 'http_mcp_request',
             method: req.method,
-            authSource: auth.source,
-            userId: auth.userId,
+            authSource: auth.identity.source,
+            userId: auth.identity.userId,
+            orgId: auth.identity.orgId,
             sessionId,
           },
           'mcp request accepted',
@@ -223,7 +234,9 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
           body = await readJsonBody(req);
         }
 
-        await transport.handleRequest(req, res, body);
+        await authIdentityStore.run(auth.identity, async () => {
+          await transport.handleRequest(req, res, body);
+        });
       } catch (err) {
         httpLogger.error(
           { event: 'http_mcp_handler_error', err: err instanceof Error ? err.message : String(err) },

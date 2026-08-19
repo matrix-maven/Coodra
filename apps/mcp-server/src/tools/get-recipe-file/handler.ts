@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import { type DbHandle, lookupProjectBySlug } from '@coodra/db';
@@ -91,7 +91,7 @@ export function createGetFeatureFileHandler(
       };
     }
     const featureDir = join(skillsRoot(project.cwd), input.slug);
-    if (!existsSync(featureDir) || !statSync(featureDir).isDirectory()) {
+    if (!existsSync(featureDir) || !lstatSync(featureDir).isDirectory()) {
       return {
         ok: false,
         error: 'feature_not_found',
@@ -110,8 +110,18 @@ export function createGetFeatureFileHandler(
       };
     }
     const candidate = resolve(featureDir, input.path);
-    const featureDirResolved = resolve(featureDir);
-    const relPath = relative(featureDirResolved, candidate);
+    const featureDirResolved = realpathSync(featureDir);
+    let realCandidate: string;
+    try {
+      realCandidate = realpathSync(candidate);
+    } catch {
+      return {
+        ok: false,
+        error: 'file_not_found',
+        howToFix: `No file at \`${candidate}\`. Call \`coodra__get_recipe\` to list valid paths under this recipe.`,
+      };
+    }
+    const relPath = relative(featureDirResolved, realCandidate);
     if (relPath.startsWith('..') || isAbsolute(relPath)) {
       handlerLogger.warn(
         {
@@ -119,7 +129,7 @@ export function createGetFeatureFileHandler(
           projectSlug: input.projectSlug,
           slug: input.slug,
           requested: input.path,
-          resolved: candidate,
+          resolved: realCandidate,
         },
         'get_recipe_file: refused path traversal attempt',
       );
@@ -131,16 +141,17 @@ export function createGetFeatureFileHandler(
       };
     }
 
-    if (!existsSync(candidate)) {
+    const linkStat = lstatSync(candidate);
+    if (linkStat.isSymbolicLink()) {
       return {
         ok: false,
-        error: 'file_not_found',
-        howToFix: `No file at \`${candidate}\`. Call \`coodra__get_recipe\` to list valid paths under this recipe.`,
+        error: 'path_escape',
+        howToFix: 'Recipe file symlinks are refused; copy the text file into the recipe directory instead.',
       };
     }
     let stat: ReturnType<typeof statSync>;
     try {
-      stat = statSync(candidate);
+      stat = statSync(realCandidate);
     } catch (err) {
       handlerLogger.warn(
         { event: 'get_recipe_file_stat_failed', err: err instanceof Error ? err.message : String(err) },
@@ -189,7 +200,7 @@ export function createGetFeatureFileHandler(
 
     let content: string;
     try {
-      content = readFileSync(candidate, 'utf8');
+      content = readFileSync(realCandidate, 'utf8');
     } catch (err) {
       handlerLogger.warn(
         { event: 'get_recipe_file_read_failed', err: err instanceof Error ? err.message : String(err) },

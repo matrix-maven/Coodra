@@ -254,6 +254,11 @@ export interface PerCallContext {
    */
   readonly agentType: string;
   /**
+   * Identity verified by a request transport, when one exists. stdio has no
+   * caller on the wire; HTTP supplies the Clerk/local-hook/solo identity here.
+   */
+  readonly authenticatedIdentity?: Identity | null;
+  /**
    * Clock injection. Tool handlers call this instead of `new Date()`
    * so tests can inject a frozen clock and the tool code is entirely
    * clock-agnostic. Enforced by `__tests__/unit/tools/_no-raw-date.test.ts`.

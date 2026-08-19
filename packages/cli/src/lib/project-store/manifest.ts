@@ -34,7 +34,35 @@ const manifestEntrySchema = z
     safeToDelete: z.boolean(),
     updatedAt: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((entry, ctx) => {
+    if (entry.scope === 'global') {
+      if (!isAbsolute(entry.path)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['path'],
+          message: 'global manifest paths must be absolute',
+        });
+      }
+      return;
+    }
+    if (isAbsolute(entry.path) || /^[A-Za-z]:[\\/]/.test(entry.path) || entry.path.includes('\\')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['path'],
+        message: 'project manifest paths must be project-relative POSIX paths',
+      });
+      return;
+    }
+    const parts = entry.path.split('/');
+    if (parts.some((part) => part === '' || part === '.' || part === '..')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['path'],
+        message: 'project manifest paths must not contain empty, dot, or dot-dot segments',
+      });
+    }
+  });
 
 export type ManifestEntry = z.infer<typeof manifestEntrySchema>;
 export type ManifestEntryInput = Omit<ManifestEntry, 'updatedAt'>;
@@ -113,7 +141,8 @@ export async function recordManifestEntries(opts: RecordManifestOptions): Promis
   const byPath = new Map<string, ManifestEntry>();
   for (const e of existing?.entries ?? []) byPath.set(e.path, e);
   for (const input of opts.entries) {
-    byPath.set(input.path, { ...input, updatedAt: now() });
+    const entry = manifestEntrySchema.parse({ ...input, updatedAt: now() });
+    byPath.set(entry.path, entry);
   }
   const entries = [...byPath.values()].sort((a, b) =>
     a.scope === b.scope ? a.path.localeCompare(b.path) : a.scope.localeCompare(b.scope),

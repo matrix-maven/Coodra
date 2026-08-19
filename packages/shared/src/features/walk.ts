@@ -1,5 +1,5 @@
-import { existsSync, readdirSync, readFileSync, type Stats, statSync } from 'node:fs';
-import { join, posix, sep } from 'node:path';
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, type Stats, statSync } from 'node:fs';
+import { isAbsolute, join, posix, relative, sep } from 'node:path';
 
 import { parseFeatureMd } from './parse.js';
 import { FEATURE_SLUG_RE } from './schema.js';
@@ -135,7 +135,7 @@ export function walkFeatures(projectCwd: string): FeatureRow[] {
     const dir = join(root, entry);
     let stat: Stats;
     try {
-      stat = statSync(dir);
+      stat = lstatSync(dir);
     } catch {
       continue;
     }
@@ -237,12 +237,18 @@ export function readFeatureRow(slug: string, dir: string): FeatureRow | null {
  */
 function walkFeatureFiles(featureDir: string): FeatureFile[] {
   const out: FeatureFile[] = [];
-  walkRecursive(featureDir, '', 0, out);
+  let rootReal: string;
+  try {
+    rootReal = realpathSync(featureDir);
+  } catch {
+    return out;
+  }
+  walkRecursive(featureDir, rootReal, '', 0, out);
   out.sort((a, b) => a.path.localeCompare(b.path));
   return out;
 }
 
-function walkRecursive(absDir: string, relDir: string, depth: number, out: FeatureFile[]): void {
+function walkRecursive(absDir: string, rootReal: string, relDir: string, depth: number, out: FeatureFile[]): void {
   if (depth > MAX_FILE_DEPTH) return;
   let entries: string[];
   try {
@@ -256,13 +262,18 @@ function walkRecursive(absDir: string, relDir: string, depth: number, out: Featu
     if (SKIP_DIR_NAMES.has(name)) continue;
     const abs = join(absDir, name);
     const rel = relDir === '' ? name : posix.join(relDir, name);
-    const stat = safeStat(abs);
+    const stat = safeLstat(abs);
     if (stat === null) continue;
+    if (stat.isSymbolicLink()) continue;
     if (stat.isDirectory()) {
-      walkRecursive(abs, rel, depth + 1, out);
+      const realDir = safeRealpath(abs);
+      if (realDir === null || !isInside(rootReal, realDir)) continue;
+      walkRecursive(abs, rootReal, rel, depth + 1, out);
       continue;
     }
     if (!stat.isFile()) continue;
+    const realFile = safeRealpath(abs);
+    if (realFile === null || !isInside(rootReal, realFile)) continue;
     out.push({
       path: toPosix(rel),
       bytes: stat.size,
@@ -277,6 +288,27 @@ function safeStat(path: string): Stats | null {
   } catch {
     return null;
   }
+}
+
+function safeLstat(path: string): Stats | null {
+  try {
+    return lstatSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function safeRealpath(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function isInside(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 function toPosix(p: string): string {

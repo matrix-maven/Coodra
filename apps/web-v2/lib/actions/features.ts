@@ -1,7 +1,7 @@
 'use server';
 
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { extname, isAbsolute, join, relative } from 'node:path';
 
 import {
   skillsRoot as featuresRootShared,
@@ -526,6 +526,41 @@ const IMPORT_ITEM_SCHEMA = z.array(
     .strict(),
 );
 
+function isInside(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+function resolveImportSource(absPath: string, cwd: string): { ok: true; path: string } | { ok: false; reason: string } {
+  if (!isAbsolute(absPath)) {
+    return { ok: false, reason: `source path ${absPath} is not absolute` };
+  }
+  let rootReal: string;
+  let sourceReal: string;
+  try {
+    rootReal = realpathSync(cwd);
+    sourceReal = realpathSync(absPath);
+  } catch (err) {
+    return { ok: false, reason: `source path could not be resolved: ${(err as Error).message}` };
+  }
+  if (!isInside(rootReal, sourceReal)) {
+    return { ok: false, reason: `source path ${absPath} is outside the project root` };
+  }
+  let linkStat: ReturnType<typeof lstatSync>;
+  try {
+    linkStat = lstatSync(absPath);
+  } catch (err) {
+    return { ok: false, reason: `source path could not be statted: ${(err as Error).message}` };
+  }
+  if (linkStat.isSymbolicLink()) {
+    return { ok: false, reason: `source path ${absPath} is a symlink; copy the file into the project instead` };
+  }
+  if (!linkStat.isFile()) {
+    return { ok: false, reason: `source path ${absPath} is not a regular file` };
+  }
+  return { ok: true, path: sourceReal };
+}
+
 /**
  * Promote a batch of selected on-disk markdown files to Agent Recipes.
  *
@@ -584,9 +619,9 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
   const failed: Array<{ slug: string; reason: string }> = [];
 
   for (const item of items) {
-    // Path-safety: source must live inside the project cwd.
-    if (!item.absPath.startsWith(cwd)) {
-      failed.push({ slug: item.slug, reason: `source path ${item.absPath} is outside the project root` });
+    const source = resolveImportSource(item.absPath, cwd);
+    if (!source.ok) {
+      failed.push({ slug: item.slug, reason: source.reason });
       continue;
     }
     const targetDir = join(featuresDir, item.slug);
@@ -597,7 +632,7 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
     }
     let raw: string;
     try {
-      raw = readFileSync(item.absPath, 'utf8');
+      raw = readFileSync(source.path, 'utf8');
     } catch (err) {
       failed.push({ slug: item.slug, reason: `read failed: ${(err as Error).message}` });
       continue;

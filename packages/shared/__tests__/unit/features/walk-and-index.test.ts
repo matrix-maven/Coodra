@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -113,6 +113,27 @@ describe('walkFeatures', () => {
     expect(f.files.map((x) => x.path).sort()).toEqual(['examples/charge.ts', 'examples/refund.ts', 'reference.md']);
     // recipe.md is metadata, not a supporting file
     expect(f.files.every((x) => x.path !== 'recipe.md')).toBe(true);
+  });
+
+  it('does not advertise symlinked supporting files or symlinked recipe directories', () => {
+    writeFeature(
+      'with-link',
+      renderFeatureMd({
+        frontmatter: { name: 'with-link', description: 'Use this when verifying recipe symlink handling.' },
+        body: 'body\n',
+      }),
+      { 'safe.txt': 'safe\n' },
+    );
+    const outside = join(tmpdir(), `coodra-recipe-outside-${Date.now()}.txt`);
+    writeFileSync(outside, 'secret\n', 'utf8');
+    symlinkSync(outside, join(featuresRoot(projectCwd), 'with-link', 'leak.txt'));
+    symlinkSync(join(featuresRoot(projectCwd), 'with-link'), join(featuresRoot(projectCwd), 'linked-recipe'));
+
+    const rows = walkFeatures(projectCwd);
+    expect(rows.map((r) => r.slug)).toEqual(['with-link']);
+    expect(rows[0]?.files.map((f) => f.path)).toEqual(['safe.txt']);
+
+    rmSync(outside, { force: true });
   });
 
   it('surfaces parse errors as warnings instead of dropping the row', () => {

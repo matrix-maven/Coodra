@@ -47,4 +47,6 @@ export interface AuthEnv {
   readonly CLERK_PUBLISHABLE_KEY?: string | undefined;
   readonly CLERK_JWT_ISSUER?: string | null | undefined;
   readonly COODRA_MODE?: 'solo' | 'team' | undefined;
+  readonly COODRA_EXPECTED_ORG_ID?: string | null | undefined;
+  readonly COODRA_TEAM_ORG_ID?: string | null | undefined;
 }

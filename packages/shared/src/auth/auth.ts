@@ -31,6 +31,14 @@ const authLogger = createLogger('auth');
 
 const SOLO_BYPASS_CLERK_SENTINEL = 'sk_test_replace_me' as const;
 
+function expectedOrgId(env: AuthEnv): string | null {
+  const explicit = env.COODRA_EXPECTED_ORG_ID;
+  if (typeof explicit === 'string' && explicit.length > 0) return explicit;
+  const teamOrg = env.COODRA_TEAM_ORG_ID;
+  if (typeof teamOrg === 'string' && teamOrg.length > 0) return teamOrg;
+  return null;
+}
+
 /** Stable solo identity. */
 export const SOLO_IDENTITY: Identity = Object.freeze({
   userId: 'user_dev_local',
@@ -132,6 +140,18 @@ export async function verifyClerkJwt(token: string, env: AuthEnv): Promise<Ident
   }
   const orgIdRaw = (payload as Record<string, unknown>).org_id;
   const orgId = typeof orgIdRaw === 'string' && orgIdRaw.length > 0 ? orgIdRaw : null;
+  if (orgId === null) {
+    throw new UnauthorizedError('Clerk JWT verification: payload.org_id is missing or empty');
+  }
+  const expected = expectedOrgId(env);
+  if (env.COODRA_MODE === 'team' && expected === null) {
+    throw new UnauthorizedError(
+      'Clerk JWT verification: COODRA_EXPECTED_ORG_ID or COODRA_TEAM_ORG_ID is required in team mode',
+    );
+  }
+  if (expected !== null && orgId !== expected) {
+    throw new UnauthorizedError('Clerk JWT verification: token org_id does not match the configured team org');
+  }
 
   return {
     userId: sub,

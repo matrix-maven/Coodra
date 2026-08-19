@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -91,6 +92,48 @@ describe('project-store manifest — record/read/prune', () => {
       now: CLOCK,
     });
     expect(await readManifest(root)).toBeNull();
+  });
+
+  it('drops hostile project paths when reading a hand-edited manifest', async () => {
+    await mkdir(join(root, '.coodra'), { recursive: true });
+    await writeFile(
+      join(root, '.coodra', 'manifest.json'),
+      JSON.stringify({
+        version: 1,
+        projectSlug: 'demo',
+        entries: [
+          entry('safe/generated.txt'),
+          entry('/tmp/outside.txt'),
+          entry('../outside.txt'),
+          entry('nested/../outside.txt'),
+          entry('C:\\outside.txt'),
+        ],
+      }),
+      'utf8',
+    );
+    const m = await readManifest(root);
+    expect(m?.entries.map((e) => e.path)).toEqual(['safe/generated.txt']);
+  });
+
+  it('refuses to record absolute or dot-dot project paths', async () => {
+    await expect(
+      recordManifestEntries({
+        root,
+        projectSlug: 'demo',
+        entries: [entry('/tmp/outside.txt')],
+        dryRun: false,
+        now: CLOCK,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      recordManifestEntries({
+        root,
+        projectSlug: 'demo',
+        entries: [entry('../outside.txt')],
+        dryRun: false,
+        now: CLOCK,
+      }),
+    ).rejects.toThrow();
   });
 });
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { extname, isAbsolute, join, relative, resolve } from 'node:path';
 
 import Link from 'next/link';
@@ -75,7 +75,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
   const relPath = pathSegments.map((s) => decodeURIComponent(s)).join('/');
 
   const featureDir = join(featuresRootForProject(projectCwd), featureSlug);
-  if (!existsSync(featureDir) || !statSync(featureDir).isDirectory()) notFound();
+  if (!existsSync(featureDir) || !lstatSync(featureDir).isDirectory()) notFound();
 
   // Path-escape defence. The catch-all route already filters on
   // [...path] but a client can still craft `..` segments or absolute
@@ -83,18 +83,24 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
   // the feature directory.
   if (isAbsolute(relPath) || relPath.split('/').includes('..')) notFound();
   const candidate = resolve(featureDir, relPath);
-  const featureDirResolved = resolve(featureDir);
-  const inside = relative(featureDirResolved, candidate);
+  const featureDirResolved = realpathSync(featureDir);
+  let realCandidate: string;
+  try {
+    realCandidate = realpathSync(candidate);
+  } catch {
+    notFound();
+  }
+  const inside = relative(featureDirResolved, realCandidate);
   if (inside.startsWith('..') || isAbsolute(inside)) notFound();
-  if (!existsSync(candidate)) notFound();
-  const stat = statSync(candidate);
+  if (!existsSync(candidate) || lstatSync(candidate).isSymbolicLink()) notFound();
+  const stat = statSync(realCandidate);
   if (!stat.isFile()) notFound();
 
   const ext = extname(candidate).toLowerCase();
   const allowed = ALLOWED_EXTENSIONS.has(ext);
   const tooLarge = stat.size > MAX_FILE_BYTES;
 
-  const body = allowed && !tooLarge ? safeRead(candidate) : null;
+  const body = allowed && !tooLarge ? safeRead(realCandidate) : null;
 
   const featureUrl = `/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(featureSlug)}`;
 

@@ -143,6 +143,18 @@ const mcpServerEnvSchema = baseEnvSchema
       .url()
       .optional()
       .describe("Clerk tenant JWT issuer URL (e.g. 'https://clerk.<tenant>.dev')."),
+
+    COODRA_EXPECTED_ORG_ID: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Expected Clerk organization id for team-mode MCP HTTP Bearer tokens.'),
+
+    COODRA_TEAM_ORG_ID: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Team organization id; accepted as the default expected org for MCP HTTP Bearer tokens.'),
   })
   .superRefine((env, ctx) => {
     // Addition C of the Module 02 plan: team mode with a non-sentinel

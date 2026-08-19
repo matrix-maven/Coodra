@@ -265,10 +265,8 @@ export async function runTeamJoinInviteCommand(
       headers: {
         'content-type': 'application/json',
         accept: 'application/json',
-        // The JWT establishes identity. The current /api/install route does
-        // its own Clerk-user-by-email lookup, so the header is informational
-        // for now; future Phase G+1 may switch the route to a pure
-        // Bearer-verify model. Either way, sending it is the right shape.
+        // The install route verifies this Clerk token before spending the
+        // invite and returning the bundle.
         authorization: `Bearer ${jwt}`,
       },
       body: JSON.stringify({}),

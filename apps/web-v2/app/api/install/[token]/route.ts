@@ -1,3 +1,4 @@
+import { verifyClerkJwtAndExtractClaims } from '@coodra/shared/auth';
 import { NextResponse } from 'next/server';
 
 import { resolveIdentityMode } from '@/lib/deployment-mode';
@@ -198,11 +199,103 @@ function clerkRoleForInvite(role: 'admin' | 'member' | 'viewer'): string {
   return 'org:member';
 }
 
-export async function POST(_request: Request, { params }: RouteParams): Promise<NextResponse> {
+interface RedeemerProof {
+  readonly userId: string;
+  readonly email: string;
+  readonly orgId: string | null;
+}
+
+async function verifyRedeemerBearer(
+  request: Request,
+  payload: InviteTokenPayload,
+): Promise<{ ok: true; proof: RedeemerProof } | { ok: false; response: NextResponse }> {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader === null || !authHeader.startsWith('Bearer ')) {
+    return {
+      ok: false,
+      response: errorResponse(
+        401,
+        'auth_required',
+        'Redeeming an install invite requires the Clerk CLI login token. Re-run `coodra team join` and complete the browser sign-in step.',
+      ),
+    };
+  }
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (typeof secretKey !== 'string' || secretKey.length === 0 || secretKey === 'sk_test_replace_me') {
+    return {
+      ok: false,
+      response: errorResponse(
+        500,
+        'clerk_auth_misconfigured',
+        'Deployment misconfig: CLERK_SECRET_KEY must be a real Clerk secret key before install invites can be redeemed.',
+      ),
+    };
+  }
+
+  let jwtPayload: Awaited<ReturnType<typeof verifyClerkJwtAndExtractClaims>>;
+  try {
+    jwtPayload = await verifyClerkJwtAndExtractClaims(authHeader.slice('Bearer '.length), {
+      CLERK_SECRET_KEY: secretKey,
+      CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+      CLERK_JWT_ISSUER: process.env.CLERK_JWT_ISSUER,
+      COODRA_MODE: 'team',
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      response: errorResponse(
+        401,
+        'clerk_token_invalid',
+        `The CLI login token could not be verified: ${(err as Error).message}. Re-run \`coodra team join\` and sign in again.`,
+      ),
+    };
+  }
+
+  const userId = jwtPayload.userId;
+  const email = typeof jwtPayload.email === 'string' ? jwtPayload.email.toLowerCase() : null;
+  if (typeof userId !== 'string' || userId.length === 0) {
+    return {
+      ok: false,
+      response: errorResponse(
+        401,
+        'clerk_token_invalid',
+        'The CLI login token is missing a Clerk user id. Sign in again.',
+      ),
+    };
+  }
+  if (email === null || email !== payload.email.toLowerCase()) {
+    return {
+      ok: false,
+      response: errorResponse(
+        403,
+        'invite_email_mismatch',
+        `You're signed in as ${email ?? '(no email claim)'} but this invite is for ${payload.email}. Sign out and sign in as the invited email.`,
+      ),
+    };
+  }
+
+  const orgId = jwtPayload.orgId;
+  if (orgId !== payload.org) {
+    return {
+      ok: false,
+      response: errorResponse(
+        403,
+        'invite_org_mismatch',
+        'The CLI login token belongs to a different Clerk organization. Select the invited organization and retry.',
+      ),
+    };
+  }
+
+  return { ok: true, proof: { userId, email, orgId } };
+}
+
+export async function POST(request: Request, { params }: RouteParams): Promise<NextResponse> {
   const { token } = await params;
   const pre = await preflight(token);
   if (!pre.ok) return pre.response;
   const payload = pre.payload;
+  const redeemer = await verifyRedeemerBearer(request, payload);
+  if (!redeemer.ok) return redeemer.response;
 
   // Phase H.6 — one-email teammate onboarding.
   //
@@ -237,7 +330,8 @@ export async function POST(_request: Request, { params }: RouteParams): Promise<
   //   2. UNIQUE(jti) + race-safe UPDATE — single-use, first-caller-wins.
   //   3. 7-day default expiry — leak window is bounded.
   //   4. Admin can revoke at any time.
-  //   5. Email match — payload.email must equal a verified Clerk address.
+  //   5. Identity match — payload.email/org must match the signed CLI JWT
+  //      and the Clerk user looked up by email must be that JWT's subject.
   const { clerkClient } = await import('@clerk/nextjs/server');
   let resolvedUserId: string;
   try {
@@ -249,11 +343,13 @@ export async function POST(_request: Request, { params }: RouteParams): Promise<
     const candidate = users.data.find((u) =>
       u.emailAddresses.some((e) => e.emailAddress.toLowerCase() === payload.email.toLowerCase()),
     );
-    if (candidate === undefined) {
+    if (candidate === undefined || candidate.id !== redeemer.proof.userId) {
       return errorResponse(
         403,
-        'user_not_in_clerk',
-        `No Clerk user found with email ${payload.email}. Open this invite URL in a browser first — it'll prompt you to sign up with Clerk. After sign-up, re-run this command.`,
+        candidate === undefined ? 'user_not_in_clerk' : 'invite_email_mismatch',
+        candidate === undefined
+          ? `No Clerk user found with email ${payload.email}. Open this invite URL in a browser first — it'll prompt you to sign up with Clerk. After sign-up, re-run this command.`
+          : `The signed-in Clerk user does not match the invited email ${payload.email}. Sign out and sign in as the invited email.`,
       );
     }
     // Membership check — Phase H auto-adds if missing.
