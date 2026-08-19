@@ -251,7 +251,7 @@ Use `npm publish --dry-run` to rehearse.
 
 ## Project Status
 
-Latest package: `@coodra/cli@0.5.12`.
+Latest package: `@coodra/cli@0.5.13`.
 
 Stable surfaces include native plugin wiring, lifecycle events, Coodra MCP,
 Graphify MCP management, Deep Wiki, Work Packs, DB-backed memory, policy
