@@ -14,6 +14,7 @@ import { type CodexCliRunner, removeCodexPlugin } from '../lib/agents/codex-plug
 import { removeCursorPlugin } from '../lib/agents/cursor-plugin.js';
 import { resolveCoodraDataDb, resolveCoodraHome } from '../lib/coodra-home.js';
 import { type DaemonManager, selectDaemonManager } from '../lib/daemon/index.js';
+import { reapPortOwner } from '../lib/daemon-identity.js';
 import { removeClaudeSettings } from '../lib/init/claude-settings-merge.js';
 import { removeCodexConfig } from '../lib/init/codex-merge.js';
 import { removeInstructionBlock } from '../lib/init/instruction-files.js';
@@ -725,6 +726,42 @@ async function stopAndUninstallDaemons(args: {
       steps.push({ step: `daemon:${name}`, action: 'merged', notes: 'stopped + removed unit' });
     } catch (err) {
       steps.push({ step: `daemon:${name}`, action: 'failed', notes: err instanceof Error ? err.message : String(err) });
+    }
+
+    // `manager.stop` boots out a launchd LABEL. A daemon that lost its
+    // label association survives that untouched — and uninstall then
+    // removed the plist and reported "complete" while the process kept
+    // running and kept holding its port. Field report: an orphan
+    // survived eleven days of repeated `coodra uninstall`.
+    //
+    // Uninstall's entire job is to tear the runtime down, so reaping a
+    // process that self-identifies as this service is squarely within
+    // its mandate. A listener that is not ours is recorded, not killed.
+    const descriptor = SERVICES.find((s) => s.name === name);
+    if (descriptor === undefined || descriptor.kind !== 'http') continue;
+    const reaped = await reapPortOwner({
+      url: descriptor.healthUrl(descriptor.port),
+      service: name,
+      home: homePath,
+    });
+    if (reaped.outcome === 'reaped') {
+      steps.push({
+        step: `daemon:${name}:orphan`,
+        action: 'removed',
+        notes: `survived its supervisor holding :${descriptor.port}; terminated pid ${reaped.pid}${reaped.escalated ? ' (SIGKILL)' : ''}`,
+      });
+    } else if (reaped.outcome === 'survived') {
+      steps.push({
+        step: `daemon:${name}:orphan`,
+        action: 'failed',
+        notes: `pid ${reaped.pid} still holding :${descriptor.port} after SIGTERM and SIGKILL`,
+      });
+    } else if (reaped.outcome === 'not_ours') {
+      steps.push({
+        step: `daemon:${name}:orphan`,
+        action: 'unchanged',
+        notes: `:${descriptor.port} held by another process (${reaped.detail}); left alone`,
+      });
     }
   }
 }

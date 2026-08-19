@@ -105,11 +105,30 @@ describe('http transport — GET /healthz', () => {
     await h.close();
   });
 
-  it('returns 200 ok with no auth required', async () => {
+  it('returns 200 with no auth required', async () => {
     const res = await fetch(`${h.url}/healthz`);
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe('ok');
     expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('identifies which process is answering', async () => {
+    // A bare `ok` told a caller only that SOMETHING was listening. That
+    // is the daemon-ownership bug: `coodra start` gated success on a
+    // 200, so an orphan holding the port made start, stop and uninstall
+    // all report success while the launched daemon died of EADDRINUSE.
+    const body = (await (await fetch(`${h.url}/healthz`)).json()) as Record<string, unknown>;
+    expect(body.ok).toBe(true);
+    expect(body.service).toBe('mcp-server');
+    expect(body.pid).toBe(process.pid);
+    expect(typeof body.bootId).toBe('string');
+    expect((body.bootId as string).length).toBeGreaterThan(0);
+    expect(typeof body.startedAt).toBe('string');
+  });
+
+  it('reports a stable bootId across calls, so a restart is detectable', async () => {
+    const first = (await (await fetch(`${h.url}/healthz`)).json()) as { bootId: string };
+    const second = (await (await fetch(`${h.url}/healthz`)).json()) as { bootId: string };
+    expect(second.bootId).toBe(first.bootId);
   });
 
   it('skips the auth chain — header value is irrelevant', async () => {
