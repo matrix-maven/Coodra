@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { createLogger, runKeySegmentSchema } from '@coodra/shared';
 import type { z } from 'zod';
 import { isInstrumentedPullTool } from '../lib/memory-access-recorder.js';
+import { createRunBindingRegistry, type RunBindingRegistry } from '../lib/run-binding.js';
 
 import {
   assertIdempotencyKeyBuilder,
@@ -135,6 +136,11 @@ export interface ToolRegistryOptions {
    * Exposed for tests that want predictable ids.
    */
   readonly mintRequestId?: () => string;
+  /**
+   * Transport-session → run binding used for pull attribution. Defaults
+   * to a fresh registry; tests inject one to assert what got bound.
+   */
+  readonly runBinding?: RunBindingRegistry;
 }
 
 /**
@@ -155,12 +161,13 @@ export class ToolRegistry {
   private readonly deps: ContextDeps;
   private readonly clock: () => Date;
   private readonly mintRequestId: () => string;
+  private readonly runBinding: RunBindingRegistry;
 
   constructor(options: ToolRegistryOptions) {
     if (!options || typeof options !== 'object') {
       throw new TypeError('ToolRegistry requires an options object');
     }
-    const { deps, clock, mintRequestId } = options;
+    const { deps, clock, mintRequestId, runBinding } = options;
     if (!deps || typeof deps !== 'object') {
       throw new TypeError('ToolRegistry options.deps (ContextDeps) is required');
     }
@@ -170,6 +177,7 @@ export class ToolRegistry {
     this.deps = deps;
     this.clock = clock ?? (() => new Date());
     this.mintRequestId = mintRequestId ?? (() => randomUUID());
+    this.runBinding = runBinding ?? createRunBindingRegistry();
   }
 
   /**
@@ -542,6 +550,12 @@ export class ToolRegistry {
         });
     }
 
+    // Learn which run this transport session is serving, from tools
+    // whose `runId` is identity rather than a retrieval filter. Placed
+    // before the pull recorder so a call that both binds and pulls is
+    // attributed on its own turn rather than the next one.
+    this.runBinding.observe({ sessionId, toolName: name, input, output: outValidated.data });
+
     // COOD-80: pull-side memory utilization. Recorded from the tool's
     // OUTPUT after a successful call, never from its input — and the
     // run is resolved inside the recorder from (projectSlug, sessionId),
@@ -565,6 +579,7 @@ export class ToolRegistry {
           idempotencyKey: idempotencyKey.key,
           output: outValidated.data,
           input,
+          boundRunId: this.runBinding.resolve(sessionId),
           latencyMs: Date.now() - handlerStartedAt,
         })
         .catch((err: unknown) => {

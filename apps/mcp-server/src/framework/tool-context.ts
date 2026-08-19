@@ -199,6 +199,8 @@ export interface MemoryAccessRecorder {
     readonly output: unknown;
     /** COOD-102 — hashed into `query_hash`, never stored. */
     readonly input?: unknown;
+    /** Run this transport session is bound to; see `lib/run-binding`. */
+    readonly boundRunId?: string | null;
     readonly latencyMs: number;
   }): Promise<void>;
   recordPush(args: {

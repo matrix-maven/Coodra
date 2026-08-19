@@ -104,6 +104,48 @@ export async function lookupRunBySessionId(
 }
 
 /**
+ * Resolve a run by its own id.
+ *
+ * Sibling of {@link lookupRunBySessionId} for the case where the caller
+ * already holds a canonical `runs.id` — an agent that was handed one by
+ * the SessionStart manifest and passed it to an attribution tool — and
+ * needs the project/org that hang off it.
+ *
+ * Returns `null` for an id that names no row, which is what makes this
+ * safe to call with an id that arrived from a tool input: a fabricated
+ * or stale run cannot be attributed to.
+ */
+export async function lookupRunById(
+  db: DbHandle,
+  runId: string,
+): Promise<{ readonly runId: string; readonly projectId: string | null; readonly orgId: string | null } | null> {
+  try {
+    if (db.kind === 'sqlite') {
+      const rows = await db.db
+        .select({ id: sqliteSchema.runs.id, projectId: sqliteSchema.runs.projectId, orgId: sqliteSchema.runs.orgId })
+        .from(sqliteSchema.runs)
+        .where(eq(sqliteSchema.runs.id, runId))
+        .limit(1);
+      const row = rows[0];
+      return row === undefined ? null : { runId: row.id, projectId: row.projectId, orgId: row.orgId };
+    }
+    const rows = await db.db
+      .select({
+        id: postgresSchema.runs.id,
+        projectId: postgresSchema.runs.projectId,
+        orgId: postgresSchema.runs.orgId,
+      })
+      .from(postgresSchema.runs)
+      .where(eq(postgresSchema.runs.id, runId))
+      .limit(1);
+    const row = rows[0];
+    return row === undefined ? null : { runId: row.id, projectId: row.projectId, orgId: row.orgId };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * COOD-84 — compaction generations.
  *
  * `bumpRunBaselineGeneration` is called when a compaction happens;

@@ -5,6 +5,7 @@ import {
   type DbHandle,
   freshnessForMemoryIds,
   lookupProjectBySlug,
+  lookupRunById,
   lookupRunBySessionId,
   lookupRunId,
   scheduleDurableWrite,
@@ -162,6 +163,21 @@ export interface RecordPullArgs {
    * without the log holding anyone's prose.
    */
   readonly input?: unknown;
+  /**
+   * The run this transport session has been bound to, from
+   * `lib/run-binding`. Consulted only when the (projectSlug, sessionId)
+   * chain above comes up empty, which on stdio is always: `sessionId`
+   * is a transport-minted `stdio-<uuid>` and can never match
+   * `runs.session_id`.
+   *
+   * This is evidence, not a guess. The agent asserted this exact run id
+   * on an earlier attribution call over this same connection, and the
+   * handler validated it against a real row before the call succeeded.
+   * It is emphatically NOT "the most recent live run for the project" —
+   * that would manufacture attributions indistinguishable from real
+   * ones and make pull-through quietly wrong rather than visibly low.
+   */
+  readonly boundRunId?: string | null;
   readonly latencyMs: number;
 }
 
@@ -299,6 +315,19 @@ export function createMemoryAccessRecorder(deps: CreateMemoryAccessRecorderDeps)
           runId = bySession.runId;
           projectId = bySession.projectId;
           orgId = bySession.orgId;
+        }
+      }
+      // Last resort before an unattributed row: the run this connection
+      // was bound to. On stdio the two lookups above cannot succeed at
+      // all, so without this every pull is a miss and `memory_cohorts`
+      // — which requires `run_id IS NOT NULL` — never pairs a surfaced
+      // item with its own retrieval.
+      if (runId === null && typeof args.boundRunId === 'string' && args.boundRunId.length > 0) {
+        const bound = await lookupRunById(deps.db, args.boundRunId);
+        if (bound !== null) {
+          runId = bound.runId;
+          projectId = projectId ?? bound.projectId;
+          orgId = orgId ?? bound.orgId;
         }
       }
       if (runId === null) {

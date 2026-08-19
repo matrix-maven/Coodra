@@ -75,6 +75,7 @@ export { lookupProjectById, lookupProjectBySlug, type ProjectLookupResult } from
 export {
   bumpRunBaselineGeneration,
   getRunBaselineGeneration,
+  lookupRunById,
   lookupRunBySessionId,
   lookupRunId,
   surfacedMemoryIdsForGeneration,
