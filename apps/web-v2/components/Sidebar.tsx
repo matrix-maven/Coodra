@@ -158,7 +158,7 @@ export function Sidebar({
   // Work Pack is an active unit of work being driven through the
   // system, not reference material to look something up in.
   const knowledgeItems: NavItem[] = [
-    { href: '/features', label: 'Agent Recipes', icon: <IconLedger /> },
+    { href: '/recipes', label: 'Agent Recipes', icon: <IconLedger /> },
     { href: '/wiki', label: 'Wiki', icon: <IconGrid /> },
     { href: '/graphify', label: 'Code Graph', icon: <IconGraph /> },
     { href: '/templates', label: 'Templates', icon: <IconGrid /> },

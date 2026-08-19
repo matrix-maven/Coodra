@@ -16,7 +16,7 @@ interface SearchParams {
 }
 
 /**
- * `/projects/[slug]/features/[fslug]` — read-only detail view of one
+ * `/projects/[slug]/recipes/[fslug]` — read-only detail view of one
  * feature. Shows frontmatter, body, supporting-file tree, validation
  * warnings. Phase F adds the edit / upload / remove actions.
  *
@@ -39,7 +39,7 @@ export default async function FeatureDetailPage({
   if (row === null) notFound();
 
   const fm = row.frontmatter;
-  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(row.slug)}`;
+  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/recipes/${encodeURIComponent(row.slug)}`;
 
   return (
     <>
@@ -76,7 +76,7 @@ export default async function FeatureDetailPage({
               maturity: {fm.maturity ?? 'draft'}
             </div>
             <div className="head__actions">
-              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
+              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/recipes`}>
                 ← back to Agent Recipes
               </Link>
               <Link className="btn" href={`${featureUrl}/edit`}>

@@ -1,25 +1,32 @@
 'use server';
 
+import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { extname, isAbsolute, join, relative } from 'node:path';
-
+import { postgresSchema, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import {
+  type FeatureFrontmatter,
   skillsRoot as featuresRootShared,
   generateFeaturesIndex,
+  type ParsedFeatureMd,
   parseFeatureMd,
   renderFeatureMd,
 } from '@coodra/shared/features';
+import { and, eq } from 'drizzle-orm';
 import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { assertActorRole, refuseInTeamHosted } from '@/lib/action-guards';
+import { createWebDb } from '@/lib/db';
+import { resolveIdentityMode } from '@/lib/deployment-mode';
 import { getProject } from '@/lib/queries/projects';
 
 const RECIPE_MD_NAME = 'recipe.md';
 const LEGACY_FEATURE_MD_NAME = 'feature.md';
+const GLOBAL_PROJECT_SLUG = '__global__';
 
 /**
- * `apps/web-v2/lib/actions/features.ts` — server actions for the
+ * `apps/web-v2/lib/actions/recipes.ts` — server actions for the
  * Agent Recipes layer.
  *
  * Five mutating endpoints:
@@ -108,22 +115,231 @@ function firstZodMessage(err: z.ZodError): string {
 function listHref(projectSlug: string, qs: Record<string, string> = {}): string {
   const search = new URLSearchParams(qs);
   const q = search.toString();
-  return `/projects/${encodeURIComponent(projectSlug)}/features${q ? `?${q}` : ''}`;
+  if (projectSlug === GLOBAL_PROJECT_SLUG) return `/recipes/global${q ? `?${q}` : ''}`;
+  return `/projects/${encodeURIComponent(projectSlug)}/recipes${q ? `?${q}` : ''}`;
 }
 
 function detailHref(projectSlug: string, fslug: string, qs: Record<string, string> = {}): string {
   const search = new URLSearchParams(qs);
   const q = search.toString();
-  return `/projects/${encodeURIComponent(projectSlug)}/features/${encodeURIComponent(fslug)}${q ? `?${q}` : ''}`;
+  if (projectSlug === GLOBAL_PROJECT_SLUG) return `/recipes/global/${encodeURIComponent(fslug)}${q ? `?${q}` : ''}`;
+  return `/projects/${encodeURIComponent(projectSlug)}/recipes/${encodeURIComponent(fslug)}${q ? `?${q}` : ''}`;
 }
 
-async function resolveProjectCwd(projectSlug: string): Promise<{ cwd: string }> {
-  // Look up via the same web-side query helper the read paths use.
-  // notFound() if the slug doesn't exist (Next.js routes the action's
-  // caller to the 404 page).
+async function resolveProjectContext(projectSlug: string): Promise<{
+  readonly id: string;
+  readonly orgId: string;
+  readonly cwd: string;
+}> {
   const project = await getProject(projectSlug);
   if (project === null) notFound();
-  return { cwd: project.cwd ?? process.cwd() };
+  return { id: project.id, orgId: project.orgId, cwd: project.cwd ?? process.cwd() };
+}
+
+function stableFrontmatterJson(frontmatter: FeatureFrontmatter): string {
+  return JSON.stringify(
+    {
+      name: frontmatter.name,
+      description: frontmatter.description,
+      ...(frontmatter.whenNotToUse !== undefined && frontmatter.whenNotToUse.length > 0
+        ? { whenNotToUse: frontmatter.whenNotToUse }
+        : {}),
+      ...(frontmatter.maturity !== undefined ? { maturity: frontmatter.maturity } : {}),
+      ...(frontmatter.owners !== undefined ? { owners: frontmatter.owners } : {}),
+      ...(frontmatter.tags !== undefined ? { tags: frontmatter.tags } : {}),
+    },
+    null,
+    2,
+  );
+}
+
+function featureChecksum(frontmatter: string, body: string): string {
+  return createHash('sha256').update(frontmatter).update('\0').update(body).digest('hex');
+}
+
+async function enqueueFeatureSync(featureId: string): Promise<void> {
+  if (resolveIdentityMode() !== 'team') return;
+  const handle = createWebDb();
+  if (handle.kind !== 'sqlite') return;
+  await scheduleDurableWrite(handle, {
+    queue: 'sync_to_cloud',
+    payload: { v: 1 as const, table: 'features' as const, lookup: { kind: 'id' as const, value: featureId } },
+  }).catch(() => {
+    // Best-effort, matching the CLI mirror path. Doctor surfaces stuck sync queues.
+  });
+}
+
+async function upsertRecipeDbMirror(args: {
+  readonly projectId: string;
+  readonly orgId: string;
+  readonly slug: string;
+  readonly frontmatter: FeatureFrontmatter;
+  readonly body: string;
+  readonly status: 'draft' | 'published';
+  readonly actorUserId: string | null;
+}): Promise<void> {
+  const handle = createWebDb();
+  const frontmatter = stableFrontmatterJson(args.frontmatter);
+  const checksum = featureChecksum(frontmatter, args.body);
+  const now = new Date();
+
+  if (handle.kind === 'sqlite') {
+    const t = sqliteSchema.features;
+    const existing = (
+      await handle.db
+        .select({ id: t.id, createdByUserId: t.createdByUserId })
+        .from(t)
+        .where(and(eq(t.projectId, args.projectId), eq(t.slug, args.slug)))
+        .limit(1)
+    )[0];
+    const featureId = existing?.id ?? `feat_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    await handle.db
+      .insert(t)
+      .values({
+        id: featureId,
+        orgId: args.orgId,
+        projectId: args.projectId,
+        slug: args.slug,
+        frontmatter,
+        body: args.body,
+        checksum,
+        status: args.status,
+        createdByUserId: existing?.createdByUserId ?? args.actorUserId,
+        updatedByUserId: args.actorUserId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [t.projectId, t.slug],
+        set: {
+          orgId: args.orgId,
+          frontmatter,
+          body: args.body,
+          checksum,
+          status: args.status,
+          updatedByUserId: args.actorUserId,
+          updatedAt: now,
+        },
+      });
+    await enqueueFeatureSync(featureId);
+    return;
+  }
+
+  const t = postgresSchema.features;
+  const existing = (
+    await handle.db
+      .select({ id: t.id, createdByUserId: t.createdByUserId })
+      .from(t)
+      .where(and(eq(t.projectId, args.projectId), eq(t.slug, args.slug)))
+      .limit(1)
+  )[0];
+  await handle.db
+    .insert(t)
+    .values({
+      id: existing?.id ?? `feat_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+      orgId: args.orgId,
+      projectId: args.projectId,
+      slug: args.slug,
+      frontmatter,
+      body: args.body,
+      checksum,
+      status: args.status,
+      createdByUserId: existing?.createdByUserId ?? args.actorUserId,
+      updatedByUserId: args.actorUserId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [t.projectId, t.slug],
+      set: {
+        orgId: args.orgId,
+        frontmatter,
+        body: args.body,
+        checksum,
+        status: args.status,
+        updatedByUserId: args.actorUserId,
+        updatedAt: now,
+      },
+    });
+}
+
+async function recipeDbMirrorExists(args: { readonly projectId: string; readonly slug: string }): Promise<boolean> {
+  const handle = createWebDb();
+  if (handle.kind === 'sqlite') {
+    const t = sqliteSchema.features;
+    const row = (
+      await handle.db
+        .select({ id: t.id })
+        .from(t)
+        .where(and(eq(t.projectId, args.projectId), eq(t.slug, args.slug)))
+        .limit(1)
+    )[0];
+    return row !== undefined;
+  }
+
+  const t = postgresSchema.features;
+  const row = (
+    await handle.db
+      .select({ id: t.id })
+      .from(t)
+      .where(and(eq(t.projectId, args.projectId), eq(t.slug, args.slug)))
+      .limit(1)
+  )[0];
+  return row !== undefined;
+}
+
+async function deleteRecipeDbMirror(args: { readonly projectId: string; readonly slug: string }): Promise<void> {
+  const handle = createWebDb();
+  if (handle.kind === 'sqlite') {
+    await handle.db
+      .delete(sqliteSchema.features)
+      .where(and(eq(sqliteSchema.features.projectId, args.projectId), eq(sqliteSchema.features.slug, args.slug)));
+    return;
+  }
+  await handle.db
+    .delete(postgresSchema.features)
+    .where(and(eq(postgresSchema.features.projectId, args.projectId), eq(postgresSchema.features.slug, args.slug)));
+}
+
+async function mirrorParsedRecipe(args: {
+  readonly projectId: string;
+  readonly orgId: string;
+  readonly slug: string;
+  readonly parsed: ParsedFeatureMd;
+  readonly actorUserId: string | null;
+}): Promise<void> {
+  if (args.parsed.frontmatter === null) return;
+  await upsertRecipeDbMirror({
+    projectId: args.projectId,
+    orgId: args.orgId,
+    slug: args.slug,
+    frontmatter: args.parsed.frontmatter,
+    body: args.parsed.body,
+    status: 'published',
+    actorUserId: args.actorUserId,
+  });
+}
+
+async function mirrorAllRecipesForProject(args: {
+  readonly projectSlug: string;
+  readonly actorUserId: string | null;
+}): Promise<ReturnType<typeof generateFeaturesIndex>> {
+  const project = await resolveProjectContext(args.projectSlug);
+  const result = generateFeaturesIndex({ projectCwd: project.cwd, projectSlug: args.projectSlug });
+  for (const entry of result.index.features) {
+    const recipePath = authoredRecipePath(join(featuresRootShared(project.cwd), entry.slug));
+    if (recipePath === null) continue;
+    const parsed = parseFeatureMd(readFileSync(recipePath, 'utf8'));
+    if (parsed.errors.length > 0) continue;
+    await mirrorParsedRecipe({
+      projectId: project.id,
+      orgId: project.orgId,
+      slug: entry.slug,
+      parsed,
+      actorUserId: args.actorUserId,
+    });
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,14 +361,11 @@ const CREATE_SCHEMA = z.object({
 });
 
 export async function createFeatureAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
-  await assertActorRole('member');
+  const actor = await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const slug = String(formData.get('slug') ?? '').trim();
 
@@ -173,18 +386,51 @@ export async function createFeatureAction(formData: FormData): Promise<void> {
 
   const parsed = CREATE_SCHEMA.safeParse(raw);
   if (!parsed.success) {
+    const newHref =
+      projectSlug === GLOBAL_PROJECT_SLUG
+        ? '/recipes/global/new'
+        : `/projects/${encodeURIComponent(projectSlug)}/recipes/new`;
     redirect(
-      `/projects/${encodeURIComponent(projectSlug)}/features/new?error=create_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
+      `${newHref}?error=create_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
     );
   }
 
-  const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
+  const project = await resolveProjectContext(parsed.data.projectSlug);
+  const frontmatter: FeatureFrontmatter = {
+    name: parsed.data.slug,
+    description: parsed.data.description,
+    ...(parsed.data.whenNotToUse !== undefined && parsed.data.whenNotToUse.length > 0
+      ? { whenNotToUse: parsed.data.whenNotToUse }
+      : {}),
+    ...(parsed.data.maturity !== undefined ? { maturity: parsed.data.maturity } : {}),
+  };
+  const body = parsed.data.body ?? scaffoldBody(parsed.data.slug);
+
+  if (parsed.data.projectSlug === GLOBAL_PROJECT_SLUG) {
+    if (parsed.data.force !== true && (await recipeDbMirrorExists({ projectId: project.id, slug: parsed.data.slug }))) {
+      redirect(
+        `/recipes/global/new?error=feature_exists&errorMessage=${encodeURIComponent(`Global Agent Recipe "${parsed.data.slug}" already exists. Tick "force overwrite" or pick a different slug.`)}`,
+      );
+    }
+    await upsertRecipeDbMirror({
+      projectId: project.id,
+      orgId: project.orgId,
+      slug: parsed.data.slug,
+      frontmatter,
+      body,
+      status: 'published',
+      actorUserId: actor.userId,
+    });
+    redirect(detailHref(parsed.data.projectSlug, parsed.data.slug, { saved: '1' }));
+  }
+
+  const { cwd } = project;
   const dir = join(featuresRootShared(cwd), parsed.data.slug);
   const featureMdPath = join(dir, RECIPE_MD_NAME);
 
   if (existsSync(featureMdPath) && parsed.data.force !== true) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/new?error=feature_exists&errorMessage=${encodeURIComponent(`Agent Recipe "${parsed.data.slug}" already exists. Tick "force overwrite" or pick a different slug.`)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/new?error=feature_exists&errorMessage=${encodeURIComponent(`Agent Recipe "${parsed.data.slug}" already exists. Tick "force overwrite" or pick a different slug.`)}`,
     );
   }
 
@@ -199,15 +445,8 @@ export async function createFeatureAction(formData: FormData): Promise<void> {
   try {
     mkdirSync(dir, { recursive: true });
     const rendered = renderFeatureMd({
-      frontmatter: {
-        name: parsed.data.slug,
-        description: parsed.data.description,
-        ...(parsed.data.whenNotToUse !== undefined && parsed.data.whenNotToUse.length > 0
-          ? { whenNotToUse: parsed.data.whenNotToUse }
-          : {}),
-        ...(parsed.data.maturity !== undefined ? { maturity: parsed.data.maturity } : {}),
-      },
-      body: parsed.data.body ?? scaffoldBody(parsed.data.slug),
+      frontmatter,
+      body,
     });
     writeFileSync(featureMdPath, rendered, 'utf8');
 
@@ -219,13 +458,22 @@ export async function createFeatureAction(formData: FormData): Promise<void> {
     }
   } catch (err) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/new?error=write_failed&errorMessage=${encodeURIComponent((err as Error).message)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/new?error=write_failed&errorMessage=${encodeURIComponent((err as Error).message)}`,
     );
   }
 
   // Always regenerate the index. Idempotent on no-op.
   try {
     generateFeaturesIndex({ projectCwd: cwd, projectSlug: parsed.data.projectSlug });
+    await upsertRecipeDbMirror({
+      projectId: project.id,
+      orgId: project.orgId,
+      slug: parsed.data.slug,
+      frontmatter,
+      body,
+      status: 'published',
+      actorUserId: actor.userId,
+    });
   } catch {
     // Indexer threw (corrupted recipe.md somewhere). The recipe was
     // written; we still redirect to success but flag the error so the
@@ -246,14 +494,11 @@ const UPLOAD_FILE_SCHEMA = z.object({
 });
 
 export async function uploadFeatureFileAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
-  await assertActorRole('member');
+  const actor = await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const fslug = String(formData.get('fslug') ?? '').trim();
   const parsed = UPLOAD_FILE_SCHEMA.safeParse({ projectSlug, fslug });
@@ -292,7 +537,8 @@ export async function uploadFeatureFileAction(formData: FormData): Promise<void>
     );
   }
 
-  const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
+  const project = await resolveProjectContext(parsed.data.projectSlug);
+  const { cwd } = project;
   const dir = join(featuresRootShared(cwd), parsed.data.fslug);
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     redirect(
@@ -319,6 +565,17 @@ export async function uploadFeatureFileAction(formData: FormData): Promise<void>
 
   try {
     generateFeaturesIndex({ projectCwd: cwd, projectSlug: parsed.data.projectSlug });
+    const recipePath = authoredRecipePath(dir);
+    if (recipePath !== null) {
+      const recipe = parseFeatureMd(readFileSync(recipePath, 'utf8'));
+      await mirrorParsedRecipe({
+        projectId: project.id,
+        orgId: project.orgId,
+        slug: parsed.data.fslug,
+        parsed: recipe,
+        actorUserId: actor.userId,
+      });
+    }
   } catch {
     // see createFeatureAction comment
   }
@@ -340,14 +597,11 @@ const EDIT_META_SCHEMA = z.object({
 });
 
 export async function editFeatureMetaAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
-  await assertActorRole('member');
+  const actor = await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const fslug = String(formData.get('fslug') ?? '').trim();
   const raw = {
@@ -365,12 +619,46 @@ export async function editFeatureMetaAction(formData: FormData): Promise<void> {
   };
   const parsed = EDIT_META_SCHEMA.safeParse(raw);
   if (!parsed.success) {
+    const editHref =
+      projectSlug === GLOBAL_PROJECT_SLUG
+        ? `/recipes/global/${encodeURIComponent(fslug)}/edit`
+        : `/projects/${encodeURIComponent(projectSlug)}/recipes/${encodeURIComponent(fslug)}/edit`;
     redirect(
-      `/projects/${encodeURIComponent(projectSlug)}/features/${encodeURIComponent(fslug)}/edit?error=edit_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
+      `${editHref}?error=edit_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
     );
   }
 
-  const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
+  const project = await resolveProjectContext(parsed.data.projectSlug);
+  if (parsed.data.projectSlug === GLOBAL_PROJECT_SLUG) {
+    const body = parsed.data.body ?? '';
+    const rendered = renderFeatureMd({
+      frontmatter: {
+        name: parsed.data.fslug,
+        description: parsed.data.description,
+        ...(parsed.data.whenNotToUse !== undefined && parsed.data.whenNotToUse.length > 0
+          ? { whenNotToUse: parsed.data.whenNotToUse }
+          : {}),
+        ...(parsed.data.maturity !== undefined ? { maturity: parsed.data.maturity } : {}),
+      },
+      body,
+    });
+    const verify = parseFeatureMd(rendered);
+    if (verify.errors.length > 0) {
+      redirect(
+        `/recipes/global/${encodeURIComponent(parsed.data.fslug)}/edit?error=render_failed&errorMessage=${encodeURIComponent(verify.errors[0] ?? 'rendered recipe.md does not round-trip')}`,
+      );
+    }
+    await mirrorParsedRecipe({
+      projectId: project.id,
+      orgId: project.orgId,
+      slug: parsed.data.fslug,
+      parsed: verify,
+      actorUserId: actor.userId,
+    });
+    redirect(detailHref(parsed.data.projectSlug, parsed.data.fslug, { saved: '1' }));
+  }
+
+  const { cwd } = project;
   const dir = join(featuresRootShared(cwd), parsed.data.fslug);
   const featureMdPath = authoredRecipePath(dir);
   if (featureMdPath === null || !existsSync(featureMdPath)) {
@@ -413,7 +701,7 @@ export async function editFeatureMetaAction(formData: FormData): Promise<void> {
   const verify = parseFeatureMd(rendered);
   if (verify.errors.length > 0) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/${encodeURIComponent(parsed.data.fslug)}/edit?error=render_failed&errorMessage=${encodeURIComponent(verify.errors[0] ?? 'rendered recipe.md does not round-trip')}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/${encodeURIComponent(parsed.data.fslug)}/edit?error=render_failed&errorMessage=${encodeURIComponent(verify.errors[0] ?? 'rendered recipe.md does not round-trip')}`,
     );
   }
 
@@ -421,12 +709,19 @@ export async function editFeatureMetaAction(formData: FormData): Promise<void> {
     writeFileSync(featureMdPath, rendered, 'utf8');
   } catch (err) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/${encodeURIComponent(parsed.data.fslug)}/edit?error=write_failed&errorMessage=${encodeURIComponent((err as Error).message)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/${encodeURIComponent(parsed.data.fslug)}/edit?error=write_failed&errorMessage=${encodeURIComponent((err as Error).message)}`,
     );
   }
 
   try {
     generateFeaturesIndex({ projectCwd: cwd, projectSlug: parsed.data.projectSlug });
+    await mirrorParsedRecipe({
+      projectId: project.id,
+      orgId: project.orgId,
+      slug: parsed.data.fslug,
+      parsed: verify,
+      actorUserId: actor.userId,
+    });
   } catch {
     // see createFeatureAction comment
   }
@@ -445,12 +740,9 @@ const REMOVE_SCHEMA = z.object({
 });
 
 export async function removeFeatureAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
   await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
@@ -478,7 +770,13 @@ export async function removeFeatureAction(formData: FormData): Promise<void> {
       }),
     );
   }
-  const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
+  const project = await resolveProjectContext(parsed.data.projectSlug);
+  if (parsed.data.projectSlug === GLOBAL_PROJECT_SLUG) {
+    await deleteRecipeDbMirror({ projectId: project.id, slug: parsed.data.fslug });
+    redirect(listHref(parsed.data.projectSlug, { removed: parsed.data.fslug }));
+  }
+
+  const { cwd } = project;
   const dir = join(featuresRootShared(cwd), parsed.data.fslug);
   if (!existsSync(dir)) {
     redirect(
@@ -500,6 +798,7 @@ export async function removeFeatureAction(formData: FormData): Promise<void> {
   }
   try {
     generateFeaturesIndex({ projectCwd: cwd, projectSlug: parsed.data.projectSlug });
+    await deleteRecipeDbMirror({ projectId: project.id, slug: parsed.data.fslug });
   } catch {
     // see createFeatureAction comment
   }
@@ -583,20 +882,17 @@ function resolveImportSource(absPath: string, cwd: string): { ok: true; path: st
  * query string so the wizard can re-show them.
  */
 export async function importFeaturesAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
-  await assertActorRole('member');
+  const actor = await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   const payload = String(formData.get('payload') ?? '').trim();
   const parsed = IMPORT_SCHEMA.safeParse({ projectSlug, payload });
   if (!parsed.success) {
     redirect(
-      `/projects/${encodeURIComponent(projectSlug)}/features/import?error=import_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
+      `/projects/${encodeURIComponent(projectSlug)}/recipes/import?error=import_validation_failed&errorMessage=${encodeURIComponent(firstZodMessage(parsed.error))}`,
     );
   }
   let items: Array<{ absPath: string; slug: string; description: string }>;
@@ -604,16 +900,17 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
     items = IMPORT_ITEM_SCHEMA.parse(JSON.parse(parsed.data.payload));
   } catch (err) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/import?error=import_payload_invalid&errorMessage=${encodeURIComponent((err as Error).message)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/import?error=import_payload_invalid&errorMessage=${encodeURIComponent((err as Error).message)}`,
     );
   }
   if (items.length === 0) {
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/import?error=no_items&errorMessage=${encodeURIComponent('Pick at least one file to import.')}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/import?error=no_items&errorMessage=${encodeURIComponent('Pick at least one file to import.')}`,
     );
   }
 
-  const { cwd } = await resolveProjectCwd(parsed.data.projectSlug);
+  const project = await resolveProjectContext(parsed.data.projectSlug);
+  const { cwd } = project;
   const featuresDir = featuresRootShared(cwd);
   const succeeded: string[] = [];
   const failed: Array<{ slug: string; reason: string }> = [];
@@ -640,18 +937,29 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
     // Strip leading frontmatter from the source — we re-emit our own.
     const fmMatch = raw.match(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(\r?\n|$)/);
     const body = fmMatch !== null ? raw.slice(fmMatch[0].length) : raw;
+    const frontmatter: FeatureFrontmatter = {
+      name: item.slug,
+      description: item.description,
+      maturity: 'draft',
+      tags: ['imported'],
+    };
+    const recipeBody = body.replace(/^\s+/, '');
     const rendered = renderFeatureMd({
-      frontmatter: {
-        name: item.slug,
-        description: item.description,
-        maturity: 'draft',
-        tags: ['imported'],
-      },
-      body: body.replace(/^\s+/, ''),
+      frontmatter,
+      body: recipeBody,
     });
     try {
       mkdirSync(targetDir, { recursive: true });
       writeFileSync(targetMd, rendered, 'utf8');
+      await upsertRecipeDbMirror({
+        projectId: project.id,
+        orgId: project.orgId,
+        slug: item.slug,
+        frontmatter,
+        body: recipeBody,
+        status: 'published',
+        actorUserId: actor.userId,
+      });
       succeeded.push(item.slug);
     } catch (err) {
       failed.push({ slug: item.slug, reason: `write failed: ${(err as Error).message}` });
@@ -668,7 +976,7 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
   if (succeeded.length === 0 && failed.length > 0) {
     const reasons = failed.map((f) => `${f.slug}: ${f.reason}`).join(' · ');
     redirect(
-      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/features/import?error=all_imports_failed&errorMessage=${encodeURIComponent(reasons)}`,
+      `/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes/import?error=all_imports_failed&errorMessage=${encodeURIComponent(reasons)}`,
     );
   }
 
@@ -678,7 +986,7 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
     search.set('failed', failed.map((f) => f.slug).join(','));
     search.set('errorMessage', failed.map((f) => `${f.slug}: ${f.reason}`).join(' · '));
   }
-  redirect(`/projects/${encodeURIComponent(parsed.data.projectSlug)}/features?${search.toString()}`);
+  redirect(`/projects/${encodeURIComponent(parsed.data.projectSlug)}/recipes?${search.toString()}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -686,22 +994,18 @@ export async function importFeaturesAction(formData: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function reindexFeaturesAction(formData: FormData): Promise<void> {
-  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk. In
-  // team-hosted mode the deployment server has no repo to write to.
-  // Refuse with a redirect; CLI users still scaffold via `coodra
-  // recipe add`. The Phase 2 invite + Phase 3 deployment plans put
-  // recipe content into Supabase Storage so the web can author them
-  // from any deployment, but that's not Phase 1.
+  // Agent Recipes write to <repo>/.coodra/recipes/<slug>/ on local disk.
+  // Team-hosted deployments have no project checkout to mutate, so authoring is
+  // a local web / CLI workflow.
   refuseInTeamHosted('recipe action');
-  await assertActorRole('member');
+  const actor = await assertActorRole('member');
   const projectSlug = String(formData.get('projectSlug') ?? '').trim();
   if (!PROJECT_SLUG_RE.test(projectSlug)) {
     redirect(`/projects?error=invalid_project_slug`);
   }
-  const { cwd } = await resolveProjectCwd(projectSlug);
   let result: ReturnType<typeof generateFeaturesIndex>;
   try {
-    result = generateFeaturesIndex({ projectCwd: cwd, projectSlug });
+    result = await mirrorAllRecipesForProject({ projectSlug, actorUserId: actor.userId });
   } catch (err) {
     redirect(
       listHref(projectSlug, {

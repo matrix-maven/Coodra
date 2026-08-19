@@ -84,7 +84,7 @@ export default async function ProjectHomePage({
                   </button>
                 </form>
               ) : null}
-              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
+              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/recipes`}>
                 Skills
               </Link>
               <Link className="btn btn--ghost" href={`/runs?project=${encodeURIComponent(project.slug)}`}>
@@ -250,7 +250,7 @@ export default async function ProjectHomePage({
 
         {/* Features panel — skill-style index. Empty state surfaces the
             "Define your first feature" CTA so onboarding from a fresh
-            project lands here, not buried in /features. */}
+            project lands here, not buried in /recipes. */}
         <div className="card" style={{ padding: 28, marginTop: 32 }}>
           <div className="card__head">
             <h2 className="card__title">
@@ -271,10 +271,10 @@ export default async function ProjectHomePage({
               md / spec / code samples that help an agent understand it. We index the triggers; the agent picks what to
               load.
               <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+                <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
                   + Define your first skill
                 </Link>
-                <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
+                <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/recipes`}>
                   Open skills panel
                 </Link>
               </div>
@@ -285,7 +285,7 @@ export default async function ProjectHomePage({
                 {featuresSnap.features.slice(0, 6).map((f) => (
                   <Link
                     key={f.slug}
-                    href={`/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(f.slug)}`}
+                    href={`/projects/${encodeURIComponent(project.slug)}/recipes/${encodeURIComponent(f.slug)}`}
                     className="row"
                     style={{ display: 'grid', textDecoration: 'none' }}
                   >
@@ -323,10 +323,10 @@ export default async function ProjectHomePage({
                 ))}
               </div>
               <div style={{ marginTop: 18, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+                <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
                   + Add recipe
                 </Link>
-                <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
+                <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/recipes`}>
                   Open skills panel
                 </Link>
                 {featuresSnap.features.length > 6 ? (

@@ -11,7 +11,7 @@ import {
 } from '@coodra/shared/features';
 
 /**
- * `apps/web-v2/lib/queries/features.ts` — server-only thin wrappers over
+ * `apps/web-v2/lib/queries/recipes.ts` — server-only thin wrappers over
  * `@coodra/shared/features`. The web app reads from disk
  * directly (no DB layer in v1 — Phase F adds a server action that
  * mutates the same files; the index DB cache is deferred to Phase H).

@@ -11,7 +11,7 @@ import { featuresRootForProject } from '@/lib/queries/features';
 export const dynamic = 'force-dynamic';
 
 /**
- * `/projects/[slug]/features/[fslug]/files/[...path]` — read one
+ * `/projects/[slug]/recipes/[fslug]/files/[...path]` — read one
  * supporting file inside a feature directory and render it inline as
  * a code block.
  *
@@ -102,7 +102,7 @@ export default async function FeatureFilePage({ params }: { params: Promise<Rout
 
   const body = allowed && !tooLarge ? safeRead(realCandidate) : null;
 
-  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(featureSlug)}`;
+  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/recipes/${encodeURIComponent(featureSlug)}`;
 
   return (
     <>

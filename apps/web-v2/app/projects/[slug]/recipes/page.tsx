@@ -21,7 +21,7 @@ interface SearchParams {
 }
 
 /**
- * `/projects/[slug]/features` — read-only list of every Agent Recipe
+ * `/projects/[slug]/recipes` — read-only list of every Agent Recipe
  * feature for the project. Mirrors the layout of `/packs` but scoped to
  * one project and pointed at `<projectCwd>/docs/features/`.
  *
@@ -87,12 +87,12 @@ export default async function ProjectFeaturesPage({
               </form>
               <Link
                 className="btn btn--ghost"
-                href={`/projects/${encodeURIComponent(project.slug)}/features/import`}
+                href={`/projects/${encodeURIComponent(project.slug)}/recipes/import`}
                 title="Scan docs/, specs/, architecture/ for existing markdown files to promote to Agent Recipes"
               >
                 Import existing docs
               </Link>
-              <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+              <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
                 + Add recipe
               </Link>
             </div>
@@ -161,7 +161,7 @@ export default async function ProjectFeaturesPage({
             </p>
             <Link
               className="btn btn--accent"
-              href={`/projects/${encodeURIComponent(project.slug)}/features/new`}
+              href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}
               style={{ fontSize: 14, padding: '14px 22px' }}
             >
               + Define your first recipe
@@ -176,7 +176,7 @@ export default async function ProjectFeaturesPage({
               Run <code style={mono}>coodra recipe add &lt;slug&gt;</code> from the project root, or click below to add
               one via the web wizard.
             </p>
-            <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+            <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
               + Add recipe
             </Link>
           </div>
@@ -185,7 +185,7 @@ export default async function ProjectFeaturesPage({
             {snap.features.map((f) => (
               <Link
                 key={f.slug}
-                href={`/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(f.slug)}`}
+                href={`/projects/${encodeURIComponent(project.slug)}/recipes/${encodeURIComponent(f.slug)}`}
                 className="row"
                 style={{ display: 'grid', textDecoration: 'none' }}
               >

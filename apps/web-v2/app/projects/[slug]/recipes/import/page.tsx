@@ -60,10 +60,10 @@ export default async function ImportFeaturesPage({
               )}
             </div>
             <div className="head__actions">
-              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/features`}>
+              <Link className="btn btn--ghost" href={`/projects/${encodeURIComponent(project.slug)}/recipes`}>
                 ← back to Agent Recipes
               </Link>
-              <Link className="btn" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+              <Link className="btn" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
                 Create blank
               </Link>
             </div>
@@ -96,7 +96,7 @@ export default async function ImportFeaturesPage({
               your spec files anywhere under <code style={mono}>docs/</code> / <code style={mono}>specs/</code> /{' '}
               <code style={mono}>architecture/</code>, or use the blank create form to author one from scratch.
             </p>
-            <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/features/new`}>
+            <Link className="btn btn--accent" href={`/projects/${encodeURIComponent(project.slug)}/recipes/new`}>
               + Create from scratch
             </Link>
           </div>

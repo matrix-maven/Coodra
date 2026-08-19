@@ -29,7 +29,7 @@ export default async function EditFeaturePage({
   if (row === null) notFound();
 
   const fm = row.frontmatter;
-  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/features/${encodeURIComponent(row.slug)}`;
+  const featureUrl = `/projects/${encodeURIComponent(project.slug)}/recipes/${encodeURIComponent(row.slug)}`;
 
   return (
     <>
