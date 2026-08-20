@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull, max, ne, or } from 'drizzle-orm';
+import { and, asc, count, eq, isNull, max, ne, or, sql } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
 import { GLOBAL_PROJECT_ID } from './ensure-global-project.js';
@@ -457,25 +457,254 @@ export interface DeleteProjectResult {
   readonly cascade?: ResetProjectResult;
 }
 
+/**
+ * Delete a project and everything it owns.
+ *
+ * ## Why this is not just `resetProject` plus a DELETE
+ *
+ * `resetProject` clears the five per-run audit tables it reports counts
+ * for. But 23 tables carry an FK to `projects`, and several of the
+ * other 18 point at the very rows reset removes — `work_packs`
+ * .latest_context_pack_id has no `ON DELETE` clause at all, and fifteen
+ * tables reference `runs`. Deleting in reset's order first therefore
+ * fails with `FOREIGN KEY constraint failed` on any project that has
+ * work packs, which is why this is ordered in three phases rather than
+ * reusing reset as a prelude.
+ *
+ * ## Ordering
+ *
+ *   1. **Dependents** — every project-owned table that is NOT one of
+ *      reset's counted five. These reference `runs` and `context_packs`,
+ *      so they have to go before those rows do.
+ *   2. **Counted core** — the same five tables and the same order
+ *      `resetProject` uses, so `cascade` carries truthful numbers.
+ *   3. **Policies** — rules and their dependents by `policy_id`, not by
+ *      `project_id`: `policy_rules.project_id` is NULL on every row in
+ *      practice, because rules are scoped through their policy. A
+ *      `WHERE project_id = ?` sweep of that table is a silent no-op.
+ *
+ * ## Atomicity
+ *
+ * The SQLite path runs inside `db.raw.transaction`, so a constraint
+ * failure anywhere rolls the whole delete back. Without it a mid-way
+ * failure leaves a half-deleted project with no way to resume — worse
+ * than refusing outright, which is what the pre-fix code did.
+ *
+ * The transaction body is deliberately synchronous raw SQL:
+ * better-sqlite3 transactions cannot span an `await`, because the
+ * function must return before the microtask queue runs.
+ */
 export async function deleteProject(db: DbHandle, projectId: string): Promise<DeleteProjectResult> {
   if (projectId === GLOBAL_PROJECT_ID) return { status: 'sentinel_locked', projectId };
-  // First wipe everything per-project (including policies + kill switches).
-  let cascade: ResetProjectResult;
-  try {
-    cascade = await resetProject(db, projectId, { keepPolicies: false });
-  } catch {
-    return { status: 'not_found', projectId };
-  }
+  const project = await getProjectByIdentifier(db, projectId);
+  if (project === null) return { status: 'not_found', projectId };
+  // `getProjectByIdentifier` accepts a slug too; every statement below
+  // keys on the id, so resolve it once here.
+  const id = project.id;
+
   if (db.kind === 'sqlite') {
-    const t = sqliteSchema.projects;
-    const r = (await db.db.delete(t).where(eq(t.id, projectId))) as { changes?: number };
-    if ((r.changes ?? 0) === 0) return { status: 'not_found', projectId, cascade };
+    const run = db.raw.transaction(() => deleteProjectSqlite(db.raw, id, project.slug));
+    const { projectsDeleted, cascade } = run();
+    if (projectsDeleted === 0) return { status: 'not_found', projectId, cascade };
     return { status: 'deleted', projectId, cascade };
   }
+
+  const cascade = await deleteProjectPostgres(db, id, project.slug);
   const t = postgresSchema.projects;
-  const r = await db.db.delete(t).where(eq(t.id, projectId)).returning({ id: t.id });
+  const r = await db.db.delete(t).where(eq(t.id, id)).returning({ id: t.id });
   if (r.length === 0) return { status: 'not_found', projectId, cascade };
   return { status: 'deleted', projectId, cascade };
+}
+
+/**
+ * Project-owned tables that must be cleared BEFORE the counted core,
+ * because they reference `runs` or `context_packs`.
+ *
+ * Ordered leaves-first within itself: link tables before `work_packs`,
+ * `wiki_pages` before `wikis`.
+ *
+ * `policy_decisions` is absent on purpose — `resetProject` counts it,
+ * so it belongs to phase 2. `policy_rules` is absent because its
+ * `project_id` is never populated; it is handled by `policy_id` in
+ * phase 3.
+ */
+const DEPENDENT_PROJECT_TABLES = [
+  'audit_events',
+  'memory_access_events',
+  'memory_access_daily',
+  'memory_cohorts',
+  'control_attestations',
+  'controls',
+  'features',
+  'sync_events',
+  'integration_connections',
+  'external_work_items',
+  'decision_edges',
+  'work_pack_context_pack_links',
+  'work_pack_decision_links',
+  'work_pack_external_links',
+  'work_pack_relationships',
+  'work_packs',
+  'wiki_pages',
+  'wikis',
+  'run_diffs',
+  'pending_jobs',
+] as const;
+
+/**
+ * Policy-owned tables keyed through `policy_id` / rule id rather than
+ * `project_id`. Cleared in phase 3, before `policy_rules` and
+ * `policies` themselves.
+ */
+function deletePolicyDependentsSqlite(raw: SqliteRaw, projectId: string): void {
+  const policyIds = POLICY_IDS_FOR_PROJECT;
+  const ruleIds = RULE_IDS_FOR_PROJECT;
+  raw
+    .prepare(`DELETE FROM policy_exceptions WHERE policy_id IN (${policyIds}) OR rule_id IN (${ruleIds})`)
+    .run(projectId, projectId);
+  raw.prepare(`DELETE FROM policy_grants WHERE target_rule_id IN (${ruleIds})`).run(projectId);
+  raw.prepare(`DELETE FROM policy_versions WHERE policy_id IN (${policyIds})`).run(projectId);
+}
+
+/** Correlated subqueries reused across the policy phase; each takes one `?`. */
+const POLICY_IDS_FOR_PROJECT = 'SELECT id FROM policies WHERE project_id = ?';
+const RULE_IDS_FOR_PROJECT = `SELECT id FROM policy_rules WHERE policy_id IN (${POLICY_IDS_FOR_PROJECT})`;
+
+type SqliteRaw = Extract<DbHandle, { kind: 'sqlite' }>['raw'];
+
+function deleteProjectSqlite(
+  raw: SqliteRaw,
+  projectId: string,
+  projectSlug: string,
+): { projectsDeleted: number; cascade: ResetProjectResult } {
+  // ---- phase 1: dependents -----------------------------------------
+  for (const table of DEPENDENT_PROJECT_TABLES) {
+    raw.prepare(`DELETE FROM ${table} WHERE project_id = ?`).run(projectId);
+  }
+
+  // ---- phase 2: the counted core ------------------------------------
+  //
+  // `policy_decisions` goes FIRST, before anything it points at.
+  // Besides the documented FKs it also carries nullable references to
+  // `policy_exceptions`, `policy_versions`, `policy_grants` and
+  // `run_events` — so clearing the policy graph or the run events ahead
+  // of it fails the constraint. It is the deepest leaf in this schema.
+  //
+  // The predicate is wider than `project_id` on purpose: a decision row
+  // can carry a NULL project_id while still pointing at one of this
+  // project's rules, and that row would block the rule delete later.
+  const policyDecisionsDeleted =
+    raw
+      .prepare(
+        `DELETE FROM policy_decisions
+          WHERE project_id = ?
+             OR run_id IN (SELECT id FROM runs WHERE project_id = ?)
+             OR matched_rule_id IN (${RULE_IDS_FOR_PROJECT})
+             OR matched_exception_id IN (SELECT id FROM policy_exceptions WHERE policy_id IN (${POLICY_IDS_FOR_PROJECT}))
+             OR policy_version_id IN (SELECT id FROM policy_versions WHERE policy_id IN (${POLICY_IDS_FOR_PROJECT}))
+             OR matched_grant_id IN (SELECT id FROM policy_grants WHERE target_rule_id IN (${RULE_IDS_FOR_PROJECT}))`,
+      )
+      .run(projectId, projectId, projectId, projectId, projectId, projectId).changes ?? 0;
+
+  // Now the policy graph's own leaves. These reference `runs`, so they
+  // still have to precede the run delete below.
+  deletePolicyDependentsSqlite(raw, projectId);
+
+  const runIds = (raw.prepare('SELECT id FROM runs WHERE project_id = ?').all(projectId) as Array<{ id: string }>).map(
+    (r) => r.id,
+  );
+  let runEventsDeleted = 0;
+  let decisionsDeleted = 0;
+  if (runIds.length > 0) {
+    const ph = runIds.map(() => '?').join(',');
+    runEventsDeleted = raw.prepare(`DELETE FROM run_events WHERE run_id IN (${ph})`).run(...runIds).changes ?? 0;
+    decisionsDeleted = raw.prepare(`DELETE FROM decisions WHERE run_id IN (${ph})`).run(...runIds).changes ?? 0;
+  }
+  // Decisions attributed to the project but not to any of its runs —
+  // `run_id` is nullable, so a run-id sweep alone leaves them behind to
+  // block the projects delete.
+  decisionsDeleted += raw.prepare('DELETE FROM decisions WHERE project_id = ?').run(projectId).changes ?? 0;
+  const contextPacksDeleted = raw.prepare('DELETE FROM context_packs WHERE project_id = ?').run(projectId).changes ?? 0;
+  const runsDeleted = raw.prepare('DELETE FROM runs WHERE project_id = ?').run(projectId).changes ?? 0;
+
+  // ---- phase 3: policies -------------------------------------------
+  const policyRulesDeleted =
+    raw
+      .prepare('DELETE FROM policy_rules WHERE policy_id IN (SELECT id FROM policies WHERE project_id = ?)')
+      .run(projectId).changes ?? 0;
+  const killSwitchesDeleted =
+    raw
+      .prepare("DELETE FROM kill_switches WHERE project_id = ? OR (scope = 'project' AND target IN (?, ?))")
+      .run(projectId, projectId, projectSlug).changes ?? 0;
+  const policiesDeleted = raw.prepare('DELETE FROM policies WHERE project_id = ?').run(projectId).changes ?? 0;
+
+  // ---- phase 4: the project itself ---------------------------------
+  const projectsDeleted = raw.prepare('DELETE FROM projects WHERE id = ?').run(projectId).changes ?? 0;
+
+  return {
+    projectsDeleted,
+    cascade: {
+      projectId,
+      runsDeleted,
+      runEventsDeleted,
+      policyDecisionsDeleted,
+      decisionsDeleted,
+      contextPacksDeleted,
+      killSwitchesDeleted,
+      policiesDeleted,
+      policyRulesDeleted,
+    },
+  };
+}
+
+/**
+ * Postgres mirror of {@link deleteProjectSqlite}, same three phases.
+ *
+ * Counts are not collected here: the team-mode path reports status
+ * only, and `RETURNING`-counting every statement would double the
+ * round-trips against a remote database for a number no caller reads.
+ * Solo (SQLite) is where `cascade` is surfaced.
+ */
+async function deleteProjectPostgres(
+  db: Extract<DbHandle, { kind: 'postgres' }>,
+  projectId: string,
+  projectSlug: string,
+): Promise<ResetProjectResult> {
+  for (const table of DEPENDENT_PROJECT_TABLES) {
+    await db.db.execute(sql`DELETE FROM ${sql.raw(table)} WHERE project_id = ${projectId}`);
+  }
+  const policyIds = sql`SELECT id FROM policies WHERE project_id = ${projectId}`;
+  const ruleIds = sql`SELECT id FROM policy_rules WHERE policy_id IN (${policyIds})`;
+  await db.db.execute(sql`DELETE FROM policy_decisions WHERE matched_rule_id IN (${ruleIds})`);
+  await db.db.execute(sql`DELETE FROM policy_exceptions WHERE policy_id IN (${policyIds}) OR rule_id IN (${ruleIds})`);
+  await db.db.execute(sql`DELETE FROM policy_grants WHERE target_rule_id IN (${ruleIds})`);
+  await db.db.execute(sql`DELETE FROM policy_versions WHERE policy_id IN (${policyIds})`);
+
+  await db.db.execute(sql`DELETE FROM policy_decisions WHERE project_id = ${projectId}`);
+  await db.db.execute(
+    sql`DELETE FROM run_events WHERE run_id IN (SELECT id FROM runs WHERE project_id = ${projectId})`,
+  );
+  await db.db.execute(sql`DELETE FROM decisions WHERE project_id = ${projectId}`);
+  await db.db.execute(sql`DELETE FROM context_packs WHERE project_id = ${projectId}`);
+  await db.db.execute(sql`DELETE FROM runs WHERE project_id = ${projectId}`);
+
+  await db.db.execute(sql`DELETE FROM policy_rules WHERE policy_id IN (${policyIds})`);
+  await db.db.execute(
+    sql`DELETE FROM kill_switches WHERE project_id = ${projectId} OR (scope = 'project' AND target IN (${projectId}, ${projectSlug}))`,
+  );
+  await db.db.execute(sql`DELETE FROM policies WHERE project_id = ${projectId}`);
+
+  return {
+    projectId,
+    runsDeleted: 0,
+    runEventsDeleted: 0,
+    policyDecisionsDeleted: 0,
+    decisionsDeleted: 0,
+    contextPacksDeleted: 0,
+    killSwitchesDeleted: 0,
+    policiesDeleted: 0,
+    policyRulesDeleted: 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
