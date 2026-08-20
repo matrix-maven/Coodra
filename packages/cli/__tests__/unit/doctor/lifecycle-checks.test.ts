@@ -8,7 +8,12 @@ import { staleRunsCheck } from '../../../src/doctor/checks/30-stale-runs.js';
 import { codexHookRegistrationCheck } from '../../../src/doctor/checks/39-codex-hook-registration.js';
 import { buildCheckContext } from '../../../src/doctor/context.js';
 import { type ClaudeCliRunner, claudePluginPaths, installClaudePlugin } from '../../../src/lib/agents/claude-plugin.js';
-import { type CodexCliRunner, codexPluginPaths, installCodexPlugin } from '../../../src/lib/agents/codex-plugin.js';
+import {
+  type CodexCliRunner,
+  codexPluginPaths,
+  installCodexPlugin,
+  LEGACY_CODEX_PERSONAL_PLUGIN_KEY,
+} from '../../../src/lib/agents/codex-plugin.js';
 import type { AgentContext } from '../../../src/lib/agents/types.js';
 import { openLocalDb } from '../../../src/lib/open-local-db.js';
 
@@ -280,6 +285,21 @@ describe('codexHookRegistrationCheck (39)', () => {
     const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
     expect(result.status).toBe('green');
     expect(result.detail).toMatch(/hook-trust review/);
+  });
+
+  it('YELLOW when a legacy coodra@personal plugin entry points at a missing marketplace', async () => {
+    await installCodexPlugin(agentCtx(), noCliRunner());
+    await mkdir(join(homeDir, '.codex'), { recursive: true });
+    await writeFile(
+      join(homeDir, '.codex', 'config.toml'),
+      `[plugins."${LEGACY_CODEX_PERSONAL_PLUGIN_KEY}"]\nenabled = true\n\n[plugins."coodra@coodra"]\nenabled = true\n\n[marketplaces.coodra]\nsource_type = "local"\nsource = "${join(homeDir, '.coodra', 'codex-marketplaces', 'coodra')}"\n`,
+      'utf8',
+    );
+
+    const result = await codexHookRegistrationCheck.run(ctxWithHome(homeDir, { env: { HOME: homeDir } }));
+    expect(result.status).toBe('yellow');
+    expect(result.detail).toContain(LEGACY_CODEX_PERSONAL_PLUGIN_KEY);
+    expect(result.remediation).toMatch(/coodra agent (add|repair) codex/);
   });
 
   it('YELLOW when nothing is installed yet', async () => {

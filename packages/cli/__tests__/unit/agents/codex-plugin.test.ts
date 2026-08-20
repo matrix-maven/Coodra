@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,8 +8,10 @@ import {
   type CodexCliRunner,
   codexPluginPaths,
   installCodexPlugin,
+  LEGACY_CODEX_PERSONAL_PLUGIN_KEY,
   probeCodexPlugin,
   removeCodexPlugin,
+  removeLegacyPersonalPluginEntry,
 } from '../../../src/lib/agents/codex-plugin.js';
 import type { AgentContext } from '../../../src/lib/agents/types.js';
 
@@ -202,6 +204,22 @@ describe('Codex native plugin installer', () => {
     expect(outcome).toBeDefined();
   });
 
+  it('installCodexPlugin removes the legacy personal-marketplace plugin entry from Codex config.toml', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await mkdir(join(userHome, '.codex'), { recursive: true });
+    await writeFile(
+      paths.configPath,
+      `[plugins."${LEGACY_CODEX_PERSONAL_PLUGIN_KEY}"]\nenabled = true\n\n[plugins."other@personal"]\nenabled = true\n`,
+      'utf8',
+    );
+
+    await installCodexPlugin(ctx(), fakeCliRunner());
+
+    const next = await readFile(paths.configPath, 'utf8');
+    expect(next).not.toContain(LEGACY_CODEX_PERSONAL_PLUGIN_KEY);
+    expect(next).toContain('other@personal');
+  });
+
   it('--dry-run never calls the CLI and writes nothing beyond the source bundle check', async () => {
     const installMarketplaceAndPlugin = vi.fn();
     await installCodexPlugin(ctx({ dryRun: true }), fakeCliRunner({ installMarketplaceAndPlugin }));
@@ -261,6 +279,31 @@ describe('Codex native plugin installer', () => {
     );
     const outcome = result.outcomes.find((o) => o.notes?.includes('boom'));
     expect(outcome?.notes).toContain('bang');
+  });
+
+  it('removeCodexPlugin removes the legacy personal-marketplace plugin entry from Codex config.toml', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await mkdir(join(userHome, '.codex'), { recursive: true });
+    await writeFile(paths.configPath, `[plugins."${LEGACY_CODEX_PERSONAL_PLUGIN_KEY}"]\nenabled = true\n`, 'utf8');
+
+    const result = await removeCodexPlugin(
+      { cwd, userHome, coodraHome, bridgePort: 3101, dryRun: false },
+      fakeCliRunner(),
+    );
+
+    expect(result.outcomes.some((o) => o.notes?.includes(LEGACY_CODEX_PERSONAL_PLUGIN_KEY))).toBe(true);
+    expect(await readFile(paths.configPath, 'utf8')).not.toContain(LEGACY_CODEX_PERSONAL_PLUGIN_KEY);
+  });
+
+  it('removeLegacyPersonalPluginEntry leaves unparsable Codex config.toml untouched', async () => {
+    const paths = codexPluginPaths(userHome, coodraHome);
+    await mkdir(join(userHome, '.codex'), { recursive: true });
+    await writeFile(paths.configPath, '[plugins."\n', 'utf8');
+
+    const result = await removeLegacyPersonalPluginEntry(paths.configPath, false);
+
+    expect(result.action).toBe('unchanged');
+    expect(await readFile(paths.configPath, 'utf8')).toBe('[plugins."\n');
   });
 
   it('probeCodexPlugin reports fully wired when the CLI reports the plugin installed', async () => {

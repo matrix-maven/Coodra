@@ -3,6 +3,7 @@ import { constants as fsConstants } from 'node:fs';
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { VERSION } from '../../version.js';
 import { findExecutableOnPath } from '../executable-discovery.js';
 import { buildCoodraMcpEntry, type CoodraMcpEntry } from '../init/mcp-merge.js';
@@ -15,6 +16,7 @@ const execFile = promisify(execFileCallback);
 export const CODEX_PLUGIN_NAME = 'coodra' as const;
 export const CODEX_MARKETPLACE_NAME = 'coodra' as const;
 export const CODEX_PLUGIN_KEY = `${CODEX_PLUGIN_NAME}@${CODEX_MARKETPLACE_NAME}` as const;
+export const LEGACY_CODEX_PERSONAL_PLUGIN_KEY = `${CODEX_PLUGIN_NAME}@personal` as const;
 
 /**
  * Prefer Codex's own `codex plugin` CLI to register the marketplace and
@@ -159,6 +161,7 @@ export function createCodexCliRunner(timeoutMs: number = CLI_TIMEOUT_MS): CodexC
 export const defaultCodexCliRunner: CodexCliRunner = createCodexCliRunner();
 
 export interface CodexPluginPaths {
+  readonly configPath: string;
   readonly marketplaceRoot: string;
   readonly marketplacePath: string;
   readonly pluginRoot: string;
@@ -174,6 +177,7 @@ export function codexPluginPaths(userHome: string, coodraHome: string = join(use
   const pluginRoot = join(marketplaceRoot, 'plugins', CODEX_PLUGIN_NAME);
   const skillsRoot = join(pluginRoot, 'skills');
   return {
+    configPath: join(userHome, '.codex', 'config.toml'),
     marketplaceRoot,
     marketplacePath: join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json'),
     pluginRoot,
@@ -249,6 +253,7 @@ export async function installCodexPlugin(
   for (const [path, content] of sourceFiles) {
     outcomes.push(await writeGenerated(path, content, ctx.force, ctx.dryRun));
   }
+  outcomes.push(await removeLegacyPersonalPluginEntry(paths.configPath, ctx.dryRun));
 
   if (ctx.dryRun) return { outcomes, paths };
 
@@ -320,10 +325,58 @@ export async function removeCodexPlugin(
     }
   }
 
+  outcomes.push(await removeLegacyPersonalPluginEntry(paths.configPath, ctx.dryRun));
+
   // Coodra's own marketplace SOURCE — fully owned, safe to remove directly
   // regardless of whether the CLI call above succeeded.
   outcomes.push(await removePath(paths.marketplaceRoot, ctx.dryRun, 'removed Coodra Codex marketplace source'));
   return { outcomes, paths };
+}
+
+export async function removeLegacyPersonalPluginEntry(configPath: string, dryRun: boolean): Promise<WriteOutcome> {
+  let raw: string;
+  try {
+    raw = await readFile(configPath, 'utf8');
+  } catch {
+    return {
+      path: configPath,
+      action: 'unchanged',
+      notes: 'Codex config.toml does not exist; no legacy entry to remove',
+    };
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseToml(raw) as Record<string, unknown>;
+  } catch (err) {
+    return {
+      path: configPath,
+      action: 'unchanged',
+      notes: `could not parse Codex config.toml; legacy ${LEGACY_CODEX_PERSONAL_PLUGIN_KEY} entry left untouched (${err instanceof Error ? err.message : String(err)})`,
+    };
+  }
+
+  const plugins = parsed.plugins;
+  if (!isRecord(plugins) || !(LEGACY_CODEX_PERSONAL_PLUGIN_KEY in plugins)) {
+    return {
+      path: configPath,
+      action: 'unchanged',
+      notes: `legacy ${LEGACY_CODEX_PERSONAL_PLUGIN_KEY} entry is not present`,
+    };
+  }
+
+  delete plugins[LEGACY_CODEX_PERSONAL_PLUGIN_KEY];
+  if (Object.keys(plugins).length === 0) delete parsed.plugins;
+  if (!dryRun) await writeFile(configPath, `${stringifyToml(parsed)}\n`, 'utf8');
+  return {
+    path: configPath,
+    action: 'merged',
+    notes: `removed legacy ${LEGACY_CODEX_PERSONAL_PLUGIN_KEY} entry from Codex config.toml`,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 async function removePath(path: string, dryRun: boolean, note: string): Promise<WriteOutcome> {

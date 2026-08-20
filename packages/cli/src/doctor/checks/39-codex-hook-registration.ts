@@ -1,10 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { parse as parseToml } from 'smol-toml';
 import {
   CODEX_MARKETPLACE_NAME,
   CODEX_PLUGIN_NAME,
   createCodexCliRunner,
+  LEGACY_CODEX_PERSONAL_PLUGIN_KEY,
   probeCodexPlugin,
 } from '../../lib/agents/codex-plugin.js';
 import type { Check } from '../types.js';
@@ -84,6 +86,36 @@ async function findLookaroundInCodexCache(userHome: string): Promise<string | nu
   return null;
 }
 
+async function findDanglingCoodraPluginEntry(userHome: string): Promise<string | null> {
+  const configPath = join(userHome, '.codex', 'config.toml');
+  const raw = await readFile(configPath, 'utf8').catch(() => null);
+  if (raw === null) return null;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseToml(raw) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+
+  const plugins = asRecord(parsed.plugins);
+  const marketplaces = asRecord(parsed.marketplaces);
+  if (plugins === null) return null;
+
+  for (const key of Object.keys(plugins)) {
+    if (!key.startsWith(`${CODEX_PLUGIN_NAME}@`) || key === `${CODEX_PLUGIN_NAME}@${CODEX_MARKETPLACE_NAME}`) continue;
+    const marketplaceName = key.slice(`${CODEX_PLUGIN_NAME}@`.length);
+    if (marketplaces === null || !(marketplaceName in marketplaces)) return key;
+  }
+  return null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
 export const codexHookRegistrationCheck: Check = {
   id: 39,
   name: 'Codex native plugin (coodra@coodra) is installed with manifest, MCP, hooks, and skills wired',
@@ -91,6 +123,21 @@ export const codexHookRegistrationCheck: Check = {
   async run(ctx) {
     const userHome = ctx.env.HOME || ctx.env.USERPROFILE || homedir();
     const probe = await probeCodexPlugin({ cwd: ctx.cwd, userHome }, createCodexCliRunner(DOCTOR_CLI_PROBE_TIMEOUT_MS));
+
+    const danglingPluginEntry = await findDanglingCoodraPluginEntry(userHome);
+    if (danglingPluginEntry !== null) {
+      return {
+        status: 'yellow',
+        detail:
+          `Codex config.toml still enables ${danglingPluginEntry}, but no matching marketplace is registered. ` +
+          `This is a legacy Coodra Codex plugin entry from the old personal-marketplace install path; the live plugin should be ` +
+          `${CODEX_PLUGIN_NAME}@${CODEX_MARKETPLACE_NAME}.`,
+        remediation:
+          danglingPluginEntry === LEGACY_CODEX_PERSONAL_PLUGIN_KEY
+            ? 'Run `coodra agent add codex --force` (or `coodra agent repair codex`) to refresh Coodra and remove the legacy personal-marketplace entry, then start a fresh Codex task.'
+            : `Remove the dangling [plugins."${danglingPluginEntry}"] entry from ~/.codex/config.toml or restore its marketplace, then start a fresh Codex task.`,
+      };
+    }
 
     const staleCacheHooksPath = await findLookaroundInCodexCache(userHome);
     if (staleCacheHooksPath !== null) {
