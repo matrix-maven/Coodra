@@ -148,6 +148,12 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
     }
 
     const phase: 'pre' | 'post' = input.eventType === 'PreToolUse' ? 'pre' : 'post';
+    // Match get_run_id's identity precedence: a known transport-level
+    // COODRA_AGENT_TYPE stamp beats an agent-supplied tool argument.
+    // Direct MCP callers sometimes copy examples from another agent
+    // (for example Devin passing agentType: "codex"); policy matching
+    // and audit rows should reflect the authenticated transport.
+    const effectiveAgentType = ctx.agentType !== 'unknown' ? ctx.agentType : input.agentType;
 
     // COOD-61 — kill switches short-circuit BEFORE rule evaluation,
     // preserving the bridge's Module 08b S2 contract on the native path:
@@ -165,7 +171,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
         ? await deps.killSwitchEvaluator.check({
             projectId,
             toolName: input.toolName,
-            agentType: input.agentType,
+            agentType: effectiveAgentType,
           })
         : null;
 
@@ -198,7 +204,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
           projectSlug: input.projectSlug,
           sessionId: input.sessionId,
           toolName: input.toolName,
-          agentType: input.agentType,
+          agentType: effectiveAgentType,
           killSwitchId: killSwitch.matched.id,
           killSwitchScope: killSwitch.matched.scope,
           killSwitchTarget: killSwitch.matched.target,
@@ -246,7 +252,7 @@ export function createCheckPolicyHandler(deps: CheckPolicyHandlerDeps) {
       resolution,
       projectId,
       sessionId: input.sessionId,
-      agentType: input.agentType,
+      agentType: effectiveAgentType,
       eventType: input.eventType,
       toolName: input.toolName,
       ...(input.toolUseId !== undefined ? { toolUseId: input.toolUseId } : {}),

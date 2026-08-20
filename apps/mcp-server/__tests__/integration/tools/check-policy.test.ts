@@ -227,6 +227,31 @@ describe('check_policy — no_rule_matched path', () => {
     // F7 (2026-07-04): no toolUseId → the disambiguator is a hash of the tool input.
     expect(rows[0]?.idempotencyKey).toMatch(/^pd:sess_nrm:noturn-[0-9a-f]{8}:Write:PreToolUse$/);
   });
+
+  it('uses known transport agentType over caller-supplied agentType for direct MCP checks', async () => {
+    const registry = buildRegistry(h);
+    const out = unwrap(
+      await registry.handleCall(
+        'check_policy',
+        {
+          projectSlug: h.slugA,
+          sessionId: 'sess_transport_agent',
+          agentType: 'codex',
+          eventType: 'PreToolUse',
+          toolName: 'exec',
+          toolInput: { command: 'git status' },
+        },
+        'sess_transport_agent',
+        { agentType: 'devin' },
+      ),
+    );
+    expect(out.ok).toBe(true);
+
+    await flushSetImmediate(h.handle);
+    const rows = await h.handle.db.select().from(sqliteSchema.policyDecisions);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.agentType).toBe('devin');
+  });
 });
 
 // ---------------------------------------------------------------------------
