@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const started: string[] = [];
+const status = vi.fn();
 
 vi.mock('../../../src/lib/services.js', () => ({
   resolveServices: vi.fn(async () => [
@@ -49,7 +50,7 @@ vi.mock('../../../src/lib/daemon/index.js', () => ({
       started.push(name);
     }),
     stop: vi.fn(async () => {}),
-    status: vi.fn(async (name: string) => ({ name, state: 'stopped' as const })),
+    status,
     list: vi.fn(async () => []),
     uninstall: vi.fn(async () => {}),
   })),
@@ -121,6 +122,7 @@ describe('coodra start — daemon ownership', () => {
     started.length = 0;
     probePortOccupant.mockReset();
     waitForOwnDaemon.mockReset();
+    status.mockReset().mockResolvedValue({ state: 'stopped' });
     home = mkdtempSync(join(tmpdir(), 'coodra-start-ownership-'));
   });
 
@@ -139,6 +141,25 @@ describe('coodra start — daemon ownership', () => {
     expect(await runAndCaptureExit(home, io)).toBe(EXIT_OK);
     // The pid is printed so the user can tell one daemon from the next.
     expect(out()).toContain('pid 777');
+  });
+
+  it('leaves a healthy managed daemon running on a repeated start', async () => {
+    probePortOccupant.mockResolvedValue({ ...ORPHAN, home });
+    status.mockResolvedValue({ state: 'running', pid: ORPHAN.pid });
+    const { io, out } = makeIO();
+    expect(await runAndCaptureExit(home, io)).toBe(EXIT_OK);
+    expect(out()).toContain('already running on :3100');
+    expect(started).toEqual([]);
+    expect(waitForOwnDaemon).not.toHaveBeenCalled();
+  });
+
+  it('does not accept a managed pid mismatch as already running', async () => {
+    probePortOccupant.mockResolvedValue({ ...ORPHAN, home });
+    status.mockResolvedValue({ state: 'running', pid: 999 });
+    waitForOwnDaemon.mockResolvedValue({ ok: false, reason: 'stale_owner', identity: ORPHAN });
+    const { io, out } = makeIO();
+    expect(await runAndCaptureExit(home, io)).toBe(EXIT_SERVICE_STARTUP_FAILED);
+    expect(out()).not.toContain('already running');
   });
 
   it('fails, naming the pid, when an earlier daemon still holds the port', async () => {

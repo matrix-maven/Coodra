@@ -143,6 +143,41 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
       service.descriptor.kind === 'http' && service.port !== null
         ? await probePortOccupant({ url: service.descriptor.healthUrl(service.port), timeoutMs: 2000 })
         : { kind: 'none' as const };
+    const managed = await manager.status(service.descriptor.name);
+    if (service.descriptor.kind !== 'http' && managed.state === 'running') {
+      io.writeStdout(`${pc.green('✓')} ${service.descriptor.displayName} already running\n`);
+      continue;
+    }
+    if (
+      occupantBefore.kind === 'coodra' &&
+      (occupantBefore.service !== service.descriptor.name ||
+        (occupantBefore.home !== null && occupantBefore.home !== coodraHome))
+    ) {
+      io.writeStderr(
+        `${pc.red('✗')} ${service.descriptor.displayName}: port ${service.port} belongs to another Coodra service or home.\n`,
+      );
+      anyFailure = true;
+      continue;
+    }
+    // Web predates the pid/bootId envelope. Validate its own health
+    // contract, and require a running managed unit before accepting it.
+    const existingWeb =
+      service.descriptor.kind === 'http' &&
+      service.descriptor.name === 'web' &&
+      service.port !== null &&
+      managed.state === 'running'
+        ? await isHealthyCoodraWeb(service.descriptor.healthUrl(service.port))
+        : false;
+    const existingDaemon =
+      occupantBefore.kind === 'coodra' &&
+      occupantBefore.service === service.descriptor.name &&
+      occupantBefore.home === coodraHome &&
+      managed.state === 'running' &&
+      managed.pid === occupantBefore.pid;
+    if (existingWeb || existingDaemon) {
+      io.writeStdout(`${pc.green('✓')} ${service.descriptor.displayName} already running on :${service.port}\n`);
+      continue;
+    }
     if (occupantBefore.kind === 'foreign') {
       io.writeStderr(
         `${pc.red('✗')} ${service.descriptor.displayName}: port ${service.port} is held by something that is not a ` +
@@ -266,6 +301,19 @@ export async function runStartCommand(options: StartOptions = {}, io: StartIO = 
   }
 
   return io.exit(EXIT_OK);
+}
+
+async function isHealthyCoodraWeb(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+    if (!response.ok) return false;
+    const body: unknown = await response.json();
+    if (body === null || typeof body !== 'object') return false;
+    const health = body as Record<string, unknown>;
+    return health.ok === true && health.service === 'web-v2';
+  } catch {
+    return false;
+  }
 }
 
 async function orchestrateTunnel(args: { readonly coodraHome: string; readonly io: StartIO }): Promise<string | null> {

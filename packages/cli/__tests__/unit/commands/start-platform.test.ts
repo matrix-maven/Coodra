@@ -15,6 +15,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const installed: string[] = [];
 const started: string[] = [];
+const status = vi.fn();
+const probe = vi.fn();
 
 vi.mock('../../../src/lib/services.js', () => {
   const http = (name: string, port: number) => ({
@@ -47,7 +49,7 @@ vi.mock('../../../src/lib/daemon/index.js', () => ({
       started.push(name);
     }),
     stop: vi.fn(async () => {}),
-    status: vi.fn(async (name: string) => ({ name, state: 'stopped' as const })),
+    status,
     list: vi.fn(async () => []),
     uninstall: vi.fn(async () => {}),
   })),
@@ -62,7 +64,7 @@ vi.mock('../../../src/lib/wait-for-health.js', () => ({
 // came up" so this suite keeps testing platform gating rather than
 // reaching for a real socket.
 vi.mock('../../../src/lib/daemon-identity.js', () => ({
-  probePortOccupant: vi.fn(async () => ({ kind: 'none' as const })),
+  probePortOccupant: (...args: unknown[]) => probe(...args),
   waitForOwnDaemon: vi.fn(async () => ({
     ok: true as const,
     identity: { kind: 'coodra' as const, service: 'mcp-server', pid: 4242, bootId: 'boot-test', home: null },
@@ -115,11 +117,41 @@ describe('coodra start — web is not platform-gated', () => {
   beforeEach(() => {
     installed.length = 0;
     started.length = 0;
+    status.mockReset().mockResolvedValue({ state: 'stopped' });
+    probe.mockReset().mockResolvedValue({ kind: 'none' });
     home = mkdtempSync(join(tmpdir(), 'coodra-start-platform-'));
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     rmSync(home, { recursive: true, force: true });
+  });
+
+  it('recognizes the existing web health envelope on repeated start', async () => {
+    status.mockResolvedValue({ state: 'running', pid: 123 });
+    probe.mockResolvedValue({ kind: 'foreign', detail: 'responded 200 without a Coodra daemon identity' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ ok: true, service: 'web-v2' })),
+    );
+    const { io, out } = makeIO();
+    expect(await runAndCaptureExit({ home, env: {}, mcp: false, sync: false }, io)).toBe(EXIT_OK);
+    expect(out()).toContain('web already running on :3001');
+    expect(installed).toEqual([]);
+    expect(started).toEqual([]);
+  });
+
+  it('refuses an unrelated web listener even when the unit is running', async () => {
+    status.mockResolvedValue({ state: 'running', pid: 123 });
+    probe.mockResolvedValue({ kind: 'foreign', detail: 'responded 200 without a Coodra daemon identity' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ ok: true, service: 'other-app' })),
+    );
+    const { io, err } = makeIO();
+    expect(await runAndCaptureExit({ home, env: {}, mcp: false, sync: false }, io)).not.toBe(EXIT_OK);
+    expect(err()).toContain('not a Coodra daemon');
+    expect(started).toEqual([]);
   });
 
   it('starts web on win32 when the resolver returns a web service', async () => {
