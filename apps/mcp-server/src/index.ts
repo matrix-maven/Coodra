@@ -207,8 +207,38 @@ async function main(): Promise<void> {
     : null;
 
   let httpHandle: HttpTransportHandle | null = null;
+  let telemetryMaintenance: NodeJS.Timeout | undefined;
+  let telemetryMaintenanceInFlight: Promise<unknown> = Promise.resolve();
   if (startHttp) {
-    httpHandle = await startHttpTransport({ registry, serverName: SERVER_NAME, serverVersion: SERVER_VERSION, env });
+    const { createNativeTelemetryReceiver, pruneNativeTelemetry } = await import('./lib/native-telemetry.js');
+    if (process.env.COODRA_TELEMETRY_ENABLED === '1' && env.COODRA_MODE === 'solo') {
+      const maintain = () => {
+        telemetryMaintenanceInFlight = pruneNativeTelemetry(dbHandle)
+          .then((pruned) => {
+            bootLogger.info({ event: 'native_telemetry_retention', pruned }, 'native telemetry retention pass');
+          })
+          .catch(() => {
+            bootLogger.warn(
+              { event: 'native_telemetry_retention_failed' },
+              'native telemetry retention failed; will retry',
+            );
+          });
+      };
+      maintain();
+      telemetryMaintenance = setInterval(maintain, 60 * 60 * 1000);
+      telemetryMaintenance.unref();
+    }
+    httpHandle = await startHttpTransport({
+      registry,
+      serverName: SERVER_NAME,
+      serverVersion: SERVER_VERSION,
+      env,
+      ...(process.env.COODRA_TELEMETRY_ENABLED === '1' && env.COODRA_MODE === 'solo'
+        ? {
+            telemetryLogs: createNativeTelemetryReceiver({ db: dbHandle, kick: () => outboxWorker.kick() }),
+          }
+        : {}),
+    });
   }
 
   // COOD-62: periodic stale-runs sweep. Gated on `startHttp` — and NOT
@@ -263,6 +293,8 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     bootLogger.info({ event: 'shutdown_signal', signal }, 'shutting down');
+    clearInterval(telemetryMaintenance);
+    await telemetryMaintenanceInFlight;
 
     // Module 03.1: stop the OutboxWorker before closing the DB. The
     // worker.stop() awaits any in-flight dispatch so the last audit

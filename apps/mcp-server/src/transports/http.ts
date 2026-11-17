@@ -13,6 +13,7 @@ import type { McpServerEnv } from '../config/env.js';
 import type { ToolRegistry } from '../framework/tool-registry.js';
 import { resolveAgentType } from '../lib/agent-type.js';
 import { SOLO_IDENTITY, verifyClerkJwt, verifyLocalHookSecret } from '../lib/auth.js';
+import { type TelemetryLogsReceiver, TelemetryRequestError } from '../lib/native-telemetry.js';
 
 /**
  * HTTP (Streamable HTTP) transport for `@coodra/mcp-server` (S16).
@@ -60,6 +61,8 @@ export interface HttpStartOptions {
   readonly serverName: string;
   readonly serverVersion: string;
   readonly env: McpServerEnv;
+  /** Opt-in, local-only native telemetry. Absent means the receiver is disabled. */
+  readonly telemetryLogs?: TelemetryLogsReceiver;
 }
 
 export interface HttpTransportHandle {
@@ -248,6 +251,48 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
     const url = req.url ?? '';
     const pathname = url.split('?')[0];
 
+    const telemetryRoute = /^\/telemetry\/claude_code\/([a-zA-Z0-9_-]{1,128})\/v1\/logs$/.exec(pathname ?? '');
+    if (telemetryRoute && opts.telemetryLogs && env.COODRA_MODE === 'solo') {
+      const reply = (status: number, body: unknown) => {
+        res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify(body));
+      };
+      // A local receiver does not inherit the MCP transport's solo network bypass.
+      const remote = req.socket.remoteAddress;
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remote ?? '') || req.headers.origin) {
+        reply(403, { error: 'local_telemetry_only' });
+      } else if (req.method !== 'POST') {
+        reply(405, { error: 'post_required' });
+      } else if (
+        req.headers['content-type']?.split(';')[0]?.trim() !== 'application/json' ||
+        req.headers['content-encoding']
+      ) {
+        reply(415, { error: 'otlp_http_json_required' });
+      } else {
+        try {
+          const auth = await authenticate(req, env);
+          if (!auth.authenticated) {
+            write401(res, 'no_valid_auth_layer');
+            return;
+          }
+          const body = await readJsonBody(req, false);
+          reply(200, await opts.telemetryLogs(telemetryRoute[1] ?? '', body));
+        } catch (err) {
+          const status = err instanceof TelemetryRequestError ? err.status : err instanceof SyntaxError ? 400 : 503;
+          if (status === 503) res.setHeader('retry-after', '5');
+          reply(status, {
+            error:
+              err instanceof TelemetryRequestError
+                ? err.message
+                : status === 400
+                  ? 'invalid_json'
+                  : 'telemetry_unavailable',
+          });
+        }
+      }
+      return;
+    }
+
     // Route /mcp (POST body, GET stream leg, and DELETE session close per MCP spec)
     // straight to the SDK transport, after auth.
     if (pathname === '/mcp') {
@@ -354,15 +399,16 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
 
 const MAX_BODY_BYTES = 1_048_576 as const; // 1 MiB
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readJsonBody(req: IncomingMessage, destroyOnLimit = true): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let total = 0;
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => {
       total += chunk.length;
       if (total > MAX_BODY_BYTES) {
-        reject(new Error(`request body exceeds ${MAX_BODY_BYTES} bytes`));
-        req.destroy();
+        reject(new TelemetryRequestError(413, 'request_body_too_large'));
+        chunks.length = 0;
+        if (destroyOnLimit) req.destroy();
         return;
       }
       chunks.push(chunk);
