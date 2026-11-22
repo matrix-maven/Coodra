@@ -1,4 +1,6 @@
-# Native telemetry: COOD-105 (implementation reference)
+# Epic 2: Capture verification, telemetry and cost evidence
+
+Implementation reference for [COOD-105](https://matrixmaven.atlassian.net/browse/COOD-105).
 
 Status: implemented on branch `codex/cood-105-telemetry`. Revision 2 moved telemetry out of `run_events` into its own table, `native_telemetry_events`; revision 2.1 fixed two issues found in independent review (upgrade path and queued-job ownership); revision 3 makes the Run optional so evidence is kept even when hooks never created one; revision 4 adds Coodra hook and MCP-server health events; revision 5 adds hook-versus-telemetry reconciliation and the Agent telemetry page; revision 6 adds the Raw events view; revision 7 adds the Codex adapter, a `coodra telemetry` command, a Run-view panel, measured capacity limits and exporter behaviour findings. This document is the implementation reference and the review checklist for an independent validator (see [Reviewer checklist](#reviewer-checklist)).
 

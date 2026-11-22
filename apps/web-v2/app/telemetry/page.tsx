@@ -108,7 +108,7 @@ function EmptyState() {
         Code with <code>CLAUDE_CODE_ENABLE_TELEMETRY=1</code>, <code>OTEL_LOGS_EXPORTER=otlp</code>,{' '}
         <code>OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/json</code> and an endpoint of{' '}
         <code>http://127.0.0.1:&lt;port&gt;/telemetry/claude_code/&lt;project-slug&gt;/v1/logs</code>. Full setup is in{' '}
-        <code>docs/claude-code-telemetry.md</code>.
+        <code>docs/phase 2 implementation/epic-2-capture-verification-telemetry-and-cost-evidence.md</code>.
       </p>
     </div>
   );
