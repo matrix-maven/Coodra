@@ -120,6 +120,7 @@ import {
   type TeamMigrateOptions,
 } from './commands/team-migrate-cmd.js';
 import { runTeamSetupCommand, type TeamSetupOptions } from './commands/team-setup-cmd.js';
+import { runTelemetryCommand, type TelemetryIO, type TelemetryOptions } from './commands/telemetry.js';
 import {
   runTemplateInstallCommand,
   runTemplateListCommand,
@@ -172,6 +173,7 @@ interface BuildProgramOptions {
   readonly stopIO?: StopIO;
   readonly runStop?: (options: StopOptions, io?: StopIO) => Promise<unknown>;
   readonly statusIO?: StatusIO;
+  readonly telemetryIO?: TelemetryIO;
   readonly runStatus?: (options: StatusOptions, io?: StatusIO) => Promise<unknown>;
   readonly metricsIO?: MetricsIO;
   readonly runMetrics?: (options: MetricsOptions, io?: MetricsIO) => Promise<unknown>;
@@ -376,6 +378,18 @@ export function buildProgram(options: BuildProgramOptions = {}): Command {
     .option('--uninstall', 'Also uninstall the daemon-manager units.')
     .action(async (opts: StopOptions) => {
       await stopRunner(opts, options.stopIO);
+    });
+
+  program
+    .command('telemetry <action>')
+    .description(
+      'Native harness telemetry (opt-in, local only): enable | disable | status | env. `env` prints the shell exports for Claude Code.',
+    )
+    .option('--project <slug>', 'Project slug for `env` (defaults to the current project).')
+    .option('--harness <name>', 'For `env`: claude | codex (default: both).')
+    .option('--json', 'Emit structured JSON for `status`.')
+    .action(async (action: string, opts: TelemetryOptions) => {
+      await runTelemetryCommand(action, opts, options.telemetryIO);
     });
 
   const statusRunner = options.runStatus ?? runStatusCommand;

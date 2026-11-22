@@ -17,99 +17,106 @@ describe('coodra --help (snapshot-locked surface)', () => {
       Coodra CLI — install, configure, run, and diagnose Coodra on your machine.
 
       Options:
-        -v, --version             Print the @coodra/cli version and exit.
-        -h, --help                Show help for a command.
+        -v, --version                 Print the @coodra/cli version and exit.
+        -h, --help                    Show help for a command.
 
       Commands:
-        install [options]         Install or repair machine-level Coodra runtime state
-                                  (~/.coodra, data.db, runtime env).
-        init [options]            Initialise Coodra in the current project (writes
-                                  project-local .coodra/ config, manifest, recipes,
-                                  graphify, wiki, and work-packs dirs).
-        start [options]           Start MCP Server + Web Dashboard (+ Sync Daemon in
-                                  team mode) as background daemons.
-        stop [options]            Stop Coodra daemons. Idempotent.
-        status [options]          Print unified project + service state for the
-                                  current cwd.
-        metrics|roi [options]     Print Coodra ROI / value KPIs (knowledge captured,
-                                  reuse, governance, modeled net value) for this
-                                  machine.
-        agents [options]          Show per-agent wiring status (Claude Code, Codex,
-                                  Cursor). Read-only, same report as \`coodra agent
-                                  status\` — use \`coodra agent add|remove\` to change
-                                  wiring.
-        agent                     Wire, re-wire, or strip a single coding agent
-                                  (claude | codex | cursor | devin | antigravity).
-        files                     Inspect or clean the files Coodra generated in this
-                                  project (.coodra/manifest.json).
-        graphify                  Graphify's codebase-graph MCP server (a
-                                  structural-query tool), Coodra-owned via the native
-                                  agent plugin. Option C per ADR-010 / ADR-015 —
-                                  Coodra consumes Graphify by configuration, not code,
-                                  and does not mint Work Packs from it.
-        wiki                      Generate a DeepWiki-style, hierarchical/mind-map
-                                  explanation of this codebase. Your coding agent
-                                  (Claude Code / Codex / Cursor) is the model; Coodra
-                                  ships the grounding, the MCP persistence tools, and
-                                  the web render.
-        work                      Manage Coodra Work Packs under .coodra/work-packs/.
-        login [options]           Browser-handoff Clerk login. Writes
-                                  ~/.coodra/clerk-token.json and switches mode to
-                                  team.
-        org                       Multi-org user commands. Status + switch the active
-                                  Clerk org bound to this laptop.
-        logout                    Log out of team mode. Deletes clerk-token.json,
-                                  demotes config to solo, strips team env keys.
-        invite [options] <email>  Mint a team invite from the CLI. Prints a single
-                                  shareable /install/<token> URL.
-        doctor [options]          Run health checks (read-only). Defaults to the 11
-                                  essential checks for the Claude Code + solo-mode
-                                  path; use --full for the complete 35-check registry
-                                  (debug invariants, team-mode probes, outbox
-                                  observability, lifecycle invariants, M08b
-                                  operational visibility).
-        cloud-migrate [options]   Apply Drizzle Postgres migrations to the cloud
-                                  DATABASE_URL (team-mode self-host). Idempotent.
-                                  Refuses to run if unknown tables contain data — see
-                                  Module 04a OQ4.
-        db                        Database administration: migrate / backup / restore
-                                  the local SQLite primary store.
-        policy                    Manage policies + policy_rules in the local SQLite
-                                  store.
-        project                   Manage project rows in the local SQLite store.
-        export [options] <runId>  Render one run as markdown / json / html / slack.
-                                  Read-only. Per OQ-7, non-JSON formats exclude the
-                                  policy_decisions audit trail by default;
-                                  --include-audit opts in. JSON always includes the
-                                  audit.
-        template                  Manage reusable Coodra templates (bundled +
-                                  user-installed).
-        recipe                    Manage .coodra/recipes/<slug>/ — Agent Recipes the
-                                  agent loads on demand.
-        run                       Inspect + cancel rows in the \`runs\` table.
-        uninstall [options]       Tear down Coodra runtime/plugin wiring.
-                                  Default-safe: preserves ~/.coodra data and every
-                                  registered repo .coodra workspace; --remove-data
-                                  drops only the SQLite store; --purge also removes
-                                  registered project footprints and ~/.coodra/.
-        upgrade [options]         Check for a newer @coodra/cli on npm. Does NOT
-                                  self-update — prints the install command. After
-                                  install, re-run to apply migrations + restart
-                                  daemons.
-        logs [options] <service>  Tail or print recent lines from
-                                  ~/.coodra/logs/<service>.log. Pure file-read; no DB.
-                                  Service ∈ {mcp-server, sync-daemon, web}.
-        pause [options]           Pause Coodra enforcement on the local machine via a
-                                  row in \`kill_switches\`. Hard mode (default) denies;
-                                  soft mode allows + audits. Local-only (M08b OQ-8);
-                                  cross-developer sync is M04.
-        resume [options]          Resume one or more active kill switches. Use --id,
-                                  --all, or --scope[/--target].
-        team                      Team-mode commands. Bodies land when team mode is
-                                  reachable end-to-end (post-Module 04).
-        ui                        Launch the interactive Coodra terminal UI (tabs:
-                                  terminal · commands · status).
-        help [command]            display help for command
+        install [options]             Install or repair machine-level Coodra runtime
+                                      state (~/.coodra, data.db, runtime env).
+        init [options]                Initialise Coodra in the current project (writes
+                                      project-local .coodra/ config, manifest,
+                                      recipes, graphify, wiki, and work-packs dirs).
+        start [options]               Start MCP Server + Web Dashboard (+ Sync Daemon
+                                      in team mode) as background daemons.
+        stop [options]                Stop Coodra daemons. Idempotent.
+        telemetry [options] <action>  Native harness telemetry (opt-in, local only):
+                                      enable | disable | status | env. \`env\` prints
+                                      the shell exports for Claude Code.
+        status [options]              Print unified project + service state for the
+                                      current cwd.
+        metrics|roi [options]         Print Coodra ROI / value KPIs (knowledge
+                                      captured, reuse, governance, modeled net value)
+                                      for this machine.
+        agents [options]              Show per-agent wiring status (Claude Code,
+                                      Codex, Cursor). Read-only, same report as
+                                      \`coodra agent status\` — use \`coodra agent
+                                      add|remove\` to change wiring.
+        agent                         Wire, re-wire, or strip a single coding agent
+                                      (claude | codex | cursor | devin | antigravity).
+        files                         Inspect or clean the files Coodra generated in
+                                      this project (.coodra/manifest.json).
+        graphify                      Graphify's codebase-graph MCP server (a
+                                      structural-query tool), Coodra-owned via the
+                                      native agent plugin. Option C per ADR-010 /
+                                      ADR-015 — Coodra consumes Graphify by
+                                      configuration, not code, and does not mint Work
+                                      Packs from it.
+        wiki                          Generate a DeepWiki-style, hierarchical/mind-map
+                                      explanation of this codebase. Your coding agent
+                                      (Claude Code / Codex / Cursor) is the model;
+                                      Coodra ships the grounding, the MCP persistence
+                                      tools, and the web render.
+        work                          Manage Coodra Work Packs under
+                                      .coodra/work-packs/.
+        login [options]               Browser-handoff Clerk login. Writes
+                                      ~/.coodra/clerk-token.json and switches mode to
+                                      team.
+        org                           Multi-org user commands. Status + switch the
+                                      active Clerk org bound to this laptop.
+        logout                        Log out of team mode. Deletes clerk-token.json,
+                                      demotes config to solo, strips team env keys.
+        invite [options] <email>      Mint a team invite from the CLI. Prints a single
+                                      shareable /install/<token> URL.
+        doctor [options]              Run health checks (read-only). Defaults to the
+                                      11 essential checks for the Claude Code +
+                                      solo-mode path; use --full for the complete
+                                      35-check registry (debug invariants, team-mode
+                                      probes, outbox observability, lifecycle
+                                      invariants, M08b operational visibility).
+        cloud-migrate [options]       Apply Drizzle Postgres migrations to the cloud
+                                      DATABASE_URL (team-mode self-host). Idempotent.
+                                      Refuses to run if unknown tables contain data —
+                                      see Module 04a OQ4.
+        db                            Database administration: migrate / backup /
+                                      restore the local SQLite primary store.
+        policy                        Manage policies + policy_rules in the local
+                                      SQLite store.
+        project                       Manage project rows in the local SQLite store.
+        export [options] <runId>      Render one run as markdown / json / html /
+                                      slack. Read-only. Per OQ-7, non-JSON formats
+                                      exclude the policy_decisions audit trail by
+                                      default; --include-audit opts in. JSON always
+                                      includes the audit.
+        template                      Manage reusable Coodra templates (bundled +
+                                      user-installed).
+        recipe                        Manage .coodra/recipes/<slug>/ — Agent Recipes
+                                      the agent loads on demand.
+        run                           Inspect + cancel rows in the \`runs\` table.
+        uninstall [options]           Tear down Coodra runtime/plugin wiring.
+                                      Default-safe: preserves ~/.coodra data and every
+                                      registered repo .coodra workspace; --remove-data
+                                      drops only the SQLite store; --purge also
+                                      removes registered project footprints and
+                                      ~/.coodra/.
+        upgrade [options]             Check for a newer @coodra/cli on npm. Does NOT
+                                      self-update — prints the install command. After
+                                      install, re-run to apply migrations + restart
+                                      daemons.
+        logs [options] <service>      Tail or print recent lines from
+                                      ~/.coodra/logs/<service>.log. Pure file-read; no
+                                      DB. Service ∈ {mcp-server, sync-daemon, web}.
+        pause [options]               Pause Coodra enforcement on the local machine
+                                      via a row in \`kill_switches\`. Hard mode
+                                      (default) denies; soft mode allows + audits.
+                                      Local-only (M08b OQ-8); cross-developer sync is
+                                      M04.
+        resume [options]              Resume one or more active kill switches. Use
+                                      --id, --all, or --scope[/--target].
+        team                          Team-mode commands. Bodies land when team mode
+                                      is reachable end-to-end (post-Module 04).
+        ui                            Launch the interactive Coodra terminal UI (tabs:
+                                      terminal · commands · status).
+        help [command]                display help for command
       "
     `);
   });

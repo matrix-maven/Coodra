@@ -4,7 +4,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { __internal as envInternal } from '../../../src/config/env.js';
 import { ToolRegistry } from '../../../src/framework/tool-registry.js';
 import { createDbClient } from '../../../src/lib/db.js';
-import { createNativeTelemetryReceiver, pruneNativeTelemetry } from '../../../src/lib/native-telemetry.js';
+import {
+  createNativeTelemetryReceiver,
+  DEFAULT_MAX_RETAINED_EVENTS,
+  DEFAULT_MAX_UNATTACHED_EVENTS,
+  parseTelemetryLimit,
+  pruneNativeTelemetry,
+} from '../../../src/lib/native-telemetry.js';
+import { createGetRunIdToolRegistration } from '../../../src/tools/get-run-id/manifest.js';
 import { type HttpTransportHandle, startHttpTransport } from '../../../src/transports/http.js';
 import { makeFakeDeps } from '../../helpers/fake-deps.js';
 import { drainOutbox } from '../_helpers/drain-outbox.js';
@@ -211,7 +218,9 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
     db.raw.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 2000)
       INSERT INTO pending_jobs (id, queue, payload, run_after)
       SELECT 'native_telemetry_unattached_' || x, 'native_telemetry', '{"runId":null}', 1 FROM n`);
-    await expect(createNativeTelemetryReceiver({ db })('fixture', batch())).rejects.toMatchObject({
+    await expect(
+      createNativeTelemetryReceiver({ db, limits: { maxUnattached: 2_000 } })('fixture', batch()),
+    ).rejects.toMatchObject({
       status: 503,
       message: 'telemetry_unattached_capacity_exceeded',
     });
@@ -270,7 +279,7 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
     db.raw.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 9999)
       INSERT INTO pending_jobs (id, queue, payload, run_after)
       SELECT 'native_telemetry_budget_' || x, 'native_telemetry', '{"runId":"run"}', 1 FROM n`);
-    const receive = createNativeTelemetryReceiver({ db });
+    const receive = createNativeTelemetryReceiver({ db, limits: { maxRetained: 10_000 } });
     const now = BigInt(Date.now()) * 1_000_000n;
     const first = batch('claude_code.api_request', [], String(now));
     const results = await Promise.allSettled([
@@ -523,5 +532,237 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
       expect(await receive('fixture', batch(name))).toMatchObject({ partialSuccess: { rejectedLogRecords: '1' } });
     }
     expect(db.raw.prepare('SELECT id FROM pending_jobs').all()).toHaveLength(0);
+  });
+
+  it('uses measured default budgets and accepts only positive integer overrides', () => {
+    expect(DEFAULT_MAX_RETAINED_EVENTS).toBe(50_000);
+    expect(DEFAULT_MAX_UNATTACHED_EVENTS).toBe(5_000);
+    expect(parseTelemetryLimit('120000', 1)).toBe(120_000);
+    expect(parseTelemetryLimit(undefined, 7)).toBe(7);
+    for (const bad of ['', '0', '-5', '1.5', 'abc', '1e6']) expect(parseTelemetryLimit(bad, 7)).toBe(7);
+  });
+
+  describe('Codex adapter', () => {
+    const conv = 'codex-conversation';
+    const nowNano = () => String(BigInt(Date.now()) * 1_000_000n);
+    /** Shape copied from a real Codex 0.171.0-alpha.13 export: timeUnixNano is "0"; the instant is observed. */
+    const codexBatch = (eventName: string, extra: ReturnType<typeof attr>[] = [], observed = nowNano()) => ({
+      resourceLogs: [
+        {
+          resource: { attributes: [attr('service.name', 'codex_exec'), attr('host.name', 'PRIVATE_HOST')] },
+          scopeLogs: [
+            {
+              logRecords: [
+                {
+                  timeUnixNano: '0',
+                  observedTimeUnixNano: observed,
+                  eventName: 'event otel/src/tool_result.rs:54',
+                  body: {},
+                  attributes: [
+                    attr('event.name', eventName),
+                    attr('conversation.id', conv),
+                    attr('app.version', '0.171.0-alpha.13'),
+                    attr('user.email', 'PRIVATE@example.com'),
+                    attr('user.account_id', 'PRIVATE_ACCOUNT'),
+                    attr('model', 'gpt-x'),
+                    ...extra,
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const post = async (b: unknown, harness: 'claude_code' | 'codex' = 'codex') =>
+      createNativeTelemetryReceiver({ db })('fixture', b, harness);
+
+    beforeEach(() => {
+      db.raw
+        .prepare(
+          "INSERT INTO runs (id, project_id, session_id, agent_type, mode) VALUES ('codex-run', 'project', ?, 'codex', 'solo')",
+        )
+        .run(conv);
+    });
+
+    it('attaches startup evidence through MCP Run creation and repairs attachment on reuse, without claiming another harness', async () => {
+      db.raw.prepare("DELETE FROM runs WHERE id = 'codex-run'").run();
+      db.raw.prepare("UPDATE projects SET cwd = '/tmp/coodra-telemetry-fixture' WHERE id = 'project'").run();
+      await post(codexBatch('codex.conversation_starts'));
+      await drainOutbox(db);
+      expect(events()[0]?.run_id).toBeNull();
+      // Same project/session, different harness: never attach this row to the Codex Run.
+      db.raw
+        .prepare(`INSERT INTO native_telemetry_events
+        (id,project_id,harness,source,event_name,source_time_unix_nano,source_time_ms,session_id,cost_kind)
+        VALUES ('other-harness','project','claude_code','otlp_logs','claude_code.api_error','1',1,?,'unavailable')`)
+        .run(conv);
+      const registry = new ToolRegistry({ deps: makeFakeDeps() });
+      registry.register(createGetRunIdToolRegistration({ db, mode: 'solo' }));
+      const resolve = () =>
+        registry.handleCall(
+          'get_run_id',
+          {
+            projectSlug: 'fixture',
+            agentSessionId: conv,
+            agentType: 'codex',
+          },
+          'fixture-transport',
+          { agentType: 'codex' },
+        );
+      await resolve();
+      const run = db.raw.prepare("SELECT id FROM runs WHERE agent_type = 'codex'").get() as { id: string };
+      expect(run).toBeDefined();
+      const attached = () => db.raw.prepare("SELECT run_id FROM native_telemetry_events WHERE harness = 'codex'").get();
+      expect(attached()).toEqual({ run_id: run.id });
+      db.raw.prepare("UPDATE native_telemetry_events SET run_id = NULL WHERE harness = 'codex'").run();
+      await resolve();
+      expect(attached()).toEqual({ run_id: run.id });
+      expect(db.raw.prepare("SELECT run_id FROM native_telemetry_events WHERE id = 'other-harness'").get()).toEqual({
+        run_id: null,
+      });
+    });
+
+    it('stores tool results as metadata only, dropping arguments, output and account data', async () => {
+      await post(
+        codexBatch('codex.tool_result', [
+          attr('call_id', 'exec-1'),
+          attr('tool_name', 'exec_command'),
+          attr('tool_namespace', 'functions'),
+          attr('duration_ms', '48'),
+          attr('success', 'True'),
+          attr('output_truncated', 'False'),
+          attr('arguments', '{"cmd":"PRIVATE_ARGUMENTS"}'),
+          attr('output', 'PRIVATE_OUTPUT'),
+          attr('mcp_server', ''),
+        ]),
+      );
+      await drainOutbox(db);
+      expect(events()).toMatchObject([
+        {
+          harness: 'codex',
+          run_id: 'codex-run',
+          event_name: 'codex.tool_result',
+          session_id: conv,
+          tool_use_id: 'exec-1',
+          tool_name: 'exec_command',
+          duration_ms: 48,
+          success: 1,
+          model: 'gpt-x',
+          app_version: '0.171.0-alpha.13',
+          cost_kind: 'unavailable',
+          cost_usd_micros: null,
+        },
+      ]);
+      const dump = JSON.stringify(events());
+      for (const secret of ['PRIVATE_ARGUMENTS', 'PRIVATE_OUTPUT', 'PRIVATE@', 'PRIVATE_ACCOUNT', 'PRIVATE_HOST']) {
+        expect(dump).not.toContain(secret);
+      }
+      expect(JSON.parse(String(events()[0]?.attributes_json))).toMatchObject({
+        tool_namespace: 'functions',
+        output_truncated: false,
+      });
+    });
+
+    it('takes the source time from observedTimeUnixNano and falls back to the ISO event.timestamp', async () => {
+      const observed = String(BigInt(Date.now() - 1_000) * 1_000_000n);
+      await post(codexBatch('codex.tool_result', [attr('call_id', 'a')], observed));
+      const iso = new Date(Date.now() - 2_000).toISOString();
+      const fallback = codexBatch('codex.tool_result', [attr('call_id', 'b'), attr('event.timestamp', iso)]);
+      const record = fallback.resourceLogs[0]?.scopeLogs[0]?.logRecords[0] as Record<string, unknown>;
+      record.observedTimeUnixNano = undefined;
+      await post(fallback);
+      await drainOutbox(db);
+      const rows = events();
+      expect(rows.map((r) => r.tool_use_id)).toEqual(['b', 'a']);
+      expect(rows[1]?.source_time_ms).toBe(Number(BigInt(observed) / 1_000_000n));
+      expect(rows[0]?.source_time_ms).toBe(Date.parse(iso));
+    });
+
+    it('maps the completed response to token usage and ignores streaming events', async () => {
+      await post(
+        codexBatch('codex.sse_event', [
+          attr('event.kind', 'response.completed'),
+          attr('input_token_count', '120'),
+          attr('output_token_count', '30'),
+          attr('cached_token_count', '100'),
+          attr('cache_write_token_count', '5'),
+          attr('reasoning_token_count', '7'),
+        ]),
+      );
+      expect(
+        await post(codexBatch('codex.sse_event', [attr('event.kind', 'response.output_text.delta')])),
+      ).toMatchObject({ partialSuccess: { rejectedLogRecords: '1' } });
+      await drainOutbox(db);
+      expect(events()).toMatchObject([
+        {
+          event_name: 'codex.response_completed',
+          input_tokens: 120,
+          output_tokens: 30,
+          cache_read_tokens: 100,
+          cache_creation_tokens: 5,
+          cost_kind: 'unavailable',
+        },
+      ]);
+      expect(JSON.parse(String(events()[0]?.attributes_json))).toMatchObject({ reasoning_tokens: 7 });
+    });
+
+    it('keeps approval decisions as attributes and rejects prompts and transport noise', async () => {
+      await post(
+        codexBatch('codex.tool_decision', [
+          attr('call_id', 'exec-9'),
+          attr('tool_name', 'exec_command'),
+          attr('decision', 'approved'),
+          attr('source', 'Config'),
+        ]),
+      );
+      for (const name of ['codex.user_prompt', 'codex.websocket_request', 'codex.startup_phase', 'codex.api_request']) {
+        expect(await post(codexBatch(name, [attr('prompt', 'PRIVATE_PROMPT')]))).toMatchObject({
+          partialSuccess: { rejectedLogRecords: '1' },
+        });
+      }
+      await drainOutbox(db);
+      expect(JSON.parse(String(events()[0]?.attributes_json))).toMatchObject({
+        decision: 'approved',
+        decision_source: 'Config',
+      });
+      expect(events()).toHaveLength(1);
+      expect(JSON.stringify(events())).not.toContain('PRIVATE_PROMPT');
+    });
+
+    it('keeps each harness on its own sessions and event names', async () => {
+      // A Claude Code run sharing the id is not claimed by Codex telemetry, and vice versa.
+      expect(await post(codexBatch('claude_code.tool_result', [attr('call_id', 'x')]))).toMatchObject({
+        partialSuccess: { rejectedLogRecords: '1' },
+      });
+      expect(await post(batch('codex.tool_result'), 'claude_code')).toMatchObject({
+        partialSuccess: { rejectedLogRecords: '1' },
+      });
+      db.raw
+        .prepare(
+          "INSERT INTO runs (id, project_id, session_id, agent_type, mode) VALUES ('claude-same-id', 'project', 'shared-id', 'claude_code', 'solo')",
+        )
+        .run();
+      const b = codexBatch('codex.tool_result', [attr('call_id', 'y')]);
+      (b.resourceLogs[0]?.scopeLogs[0]?.logRecords[0]?.attributes ?? []).find(
+        (a) => a.key === 'conversation.id',
+      )!.value = {
+        stringValue: 'shared-id',
+      };
+      await post(b);
+      await drainOutbox(db);
+      expect(events()).toMatchObject([{ session_id: 'shared-id', run_id: null }]);
+    });
+
+    it('is served on /telemetry/codex/<slug>/v1/logs and not on unknown harness paths', async () => {
+      const claudeUrl = await listen();
+      const codexUrl = claudeUrl.replace('/claude_code/', '/codex/');
+      const send = (url: string, body: unknown) =>
+        fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      expect((await send(codexUrl, codexBatch('codex.tool_result', [attr('call_id', 'h1')]))).status).toBe(200);
+      await drainOutbox(db);
+      expect(events()).toMatchObject([{ harness: 'codex', tool_use_id: 'h1', run_id: 'codex-run' }]);
+      expect((await send(claudeUrl.replace('/claude_code/', '/gemini/'), {})).status).toBe(404);
+    });
   });
 });

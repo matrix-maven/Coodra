@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-
 import {
   type HookObservation,
   nativeToolUseIdFromHookKey,
@@ -7,6 +6,7 @@ import {
   reconcileToolOperations,
   type TelemetryToolResult,
 } from '../../src/telemetry-reconciliation.js';
+import pairedTools from '../fixtures/codex-paired-tools.json' with { type: 'json' };
 
 const NOW = 10_000_000;
 const key = (event: 'PreToolUse' | 'PostToolUse', tool: string, native: string, harness = 'claude_code') =>
@@ -54,6 +54,7 @@ describe('nativeToolUseIdFromHookKey', () => {
   });
   it('returns null for keys without a usable native id instead of guessing', () => {
     expect(nativeToolUseIdFromHookKey('no-turn', 'claude_code')).toBeNull();
+    expect(nativeToolUseIdFromHookKey(key('PreToolUse', 'Bash', 'no-turn'), 'claude_code')).toBeNull();
     expect(nativeToolUseIdFromHookKey('lifecycle_event:claude_code:s:PreToolUse:Bash:', 'claude_code')).toBeNull();
     expect(nativeToolUseIdFromHookKey('lifecycle_event:claude_code:s:SessionStart:Bash:x', 'claude_code')).toBeNull();
     expect(nativeToolUseIdFromHookKey(key('PreToolUse', 'Bash', 'call_1', 'codex'), 'claude_code')).toBeNull();
@@ -61,6 +62,50 @@ describe('nativeToolUseIdFromHookKey', () => {
 });
 
 describe('reconcileToolOperations', () => {
+  it('reconciles live-captured patch and MCP successes/failures without blaming wrappers or polling', () => {
+    const hooks: HookObservation[] = pairedTools.hooks.map((h, i) => ({
+      rowId: `captured-hook-${i}`,
+      phase: h.hook_event_name === 'PreToolUse' ? 'pre' : 'post',
+      toolName: h.tool_name,
+      toolUseId: key(h.hook_event_name as 'PreToolUse' | 'PostToolUse', h.tool_name, h.tool_use_id, 'codex'),
+      outcome: 'allow',
+      atMs: NOW - 600_000,
+    }));
+    const telemetry = pairedTools.telemetry.map((t) => tele(t.toolUseId, t));
+    const r = run({ harness: 'codex', hooks, telemetry, runEnded: true });
+    expect(r.summary).toMatchObject({ matched: 4, matchedWithDisagreement: 0, hookOnly: 0, telemetryOnly: 0 });
+    expect(
+      r.operations
+        .filter((o) => o.status === 'matched')
+        .map((o) => o.telemetry?.success)
+        .sort(),
+    ).toEqual([false, false, true, true]);
+    expect(r.operations.find((o) => o.toolName === 'write_stdin')).toMatchObject({
+      status: 'not_comparable',
+      reason: 'codex_poll_without_hook',
+    });
+    expect(
+      r.operations.filter((o) => o.toolName === 'exec').every((o) => o.reason === 'codex_outer_tool_without_hook'),
+    ).toBe(true);
+  });
+
+  it('uses verified patch coverage for one-sided evidence, while unrelated tools stay unverified', () => {
+    const r = run({
+      harness: 'codex',
+      runEnded: true,
+      hooks: [
+        {
+          ...hook('pre', 'exec-patch', NOW - 600_000, 'apply_patch'),
+          toolUseId: key('PreToolUse', 'apply_patch', 'exec-patch', 'codex'),
+        },
+      ],
+      telemetry: [
+        tele('exec-other-patch', { toolName: 'apply_patch' }),
+        tele('exec-unknown', { toolName: 'unknown_tool' }),
+      ],
+    });
+    expect(r.summary).toMatchObject({ hookOnly: 1, telemetryOnly: 1, notComparable: 1 });
+  });
   it('matches an operation seen by both channels', () => {
     const r = run({ hooks: [hook('pre', 't1'), hook('post', 't1')], telemetry: [tele('t1')] });
     expect(r.operations).toHaveLength(1);
@@ -162,9 +207,81 @@ describe('reconcileToolOperations', () => {
     expect(r.limitations.join(' ')).toContain('No Run exists');
   });
 
-  it('refuses to compare harnesses without a telemetry adapter', () => {
+  it('reports Codex as not comparable per operation because the call id schemes differ, with session totals', () => {
     const r = reconcileToolOperations({
       harness: 'codex',
+      hooks: [
+        { ...hook('pre', 'call_AAA'), toolUseId: key('PreToolUse', 'Bash', 'call_AAA', 'codex') },
+        { ...hook('post', 'call_AAA'), toolUseId: key('PostToolUse', 'Bash', 'call_AAA', 'codex') },
+      ],
+      telemetry: [tele('exec-111'), tele('exec-222')],
+      telemetryEventCount: 2,
+      hasRun: true,
+      runEnded: true,
+      nowMs: NOW,
+    });
+    expect(
+      r.operations.every((o) => o.status === 'not_comparable' && o.reason === 'harness_id_scheme_unverified'),
+    ).toBe(true);
+    expect(r.limitations.join(' ')).toContain('Other tools need an exact id match');
+    expect(r.summary).toMatchObject({ matched: 0, hookOnly: 0, telemetryOnly: 0 });
+  });
+
+  it('matches verified Codex inner operations while keeping outer wrappers not comparable', () => {
+    const hooks = ['pre', 'post'].map((phase) => ({
+      ...hook(phase as 'pre' | 'post', 'exec-verified', NOW - 600_000, 'Bash'),
+      toolUseId: key(phase === 'pre' ? 'PreToolUse' : 'PostToolUse', 'Bash', 'exec-verified', 'codex'),
+    }));
+    const r = run({
+      harness: 'codex',
+      hooks,
+      telemetry: [tele('exec-verified', { toolName: 'exec_command' }), tele('call-wrapper', { toolName: 'exec' })],
+    });
+    expect(r.summary).toMatchObject({ matched: 1, notComparable: 1, hookOnly: 0, telemetryOnly: 0 });
+    expect(r.operations.find((o) => o.nativeToolUseId === 'exec-verified')).toMatchObject({
+      status: 'matched',
+      toolNameDiffers: true,
+      disagreements: [],
+    });
+    expect(r.operations.find((o) => o.nativeToolUseId === 'call-wrapper')?.reason).toBe(
+      'codex_outer_tool_without_hook',
+    );
+  });
+
+  it('compares one-sided Codex exec operations with the arrival grace window', () => {
+    const hooks = [
+      {
+        ...hook('pre', 'exec-missing', NOW - 600_000, 'Bash'),
+        toolUseId: key('PreToolUse', 'Bash', 'exec-missing', 'codex'),
+      },
+    ];
+    const r = run({
+      harness: 'codex',
+      hooks,
+      telemetry: [
+        tele('exec-old', { toolName: 'exec_command' }),
+        tele('exec-recent', { toolName: 'exec_command', receivedMs: NOW - 1_000 }),
+      ],
+    });
+    expect(r.summary).toMatchObject({ hookOnly: 1, telemetryOnly: 1, awaitingArrival: 1 });
+  });
+
+  it('does not apply Claude failure-hook semantics to Codex', () => {
+    const hooks = ['pre', 'post'].map((phase) => ({
+      ...hook(phase as 'pre' | 'post', 'exec-failed', NOW - 600_000, 'Bash'),
+      toolUseId: key(phase === 'pre' ? 'PreToolUse' : 'PostToolUse', 'Bash', 'exec-failed', 'codex'),
+    }));
+    const r = run({
+      harness: 'codex',
+      hooks,
+      telemetry: [tele('exec-failed', { toolName: 'exec_command', success: false })],
+    });
+    expect(r.operations[0]?.disagreements).toEqual([]);
+  });
+
+  it('refuses to compare harnesses without a telemetry adapter', () => {
+    const r = reconcileToolOperations({
+      harness: 'gemini',
       hooks: [{ ...hook('pre', 'call_1'), toolUseId: key('PreToolUse', 'Bash', 'call_1', 'codex') }],
       telemetry: [],
       telemetryEventCount: 0,

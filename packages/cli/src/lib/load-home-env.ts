@@ -71,6 +71,10 @@ const MACHINE_LEVEL_KEYS: ReadonlySet<string> = new Set([
   'COODRA_TEAM_ORG_ID',
   'COODRA_TEAM_USER_ID',
   'COODRA_TEAM_ORG_SLUG',
+  // COOD-105: telemetry collection is a machine-level opt-in; a project .env must not flip it.
+  'COODRA_TELEMETRY_ENABLED',
+  'COODRA_TELEMETRY_MAX_EVENTS',
+  'COODRA_TELEMETRY_MAX_UNATTACHED',
   'CLERK_SECRET_KEY',
   'CLERK_PUBLISHABLE_KEY',
 ]);

@@ -32,6 +32,9 @@ export const REASON_LABEL: Record<string, string> = {
   telemetry_without_tool_use_id: 'telemetry row has no tool-use id',
   telemetry_channel_not_observed: 'no telemetry received for this session',
   harness_telemetry_unsupported: 'no telemetry adapter for this harness',
+  harness_id_scheme_unverified: 'telemetry call ids not verified against hook call ids; not matched',
+  codex_outer_tool_without_hook: 'outer Codex wrapper has no separate tool hook',
+  codex_poll_without_hook: 'Codex command polling has no separate tool hook',
 };
 
 export const DISAGREEMENT_LABEL: Record<string, string> = {

@@ -8,6 +8,8 @@ import { groupDecisionsByPack } from '@/lib/context-pack-links';
 import { compactDuration, fmtClockSec, fmtRelative } from '@/lib/format';
 import { getRun, getRunLastActivity } from '@/lib/queries/runs';
 
+import { RunTelemetryPanel } from './RunTelemetryPanel';
+
 export const dynamic = 'force-dynamic';
 
 export default async function RunDetailPage({
@@ -108,6 +110,8 @@ export default async function RunDetailPage({
           <Cell label="Decisions" value={`${allowCount + denyCount}`} sub={`${allowCount} allow · ${denyCount} deny`} />
           <Cell label="Mode" value={run.mode} sub={`${agentTypeLabel(run.agentType)} · ${run.id.slice(0, 8)}`} />
         </div>
+
+        <RunTelemetryPanel projectId={run.projectId} sessionId={run.sessionId} />
 
         <div className="run-grid" style={runGrid}>
           <div>

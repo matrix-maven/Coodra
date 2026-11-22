@@ -210,7 +210,13 @@ async function main(): Promise<void> {
   let telemetryMaintenance: NodeJS.Timeout | undefined;
   let telemetryMaintenanceInFlight: Promise<unknown> = Promise.resolve();
   if (startHttp) {
-    const { createNativeTelemetryReceiver, pruneNativeTelemetry } = await import('./lib/native-telemetry.js');
+    const {
+      createNativeTelemetryReceiver,
+      DEFAULT_MAX_RETAINED_EVENTS,
+      DEFAULT_MAX_UNATTACHED_EVENTS,
+      parseTelemetryLimit,
+      pruneNativeTelemetry,
+    } = await import('./lib/native-telemetry.js');
     if (process.env.COODRA_TELEMETRY_ENABLED === '1' && env.COODRA_MODE === 'solo') {
       const maintain = () => {
         telemetryMaintenanceInFlight = pruneNativeTelemetry(dbHandle)
@@ -235,7 +241,17 @@ async function main(): Promise<void> {
       env,
       ...(process.env.COODRA_TELEMETRY_ENABLED === '1' && env.COODRA_MODE === 'solo'
         ? {
-            telemetryLogs: createNativeTelemetryReceiver({ db: dbHandle, kick: () => outboxWorker.kick() }),
+            telemetryLogs: createNativeTelemetryReceiver({
+              db: dbHandle,
+              kick: () => outboxWorker.kick(),
+              limits: {
+                maxRetained: parseTelemetryLimit(process.env.COODRA_TELEMETRY_MAX_EVENTS, DEFAULT_MAX_RETAINED_EVENTS),
+                maxUnattached: parseTelemetryLimit(
+                  process.env.COODRA_TELEMETRY_MAX_UNATTACHED,
+                  DEFAULT_MAX_UNATTACHED_EVENTS,
+                ),
+              },
+            }),
           }
         : {}),
     });

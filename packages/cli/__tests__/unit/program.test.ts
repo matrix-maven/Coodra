@@ -49,6 +49,7 @@ describe('buildProgram — full surface (post-S8)', () => {
       'status',
       'stop',
       'team',
+      'telemetry',
       'template',
       // Terminal-UI redesign — `coodra ui` launches the interactive TUI.
       'ui',

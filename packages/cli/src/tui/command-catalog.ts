@@ -64,6 +64,7 @@ const CATEGORY_OF: Readonly<Record<string, string>> = {
   doctor: 'diagnose',
   logs: 'diagnose',
   metrics: 'diagnose',
+  telemetry: 'diagnose',
   agents: 'agents',
   agent: 'agents',
   run: 'runs',

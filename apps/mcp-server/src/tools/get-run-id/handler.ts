@@ -1,4 +1,4 @@
-import { type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/db';
+import { attachNativeTelemetryToRun, type DbHandle, ensureProject, postgresSchema, sqliteSchema } from '@coodra/db';
 import { createLogger, generateRunKey, readCoodraProjectConfig } from '@coodra/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { ToolContext } from '../../framework/tool-context.js';
@@ -325,6 +325,18 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
     throw new TypeError(`createGetRunIdHandler: deps.mode must be 'solo' | 'team', got '${String(deps.mode)}'`);
   }
 
+  async function attachTelemetry(projectId: string, sessionId: string, harness: string): Promise<void> {
+    try {
+      await attachNativeTelemetryToRun(deps.db, projectId, sessionId, harness);
+    } catch {
+      // Identity remains available when diagnostic bookkeeping fails. A later call retries attachment.
+      handlerLogger.warn(
+        { event: 'get_run_id_telemetry_attachment_failed', projectId, sessionId, harness },
+        'native telemetry attachment failed; Run identity is unaffected',
+      );
+    }
+  }
+
   return async function getRunIdHandler(input: GetRunIdInput, ctx: ToolContext): Promise<GetRunIdOutput> {
     // F9 + F10 closure (verification 2026-04-27): when the caller
     // supplies an agentSessionId, use it as the canonical session-binding
@@ -400,6 +412,7 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
           'get_run_id resumed a terminal run back to in_progress — same session reused after it was marked done',
         );
       }
+      await attachTelemetry(projectId, effectiveSessionId, effectiveAgentType);
       return {
         ok: true,
         runId: existing.id,
@@ -432,6 +445,7 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
         },
         'get_run_id created a new runs row',
       );
+      await attachTelemetry(projectId, effectiveSessionId, effectiveAgentType);
       return {
         ok: true,
         runId: inserted.id,
@@ -453,6 +467,7 @@ export function createGetRunIdHandler(deps: GetRunIdHandlerDeps) {
         },
         'get_run_id concurrent-insert race resolved via re-SELECT',
       );
+      await attachTelemetry(projectId, effectiveSessionId, effectiveAgentType);
       return {
         ok: true,
         runId: winner.id,

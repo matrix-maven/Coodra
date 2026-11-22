@@ -24,7 +24,16 @@ export interface NativeTelemetryObservation {
 const Attribute = z.object({ key: z.string().max(128), value: z.unknown() });
 const Attributes = z.array(Attribute).max(128);
 const LogRecord = z.object({
-  timeUnixNano: z.string().regex(/^\d{1,20}$/),
+  // Claude Code stamps `timeUnixNano`; Codex sends "0" there and the real instant in
+  // `observedTimeUnixNano` (and an ISO `event.timestamp` attribute). See `sourceNano`.
+  timeUnixNano: z
+    .string()
+    .regex(/^\d{1,20}$/)
+    .optional(),
+  observedTimeUnixNano: z
+    .string()
+    .regex(/^\d{1,20}$/)
+    .optional(),
   eventName: z.string().max(128).optional(),
   body: z.unknown().optional(),
   attributes: Attributes.optional(),
@@ -94,6 +103,109 @@ const NUMBERS = [
 ] as const;
 const BOOLEANS = ['success', 'is_plugin', 'managed_only', 'safe_mode'] as const;
 
+export type NativeHarness = 'claude_code' | 'codex';
+
+/**
+ * Codex (verified on 0.171.0-alpha.13 via `-c otel.exporter=...otlp-http json`). Event names live in the
+ * `event.name` attribute (the record `eventName` is a Rust source location). Codex exports tool
+ * `arguments` and `output` in `codex.tool_result` even when `log_user_prompt` is false, plus the
+ * account email and id, so everything here is an explicit allowlist and none of those are read.
+ * Codex reports no cost.
+ */
+const CODEX_EVENTS = new Set(['codex.conversation_starts', 'codex.tool_decision', 'codex.tool_result']);
+const CODEX_IDENTIFIERS: ReadonlyArray<readonly [raw: string, safe: string]> = [
+  ['conversation.id', 'session.id'],
+  ['app.version', 'app.version'],
+  ['call_id', 'tool_use_id'],
+  ['tool_name', 'tool_name'],
+  ['model', 'model'],
+  ['tool_namespace', 'tool_namespace'],
+  ['mcp_server', 'mcp_server'],
+  ['agent_name', 'agent_name'],
+  ['decision', 'decision'],
+  ['source', 'decision_source'],
+  ['approval_policy', 'approval_policy'],
+  ['sandbox_policy', 'sandbox_policy'],
+  ['reasoning_effort', 'reasoning_effort'],
+];
+const CODEX_NUMBERS: ReadonlyArray<readonly [raw: string, safe: string]> = [
+  ['duration_ms', 'duration_ms'],
+  ['tool_result_seq', 'tool_result_seq'],
+  ['input_token_count', 'input_tokens'],
+  ['output_token_count', 'output_tokens'],
+  ['cached_token_count', 'cache_read_tokens'],
+  ['cache_write_token_count', 'cache_creation_tokens'],
+  ['reasoning_token_count', 'reasoning_tokens'],
+  ['tool_token_count', 'tool_tokens'],
+];
+const CODEX_BOOLEANS: ReadonlyArray<readonly [raw: string, safe: string]> = [
+  ['success', 'success'],
+  ['output_truncated', 'output_truncated'],
+];
+
+function boolean(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const v = value.toLowerCase();
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+  }
+  return undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(\.\d+)?$/.test(value))) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 && n <= Number.MAX_SAFE_INTEGER ? n : undefined;
+}
+
+/** Canonical event name for a Codex record, or null when the event is not collected. */
+function codexEventName(raw: Record<string, unknown>): string | null {
+  const name = raw['event.name'];
+  if (typeof name !== 'string') return null;
+  // One completed-response record per model call carries the token usage; the many streaming
+  // deltas are deliberately not collected.
+  if (name === 'codex.sse_event') return raw['event.kind'] === 'response.completed' ? 'codex.response_completed' : null;
+  return CODEX_EVENTS.has(name) ? name : null;
+}
+
+function codexSafeAttributes(raw: Record<string, unknown>): Record<string, string | number | boolean> {
+  const safe: Record<string, string | number | boolean> = {};
+  for (const [from, to] of CODEX_IDENTIFIERS) {
+    const value = identifier(raw[from]);
+    if (value !== undefined) safe[to] = value;
+  }
+  for (const [from, to] of CODEX_NUMBERS) {
+    const value = finiteNumber(raw[from]);
+    if (value !== undefined) safe[to] = value;
+  }
+  for (const [from, to] of CODEX_BOOLEANS) {
+    const value = boolean(raw[from]);
+    if (value !== undefined) safe[to] = value;
+  }
+  return safe;
+}
+
+/**
+ * The instant the harness observed the event, as nanoseconds, or null when none is usable.
+ * Prefers `timeUnixNano`; Codex leaves it at "0", so fall back to `observedTimeUnixNano`, then to
+ * the ISO `event.timestamp` attribute.
+ */
+function sourceNano(
+  record: { timeUnixNano?: string | undefined; observedTimeUnixNano?: string | undefined },
+  raw: Record<string, unknown>,
+): string | null {
+  for (const candidate of [record.timeUnixNano, record.observedTimeUnixNano]) {
+    if (candidate !== undefined && candidate !== '' && !/^0+$/.test(candidate)) return candidate;
+  }
+  const iso = raw['event.timestamp'];
+  if (typeof iso === 'string') {
+    const ms = Date.parse(iso);
+    if (Number.isFinite(ms) && ms > 0) return String(BigInt(ms) * 1_000_000n);
+  }
+  return null;
+}
+
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
@@ -130,8 +242,8 @@ function safeAttributes(raw: Record<string, unknown>): Record<string, string | n
     if (Number.isFinite(number) && number >= 0 && number <= Number.MAX_SAFE_INTEGER) safe[key] = number;
   }
   for (const key of BOOLEANS) {
-    if (raw[key] === true || raw[key] === 'true') safe[key] = true;
-    if (raw[key] === false || raw[key] === 'false') safe[key] = false;
+    const value = boolean(raw[key]);
+    if (value !== undefined) safe[key] = value;
   }
   return safe;
 }
@@ -148,15 +260,37 @@ export class TelemetryRequestError extends Error {
 export type TelemetryLogsReceiver = (
   projectSlug: string,
   body: unknown,
+  harness?: NativeHarness,
 ) => Promise<{
   readonly partialSuccess?: { readonly rejectedLogRecords: string; readonly errorMessage: string };
 }>;
 
 const RETENTION_MS = 7 * 86_400_000;
-const MAX_RETAINED_EVENTS = 10_000;
+/**
+ * Local admission budgets. Sized from measured use: the busiest day in a real local database had
+ * 1,028 tool calls, and each call produces about four telemetry rows (tool result, model request
+ * and a hook completion each side), so a sustained peak week is roughly 29,000 rows. The retained
+ * default leaves headroom over that, and the unattached default covers a 24 hour peak day. Rows are
+ * about 0.6 KB, so the default ceiling is on the order of 30 MB. Override with
+ * `COODRA_TELEMETRY_MAX_EVENTS` and `COODRA_TELEMETRY_MAX_UNATTACHED`.
+ */
+export const DEFAULT_MAX_RETAINED_EVENTS = 50_000;
+export const DEFAULT_MAX_UNATTACHED_EVENTS = 5_000;
+
+export interface NativeTelemetryLimits {
+  readonly maxRetained: number;
+  readonly maxUnattached: number;
+}
+
+/** Positive integer from an env string; anything else falls back to the default. */
+export function parseTelemetryLimit(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || !/^\d+$/.test(raw.trim())) return fallback;
+  const value = Number(raw.trim());
+  return Number.isSafeInteger(value) && value > 0 ? value : fallback;
+}
+
 /** Unattached evidence (no Run) is cheaper to forge, so it expires sooner and has its own budget. */
 const UNATTACHED_RETENTION_MS = 24 * 3_600_000;
-const MAX_UNATTACHED_EVENTS = 2_000;
 
 /** Expire only native telemetry rows and its queue payloads (including dead letters). */
 export async function pruneNativeTelemetry(db: DbHandle, now = Date.now()): Promise<number> {
@@ -172,8 +306,14 @@ export async function pruneNativeTelemetry(db: DbHandle, now = Date.now()): Prom
 }
 
 /** Local-only first slice. It never creates Runs or binds by a transport session/time heuristic. */
-export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () => void }): TelemetryLogsReceiver {
-  const receive: TelemetryLogsReceiver = async (projectSlug, body) => {
+export function createNativeTelemetryReceiver(deps: {
+  db: DbHandle;
+  kick?: () => void;
+  limits?: Partial<NativeTelemetryLimits>;
+}): TelemetryLogsReceiver {
+  const maxRetained = deps.limits?.maxRetained ?? DEFAULT_MAX_RETAINED_EVENTS;
+  const maxUnattached = deps.limits?.maxUnattached ?? DEFAULT_MAX_UNATTACHED_EVENTS;
+  const receive: TelemetryLogsReceiver = async (projectSlug, body, harness = 'claude_code') => {
     if (deps.db.kind !== 'sqlite') throw new TelemetryRequestError(503, 'local_storage_required');
     const parsed = ExportLogs.safeParse(body);
     if (!parsed.success) throw new TelemetryRequestError(400, 'invalid_otlp_logs');
@@ -189,16 +329,26 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
     const pending: { id: string; payload: NativeTelemetryPayloadV1 }[] = [];
     for (const { record, resource } of records) {
       const raw = { ...resource, ...attributes(record.attributes) };
-      const candidate = record.eventName ?? scalar(record.body) ?? raw['event.name'];
-      const name =
-        typeof candidate === 'string' && candidate.startsWith('claude_code.')
-          ? candidate
-          : `claude_code.${String(candidate)}`;
-      const safe = safeAttributes(raw);
+      let name: string | null;
+      let safe: Record<string, string | number | boolean>;
+      if (harness === 'codex') {
+        name = codexEventName(raw);
+        safe = codexSafeAttributes(raw);
+      } else {
+        const candidate = record.eventName ?? scalar(record.body) ?? raw['event.name'];
+        const claudeName =
+          typeof candidate === 'string' && candidate.startsWith('claude_code.')
+            ? candidate
+            : `claude_code.${String(candidate)}`;
+        name = EVENTS.has(claudeName) ? claudeName : null;
+        safe = safeAttributes(raw);
+      }
       const sessionId = identifier(safe['session.id']);
-      const sourceMillis = Number(BigInt(record.timeUnixNano) / 1_000_000n);
+      const nano = sourceNano(record, raw);
+      const sourceMillis = nano === null ? Number.NaN : Number(BigInt(nano) / 1_000_000n);
       if (
-        !EVENTS.has(name) ||
+        name === null ||
+        nano === null ||
         sessionId === undefined ||
         sourceMillis < Date.now() - RETENTION_MS ||
         sourceMillis > Date.now() + 300_000
@@ -211,7 +361,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       const rows = await deps.db.db
         .select({ id: t.id })
         .from(t)
-        .where(and(eq(t.projectId, project.id), eq(t.sessionId, sessionId), eq(t.agentType, 'claude_code')))
+        .where(and(eq(t.projectId, project.id), eq(t.sessionId, sessionId), eq(t.agentType, harness)))
         .limit(1);
       // No Run yet is accepted, not retried: the hooks may never create one, and that is exactly
       // the evidence an independent channel exists to keep. The row stays unattached (run_id NULL)
@@ -219,10 +369,10 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       const run = rows[0] ?? null;
       const observation: NativeTelemetryObservation = {
         version: 1,
-        harness: 'claude_code',
+        harness,
         source: 'otlp_logs',
         eventName: name,
-        sourceTimeUnixNano: record.timeUnixNano,
+        sourceTimeUnixNano: nano,
         receivedAt: new Date().toISOString(),
         projectId: project.id,
         runId: run?.id ?? null,
@@ -239,11 +389,11 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       const { receivedAt: _receivedAt, runId: _runId, ...identity } = observation;
       const digest = createHash('sha256').update(JSON.stringify(identity)).digest('hex');
       const id = `native_telemetry_${digest}`;
-      const num = (key: (typeof NUMBERS)[number]): number | null => {
+      const num = (key: string): number | null => {
         const v = safe[key];
         return typeof v === 'number' ? Math.trunc(v) : null;
       };
-      const str = (key: (typeof IDENTIFIERS)[number]): string | null => {
+      const str = (key: string): string | null => {
         const v = safe[key];
         return typeof v === 'string' ? v : null;
       };
@@ -263,7 +413,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
           harness: observation.harness,
           source: observation.source,
           eventName: name,
-          sourceTimeUnixNano: record.timeUnixNano,
+          sourceTimeUnixNano: nano,
           sourceTimeMs: sourceMillis,
           sessionId,
           costKind: observation.costKind,
@@ -308,7 +458,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       UNION SELECT id FROM pending_jobs WHERE id GLOB 'native_telemetry_*'`);
     const retainedIds = new Set(retained.map(({ id }) => id));
     for (const { id } of pending) retainedIds.add(id);
-    if (retainedIds.size > MAX_RETAINED_EVENTS) {
+    if (retainedIds.size > maxRetained) {
       throw new TelemetryRequestError(503, 'telemetry_capacity_exceeded');
     }
     const unattachedIds = new Set(
@@ -319,7 +469,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       ).map(({ id }) => id),
     );
     for (const { id, payload } of pending) if (payload.runId === null) unattachedIds.add(id);
-    if (unattachedIds.size > MAX_UNATTACHED_EVENTS) {
+    if (unattachedIds.size > maxUnattached) {
       throw new TelemetryRequestError(503, 'telemetry_unattached_capacity_exceeded');
     }
     // No sync_to_cloud job: native telemetry is project-local until sharing is explicitly scoped.
@@ -344,8 +494,8 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
   };
   // Serialize admission so concurrent HTTP exports cannot overrun the local retention budget.
   let previous: Promise<unknown> = Promise.resolve();
-  return (projectSlug, body) => {
-    const result = previous.then(() => receive(projectSlug, body));
+  return (projectSlug, body, harness) => {
+    const result = previous.then(() => receive(projectSlug, body, harness));
     previous = result.catch(() => undefined);
     return result;
   };

@@ -190,14 +190,14 @@ function usageFrom(row: Record<string, unknown>): UsageTotals {
 }
 
 const USAGE_SELECT = `
-  sum(event_name = 'claude_code.api_request') AS requests,
-  sum(CASE WHEN event_name = 'claude_code.api_request' THEN coalesce(input_tokens, 0) END) AS input_tokens,
-  sum(CASE WHEN event_name = 'claude_code.api_request' THEN coalesce(output_tokens, 0) END) AS output_tokens,
-  sum(CASE WHEN event_name = 'claude_code.api_request' THEN coalesce(cache_read_tokens, 0) END) AS cache_read_tokens,
-  sum(CASE WHEN event_name = 'claude_code.api_request' THEN coalesce(cache_creation_tokens, 0) END) AS cache_creation_tokens,
-  sum(CASE WHEN event_name = 'claude_code.api_request' AND cost_kind = 'provider_estimate' AND cost_usd_micros IS NOT NULL
+  sum(event_name IN ('claude_code.api_request', 'codex.response_completed')) AS requests,
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') THEN coalesce(input_tokens, 0) END) AS input_tokens,
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') THEN coalesce(output_tokens, 0) END) AS output_tokens,
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') THEN coalesce(cache_read_tokens, 0) END) AS cache_read_tokens,
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') THEN coalesce(cache_creation_tokens, 0) END) AS cache_creation_tokens,
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') AND cost_kind = 'provider_estimate' AND cost_usd_micros IS NOT NULL
         THEN 1 ELSE 0 END) AS cost_rows,
-  sum(CASE WHEN event_name = 'claude_code.api_request' AND cost_kind = 'provider_estimate' THEN cost_usd_micros END) AS cost_micros`;
+  sum(CASE WHEN event_name IN ('claude_code.api_request', 'codex.response_completed') AND cost_kind = 'provider_estimate' THEN cost_usd_micros END) AS cost_micros`;
 
 function queueState(handle: SqliteHandle, projectId: string, sessionId: string | null): QueueState {
   const where = sessionId === null ? '' : "AND json_extract(payload, '$.sessionId') = ?";
@@ -255,7 +255,7 @@ function loadToolResults(handle: SqliteHandle, projectId: string, sessionId: str
     .prepare(
       `SELECT id, tool_use_id, tool_name, success, duration_ms, source_time_ms, received_at
          FROM native_telemetry_events
-        WHERE project_id = ? AND session_id = ? AND event_name = 'claude_code.tool_result'`,
+        WHERE project_id = ? AND session_id = ? AND event_name IN ('claude_code.tool_result', 'codex.tool_result')`,
     )
     .all(projectId, sessionId) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
@@ -491,7 +491,7 @@ export async function getTelemetrySession(
     handle.raw
       .prepare(
         `SELECT model, ${USAGE_SELECT} FROM native_telemetry_events
-          WHERE project_id = ? AND session_id = ? AND event_name = 'claude_code.api_request' AND model IS NOT NULL
+          WHERE project_id = ? AND session_id = ? AND event_name IN ('claude_code.api_request', 'codex.response_completed') AND model IS NOT NULL
           GROUP BY model ORDER BY requests DESC`,
       )
       .all(projectId, sessionId) as Array<Record<string, unknown>>
@@ -808,4 +808,11 @@ export async function listTelemetryEvents(
   ).map((e) => ({ name: e.name, count: e.c }));
 
   return { localOnly: false, events, matched, limit, eventNames, fetchedAt };
+}
+
+/** True once any native telemetry has been received on this machine (SQLite only). */
+export async function hasAnyTelemetry(db?: DbHandle): Promise<boolean> {
+  const handle = db ?? createWebDb();
+  if (handle.kind !== 'sqlite') return false;
+  return handle.raw.prepare('SELECT 1 FROM native_telemetry_events LIMIT 1').get() !== undefined;
 }

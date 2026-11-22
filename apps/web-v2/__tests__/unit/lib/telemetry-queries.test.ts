@@ -1,7 +1,12 @@
 import { createDb, type DbHandle, insertNativeTelemetryEvent, migrateSqlite } from '@coodra/db';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { getTelemetrySession, listTelemetryEvents, listTelemetrySessions } from '@/lib/queries/telemetry';
+import {
+  getTelemetrySession,
+  hasAnyTelemetry,
+  listTelemetryEvents,
+  listTelemetrySessions,
+} from '@/lib/queries/telemetry';
 
 const SESSION = 'sess-1';
 const key = (event: 'PreToolUse' | 'PostToolUse', tool: string, native: string) =>
@@ -241,5 +246,11 @@ describe('agent telemetry queries', () => {
       expect(r.matched).toBe(6);
       expect((await listTelemetryEvents({ limit: 99_999 }, handle)).limit).toBe(500);
     });
+  });
+
+  it('reports whether any telemetry was ever received, so the Run panel can stay hidden otherwise', async () => {
+    expect(await hasAnyTelemetry(handle)).toBe(false);
+    await row('n1', { eventName: 'claude_code.api_request', model: 'm' });
+    expect(await hasAnyTelemetry(handle)).toBe(true);
   });
 });

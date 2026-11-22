@@ -251,7 +251,7 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
     const url = req.url ?? '';
     const pathname = url.split('?')[0];
 
-    const telemetryRoute = /^\/telemetry\/claude_code\/([a-zA-Z0-9_-]{1,128})\/v1\/logs$/.exec(pathname ?? '');
+    const telemetryRoute = /^\/telemetry\/(claude_code|codex)\/([a-zA-Z0-9_-]{1,128})\/v1\/logs$/.exec(pathname ?? '');
     if (telemetryRoute && opts.telemetryLogs && env.COODRA_MODE === 'solo') {
       const reply = (status: number, body: unknown) => {
         res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -276,7 +276,14 @@ export async function startHttpTransport(opts: HttpStartOptions): Promise<HttpTr
             return;
           }
           const body = await readJsonBody(req, false);
-          reply(200, await opts.telemetryLogs(telemetryRoute[1] ?? '', body));
+          reply(
+            200,
+            await opts.telemetryLogs(
+              telemetryRoute[2] ?? '',
+              body,
+              telemetryRoute[1] === 'codex' ? 'codex' : 'claude_code',
+            ),
+          );
         } catch (err) {
           const status = err instanceof TelemetryRequestError ? err.status : err instanceof SyntaxError ? 400 : 503;
           if (status === 503) res.setHeader('retry-after', '5');

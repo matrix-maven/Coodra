@@ -25,7 +25,12 @@ export type NotComparableReason =
   | 'hook_key_without_native_id'
   | 'telemetry_without_tool_use_id'
   | 'telemetry_channel_not_observed'
-  | 'harness_telemetry_unsupported';
+  | 'harness_telemetry_unsupported'
+  /** Codex code-mode wrapper calls have no native tool hook of their own. */
+  | 'codex_outer_tool_without_hook'
+  | 'codex_poll_without_hook'
+  /** Telemetry exists, but it is unverified that its call ids correspond to the ids Coodra's hooks record. */
+  | 'harness_id_scheme_unverified';
 
 export type DisagreementCode =
   /** Telemetry reports success but the hook channel has a PreToolUse and no PostToolUse. */
@@ -134,7 +139,7 @@ export function nativeToolUseIdFromHookKey(key: string, harness: string): string
   if (parts.length < 4) return null;
   const native = parts[parts.length - 1] ?? '';
   const event = parts[parts.length - 3] ?? '';
-  if (native.length === 0 || (event !== 'PreToolUse' && event !== 'PostToolUse')) return null;
+  if (native.length === 0 || native === 'no-turn' || (event !== 'PreToolUse' && event !== 'PostToolUse')) return null;
   return native;
 }
 
@@ -156,8 +161,15 @@ export function reconcileToolOperations(input: ReconcileInput): ReconcileResult 
   ];
   const operations: ReconciledOperation[] = [];
 
-  const harnessSupported = input.harness === 'claude_code';
-  if (!harnessSupported) {
+  const harnessSupported = input.harness === 'claude_code' || input.harness === 'codex';
+  const notComparableReason: NotComparableReason =
+    input.harness === 'codex' ? 'harness_id_scheme_unverified' : 'harness_telemetry_unsupported';
+  if (input.harness === 'codex') {
+    limitations.push(
+      'Codex 0.171.0-alpha.13 paired capture verified that inner exec_command/Bash and apply_patch operations share exec-<uuid> ids across telemetry and hooks. Outer exec wrappers and write_stdin polling have no hook and stay not comparable. Other tools need an exact id match or their own verified coverage.',
+      'Codex success reports tool invocation success, not the shell exit status: a command exiting nonzero can still report success=true. A post hook after success=false is not treated as a channel disagreement for Codex.',
+    );
+  } else if (!harnessSupported) {
     limitations.push(
       `No native telemetry adapter exists for harness "${input.harness}"; its operations cannot be compared.`,
     );
@@ -277,12 +289,29 @@ export function reconcileToolOperations(input: ReconcileInput): ReconcileResult 
     const toolNameDiffers =
       hook !== null && first !== null && first.toolName !== null && hook.toolName !== first.toolName;
 
-    if (!harnessSupported) {
+    const codexWrapper = input.harness === 'codex' && first?.toolName === 'exec' && hook === null;
+    const codexPoll = input.harness === 'codex' && first?.toolName === 'write_stdin' && hook === null;
+    const codexOperationCovered =
+      id.startsWith('exec-') &&
+      (hook?.toolName === 'Bash' ||
+        first?.toolName === 'exec_command' ||
+        hook?.toolName === 'apply_patch' ||
+        first?.toolName === 'apply_patch');
+    // Exact native ids are evidence. Unmatched tools require an observed coverage profile;
+    // the outer code-mode wrapper is not an omitted hook for its inner exec operation.
+    if (
+      !harnessSupported ||
+      (input.harness === 'codex' && !(hook !== null && first !== null) && !codexOperationCovered)
+    ) {
       operations.push({
         nativeToolUseId: id,
         toolName,
         status: 'not_comparable',
-        reason: 'harness_telemetry_unsupported',
+        reason: codexWrapper
+          ? 'codex_outer_tool_without_hook'
+          : codexPoll
+            ? 'codex_poll_without_hook'
+            : notComparableReason,
         disagreements: [],
         toolNameDiffers,
         hook: hookView,
@@ -294,7 +323,8 @@ export function reconcileToolOperations(input: ReconcileInput): ReconcileResult 
     if (hook !== null && first !== null) {
       const disagreements: DisagreementCode[] = [];
       if (first.success === true && hook.pre && !hook.post) disagreements.push('post_hook_missing');
-      if (first.success === false && hook.post) disagreements.push('post_hook_after_failure');
+      if (input.harness === 'claude_code' && first.success === false && hook.post)
+        disagreements.push('post_hook_after_failure');
       if (hook.post && !hook.pre) disagreements.push('pre_hook_missing');
       operations.push({
         nativeToolUseId: id,

@@ -340,9 +340,19 @@ function Coverage() {
               <td>
                 <strong>Codex</strong>
               </td>
-              <td>Nothing yet — no native telemetry adapter exists.</td>
-              <td>—</td>
-              <td>Everything. Codex sessions appear in Runs but cannot be compared here.</td>
+              <td>
+                OTLP logs: tool results (status, duration, call id), model usage per completed response (input, output,
+                cached and reasoning tokens), approval decisions and conversation start metadata. Metadata only; Codex
+                reports no cost.
+              </td>
+              <td>0.171.0-alpha.13</td>
+              <td>
+                CLI inner exec_command, apply_patch and fixture MCP calls have verified matching hook IDs. Outer exec
+                wrappers and write_stdin polling have no separate hook and remain not comparable. Other tools require an
+                exact ID match or verified coverage. Tool success describes invocation, not shell exit status. Codex
+                exports tool arguments and output; Coodra discards them. Desktop export and resumed Run identity are
+                verified; native desktop hook capture and shutdown flush remain unverified.
+              </td>
             </tr>
           </tbody>
         </table>

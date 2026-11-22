@@ -1,0 +1,89 @@
+{
+  "harness": "codex",
+  "appVersion": "0.171.0-alpha.13",
+  "source": "isolated CLI; native hooks forwarded through actual lifecycle handler, always-allow policy fixture",
+  "hooks": [
+    {
+      "hook_event_name": "PreToolUse",
+      "tool_name": "apply_patch",
+      "tool_use_id": "exec-b6dd8662-669a-4ba4-b629-837c77ac08a3"
+    },
+    {
+      "hook_event_name": "PostToolUse",
+      "tool_name": "apply_patch",
+      "tool_use_id": "exec-b6dd8662-669a-4ba4-b629-837c77ac08a3"
+    },
+    {
+      "hook_event_name": "PreToolUse",
+      "tool_name": "apply_patch",
+      "tool_use_id": "exec-f195a91d-f2a4-4c0d-b022-49a275961067"
+    },
+    {
+      "hook_event_name": "PreToolUse",
+      "tool_name": "mcp__capture_fixture__probe",
+      "tool_use_id": "exec-f7138eb3-54c7-4650-83cf-8857039ebd98"
+    },
+    {
+      "hook_event_name": "PostToolUse",
+      "tool_name": "mcp__capture_fixture__probe",
+      "tool_use_id": "exec-f7138eb3-54c7-4650-83cf-8857039ebd98"
+    },
+    {
+      "hook_event_name": "PreToolUse",
+      "tool_name": "mcp__capture_fixture__probe",
+      "tool_use_id": "exec-76770082-50a6-4960-a5ea-844f5d9acc3c"
+    }
+  ],
+  "telemetry": [
+    {
+      "toolUseId": "exec-b6dd8662-669a-4ba4-b629-837c77ac08a3",
+      "toolName": "apply_patch",
+      "success": true
+    },
+    {
+      "toolUseId": "call_b09a2c2e216a4bec96efd949e290c383",
+      "toolName": "exec",
+      "success": true
+    },
+    {
+      "toolUseId": "exec-f195a91d-f2a4-4c0d-b022-49a275961067",
+      "toolName": "apply_patch",
+      "success": false
+    },
+    {
+      "toolUseId": "call_00c8b9eb28084d4fa10ae2131045c71c",
+      "toolName": "exec",
+      "success": false
+    },
+    {
+      "toolUseId": "call_bb66cc5500ed46c595950759df4bf2b9",
+      "toolName": "exec",
+      "success": true
+    },
+    {
+      "toolUseId": "call_0384ad6e17c1407583fd3af5b7734e24",
+      "toolName": "exec",
+      "success": true
+    },
+    {
+      "toolUseId": "exec-ea3b9460-cd6a-48e7-a4f0-a11f8a6dfeb8",
+      "toolName": "write_stdin",
+      "success": true
+    },
+    {
+      "toolUseId": "call_a528b7de58f548d9b528b3d492bdc965",
+      "toolName": "exec",
+      "success": true
+    },
+    {
+      "toolUseId": "exec-f7138eb3-54c7-4650-83cf-8857039ebd98",
+      "toolName": "probe",
+      "success": true
+    },
+    {
+      "toolUseId": "exec-76770082-50a6-4960-a5ea-844f5d9acc3c",
+      "toolName": "probe",
+      "success": false
+    }
+  ]
+}
