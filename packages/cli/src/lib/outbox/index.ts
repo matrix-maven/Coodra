@@ -3,6 +3,7 @@ export {
   type CreateOutboxDispatchHandlerDeps,
   createOutboxDispatchHandler,
   type MemoryAccessPayloadV1,
+  type NativeTelemetryPayloadV1,
   type PolicyDecisionPayloadV1,
   type RunEventPayloadV1,
   type RunIdResolution,

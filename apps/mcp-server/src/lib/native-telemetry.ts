@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { RunEventPayloadV1 } from '@coodra/cli/lib/outbox';
+import type { NativeTelemetryPayloadV1 } from '@coodra/cli/lib/outbox';
 import { type DbHandle, lookupProjectBySlug, scheduleDurableWrite, sqliteSchema } from '@coodra/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -126,14 +126,13 @@ export type TelemetryLogsReceiver = (
 const RETENTION_MS = 7 * 86_400_000;
 const MAX_RETAINED_EVENTS = 10_000;
 
-/** Expire only this receiver's local evidence and queue payloads, including dead letters. */
+/** Expire only native telemetry rows and its queue payloads (including dead letters). */
 export async function pruneNativeTelemetry(db: DbHandle, now = Date.now()): Promise<number> {
   if (db.kind !== 'sqlite') return 0;
   const cutoff = Math.floor((now - RETENTION_MS) / 1000);
-  const events = await db.db.run(sql`DELETE FROM run_events
-    WHERE phase = 'telemetry' AND id GLOB 'native_telemetry_*' AND created_at < ${cutoff}`);
+  const events = await db.db.run(sql`DELETE FROM native_telemetry_events WHERE received_at < ${cutoff}`);
   const jobs = await db.db.run(sql`DELETE FROM pending_jobs
-    WHERE id GLOB 'native_telemetry_*' AND created_at < ${cutoff}`);
+    WHERE queue = 'native_telemetry' AND created_at < ${cutoff}`);
   return events.changes + jobs.changes;
 }
 
@@ -152,7 +151,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
     const project = await lookupProjectBySlug(deps.db, projectSlug);
     if (!project) throw new TelemetryRequestError(404, 'project_not_found');
     let rejected = 0;
-    const pending: { id: string; payload: RunEventPayloadV1 }[] = [];
+    const pending: { id: string; payload: NativeTelemetryPayloadV1 }[] = [];
     for (const { record, resource } of records) {
       const raw = { ...resource, ...attributes(record.attributes) };
       const candidate = record.eventName ?? scalar(record.body) ?? raw['event.name'];
@@ -203,24 +202,62 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
       const { receivedAt: _receivedAt, ...identity } = observation;
       const digest = createHash('sha256').update(JSON.stringify(identity)).digest('hex');
       const id = `native_telemetry_${digest}`;
+      const num = (key: (typeof NUMBERS)[number]): number | null => {
+        const v = safe[key];
+        return typeof v === 'number' ? Math.trunc(v) : null;
+      };
+      const str = (key: (typeof IDENTIFIERS)[number]): string | null => {
+        const v = safe[key];
+        return typeof v === 'string' ? v : null;
+      };
+      const micros =
+        safe.cost_usd_micros !== undefined
+          ? num('cost_usd_micros')
+          : typeof safe.cost_usd === 'number'
+            ? Math.round(safe.cost_usd * 1_000_000)
+            : null;
       pending.push({
         id,
         payload: {
           v: 1,
           rowId: id,
-          resolution: { kind: 'pre_resolved', runId: run.id },
-          phase: 'telemetry',
-          toolName: name,
-          toolUseId: identifier(safe.tool_use_id) ?? id,
-          toolInput: JSON.stringify({ input: {}, output: observation }),
-          outcome: null,
+          projectId: project.id,
+          runId: run.id,
+          harness: observation.harness,
+          source: observation.source,
+          eventName: name,
+          sourceTimeUnixNano: record.timeUnixNano,
+          sourceTimeMs: sourceMillis,
+          sessionId,
+          costKind: observation.costKind,
+          attributesJson: JSON.stringify(safe),
+          receivedAt: observation.receivedAt,
+          appVersion: str('app.version'),
+          toolUseId: str('tool_use_id'),
+          toolName: str('tool_name'),
+          requestId: str('request_id'),
+          clientRequestId: str('client_request_id'),
+          promptId: str('prompt.id'),
+          agentId: str('agent_id'),
+          parentAgentId: str('parent_agent_id'),
+          model: str('model'),
+          success: typeof safe.success === 'boolean' ? safe.success : null,
+          eventSequence: num('event.sequence'),
+          durationMs: num('duration_ms'),
+          statusCode: num('status_code'),
+          attempt: num('attempt'),
+          inputTokens: num('input_tokens'),
+          outputTokens: num('output_tokens'),
+          cacheReadTokens: num('cache_read_tokens'),
+          cacheCreationTokens: num('cache_creation_tokens'),
+          toolInputSizeBytes: num('tool_input_size_bytes'),
+          toolResultSizeBytes: num('tool_result_size_bytes'),
+          costUsdMicros: micros,
         },
       });
     }
-    const retained = await deps.db.db.all<{ id: string }>(sql`SELECT DISTINCT id FROM (
-      SELECT id FROM run_events WHERE phase = 'telemetry' AND id GLOB 'native_telemetry_*'
-      UNION SELECT id FROM pending_jobs WHERE id GLOB 'native_telemetry_*'
-    )`);
+    const retained = await deps.db.db.all<{ id: string }>(sql`SELECT id FROM native_telemetry_events
+      UNION SELECT id FROM pending_jobs WHERE queue = 'native_telemetry'`);
     const retainedIds = new Set(retained.map(({ id }) => id));
     for (const { id } of pending) retainedIds.add(id);
     if (retainedIds.size > MAX_RETAINED_EVENTS) {
@@ -228,7 +265,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
     }
     // No sync_to_cloud job: native telemetry is project-local until sharing is explicitly scoped.
     for (const { id, payload } of pending) {
-      await scheduleDurableWrite(deps.db, { id, queue: 'run_event', payload });
+      await scheduleDurableWrite(deps.db, { id, queue: 'native_telemetry', payload });
     }
     if (pending.length > 0) deps.kick?.();
     return rejected > 0

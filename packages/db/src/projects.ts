@@ -531,6 +531,7 @@ export async function deleteProject(db: DbHandle, projectId: string): Promise<De
 const DEPENDENT_PROJECT_TABLES = [
   'audit_events',
   'memory_access_events',
+  'native_telemetry_events',
   'memory_access_daily',
   'memory_cohorts',
   'control_attestations',

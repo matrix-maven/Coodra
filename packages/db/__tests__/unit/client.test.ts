@@ -201,6 +201,7 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         'memory_access_daily',
         'memory_access_events',
         'memory_cohorts',
+        'native_telemetry_events',
         'pending_jobs',
         'policies',
         'policy_decisions',
@@ -259,9 +260,10 @@ describe('createSqliteDb + migrateSqlite on a file-backed DB', () => {
         .get() as { n: number };
       // 32 prior tables + COOD-34 controls/control_attestations = 34,
       // + COOD-78 memory_access_events = 35,
-      // + COOD-79 memory_access_daily/memory_cohorts = 37.
+      // + COOD-79 memory_access_daily/memory_cohorts = 37,
+      // + COOD-105 native_telemetry_events = 38.
       // COOD-84 adds a runs COLUMN, not a table, so the count is unchanged.
-      expect(rows.n).toBe(37);
+      expect(rows.n).toBe(38);
     } finally {
       first.close();
     }

@@ -40,9 +40,11 @@ export {
   type CloseRunArgs,
   closeRun,
   type InsertMemoryAccessEventRow,
+  type InsertNativeTelemetryEventRow,
   type InsertRunEventRow,
   type InsertRunRow,
   insertMemoryAccessEvent,
+  insertNativeTelemetryEvent,
   insertRun,
   insertRunEvent,
 } from './destinations.js';

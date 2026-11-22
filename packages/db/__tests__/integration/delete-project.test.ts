@@ -134,6 +134,14 @@ describe('@coodra/db::deleteProject', () => {
          VALUES (?, ?, ?, ?)`,
       )
       .run('wiki_page_delete_project', project.id, 'wiki_delete_project', 'overview');
+    handle.raw
+      .prepare(
+        `INSERT INTO native_telemetry_events (id, project_id, run_id, harness, source, event_name,
+           source_time_unix_nano, source_time_ms, session_id, cost_kind)
+         VALUES ('native_telemetry_delete_project', ?, ?, 'claude_code', 'otlp_logs', 'claude_code.api_error',
+           '1', 1, 's', 'unavailable')`,
+      )
+      .run(project.id, 'run_delete_project');
 
     const result = await deleteProject(handle, project.id);
     expect(result.status).toBe('deleted');
@@ -153,6 +161,7 @@ describe('@coodra/db::deleteProject', () => {
     for (const table of [
       'audit_events',
       'memory_access_events',
+      'native_telemetry_events',
       'policy_versions',
       'features',
       'control_attestations',

@@ -42,6 +42,8 @@ function batch(
 describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
   let db: SqliteHandle;
   let closeDb: () => Promise<void>;
+  const events = () =>
+    db.raw.prepare('SELECT * FROM native_telemetry_events ORDER BY source_time_ms').all() as Record<string, unknown>[];
   let http: HttpTransportHandle | undefined;
   beforeEach(() => {
     const client = createDbClient({ mode: 'solo', sqlite: { path: ':memory:', skipPragmas: true } });
@@ -99,24 +101,31 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
     const queued = db.raw.prepare('SELECT payload FROM pending_jobs').all();
     expect(queued).toHaveLength(1);
     expect(JSON.stringify(queued)).not.toContain('PRIVATE_');
-    expect(db.raw.prepare('SELECT id FROM run_events').all()).toHaveLength(0);
+    expect(events()).toHaveLength(0);
     await drainOutbox(db);
     expect((await post()).status).toBe(200);
     await drainOutbox(db);
-    const run = await getRunWithEverything(db, 'run');
-    expect(run?.events).toHaveLength(1);
-    const row = run?.events[0];
-    if (!row) throw new Error('missing persisted event');
-    const observation = JSON.parse(row.toolInput).output;
-    expect(observation).toMatchObject({
+    const rows = events();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
       harness: 'claude_code',
-      sessionId: 'native-session',
+      session_id: 'native-session',
+      run_id: 'run',
+      project_id: 'project',
       source: 'otlp_logs',
-      content: 'excluded',
-      costKind: 'provider_estimate',
-      attributes: { input_tokens: 120, cost_usd: 0.002 },
+      event_name: 'claude_code.api_request',
+      content_policy: 'excluded',
+      cost_kind: 'provider_estimate',
+      input_tokens: 120,
+      cost_usd_micros: 2000,
+      tool_use_id: null,
+      success: null,
     });
-    expect(row.outcome).toBeNull();
+    expect(JSON.parse(String(rows[0]?.attributes_json))).toMatchObject({ input_tokens: 120, cost_usd: 0.002 });
+    expect(JSON.stringify(rows)).not.toContain('PRIVATE_');
+    // Hook/MCP audit trail is untouched by native telemetry.
+    expect(db.raw.prepare('SELECT id FROM run_events').all()).toHaveLength(0);
+    expect((await getRunWithEverything(db, 'run'))?.events).toHaveLength(0);
   });
 
   it('preserves native tool identity and execution failure independently of policy', async () => {
@@ -126,12 +135,14 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
       batch('claude_code.tool_result', [attr('tool_use_id', 'tool-1'), attr('success', 'false')]),
     );
     await drainOutbox(db);
-    const row = (await getRunWithEverything(db, 'run'))?.events[0];
-    if (!row) throw new Error('missing persisted event');
-    expect(row.toolUseId).toBe('tool-1');
-    expect(row.outcome).toBeNull();
-    expect(JSON.parse(row.toolInput).output.attributes.success).toBe(false);
-    expect(JSON.parse(row.toolInput).output.costKind).toBe('unavailable');
+    const [row] = events();
+    expect(row).toMatchObject({
+      tool_use_id: 'tool-1',
+      success: 0,
+      cost_kind: 'unavailable',
+      cost_usd_micros: null,
+      event_name: 'claude_code.tool_result',
+    });
   });
 
   it('does not collapse repeated sequence numbers after resume or reordered arrival', async () => {
@@ -140,7 +151,7 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
     await receive('fixture', batch('claude_code.api_error', [], String(now)));
     await receive('fixture', batch('claude_code.api_error', [], String(now - 1_000_000n)));
     await drainOutbox(db);
-    expect((await getRunWithEverything(db, 'run'))?.events).toHaveLength(2);
+    expect(events()).toHaveLength(2);
   });
 
   it('retries an unavailable Run and validates project and harness without creating or guessing identity', async () => {
@@ -201,7 +212,7 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
   it('bounds concurrent admission while allowing exact replay at capacity', async () => {
     db.raw.exec(`WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 9999)
       INSERT INTO pending_jobs (id, queue, payload, run_after)
-      SELECT 'native_telemetry_budget_' || x, 'run_event', '{}', 1 FROM n`);
+      SELECT 'native_telemetry_budget_' || x, 'native_telemetry', '{}', 1 FROM n`);
     const receive = createNativeTelemetryReceiver({ db });
     const now = BigInt(Date.now()) * 1_000_000n;
     const first = batch('claude_code.api_request', [], String(now));
@@ -217,10 +228,35 @@ describe('native telemetry — HTTP/JSON to durable Run evidence', () => {
   it('expires only native telemetry evidence and its retained queue payloads', async () => {
     await createNativeTelemetryReceiver({ db })('fixture', batch());
     await drainOutbox(db);
-    db.raw.exec('UPDATE run_events SET created_at = 1; UPDATE pending_jobs SET created_at = 1');
+    db.raw.exec('UPDATE native_telemetry_events SET received_at = 1; UPDATE pending_jobs SET created_at = 1');
     const pruned = await pruneNativeTelemetry(db);
     expect(pruned).toBeGreaterThanOrEqual(1);
-    expect((await getRunWithEverything(db, 'run'))?.events).toHaveLength(0);
+    expect(events()).toHaveLength(0);
     expect(db.raw.prepare("SELECT id FROM runs WHERE id = 'run'").all()).toHaveLength(1);
+  });
+
+  it('removes telemetry with its Run and leaves hook run_events alone', async () => {
+    db.raw
+      .prepare(
+        "INSERT INTO run_events (id, run_id, phase, tool_name, tool_use_id, tool_input) VALUES ('hook', 'run', 'post', 'Read', 't', '{}')",
+      )
+      .run();
+    await createNativeTelemetryReceiver({ db })('fixture', batch());
+    await drainOutbox(db);
+    expect(events()).toHaveLength(1);
+    db.raw.exec("DELETE FROM runs WHERE id = 'run'");
+    expect(events()).toHaveLength(0);
+  });
+
+  it('records an unreadable job as dead rather than writing a partial row', async () => {
+    db.raw
+      .prepare("INSERT INTO pending_jobs (id, queue, payload) VALUES ('native_telemetry_bad', 'native_telemetry', ?)")
+      .run(JSON.stringify({ v: 1, rowId: 'native_telemetry_bad' }));
+    await drainOutbox(db);
+    expect(events()).toHaveLength(0);
+    const job = db.raw.prepare("SELECT status FROM pending_jobs WHERE id = 'native_telemetry_bad'").get() as {
+      status: string;
+    };
+    expect(job.status).not.toBe('pending');
   });
 });

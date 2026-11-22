@@ -1554,6 +1554,83 @@ export const memoryCohorts = sqliteTable(
 
 export type Wiki = typeof wikis.$inferSelect;
 export type NewWiki = typeof wikis.$inferInsert;
+/**
+ * COOD-105 — native harness telemetry observations (Claude Code OTLP logs
+ * today). Deliberately separate from `run_events`, which is the hook/MCP
+ * audit trail: different clock (source time vs Coodra receipt), typed
+ * numeric fields, own retention, and not part of audit/ROI/sync readers.
+ * Local-only: no `sync_to_cloud` is enqueued. Append-only; `id` is a
+ * replay-identity hash so exact replays are no-ops.
+ *
+ * Column set and notNull flags must match across dialects
+ * (`schema-parity.test.ts`).
+ */
+export const nativeTelemetryEvents = sqliteTable(
+  'native_telemetry_events',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('org_id'),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id),
+    // Cascade: telemetry is meaningless without its Run (unlike run_events, which keeps orphaned rows).
+    runId: text('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    /** `claude_code` | `codex` — only claude_code has an adapter today. */
+    harness: text('harness').notNull(),
+    /** Transport/signal, e.g. `otlp_logs`. */
+    source: text('source').notNull(),
+    eventName: text('event_name').notNull(),
+    /** Producer clock, nanoseconds since epoch, as text (exceeds 2^53). */
+    sourceTimeUnixNano: text('source_time_unix_nano').notNull(),
+    /** Same instant in epoch milliseconds, for ordering and indexing. */
+    sourceTimeMs: integer('source_time_ms').notNull(),
+    /** Native harness session id (never the MCP transport session). */
+    sessionId: text('session_id').notNull(),
+    appVersion: text('app_version'),
+    /** Correlation key against hook rows; NULL when the source supplied none. */
+    toolUseId: text('tool_use_id'),
+    toolName: text('tool_name'),
+    requestId: text('request_id'),
+    clientRequestId: text('client_request_id'),
+    promptId: text('prompt_id'),
+    /** Only set when the source supplies them; parentage is never inferred. */
+    agentId: text('agent_id'),
+    parentAgentId: text('parent_agent_id'),
+    model: text('model'),
+    /** Tool execution status — separate from any policy verdict. NULL when not reported. */
+    success: integer('success', { mode: 'boolean' }),
+    eventSequence: integer('event_sequence'),
+    durationMs: integer('duration_ms'),
+    statusCode: integer('status_code'),
+    attempt: integer('attempt'),
+    inputTokens: integer('input_tokens'),
+    outputTokens: integer('output_tokens'),
+    cacheReadTokens: integer('cache_read_tokens'),
+    cacheCreationTokens: integer('cache_creation_tokens'),
+    toolInputSizeBytes: integer('tool_input_size_bytes'),
+    toolResultSizeBytes: integer('tool_result_size_bytes'),
+    /** Provider-reported estimate in micro-USD; NULL means unavailable, never zero. */
+    costUsdMicros: integer('cost_usd_micros'),
+    /** `provider_estimate` | `unavailable` */
+    costKind: text('cost_kind').notNull(),
+    /** Always `excluded`: prompt/tool/error content is dropped before queueing. */
+    contentPolicy: text('content_policy').notNull().default('excluded'),
+    /** Full allowlisted attribute set (JSON object), kept for fidelity with the source. */
+    attributesJson: text('attributes_json').notNull().default('{}'),
+    receivedAt: integer('received_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [
+    index('native_telemetry_events_run_time_idx').on(t.runId, t.sourceTimeMs),
+    index('native_telemetry_events_run_tool_idx').on(t.runId, t.toolUseId),
+    index('native_telemetry_events_received_idx').on(t.receivedAt),
+  ],
+);
+
+export type NativeTelemetryEvent = typeof nativeTelemetryEvents.$inferSelect;
+export type NewNativeTelemetryEvent = typeof nativeTelemetryEvents.$inferInsert;
+
 export type MemoryAccessEvent = typeof memoryAccessEvents.$inferSelect;
 export type NewMemoryAccessEvent = typeof memoryAccessEvents.$inferInsert;
 export type MemoryAccessDailyRow = typeof memoryAccessDaily.$inferSelect;

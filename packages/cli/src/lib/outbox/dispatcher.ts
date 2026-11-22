@@ -1,4 +1,12 @@
-import { closeRun, type DbHandle, insertMemoryAccessEvent, insertRun, insertRunEvent, lookupRunId } from '@coodra/db';
+import {
+  closeRun,
+  type DbHandle,
+  insertMemoryAccessEvent,
+  insertNativeTelemetryEvent,
+  insertRun,
+  insertRunEvent,
+  lookupRunId,
+} from '@coodra/db';
 import { recordPolicyDecision } from '@coodra/policy';
 import { createLogger, type Logger } from '@coodra/shared';
 
@@ -147,6 +155,49 @@ export interface MemoryAccessPayloadV1 {
   readonly resultCount?: number | null;
   readonly freshnessStatusAtAccess?: string | null;
   readonly baselineGeneration?: number;
+}
+
+/**
+ * COOD-105 — native harness telemetry observation. Local-only; the
+ * receiver has already validated project/Run/session identity and
+ * stripped content, so the dispatcher only checks shape.
+ */
+export interface NativeTelemetryPayloadV1 {
+  readonly v: 1;
+  readonly rowId: string;
+  readonly projectId: string;
+  readonly runId: string;
+  readonly harness: string;
+  readonly source: string;
+  readonly eventName: string;
+  readonly sourceTimeUnixNano: string;
+  readonly sourceTimeMs: number;
+  readonly sessionId: string;
+  readonly costKind: string;
+  readonly attributesJson: string;
+  /** ISO receipt time. */
+  readonly receivedAt: string;
+  readonly appVersion?: string | null;
+  readonly toolUseId?: string | null;
+  readonly toolName?: string | null;
+  readonly requestId?: string | null;
+  readonly clientRequestId?: string | null;
+  readonly promptId?: string | null;
+  readonly agentId?: string | null;
+  readonly parentAgentId?: string | null;
+  readonly model?: string | null;
+  readonly success?: boolean | null;
+  readonly eventSequence?: number | null;
+  readonly durationMs?: number | null;
+  readonly statusCode?: number | null;
+  readonly attempt?: number | null;
+  readonly inputTokens?: number | null;
+  readonly outputTokens?: number | null;
+  readonly cacheReadTokens?: number | null;
+  readonly cacheCreationTokens?: number | null;
+  readonly toolInputSizeBytes?: number | null;
+  readonly toolResultSizeBytes?: number | null;
+  readonly costUsdMicros?: number | null;
 }
 
 export interface CreateOutboxDispatchHandlerDeps {
@@ -400,6 +451,76 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
          * misses separately), whereas dropping the row would make the
          * telemetry quietly under-report.
          */
+        case 'native_telemetry': {
+          const rowId = payload.rowId;
+          const projectId = payload.projectId;
+          const runId = payload.runId;
+          const harness = payload.harness;
+          const source = payload.source;
+          const eventName = payload.eventName;
+          const sourceTimeUnixNano = payload.sourceTimeUnixNano;
+          const sourceTimeMs = payload.sourceTimeMs;
+          const sessionId = payload.sessionId;
+          const costKind = payload.costKind;
+          const attributesJson = payload.attributesJson;
+          const receivedAt = typeof payload.receivedAt === 'string' ? new Date(payload.receivedAt) : null;
+          if (
+            typeof rowId !== 'string' ||
+            typeof projectId !== 'string' ||
+            typeof runId !== 'string' ||
+            typeof harness !== 'string' ||
+            typeof source !== 'string' ||
+            typeof eventName !== 'string' ||
+            typeof sourceTimeUnixNano !== 'string' ||
+            typeof sourceTimeMs !== 'number' ||
+            !Number.isFinite(sourceTimeMs) ||
+            typeof sessionId !== 'string' ||
+            typeof costKind !== 'string' ||
+            typeof attributesJson !== 'string' ||
+            receivedAt === null ||
+            Number.isNaN(receivedAt.getTime())
+          ) {
+            return PERMANENT('native_telemetry payload missing required fields');
+          }
+          await insertNativeTelemetryEvent(deps.db, {
+            id: rowId,
+            projectId,
+            runId,
+            harness,
+            source,
+            eventName,
+            sourceTimeUnixNano,
+            sourceTimeMs: Math.trunc(sourceTimeMs),
+            sessionId,
+            appVersion: optionalString(payload.appVersion),
+            toolUseId: optionalString(payload.toolUseId),
+            toolName: optionalString(payload.toolName),
+            requestId: optionalString(payload.requestId),
+            clientRequestId: optionalString(payload.clientRequestId),
+            promptId: optionalString(payload.promptId),
+            agentId: optionalString(payload.agentId),
+            parentAgentId: optionalString(payload.parentAgentId),
+            model: optionalString(payload.model),
+            success: typeof payload.success === 'boolean' ? payload.success : null,
+            eventSequence: optionalInteger(payload.eventSequence),
+            durationMs: optionalInteger(payload.durationMs),
+            statusCode: optionalInteger(payload.statusCode),
+            attempt: optionalInteger(payload.attempt),
+            inputTokens: optionalInteger(payload.inputTokens),
+            outputTokens: optionalInteger(payload.outputTokens),
+            cacheReadTokens: optionalInteger(payload.cacheReadTokens),
+            cacheCreationTokens: optionalInteger(payload.cacheCreationTokens),
+            toolInputSizeBytes: optionalInteger(payload.toolInputSizeBytes),
+            toolResultSizeBytes: optionalInteger(payload.toolResultSizeBytes),
+            costUsdMicros: optionalInteger(payload.costUsdMicros),
+            costKind,
+            attributesJson,
+            receivedAt,
+          });
+          log.debug({ event: 'native_telemetry_dispatched', rowId, eventName }, 'native_telemetry row dispatched');
+          return SUCCESS;
+        }
+
         case 'memory_access': {
           const rowId = payload.rowId;
           const channel = payload.channel;

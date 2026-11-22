@@ -85,6 +85,8 @@ const tablePairs = [
   // COOD-78 — append-only, so it belongs in tablePairs but deliberately
   // NOT in `mutableTables` below (no updated_at / updated_by_user_id).
   ['memory_access_events', sq.memoryAccessEvents, pg.memoryAccessEvents],
+  // COOD-105 — native harness telemetry; append-only, local-only (never synced).
+  ['native_telemetry_events', sq.nativeTelemetryEvents, pg.nativeTelemetryEvents],
   // COOD-79 rollups. Also append-only in effect (recomputed per day),
   // but they DO carry updated_at, so they are exempt from the
   // append-only convention check rather than the parity matrix.

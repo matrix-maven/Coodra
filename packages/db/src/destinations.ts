@@ -91,6 +91,65 @@ export async function insertMemoryAccessEvent(db: DbHandle, row: InsertMemoryAcc
     .onConflictDoNothing({ target: postgresSchema.memoryAccessEvents.id });
 }
 
+/**
+ * COOD-105 — one native harness telemetry observation. Append-only and
+ * idempotent on `id` (a replay-identity hash), so exact replays and
+ * outbox retries are no-ops. Throws on FK violation (Run not present),
+ * which the dispatcher maps to a transient failure.
+ */
+export interface InsertNativeTelemetryEventRow {
+  readonly id: string;
+  readonly orgId?: string | null;
+  readonly projectId: string;
+  readonly runId: string;
+  readonly harness: string;
+  readonly source: string;
+  readonly eventName: string;
+  readonly sourceTimeUnixNano: string;
+  readonly sourceTimeMs: number;
+  readonly sessionId: string;
+  readonly appVersion?: string | null;
+  readonly toolUseId?: string | null;
+  readonly toolName?: string | null;
+  readonly requestId?: string | null;
+  readonly clientRequestId?: string | null;
+  readonly promptId?: string | null;
+  readonly agentId?: string | null;
+  readonly parentAgentId?: string | null;
+  readonly model?: string | null;
+  readonly success?: boolean | null;
+  readonly eventSequence?: number | null;
+  readonly durationMs?: number | null;
+  readonly statusCode?: number | null;
+  readonly attempt?: number | null;
+  readonly inputTokens?: number | null;
+  readonly outputTokens?: number | null;
+  readonly cacheReadTokens?: number | null;
+  readonly cacheCreationTokens?: number | null;
+  readonly toolInputSizeBytes?: number | null;
+  readonly toolResultSizeBytes?: number | null;
+  readonly costUsdMicros?: number | null;
+  readonly costKind: string;
+  readonly contentPolicy?: string;
+  readonly attributesJson: string;
+  /** Receipt time; defaults to now. */
+  readonly receivedAt?: Date;
+}
+
+export async function insertNativeTelemetryEvent(db: DbHandle, row: InsertNativeTelemetryEventRow): Promise<void> {
+  if (db.kind === 'sqlite') {
+    await db.db
+      .insert(sqliteSchema.nativeTelemetryEvents)
+      .values(row)
+      .onConflictDoNothing({ target: sqliteSchema.nativeTelemetryEvents.id });
+    return;
+  }
+  await db.db
+    .insert(postgresSchema.nativeTelemetryEvents)
+    .values(row)
+    .onConflictDoNothing({ target: postgresSchema.nativeTelemetryEvents.id });
+}
+
 export interface InsertRunRow {
   readonly id: string;
   readonly orgId?: string | null;

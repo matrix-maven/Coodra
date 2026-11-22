@@ -81,6 +81,7 @@ export type OutboxQueueKind =
   | 'session_close'
   | 'policy_decision'
   | 'memory_access'
+  | 'native_telemetry'
   | 'sync_to_cloud';
 
 /**
@@ -98,6 +99,8 @@ export const AUDIT_QUEUE_KINDS = [
   'session_close',
   'policy_decision',
   'memory_access',
+  // COOD-105 — native harness telemetry rides the same durable path, local-only.
+  'native_telemetry',
 ] as const satisfies ReadonlyArray<OutboxQueueKind>;
 
 /**

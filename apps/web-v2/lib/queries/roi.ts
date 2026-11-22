@@ -1,6 +1,6 @@
 import { listAllActiveKillSwitches, postgresSchema, sqliteSchema } from '@coodra/db';
 import { REUSE_READ_TOOL_NAMES, type RoiMeasuredInputs } from '@coodra/shared/roi';
-import { and, count, countDistinct, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, count, countDistinct, eq, inArray, sql } from 'drizzle-orm';
 
 import { createWebDb } from '@/lib/db';
 
@@ -123,18 +123,11 @@ async function countActiveProjects(handle: Handle): Promise<number> {
 }
 
 async function countRunEvents(handle: Handle): Promise<number> {
-  // Native telemetry corroborates hook operations; it is not an additional tool invocation.
   if (handle.kind === 'sqlite') {
-    const rows = await handle.db
-      .select({ n: count() })
-      .from(sqliteSchema.runEvents)
-      .where(ne(sqliteSchema.runEvents.phase, 'telemetry'));
+    const rows = await handle.db.select({ n: count() }).from(sqliteSchema.runEvents);
     return Number(rows[0]?.n ?? 0);
   }
-  const rows = await handle.db
-    .select({ n: count() })
-    .from(postgresSchema.runEvents)
-    .where(ne(postgresSchema.runEvents.phase, 'telemetry'));
+  const rows = await handle.db.select({ n: count() }).from(postgresSchema.runEvents);
   return Number(rows[0]?.n ?? 0);
 }
 
