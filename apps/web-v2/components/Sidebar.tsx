@@ -130,6 +130,17 @@ export function Sidebar({
   // click into a 404.
   const isHosted = deploymentMode === 'team-hosted';
 
+  // Agent telemetry reads local SQLite only (it is never synced), so it is hidden on a hosted server.
+  const workspaceItems: NavItem[] = [
+    { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
+    { href: '/roi', label: 'ROI', icon: <IconChart /> },
+    { href: '/memory', label: 'Memory', icon: <IconChart /> },
+  ];
+  if (!isHosted) {
+    workspaceItems.push({ href: '/telemetry', label: 'Agent telemetry', icon: <IconPulse /> });
+  }
+  workspaceItems.push({ href: '/projects', label: 'Projects', icon: <IconStack /> });
+
   const teamGroupItems: NavItem[] = [{ href: '/settings/team', label: 'Members + org', icon: <IconUsers /> }];
   if (!isHosted) {
     teamGroupItems.push({ href: '/sync', label: 'Sync queue', icon: <IconSync /> });
@@ -175,12 +186,7 @@ export function Sidebar({
       ? [
           {
             label: 'Workspace',
-            items: [
-              { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
-              { href: '/roi', label: 'ROI', icon: <IconChart /> },
-              { href: '/memory', label: 'Memory', icon: <IconChart /> },
-              { href: '/projects', label: 'Projects', icon: <IconStack /> },
-            ],
+            items: workspaceItems,
           },
           { label: 'Team', items: teamGroupItems },
           { label: 'Action Center', items: actionCenterItems },
@@ -191,12 +197,7 @@ export function Sidebar({
       : [
           {
             label: 'Workspace',
-            items: [
-              { href: '/', label: 'Dashboard', icon: <IconDashboard /> },
-              { href: '/roi', label: 'ROI', icon: <IconChart /> },
-              { href: '/memory', label: 'Memory', icon: <IconChart /> },
-              { href: '/projects', label: 'Projects', icon: <IconStack /> },
-            ],
+            items: workspaceItems,
           },
           { label: 'Action Center', items: actionCenterItems },
           { label: 'Knowledge', items: knowledgeItems },
@@ -596,6 +597,14 @@ function IconKey() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
       <circle cx="8" cy="14" r="3.5" />
       <path d="M11 14h10v4M17 14v4" />
+    </svg>
+  );
+}
+/** A heartbeat trace — what the agent's own harness reported (/telemetry). */
+function IconPulse() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <path d="M3 12h4l2.5-6 4 12 2.5-6H21" />
     </svg>
   );
 }

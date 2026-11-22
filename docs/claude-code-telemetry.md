@@ -1,6 +1,6 @@
 # Native telemetry: COOD-105 (implementation reference)
 
-Status: implemented on branch `codex/cood-105-telemetry`. Revision 2 moved telemetry out of `run_events` into its own table, `native_telemetry_events`; revision 2.1 fixed two issues found in independent review (upgrade path and queued-job ownership); revision 3 makes the Run optional so evidence is kept even when hooks never created one; revision 4 adds Coodra hook and MCP-server health events. This document is the implementation reference and the review checklist for an independent validator (see [Reviewer checklist](#reviewer-checklist)).
+Status: implemented on branch `codex/cood-105-telemetry`. Revision 2 moved telemetry out of `run_events` into its own table, `native_telemetry_events`; revision 2.1 fixed two issues found in independent review (upgrade path and queued-job ownership); revision 3 makes the Run optional so evidence is kept even when hooks never created one; revision 4 adds Coodra hook and MCP-server health events; revision 5 adds hook-versus-telemetry reconciliation and the Agent telemetry page; revision 6 adds the Raw events view. This document is the implementation reference and the review checklist for an independent validator (see [Reviewer checklist](#reviewer-checklist)).
 
 The shared envelope carries a `harness` discriminator for Claude Code and Codex. Only the Claude Code OTLP logs adapter exists. Codex needs its own adapter with its own documented signals and verified fixtures; it is not accepted as Claude Code data.
 
@@ -9,7 +9,9 @@ The shared envelope carries a `harness` discriminator for Claude Code and Codex.
 | Claude Code OTLP HTTP/JSON logs | Verified live: `tool_result` (success and failure), `api_request`, `api_error` |
 | Codex telemetry | Adapter not implemented; do not assume Claude event names or fields |
 | OTLP protobuf, gRPC, metrics, traces | Not implemented |
-| Hook vs telemetry reconciliation, checkpoint coverage, Run-view panel | Not implemented; collecting data establishes none of them |
+| Hook vs telemetry reconciliation | Implemented for tool operations (see Reconciliation); verified with fixtures and an in-memory database, not yet against a live paired session |
+| Agent telemetry page | Implemented (`/telemetry`); empty state verified in a browser; populated rendering not yet viewed in a browser |
+| Checkpoint coverage, Run-view panel | Not implemented |
 
 ## Change history
 
@@ -17,6 +19,8 @@ The shared envelope carries a `harness` discriminator for Claude Code and Codex.
 | --- | --- |
 | 1 (`279abd4`) | Receiver, allowlist, replay identity, retention. Stored in `run_events` with `phase = 'telemetry'`. No schema change |
 | 2 | **New table `native_telemetry_events`** (SQLite + Postgres schema, migrations `sqlite/0041`, `postgres/0043`), new outbox queue `native_telemetry`, dispatcher branch, `insertNativeTelemetryEvent`, project-delete wiring, tests. Receiver and retention moved to the new table. The ROI query filter added in rev 1 was reverted because `run_events` no longer holds telemetry |
+| 6 | **Raw events view.** `/telemetry/events` (no schema change): a filterable, newest-first list of every accepted event with expandable rows, plus an optional live tail. Query `listTelemetryEvents` in `apps/web-v2/lib/queries/telemetry.ts` |
+| 5 | **Reconciliation and UI.** No schema change. New pure module `packages/shared/src/telemetry-reconciliation.ts` (`reconcileToolOperations`), query layer `apps/web-v2/lib/queries/telemetry.ts`, pages `/telemetry` and `/telemetry/<projectId>/<sessionId>`, and an **Agent telemetry** link in the left navigation (hidden on a hosted team server, because telemetry is local-only) |
 | 4 | **Hook and MCP events.** Two more events are accepted: `claude_code.hook_execution_complete` and `claude_code.mcp_server_connection`. New nullable typed columns (SQLite `0044`, Postgres `0045`, `ADD COLUMN` only): `hook_event`, `hook_name`, `hook_count`, `hook_success_count`, `hook_blocking_count`, `hook_error_count`, `hook_cancelled_count`, `connection_status`, `transport_type`, `server_scope`, `plugin_id_hash`. Purpose: measure Coodra's own hooks and MCP server as Claude Code observed them (outcome counts, duration, connection health) |
 | 3 | **Run is optional.** `run_id` is nullable with `ON DELETE SET NULL` (SQLite migration `0043` rebuilds the table, Postgres `0044` drops NOT NULL), plus index `native_telemetry_events_session_idx (project_id, session_id)`. The receiver no longer returns 503 for a missing Run: it stores the row unattached. Replay identity no longer includes the Run. Unattached rows are attached when a Run appears (at dispatch, or when `insertRun` creates it). Unattached evidence expires after 24 hours and has its own capacity budget (2,000) |
 | 2.1 | **Upgrade path:** SQLite migration `0042_backfill_native_telemetry.sql` copies rev-1 `run_events` telemetry rows into the new table (id and receipt time preserved) and deletes the legacy rows; the outbox dispatcher reroutes still-queued rev-1 `run_event` telemetry jobs to the new table; retention and capacity now match `native_telemetry_*` ids regardless of queue. **Deletion:** queue rows are stamped with `project_id`/`run_id` (`scheduleDurableWrite` gained optional `orgId`/`projectId`/`runId`), and project delete also removes `native_telemetry` jobs by payload `projectId`, so no job outlives its project |
@@ -213,6 +217,54 @@ Leave metric and trace exporters unset for a logs-only setup. Repository `.claud
 
 References: [Agent SDK observability](https://code.claude.com/docs/en/agent-sdk/observability), [Claude Code monitoring](https://code.claude.com/docs/en/monitoring-usage) (log signals and exporter configuration), and [API OpenTelemetry](https://platform.claude.com/docs/en/manage-claude/opentelemetry) (a distinct API/SDK tracing integration, not used here).
 
+## Reconciliation
+
+`reconcileToolOperations` (shared package, pure, no I/O or clock) compares the tool operations Coodra's hooks recorded with the `claude_code.tool_result` telemetry rows for the same session.
+
+**Join key.** One native tool-use id. Claude Code hook rows are stored with `tool_use_id = lifecycle_event:<harness>:<session>:<Event>:<tool>:<native id>`; the native id is the final segment (`nativeToolUseIdFromHookKey`, which returns null for any key that does not have that exact shape). Telemetry carries the native id in `tool_use_id`. Session or time proximity never produces a match. An operation with no usable id is reported as not comparable with a reason; it is never merged into another.
+
+**Inputs.** Hook side: `run_events` rows with `phase` `pre` or `post` for the Run (the `mcp_call` phase is Coodra's own MCP instrumentation and is excluded). Telemetry side: `tool_result` rows for the project and session, attached or not. Plus: the count of all telemetry events for the session, whether a Run exists, whether the Run ended, and the current time.
+
+**Statuses**
+
+| Status | Meaning |
+| --- | --- |
+| `matched` | Both channels saw the operation. Agreement is reported separately |
+| `hook_only` | Hooks saw it, no telemetry result, and the grace window (120 s) has passed or the Run ended |
+| `telemetry_only` | Telemetry saw it, no hook records, and the grace window has passed (or there is no Run) |
+| `awaiting_arrival` | One side is missing but still inside the grace window and the Run is still open |
+| `not_comparable` | Reasons: `hook_key_without_native_id`, `telemetry_without_tool_use_id`, `telemetry_channel_not_observed` (the session has hook rows but no telemetry at all, so it is a missing channel, not a disagreement), `harness_telemetry_unsupported` (anything but `claude_code`) |
+
+**Disagreements on matched operations.** `post_hook_missing` (telemetry says success, hooks have a PreToolUse and no PostToolUse), `post_hook_after_failure` (telemetry says failure, a PostToolUse was recorded), `pre_hook_missing` (PostToolUse without a PreToolUse). A failed tool with only a PreToolUse hook is consistent, not a disagreement. If telemetry did not report `success`, no status check is made. A tool-name difference between channels is shown as information and not counted as disagreement. Repeated telemetry rows for one id are kept visible as occurrences, not collapsed.
+
+**Limitations always shown with a result.** Native export is best effort, so a missing telemetry row is not proof the operation did not run; hooks record policy outcomes, not execution results, so execution status comes only from telemetry; sessions with no Run have nothing to compare against; sessions with no telemetry suggest the channel is disabled or unreachable; and hook rows without a native id are listed separately.
+
+**Evidence.** Each reconciled operation carries the contributing `run_events.id` values and the `native_telemetry_events.id`, shown on the session page.
+
+**Known gaps.** Coodra does not register a `PostToolUseFailure` hook, so a failed tool normally shows only a PreToolUse; that is treated as consistent with `success = false`. In real data about 220 of roughly 9,600 PreToolUse rows have no PostToolUse, which is the kind of disagreement this view is meant to surface once live paired sessions exist. Grace window and the hook-row read limit (50,000 per Run) are engineering defaults, not measured values.
+
+## Agent telemetry page
+
+Left navigation entry **Agent telemetry** (`/telemetry`), shown in the Workspace group after Memory and hidden on a hosted team server. It is distinct from **Memory**, which reports what Coodra surfaced.
+
+- **Overview:** events received (total and last 24 hours, newest receipt), harness and version, model requests and tokens, estimated cost (shown as "unavailable", never $0, when no request reported one), and collection health (queued and dead-lettered jobs, sessions without a Run).
+- **Capture verification:** counts of matched, hook-only, telemetry-only, awaiting-arrival and not-comparable operations across the 40 most recent sessions that have a Run, with channel disagreements called out.
+- **Sessions:** attached and unattached, linking to the known Run and to the session page.
+- **Coverage:** what each harness collects, which versions it was verified on, and what is not verified or not collected (Codex: nothing yet).
+- **Session page** (`/telemetry/<projectId>/<sessionId>`): usage by model, the operation-level reconciliation table with reasons and evidence references, hook health, MCP connections, queue state and the newest 300 evidence rows.
+- On a Postgres (team-hosted) handle both pages say telemetry is local rather than showing an empty result.
+
+## Raw events view
+
+`/telemetry/events`, reachable from the Agent telemetry page ("Raw events") and from each session page ("open in raw events"). It is the closest thing to a log explorer: every accepted event, newest first, with nothing aggregated.
+
+- **Rows.** Collapsed: source time, event badge (highlighted when it is a problem), a one-line summary, duration, short session id, and an `unattached` marker when no Run exists. Expanded: row id, event, harness and source, project, session (links to the session page), Run (link, or the unattached explanation), source time in ISO and nanoseconds, receipt time and its lag after the source time, cost kind, content policy, every stored typed column that has a value, and the full allowlisted attribute set as pretty-printed JSON.
+- **Filters** (a plain GET form, so a filtered view is a shareable URL): event type (with counts), time range (15 minutes, 1 hour, 24 hours, 7 days or all), a text search over tool name, tool-use id, request id, model, hook event and row id, a session id, and "problems only". Problems are failed tools, API errors, hook errors, blocking or cancelled hooks, and MCP connections that are not `connected`. The search escapes `%`, `_` and `\`, so it matches literally.
+- **Paging.** The newest 100 by default, doubling with "Show more" up to 500 per page; the matching total is always shown. Older events need narrower filters.
+- **Live tail.** A toggle that re-renders the server page every 3 seconds while enabled (`?live=1`). It is polling, not streaming, so each refresh is a fresh read of the local database.
+- **What it does not show.** The raw OTLP request bodies are not stored, so prompts, tool inputs and outputs, error text and account attributes cannot be shown; the attribute JSON is the allowlisted subset only. There are no traces or span waterfalls (only logs are ingested) and no SQL box; use SQLite directly for ad hoc queries.
+- On a Postgres (team-hosted) handle it reports that telemetry is local, as the other pages do.
+
 ## Readback
 
 Query the table directly; there is no Run-view panel or CLI command yet.
@@ -248,7 +300,7 @@ pnpm --filter @coodra/cli exec vitest run __tests__/unit/outbox
 pnpm --filter @coodra/mcp-server exec vitest run --config vitest.integration.config.ts   # 49 files, 367 tests
 ```
 
-Results at revision 4: db unit 175 passed; delete-project integration 5 passed (stamped and unstamped queued jobs, and an unattached row); outbox unit 24 passed; mcp-server integration 374 passed (49 files, including the 21 in `native-telemetry.test.ts`); `check:migration-lock` ok; `tsc` clean for db, cli, mcp-server and web-v2; biome clean on touched packages. Postgres was verified against a throwaway `pgvector/pgvector:pg16` container (Docker, port 55432, removed afterwards): all Postgres migrations through `0045` applied cleanly (97 of 97 integration tests, new columns present); `insertNativeTelemetryEvent` round-trips typed values (`bigint` source time, boolean `success`, null cost) and an exact replay is a no-op; a non-existent Run id raises the foreign-key error (`23503`); a NULL `run_id` is accepted; deleting a Run sets `run_id` to NULL; `deleteProject` on Postgres (verified at revision 2.1) removes the project's telemetry and queued jobs. The full db integration suite run with `DATABASE_URL` set passes (97 of 97). It initially had one failure, `postgres-migrate.test.ts > creates the canonical migration table set`, which pre-dated this work: its `SCHEMA_TABLES` list was out of query order (`run_events` before `run_diffs`). That list is now alphabetical (with a comment saying it must stay so) and includes `native_telemetry_events`. This verifies the schema and write path on Postgres only; no runtime code writes telemetry to Postgres (see Architecture).
+Results at revision 5: shared unit 451 passed (16 for reconciliation); web-v2 unit 84 passed (10 for the telemetry queries and the raw events filters, using an in-memory database); db unit 175 passed; delete-project integration 5 passed (stamped and unstamped queued jobs, and an unattached row); outbox unit 24 passed; mcp-server integration 374 passed (49 files, including the 21 in `native-telemetry.test.ts`); `check:migration-lock` ok; `tsc` clean for db, cli, mcp-server and web-v2; biome clean on touched packages. Postgres was verified against a throwaway `pgvector/pgvector:pg16` container (Docker, port 55432, removed afterwards): all Postgres migrations through `0045` applied cleanly (97 of 97 integration tests, new columns present); `insertNativeTelemetryEvent` round-trips typed values (`bigint` source time, boolean `success`, null cost) and an exact replay is a no-op; a non-existent Run id raises the foreign-key error (`23503`); a NULL `run_id` is accepted; deleting a Run sets `run_id` to NULL; `deleteProject` on Postgres (verified at revision 2.1) removes the project's telemetry and queued jobs. The full db integration suite run with `DATABASE_URL` set passes (97 of 97). It initially had one failure, `postgres-migrate.test.ts > creates the canonical migration table set`, which pre-dated this work: its `SCHEMA_TABLES` list was out of query order (`run_events` before `run_diffs`). That list is now alphabetical (with a comment saying it must stay so) and includes `native_telemetry_events`. This verifies the schema and write path on Postgres only; no runtime code writes telemetry to Postgres (see Architecture).
 
 `native-telemetry.test.ts` uses real loopback HTTP, in-memory SQLite and the production outbox dispatcher. It covers: content removal before queueing and in the table; typed columns and cost micros; separation of tool `success` from any policy verdict; hook `run_events` untouched; exact replay; source-time ordering and repeated sequence numbers; unavailable and mismatched Run identity; partial rejection; enqueue failure not acknowledged as accepted; opt-in endpoint, Origin, protocol and size limits; capacity bound and replay at capacity; retention of rows and queue payloads; 24-hour expiry for unattached rows versus seven days for attached; `run_id` set to NULL when a Run is deleted; missing Run kept unattached without creating a Run and without claiming a Run of another harness; late attachment on `insertRun` without duplicates; attachment at dispatch; separate unattached capacity; hook execution metadata arriving before the Run exists and attaching when the Run is created; MCP connection metadata without server or plugin names; other hook and plugin lifecycle events still rejected; malformed queued job dead-lettered without a partial row; queue rows stamped with project and run; rev-1 backfill by running migration `0042`; legacy queued `run_event` job rerouted.
 
@@ -271,7 +323,8 @@ Not yet verified: comparison against hook events from the same session; shutdown
 6. Confirm replay identity excludes `receivedAt` and that capacity and retention count the new table and the `native_telemetry` queue.
 7. Confirm the upgrade path: read `0042_backfill_native_telemetry.sql`, the `legacyTelemetryRow` reroute in `dispatcher.ts`, and the two upgrade tests; confirm queue rows carry `project_id`/`run_id` and that `deleteProject` clears unstamped `native_telemetry` jobs.
 8. Confirm Run-optional behaviour: `run_id` nullable with `SET NULL` in both dialects and migrations `0043`/`0044`; the receiver no longer throws for a missing Run; identity excludes `runId`; `attachNativeTelemetryToRun` is called from `insertRun` and from the dispatcher; unattached rows expire at 24 hours and have their own cap.
-9. Confirm there is no sync path: no `sync_to_cloud` job is enqueued and `SyncTableName` does not list the table.
+9. Confirm reconciliation: read `telemetry-reconciliation.ts` and its tests; check that no status is derived from time or session proximity, that a missing telemetry channel is `not_comparable` rather than `hook_only`, and that cost is `unavailable` (null), never zero, in `queries/telemetry.ts`.
+10. Confirm there is no sync path: no `sync_to_cloud` job is enqueued and `SyncTableName` does not list the table.
 
 ## Open design question: long-term storage in Postgres
 

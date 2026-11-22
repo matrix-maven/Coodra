@@ -89,6 +89,20 @@ export {
   truncateUnifiedDiff,
 } from './run-diff.js';
 export {
+  DEFAULT_GRACE_MS,
+  type DisagreementCode,
+  type HookObservation,
+  type NotComparableReason,
+  nativeToolUseIdFromHookKey,
+  type ReconciledOperation,
+  type ReconcileInput,
+  type ReconcileResult,
+  type ReconcileSummary,
+  type ReconciliationStatus,
+  reconcileToolOperations,
+  type TelemetryToolResult,
+} from './telemetry-reconciliation.js';
+export {
   defaultWorkflowPolicy,
   parseWorkflowPolicy,
   renderWorkflowPolicyContext,
