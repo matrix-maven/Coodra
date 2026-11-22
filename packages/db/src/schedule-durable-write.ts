@@ -65,6 +65,15 @@ export interface ScheduleDurableWriteArgs {
    * (see `OutboxWorker` S1).
    */
   readonly runAfter?: Date;
+  /**
+   * Optional ownership stamps. When set they are written to
+   * `pending_jobs.org_id/project_id/run_id` so project deletion (which
+   * filters the queue by `project_id`) also clears queued work that
+   * belongs to the project instead of leaving it to fail on a missing FK.
+   */
+  readonly orgId?: string;
+  readonly projectId?: string;
+  readonly runId?: string;
 }
 
 export interface ScheduleDurableWriteResult {
@@ -100,6 +109,9 @@ export async function scheduleDurableWrite(
         queue: args.queue,
         payload,
         runAfter,
+        ...(args.orgId !== undefined ? { orgId: args.orgId } : {}),
+        ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+        ...(args.runId !== undefined ? { runId: args.runId } : {}),
       })
       .onConflictDoNothing({ target: sqliteSchema.pendingJobs.id })
       .returning({ id: sqliteSchema.pendingJobs.id });
@@ -115,6 +127,9 @@ export async function scheduleDurableWrite(
       queue: args.queue,
       payload,
       runAfter,
+      ...(args.orgId !== undefined ? { orgId: args.orgId } : {}),
+      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
+      ...(args.runId !== undefined ? { runId: args.runId } : {}),
     })
     .onConflictDoNothing({ target: postgresSchema.pendingJobs.id })
     .returning({ id: postgresSchema.pendingJobs.id });

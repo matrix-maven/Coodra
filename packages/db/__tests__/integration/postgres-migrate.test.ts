@@ -20,19 +20,21 @@ import { dropAllPublicTables } from './_helpers/postgres-clean.js';
 const databaseUrl = process.env.DATABASE_URL;
 const isEnabled = typeof databaseUrl === 'string' && databaseUrl.length > 0;
 
+// Must stay alphabetical: the query below is ORDER BY table_name and compared element-for-element.
 const SCHEMA_TABLES = [
   'context_packs',
   'decisions',
   'external_work_items',
   'features',
   'integration_connections',
+  'native_telemetry_events',
   'pending_jobs',
   'policies',
   'policy_decisions',
   'policy_rules',
   'projects',
-  'run_events',
   'run_diffs',
+  'run_events',
   'runs',
   'sync_events',
   'team_invites',

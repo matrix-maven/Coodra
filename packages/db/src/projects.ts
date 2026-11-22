@@ -582,6 +582,12 @@ function deleteProjectSqlite(
   for (const table of DEPENDENT_PROJECT_TABLES) {
     raw.prepare(`DELETE FROM ${table} WHERE project_id = ?`).run(projectId);
   }
+  // Native telemetry jobs are normally stamped with project_id (handled above); this also
+  // clears any whose payload names the project but which carry no stamp, so a queued job
+  // can never outlive its project and dead-letter on a missing foreign key.
+  raw
+    .prepare("DELETE FROM pending_jobs WHERE queue = 'native_telemetry' AND json_extract(payload, '$.projectId') = ?")
+    .run(projectId);
 
   // ---- phase 2: the counted core ------------------------------------
   //

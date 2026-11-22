@@ -37,6 +37,7 @@ export {
   upsertControls,
 } from './control-catalog.js';
 export {
+  attachNativeTelemetryToRun,
   type CloseRunArgs,
   closeRun,
   type InsertMemoryAccessEventRow,

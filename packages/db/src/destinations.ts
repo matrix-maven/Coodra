@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import type { DbHandle } from './client.js';
 import { postgresSchema, sqliteSchema } from './schema/index.js';
@@ -101,7 +101,8 @@ export interface InsertNativeTelemetryEventRow {
   readonly id: string;
   readonly orgId?: string | null;
   readonly projectId: string;
-  readonly runId: string;
+  /** NULL = unattached (no Run known yet); attached later by `attachNativeTelemetryToRun`. */
+  readonly runId: string | null;
   readonly harness: string;
   readonly source: string;
   readonly eventName: string;
@@ -128,6 +129,17 @@ export interface InsertNativeTelemetryEventRow {
   readonly cacheCreationTokens?: number | null;
   readonly toolInputSizeBytes?: number | null;
   readonly toolResultSizeBytes?: number | null;
+  readonly hookEvent?: string | null;
+  readonly hookName?: string | null;
+  readonly hookCount?: number | null;
+  readonly hookSuccessCount?: number | null;
+  readonly hookBlockingCount?: number | null;
+  readonly hookErrorCount?: number | null;
+  readonly hookCancelledCount?: number | null;
+  readonly connectionStatus?: string | null;
+  readonly transportType?: string | null;
+  readonly serverScope?: string | null;
+  readonly pluginIdHash?: string | null;
   readonly costUsdMicros?: number | null;
   readonly costKind: string;
   readonly contentPolicy?: string;
@@ -178,6 +190,8 @@ export async function insertRun(db: DbHandle, row: InsertRunRow): Promise<void> 
       .insert(sqliteSchema.runs)
       .values(values)
       .onConflictDoNothing({ target: [sqliteSchema.runs.projectId, sqliteSchema.runs.sessionId] });
+    // A Run may arrive after its session's native telemetry; bind what is already stored.
+    await attachNativeTelemetryToRun(db, row.projectId, row.sessionId, row.agentType);
     return;
   }
   await db.db
@@ -206,4 +220,24 @@ export async function closeRun(db: DbHandle, args: CloseRunArgs): Promise<void> 
     .update(postgresSchema.runs)
     .set({ status: 'completed', endedAt })
     .where(and(eq(postgresSchema.runs.projectId, args.projectId), eq(postgresSchema.runs.sessionId, args.sessionId)));
+}
+
+/**
+ * COOD-105 — bind unattached native telemetry (run_id NULL) to the Run that now exists for
+ * the same project + native session + harness. Idempotent; never overwrites an existing
+ * association and never creates a Run. SQLite only: telemetry is not written to Postgres.
+ * Returns the number of rows attached.
+ */
+export async function attachNativeTelemetryToRun(
+  db: DbHandle,
+  projectId: string,
+  sessionId: string,
+  harness: string,
+): Promise<number> {
+  if (db.kind !== 'sqlite') return 0;
+  const result = await db.db.run(sql`UPDATE native_telemetry_events
+    SET run_id = (SELECT id FROM runs WHERE project_id = ${projectId} AND session_id = ${sessionId} AND agent_type = ${harness})
+    WHERE project_id = ${projectId} AND session_id = ${sessionId} AND harness = ${harness} AND run_id IS NULL
+      AND EXISTS (SELECT 1 FROM runs WHERE project_id = ${projectId} AND session_id = ${sessionId} AND agent_type = ${harness})`);
+  return result.changes;
 }

@@ -13,7 +13,8 @@ export interface NativeTelemetryObservation {
   readonly sourceTimeUnixNano: string;
   readonly receivedAt: string;
   readonly projectId: string;
-  readonly runId: string;
+  /** NULL when no Run exists for the native session yet (unattached evidence). */
+  readonly runId: string | null;
   readonly sessionId: string;
   readonly attributes: Readonly<Record<string, string | number | boolean>>;
   readonly content: 'excluded';
@@ -39,7 +40,14 @@ const ExportLogs = z.object({
     .max(32),
 });
 
-const EVENTS = new Set(['claude_code.tool_result', 'claude_code.api_request', 'claude_code.api_error']);
+const EVENTS = new Set([
+  'claude_code.tool_result',
+  'claude_code.api_request',
+  'claude_code.api_error',
+  // Coodra's own hooks and MCP server as the harness observed them (metadata only).
+  'claude_code.hook_execution_complete',
+  'claude_code.mcp_server_connection',
+]);
 const IDENTIFIERS = [
   'session.id',
   'app.version',
@@ -51,6 +59,13 @@ const IDENTIFIERS = [
   'parent_agent_id',
   'model',
   'tool_name',
+  'hook_event',
+  'hook_name',
+  'hook_source',
+  'status',
+  'transport_type',
+  'server_scope',
+  'plugin_id_hash',
 ] as const;
 const NUMBERS = [
   'event.sequence',
@@ -65,7 +80,19 @@ const NUMBERS = [
   'status_code',
   'tool_input_size_bytes',
   'tool_result_size_bytes',
+  'num_hooks',
+  'num_success',
+  'num_blocking',
+  'num_non_blocking_error',
+  'num_cancelled',
+  'total_duration_ms',
+  'stdout_chars',
+  'additional_context_chars',
+  'system_message_chars',
+  'initial_user_message_chars',
+  'num_outputs_persisted',
 ] as const;
+const BOOLEANS = ['success', 'is_plugin', 'managed_only', 'safe_mode'] as const;
 
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -102,8 +129,10 @@ function safeAttributes(raw: Record<string, unknown>): Record<string, string | n
     const number = Number(value);
     if (Number.isFinite(number) && number >= 0 && number <= Number.MAX_SAFE_INTEGER) safe[key] = number;
   }
-  if (raw.success === true || raw.success === 'true') safe.success = true;
-  if (raw.success === false || raw.success === 'false') safe.success = false;
+  for (const key of BOOLEANS) {
+    if (raw[key] === true || raw[key] === 'true') safe[key] = true;
+    if (raw[key] === false || raw[key] === 'false') safe[key] = false;
+  }
   return safe;
 }
 
@@ -125,14 +154,20 @@ export type TelemetryLogsReceiver = (
 
 const RETENTION_MS = 7 * 86_400_000;
 const MAX_RETAINED_EVENTS = 10_000;
+/** Unattached evidence (no Run) is cheaper to forge, so it expires sooner and has its own budget. */
+const UNATTACHED_RETENTION_MS = 24 * 3_600_000;
+const MAX_UNATTACHED_EVENTS = 2_000;
 
 /** Expire only native telemetry rows and its queue payloads (including dead letters). */
 export async function pruneNativeTelemetry(db: DbHandle, now = Date.now()): Promise<number> {
   if (db.kind !== 'sqlite') return 0;
   const cutoff = Math.floor((now - RETENTION_MS) / 1000);
-  const events = await db.db.run(sql`DELETE FROM native_telemetry_events WHERE received_at < ${cutoff}`);
+  const unattachedCutoff = Math.floor((now - UNATTACHED_RETENTION_MS) / 1000);
+  const events = await db.db.run(sql`DELETE FROM native_telemetry_events
+    WHERE received_at < ${cutoff} OR (run_id IS NULL AND received_at < ${unattachedCutoff})`);
+  // id-prefix (not queue) so pre-revision-2 `run_event` telemetry jobs are also expired.
   const jobs = await db.db.run(sql`DELETE FROM pending_jobs
-    WHERE queue = 'native_telemetry' AND created_at < ${cutoff}`);
+    WHERE id GLOB 'native_telemetry_*' AND created_at < ${cutoff}`);
   return events.changes + jobs.changes;
 }
 
@@ -178,9 +213,10 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
         .from(t)
         .where(and(eq(t.projectId, project.id), eq(t.sessionId, sessionId), eq(t.agentType, 'claude_code')))
         .limit(1);
-      const run = rows[0];
-      // A whole-batch retry is safe, including when earlier exports already landed.
-      if (!run) throw new TelemetryRequestError(503, 'run_not_available_retry');
+      // No Run yet is accepted, not retried: the hooks may never create one, and that is exactly
+      // the evidence an independent channel exists to keep. The row stays unattached (run_id NULL)
+      // until a Run for the same project + session + harness appears.
+      const run = rows[0] ?? null;
       const observation: NativeTelemetryObservation = {
         version: 1,
         harness: 'claude_code',
@@ -189,7 +225,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
         sourceTimeUnixNano: record.timeUnixNano,
         receivedAt: new Date().toISOString(),
         projectId: project.id,
-        runId: run.id,
+        runId: run?.id ?? null,
         sessionId,
         attributes: safe,
         content: 'excluded',
@@ -199,7 +235,8 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
             : 'unavailable',
       };
       // Excludes receipt time and raw content. Source timestamp prevents sequence-reset collisions on resume.
-      const { receivedAt: _receivedAt, ...identity } = observation;
+      // runId is excluded so the same event keeps one identity whether or not a Run existed at receipt.
+      const { receivedAt: _receivedAt, runId: _runId, ...identity } = observation;
       const digest = createHash('sha256').update(JSON.stringify(identity)).digest('hex');
       const id = `native_telemetry_${digest}`;
       const num = (key: (typeof NUMBERS)[number]): number | null => {
@@ -222,7 +259,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
           v: 1,
           rowId: id,
           projectId: project.id,
-          runId: run.id,
+          runId: run?.id ?? null,
           harness: observation.harness,
           source: observation.source,
           eventName: name,
@@ -243,7 +280,7 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
           model: str('model'),
           success: typeof safe.success === 'boolean' ? safe.success : null,
           eventSequence: num('event.sequence'),
-          durationMs: num('duration_ms'),
+          durationMs: num('duration_ms') ?? num('total_duration_ms'),
           statusCode: num('status_code'),
           attempt: num('attempt'),
           inputTokens: num('input_tokens'),
@@ -252,20 +289,48 @@ export function createNativeTelemetryReceiver(deps: { db: DbHandle; kick?: () =>
           cacheCreationTokens: num('cache_creation_tokens'),
           toolInputSizeBytes: num('tool_input_size_bytes'),
           toolResultSizeBytes: num('tool_result_size_bytes'),
+          hookEvent: str('hook_event'),
+          hookName: str('hook_name'),
+          hookCount: num('num_hooks'),
+          hookSuccessCount: num('num_success'),
+          hookBlockingCount: num('num_blocking'),
+          hookErrorCount: num('num_non_blocking_error'),
+          hookCancelledCount: num('num_cancelled'),
+          connectionStatus: str('status'),
+          transportType: str('transport_type'),
+          serverScope: str('server_scope'),
+          pluginIdHash: str('plugin_id_hash'),
           costUsdMicros: micros,
         },
       });
     }
     const retained = await deps.db.db.all<{ id: string }>(sql`SELECT id FROM native_telemetry_events
-      UNION SELECT id FROM pending_jobs WHERE queue = 'native_telemetry'`);
+      UNION SELECT id FROM pending_jobs WHERE id GLOB 'native_telemetry_*'`);
     const retainedIds = new Set(retained.map(({ id }) => id));
     for (const { id } of pending) retainedIds.add(id);
     if (retainedIds.size > MAX_RETAINED_EVENTS) {
       throw new TelemetryRequestError(503, 'telemetry_capacity_exceeded');
     }
+    const unattachedIds = new Set(
+      (
+        await deps.db.db.all<{ id: string }>(sql`SELECT id FROM native_telemetry_events WHERE run_id IS NULL
+          UNION SELECT id FROM pending_jobs
+            WHERE id GLOB 'native_telemetry_*' AND json_extract(payload, '$.runId') IS NULL`)
+      ).map(({ id }) => id),
+    );
+    for (const { id, payload } of pending) if (payload.runId === null) unattachedIds.add(id);
+    if (unattachedIds.size > MAX_UNATTACHED_EVENTS) {
+      throw new TelemetryRequestError(503, 'telemetry_unattached_capacity_exceeded');
+    }
     // No sync_to_cloud job: native telemetry is project-local until sharing is explicitly scoped.
     for (const { id, payload } of pending) {
-      await scheduleDurableWrite(deps.db, { id, queue: 'native_telemetry', payload });
+      await scheduleDurableWrite(deps.db, {
+        id,
+        queue: 'native_telemetry',
+        payload,
+        projectId: payload.projectId,
+        ...(payload.runId !== null ? { runId: payload.runId } : {}),
+      });
     }
     if (pending.length > 0) deps.kick?.();
     return rejected > 0

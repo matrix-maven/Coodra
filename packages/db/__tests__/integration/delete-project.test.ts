@@ -142,6 +142,22 @@ describe('@coodra/db::deleteProject', () => {
            '1', 1, 's', 'unavailable')`,
       )
       .run(project.id, 'run_delete_project');
+    // Unattached telemetry (no Run) is still removed with the project.
+    handle.raw
+      .prepare(
+        `INSERT INTO native_telemetry_events (id, project_id, run_id, harness, source, event_name,
+           source_time_unix_nano, source_time_ms, session_id, cost_kind)
+         VALUES ('native_telemetry_delete_unattached', ?, NULL, 'claude_code', 'otlp_logs', 'claude_code.api_error',
+           '1', 1, 'no-run-session', 'unavailable')`,
+      )
+      .run(project.id);
+    // Queued telemetry: one stamped with the project, one carrying only a payload reference.
+    handle.raw
+      .prepare("INSERT INTO pending_jobs (id, queue, payload, project_id) VALUES (?, 'native_telemetry', '{}', ?)")
+      .run('native_telemetry_job_stamped', project.id);
+    handle.raw
+      .prepare("INSERT INTO pending_jobs (id, queue, payload) VALUES (?, 'native_telemetry', ?)")
+      .run('native_telemetry_job_unstamped', JSON.stringify({ projectId: project.id }));
 
     const result = await deleteProject(handle, project.id);
     expect(result.status).toBe('deleted');
@@ -158,6 +174,7 @@ describe('@coodra/db::deleteProject', () => {
       .where(eq(sqliteSchema.projects.id, project.id));
     expect(projects).toHaveLength(0);
 
+    expect(handle.raw.prepare("SELECT id FROM pending_jobs WHERE id GLOB 'native_telemetry_*'").all()).toEqual([]);
     for (const table of [
       'audit_events',
       'memory_access_events',

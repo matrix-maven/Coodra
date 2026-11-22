@@ -1,4 +1,5 @@
 import {
+  attachNativeTelemetryToRun,
   closeRun,
   type DbHandle,
   insertMemoryAccessEvent,
@@ -166,7 +167,8 @@ export interface NativeTelemetryPayloadV1 {
   readonly v: 1;
   readonly rowId: string;
   readonly projectId: string;
-  readonly runId: string;
+  /** NULL when no Run existed at receipt; attached at dispatch or when the Run is created. */
+  readonly runId: string | null;
   readonly harness: string;
   readonly source: string;
   readonly eventName: string;
@@ -197,6 +199,17 @@ export interface NativeTelemetryPayloadV1 {
   readonly cacheCreationTokens?: number | null;
   readonly toolInputSizeBytes?: number | null;
   readonly toolResultSizeBytes?: number | null;
+  readonly hookEvent?: string | null;
+  readonly hookName?: string | null;
+  readonly hookCount?: number | null;
+  readonly hookSuccessCount?: number | null;
+  readonly hookBlockingCount?: number | null;
+  readonly hookErrorCount?: number | null;
+  readonly hookCancelledCount?: number | null;
+  readonly connectionStatus?: string | null;
+  readonly transportType?: string | null;
+  readonly serverScope?: string | null;
+  readonly pluginIdHash?: string | null;
   readonly costUsdMicros?: number | null;
 }
 
@@ -252,6 +265,84 @@ async function resolveRunId(db: DbHandle, resolution: RunIdResolution): Promise<
   return lookupRunId(db, resolution.projectId, resolution.sessionId);
 }
 
+/**
+ * COOD-105 rev 1 queued native telemetry as a `run_event` job with
+ * `phase = 'telemetry'`. Jobs enqueued before the dedicated table existed
+ * may still be pending or dead-lettered after an upgrade; route them to
+ * `native_telemetry_events` so they are neither written into `run_events`
+ * nor lost. Returns null when the payload is not a legacy telemetry job.
+ */
+function legacyTelemetryRow(
+  payload: Record<string, unknown>,
+  runId: string | null,
+): Parameters<typeof insertNativeTelemetryEvent>[1] | null {
+  const rowId = payload.rowId;
+  if (payload.phase !== 'telemetry' || typeof rowId !== 'string' || !rowId.startsWith('native_telemetry_')) return null;
+  if (typeof payload.toolInput !== 'string' || runId === null) return null;
+  let output: Record<string, unknown>;
+  try {
+    const parsed: unknown = JSON.parse(payload.toolInput);
+    const candidate = isObject(parsed) ? parsed.output : null;
+    if (!isObject(candidate)) return null;
+    output = candidate;
+  } catch {
+    return null;
+  }
+  const attrs = isObject(output.attributes) ? output.attributes : {};
+  const num = (key: string): number | null => optionalInteger(attrs[key]);
+  const str = (key: string): string | null => optionalString(attrs[key]);
+  const nano = output.sourceTimeUnixNano;
+  if (
+    typeof output.projectId !== 'string' ||
+    typeof output.harness !== 'string' ||
+    typeof output.eventName !== 'string' ||
+    typeof nano !== 'string' ||
+    !/^\d{1,20}$/.test(nano) ||
+    typeof output.sessionId !== 'string' ||
+    typeof output.costKind !== 'string'
+  ) {
+    return null;
+  }
+  const costUsd = typeof attrs.cost_usd === 'number' ? Math.round(attrs.cost_usd * 1_000_000) : null;
+  return {
+    id: rowId,
+    projectId: output.projectId,
+    runId,
+    harness: output.harness,
+    source: typeof output.source === 'string' ? output.source : 'otlp_logs',
+    eventName: output.eventName,
+    sourceTimeUnixNano: nano,
+    sourceTimeMs: Number(BigInt(nano) / 1_000_000n),
+    sessionId: output.sessionId,
+    appVersion: str('app.version'),
+    toolUseId: str('tool_use_id'),
+    toolName: str('tool_name'),
+    requestId: str('request_id'),
+    clientRequestId: str('client_request_id'),
+    promptId: str('prompt.id'),
+    agentId: str('agent_id'),
+    parentAgentId: str('parent_agent_id'),
+    model: str('model'),
+    success: typeof attrs.success === 'boolean' ? attrs.success : null,
+    eventSequence: num('event.sequence'),
+    durationMs: num('duration_ms'),
+    statusCode: num('status_code'),
+    attempt: num('attempt'),
+    inputTokens: num('input_tokens'),
+    outputTokens: num('output_tokens'),
+    cacheReadTokens: num('cache_read_tokens'),
+    cacheCreationTokens: num('cache_creation_tokens'),
+    toolInputSizeBytes: num('tool_input_size_bytes'),
+    toolResultSizeBytes: num('tool_result_size_bytes'),
+    costUsdMicros: num('cost_usd_micros') ?? costUsd,
+    costKind: output.costKind,
+    attributesJson: JSON.stringify(attrs),
+    ...(typeof output.receivedAt === 'string' && !Number.isNaN(Date.parse(output.receivedAt))
+      ? { receivedAt: new Date(output.receivedAt) }
+      : {}),
+  };
+}
+
 export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDeps): OutboxDispatchHandler {
   if (!deps?.db || typeof deps.db !== 'object' || !('kind' in deps.db)) {
     throw new TypeError('createOutboxDispatchHandler: deps.db must be a DbHandle from @coodra/db');
@@ -288,6 +379,15 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
           }
           const outcome = payload.outcome === null || typeof payload.outcome === 'string' ? payload.outcome : null;
           const runId = await resolveRunId(deps.db, resolution);
+          const legacyTelemetry = legacyTelemetryRow(payload, runId);
+          if (legacyTelemetry !== null) {
+            await insertNativeTelemetryEvent(deps.db, legacyTelemetry);
+            log.debug(
+              { event: 'native_telemetry_legacy_job_rerouted', rowId },
+              'legacy telemetry run_event job rerouted',
+            );
+            return SUCCESS;
+          }
           await insertRunEvent(deps.db, {
             id: rowId,
             runId,
@@ -454,7 +554,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
         case 'native_telemetry': {
           const rowId = payload.rowId;
           const projectId = payload.projectId;
-          const runId = payload.runId;
+          const runId = payload.runId === null || typeof payload.runId === 'string' ? payload.runId : undefined;
           const harness = payload.harness;
           const source = payload.source;
           const eventName = payload.eventName;
@@ -467,7 +567,7 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
           if (
             typeof rowId !== 'string' ||
             typeof projectId !== 'string' ||
-            typeof runId !== 'string' ||
+            runId === undefined ||
             typeof harness !== 'string' ||
             typeof source !== 'string' ||
             typeof eventName !== 'string' ||
@@ -512,11 +612,24 @@ export function createOutboxDispatchHandler(deps: CreateOutboxDispatchHandlerDep
             cacheCreationTokens: optionalInteger(payload.cacheCreationTokens),
             toolInputSizeBytes: optionalInteger(payload.toolInputSizeBytes),
             toolResultSizeBytes: optionalInteger(payload.toolResultSizeBytes),
+            hookEvent: optionalString(payload.hookEvent),
+            hookName: optionalString(payload.hookName),
+            hookCount: optionalInteger(payload.hookCount),
+            hookSuccessCount: optionalInteger(payload.hookSuccessCount),
+            hookBlockingCount: optionalInteger(payload.hookBlockingCount),
+            hookErrorCount: optionalInteger(payload.hookErrorCount),
+            hookCancelledCount: optionalInteger(payload.hookCancelledCount),
+            connectionStatus: optionalString(payload.connectionStatus),
+            transportType: optionalString(payload.transportType),
+            serverScope: optionalString(payload.serverScope),
+            pluginIdHash: optionalString(payload.pluginIdHash),
             costUsdMicros: optionalInteger(payload.costUsdMicros),
             costKind,
             attributesJson,
             receivedAt,
           });
+          // The Run may have been created between receipt and dispatch.
+          if (runId === null) await attachNativeTelemetryToRun(deps.db, projectId, sessionId, harness);
           log.debug({ event: 'native_telemetry_dispatched', rowId, eventName }, 'native_telemetry row dispatched');
           return SUCCESS;
         }

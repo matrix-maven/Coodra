@@ -1573,10 +1573,11 @@ export const nativeTelemetryEvents = sqliteTable(
     projectId: text('project_id')
       .notNull()
       .references(() => projects.id),
-    // Cascade: telemetry is meaningless without its Run (unlike run_events, which keeps orphaned rows).
-    runId: text('run_id')
-      .notNull()
-      .references(() => runs.id, { onDelete: 'cascade' }),
+    // Nullable: telemetry is keyed by (project_id, session_id). A Run is attached when one exists
+    // (at receipt, at dispatch, or when the Run is created later); NULL means "unattached" and such
+    // rows expire sooner. SET NULL (not cascade) so a Run delete keeps the evidence; project delete
+    // still clears everything by project_id.
+    runId: text('run_id').references(() => runs.id, { onDelete: 'set null' }),
     /** `claude_code` | `codex` — only claude_code has an adapter today. */
     harness: text('harness').notNull(),
     /** Transport/signal, e.g. `otlp_logs`. */
@@ -1611,6 +1612,20 @@ export const nativeTelemetryEvents = sqliteTable(
     cacheCreationTokens: integer('cache_creation_tokens'),
     toolInputSizeBytes: integer('tool_input_size_bytes'),
     toolResultSizeBytes: integer('tool_result_size_bytes'),
+    /** Hook execution (`claude_code.hook_execution_complete`): which hook event and how it went. */
+    hookEvent: text('hook_event'),
+    hookName: text('hook_name'),
+    hookCount: integer('hook_count'),
+    hookSuccessCount: integer('hook_success_count'),
+    hookBlockingCount: integer('hook_blocking_count'),
+    hookErrorCount: integer('hook_error_count'),
+    hookCancelledCount: integer('hook_cancelled_count'),
+    /** MCP server connection (`claude_code.mcp_server_connection`). The harness does not name the server. */
+    connectionStatus: text('connection_status'),
+    transportType: text('transport_type'),
+    serverScope: text('server_scope'),
+    /** Opaque plugin identity hash supplied by the harness, when the server came from a plugin. */
+    pluginIdHash: text('plugin_id_hash'),
     /** Provider-reported estimate in micro-USD; NULL means unavailable, never zero. */
     costUsdMicros: integer('cost_usd_micros'),
     /** `provider_estimate` | `unavailable` */
@@ -1624,6 +1639,7 @@ export const nativeTelemetryEvents = sqliteTable(
   (t) => [
     index('native_telemetry_events_run_time_idx').on(t.runId, t.sourceTimeMs),
     index('native_telemetry_events_run_tool_idx').on(t.runId, t.toolUseId),
+    index('native_telemetry_events_session_idx').on(t.projectId, t.sessionId),
     index('native_telemetry_events_received_idx').on(t.receivedAt),
   ],
 );
